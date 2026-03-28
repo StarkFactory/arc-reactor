@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T10:20:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T10:40:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1280,3 +1280,45 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 **발견**: Round 30 레드팀에서 PASSED된 Skeleton Key(A2)와 Prefix injection(A5) 대응 완료
 **수정**: `InjectionPatterns.kt` +5 패턴, 테스트 전량 PASS
 **커밋**: Guard 패턴 보강 (Skeleton Key + Prefix Injection)
+
+### Round 32 — 2026-03-28T10:40+09:00
+
+**렌즈**: 기능 5순환 + **D-03: Spring Boot 보안 체크리스트 대조 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| 기능 (login/chat/sessions/models) | 4/4 PASS | chat 1,652ms |
+
+#### D-03: Spring Boot 3.5.12 보안 체크리스트 (23항목)
+
+| 결과 | 건수 | 항목 |
+|------|------|------|
+| **PASS** | 16 | Actuator 격리, 헬스 상세 숨김, CORS opt-in, CSRF(stateless OK), JWT 무상태, 에러 무노출, 보안 헤더 6종, TLS 프록시 설계, Spring Boot CVE 패치, Jackson CVE 패치, 로그 민감 미노출, 브루트포스 방어, JWT 32B 강제, 토큰 폐기, 삭제 계정 거부, 셀프 등록 비활성 |
+| **WARN** | 7 | 아래 상세 |
+| **FAIL** | 0 | — |
+
+**WARN 7건 (우선순위순):**
+
+| # | 항목 | 현황 | 권장 조치 |
+|---|------|------|----------|
+| 1 | `/actuator/health` 프로덕션 공개 | prod 프로필에서 false이나 현재 인스턴스 public | 환경변수 확인 |
+| 2 | Actuator 같은 포트 | 18081에서 API와 동일 노출 | `management.server.port=18090` 분리 |
+| 3 | OpenAPI 스펙 공개 | `/v3/api-docs` 인증 없이 200 (39 엔드포인트 노출) | prod에서 `springdoc.api-docs.enabled=false` |
+| 4 | `Cache-Control` 미설정 | JWT 토큰/채팅 응답 브라우저 캐시 가능 | `Cache-Control: no-store` 추가 |
+| 5 | 요청 크기 제한 prod만 | `max-in-memory-size: 1MB` prod 전용 | base application.yml로 이동 |
+| 6 | `Permissions-Policy` 미설정 | 카메라/마이크/위치 미제한 | 헤더 추가 |
+| 7 | HSTS `preload` 누락 | preload 디렉티브 없음 | `;preload` 추가 |
+
+**CVE 확인:** CVE-2026-22731 (actuator bypass) 테스트 → 미트리거. CVE-2025-41248 (Spring Security) → 미사용 (custom WebFilter). Jackson GHSA-72hv-8253-57qq → 2.21.1 패치 완료.
+
+**레퍼런스:**
+- [Spring Boot Security Best Practices 2026](https://javascript.plainenglish.io/spring-boot-security-enhancements-best-practices-for-2026-5332a4d6adbb)
+- [CVE-2026-22731 Actuator Bypass](https://securityonline.info/spring-boot-authentication-bypass-actuator-flaws-cve-2026-22731/)
+- [Spring Security Advisories](https://spring.io/security/)
+
+**발견**: 16 PASS / 7 WARN / 0 FAIL. CVE 패치 완료, 핵심 보안 강건. WARN은 하드닝 개선
+**수정**: 없음 (WARN 항목은 배포 설정으로 대응)
+**커밋**: 보고서 업데이트
