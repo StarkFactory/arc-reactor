@@ -24,6 +24,7 @@ private val proxyLogger = KotlinLogging.logger {}
 internal object McpAdminProxySupport {
 
     private val objectMapper = jacksonObjectMapper()
+    private val CRLF_REGEX = Regex("[\\r\\n]")
 
     private const val DEFAULT_ADMIN_TIMEOUT_MS = 10_000L
     private const val MIN_ADMIN_TIMEOUT_MS = 100L
@@ -79,7 +80,7 @@ internal object McpAdminProxySupport {
     private fun sanitizeHeaderValue(value: String?): String {
         if (value.isNullOrBlank()) return ""
         return value.trim()
-            .replace(Regex("[\\r\\n]"), "")
+            .replace(CRLF_REGEX, "")
             .take(128)
     }
 
