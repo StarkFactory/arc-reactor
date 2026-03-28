@@ -1731,3 +1731,36 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **발견**: R41에서 발견된 P0 비용 추적 미작동 — 코드 수정 완료
 **수정**: AgentProperties + SpringAiAgentExecutor + application.yml
 **커밋**: 비용 추적 모델 키 수정
+
+### Round 43 — 2026-03-28T14:20+09:00
+
+**렌즈**: 보안 8순환 + **D-15: 멀티에이전트 동시성 스트레스 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Guard | BLOCKED | 정상 |
+| 보안 헤더 | 6/6 | present |
+
+#### D-15: 멀티에이전트 동시성 스트레스
+
+| 테스트 | 동시 수 | 성공 | 실패 | max 지연 | 500/503 |
+|--------|---------|------|------|---------|---------|
+| 25 동시 (maxConcurrent=20 초과) | 25 | 25 | 0 | 3.13s | 0건 |
+| 30 동시 | 30 | 30 | 0 | 3.46s | 0건 |
+| 혼합 15 (chat+stream+tool+guard) | 15 | 12+3guard | 0 | 2.80s | 0건 |
+
+**핵심 발견:**
+1. **Semaphore가 큐잉** — `maxConcurrentRequests=20` 초과 시 429 거부가 아닌 코루틴 suspend로 대기. 30 동시 전량 성공
+2. **포화점 미도달** — 30 concurrent에서도 max 3.46s. 이론적 큐 한계: 600+ 백로그 (30s timeout 기준)
+3. **500/503 에러 0건** — 전체 스트레스 테스트에서 서버 안정성 유지
+4. **혼합 부하 안정** — chat+streaming+tool+guard 동시 실행 시 간섭 없음
+5. **"업무 브리핑" 422** — 특정 페이로드 검증 거부 (동시성 무관, 별도 조사 필요)
+
+**R26 NEEDS_ATTENTION 재평가:** Semaphore 무제한 큐 → 실측 결과 30 concurrent에서도 안정. 이론적 위험이나 300명(피크 30) 환경에서는 충분. 단, 버스트 600+ 시나리오를 위해 bounded queue 추가 여전히 권장.
+
+**발견**: 30 concurrent 전량 성공, 500 에러 0건, Semaphore 큐잉 안정
+**수정**: 없음
+**커밋**: 보고서 업데이트
