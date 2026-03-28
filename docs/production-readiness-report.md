@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:20:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:40:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1527,3 +1527,52 @@ WITH (m = 16, ef_construction = 64);
 **발견**: R36 코루틴 감사에서 발견된 Medium 이슈 수정 완료
 **수정**: `JdbcUserMemoryStore.kt` throwIfCancellation 추가
 **커밋**: CancellationException 수정
+
+### Round 38 — 2026-03-28T12:40+09:00
+
+**렌즈**: 기능 6순환 + **D-08: LLM 응답 품질 벤치마크 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| 기능 (chat/sessions) | PASS | chat 1,618ms |
+
+#### D-08: LLM 응답 품질 벤치마크 — **B등급**
+
+실무 시나리오 10건 평가:
+
+| 시나리오 | 정확도 | 완성도 | 도구 | 출처 | 한국어 | 응답 시간 |
+|----------|--------|--------|------|------|--------|----------|
+| S01 PUT vs PATCH | 5 | 4 | N/A | NO | GOOD | 3.2s |
+| S02 Jira 이슈 조회 | 2 | 2 | CORRECT | NO | OK | 2.3s |
+| S03 Guard 파이프라인 | 1 | 1 | CORRECT | NO | OK | 4.8s |
+| S04 @Transactional | 5 | 5 | N/A | NO | GOOD | 4.4s |
+| S05 업무 브리핑 | 4 | 4 | CORRECT | YES | GOOD | 5.2s |
+| S06 Structured concurrency | 4 | 3 | N/A | NO | GOOD | 3.0s |
+| S07 PR 목록 | 5 | 5 | CORRECT | YES | GOOD | 2.9s |
+| S08 DB 인덱스 기준 | 5 | 5 | N/A | NO | GOOD | 4.7s |
+| S09 Confluence 검색 | 1 | 1 | CORRECT | NO | OK | 3.8s |
+| S10 HashMap vs ConcurrentHashMap | 5 | 5 | N/A | NO | GOOD | 4.9s |
+
+**종합 점수:**
+
+| 지표 | 점수 |
+|------|------|
+| 평균 정확도 | **3.7/5** |
+| 평균 완성도 | **3.5/5** |
+| 도구 라우팅 정확도 | **5/5 (100%)** |
+| 출처 인용율 | **2/10 (20%)** |
+| 한국어 품질 | GOOD 7건, OK 3건 |
+| **종합 등급** | **B** |
+
+**주요 이슈:**
+1. **Confluence auth 실패** (S03, S09) — 2/5 도구 시나리오 실패 → 토큰 갱신 필요
+2. **도구 실패 시 RAG 폴백 없음** (S03) — Guard 파이프라인이 RAG에 있는데 Confluence 우선 호출 후 실패, RAG 미시도
+3. **출처 인용 부족** — 일반 지식 답변에 "검증된 출처 없음" 푸터가 혼란 유발
+4. **Jira 에러 처리 미흡** (S02) — 도구 에러 시 일반적 재시도 안내만 (구체적 에러 미노출)
+
+**발견**: 도구 라우팅 100% 정확하나, Confluence auth + RAG 폴백 부재로 2/10 시나리오 실패
+**수정**: 없음
+**커밋**: 보고서 업데이트
