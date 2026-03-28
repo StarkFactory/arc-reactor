@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T08:00:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T08:20:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2960,3 +2960,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `test:` | 테스트 | SlackToolsProperties 18 tests |
 
 **R77-96 누적: 19 fixes + 627 tests (20 Rounds)**
+
+### Round 97 — 2026-03-29T08:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** 종합 e.message 최종 스캔 — user-facing **4건 추가 발견**, **McpToolCallback 수정**
+**Agent 2:** WriteToolBlockHook **17 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 1790ms, 2129 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | 보안 | McpToolCallback e.message → 한글 |
+| `test:` | 테스트 | WriteToolBlockHook 17 tests |
+
+**e.message 잔여:** StreamingCoordinator(1) + ExperimentOrchestrator(1) + DynamicSchedulerService(2) = 3건 (admin-only 경로)
