@@ -73,7 +73,7 @@ class SlackMessagingService(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to send message to channel=$channelId" }
-            SlackApiResult(ok = false, error = e.message ?: "Unknown error")
+            SlackApiResult(ok = false, error = "Slack API 호출 실패 (${e.javaClass.simpleName})")
         }
     }
 
@@ -87,7 +87,7 @@ class SlackMessagingService(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to add reaction $emoji to channel=$channelId" }
-            SlackApiResult(ok = false, error = e.message ?: "Unknown error")
+            SlackApiResult(ok = false, error = "Slack API 호출 실패 (${e.javaClass.simpleName})")
         }
     }
 
