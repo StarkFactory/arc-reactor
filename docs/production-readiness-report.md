@@ -1618,3 +1618,36 @@ WITH (m = 16, ef_construction = 64);
 **발견**: MCP 보안 7.5/10, 핵심 방어 모두 구현. PARTIAL 3건은 하드닝 개선
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 40 — 2026-03-28T13:20+09:00
+
+**렌즈**: RAG 7순환 + **D-10: 서버 로그 품질 검토 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG | 4 docs | 검색 667ms |
+
+#### D-10: 로그 품질 — **7.5/10, 민감 데이터 LOW**
+
+| # | 검사 | 상태 | 상세 |
+|---|------|------|------|
+| 1 | 로그 파일 위치 | Console-only | dev=콘솔, prod=Logstash JSON+MDC |
+| 2 | 로깅 설정 | GOOD | com.arc.reactor:INFO, Netty DNS WARN |
+| 3 | 민감 데이터 로깅 | LOW RISK | 비밀번호/토큰 0건. email DEBUG에서만 |
+| 4 | 구조적 로깅 | EXCELLENT | 146개 파일 KotlinLogging, println 0건 |
+| 5 | 에러 컨텍스트 | GOOD (gap 3건) | ExperimentOrchestrator ${e.message} 사용 |
+| 6 | 로그 레벨 분포 | ACCEPTABLE | debug:146, info:96, warn:197, error:51 |
+| 7 | 로그 폭주 방지 | NOT IMPL | Guard 차단 시 WARN 무제한 발생 가능 |
+
+**핵심 발견:**
+1. **prod 프로필 로그**: Logstash JSON + MDC(runId, userId, sessionId, traceId) — 운영 관찰성 우수
+2. **민감 데이터**: email이 MDC key로 포함 → 로그 저장소 접근 제어 필요
+3. **ExperimentOrchestrator:116** — `${e.message}` 사용으로 스택트레이스 소실
+4. **Guard 로그 폭주** — 인젝션 공격 시 패턴당 WARN 1건, 무제한 → rate-limited 로깅 권장
+
+**발견**: 로그 품질 양호, 민감 데이터 위험 낮음. 로그 폭주 방지 미구현
+**수정**: 없음
+**커밋**: 보고서 업데이트
