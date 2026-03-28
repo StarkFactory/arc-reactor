@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T01:40:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T02:00:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2714,3 +2714,14 @@ Regex("(몇 개|어떤).{0,10}(도구|tool|기능).{0,10}(사용할 수 있|쓸 
 | `test:` | 테스트 추가 | PaginatedResponseTest(16) + ControllerCompatibilitySupportTest(20) |
 
 **발견+수정**: 미테스트 유틸리티 클래스 2개 → 36 테스트로 커버리지 확보
+
+### Round 78 — 2026-03-29T02:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** SsrfUrlValidator e.message 노출 → 수정 (Gotcha #9)
+**Agent 2:** SlackHandlerSupport + ProactiveChannelStore **26 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 1353ms, Guard 36ms, 2049 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | 보안 | SsrfUrlValidator e.message 한글화 |
+| `test:` | 테스트 | arc-slack 26 테스트 추가 |
