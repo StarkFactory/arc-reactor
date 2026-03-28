@@ -2,6 +2,7 @@ package com.arc.reactor.agent.multiagent
 
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.model.AgentCommand
+import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import mu.KotlinLogging
 
@@ -176,7 +177,10 @@ class DefaultSupervisorAgent(
      * 모든 위임 에이전트가 실패했을 때 실패 결과를 생성한다.
      */
     private fun handleDelegationFailure(): AgentResult =
-        AgentResult.failure(errorMessage = "모든 위임 에이전트가 실패했습니다")
+        AgentResult.failure(
+            errorMessage = "모든 위임 에이전트가 실패했습니다",
+            errorCode = AgentErrorCode.UNKNOWN
+        )
 
     /**
      * 성공한 에이전트 결과를 병합하여 최종 결과를 구성한다.
