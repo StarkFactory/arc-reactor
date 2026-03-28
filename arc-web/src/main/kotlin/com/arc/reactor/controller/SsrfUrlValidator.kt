@@ -46,7 +46,8 @@ object SsrfUrlValidator {
         val address = try {
             InetAddress.getByName(host)
         } catch (e: Exception) {
-            return "Cannot resolve host '$host': ${e.message}"
+            logger.warn(e) { "호스트 DNS 확인 실패: host=$host" }
+            return "호스트를 확인할 수 없습니다"
         }
 
         if (!allowPrivateAddresses && isPrivateOrReserved(address)) {
