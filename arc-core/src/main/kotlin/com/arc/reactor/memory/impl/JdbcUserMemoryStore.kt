@@ -152,6 +152,7 @@ class JdbcUserMemoryStore(
             )
             tableInitialized = true
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "Failed to auto-create $tableName table. Please create it manually." }
         }
     }

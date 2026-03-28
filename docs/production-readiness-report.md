@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:00:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T12:20:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1492,3 +1492,38 @@ WITH (m = 16, ef_construction = 64);
 **발견**: 12시간 성능 안정 + 코루틴 안전성 8.5/10
 **수정**: 없음 (다음 Round에서 CancellationException 위반 수정 예정)
 **커밋**: 보고서 업데이트
+
+### Round 37 — 2026-03-28T12:20+09:00
+
+**렌즈**: 보안 7순환 + **JdbcUserMemoryStore CancellationException 수정**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 (--rerun-tasks) |
+| Health | UP | 200 |
+| Guard 2종 | 2/2 BLOCKED | 정상 |
+| 보안 헤더 | 6/6 | present |
+
+**코드 수정 — CancellationException 삼킴 버그 수정:**
+
+파일: `arc-core/.../memory/impl/JdbcUserMemoryStore.kt:154`
+
+```kotlin
+// Before (CancellationException 삼킴)
+} catch (e: Exception) {
+    logger.warn(e) { "Failed to auto-create..." }
+}
+
+// After (CancellationException 재전파)
+} catch (e: Exception) {
+    e.throwIfCancellation()  // 추가
+    logger.warn(e) { "Failed to auto-create..." }
+}
+```
+
+**영향**: `initTable()` 실행 중 코루틴 취소 시 예외가 삼켜지지 않고 정상 전파됨. 구조적 동시성 보장.
+
+**발견**: R36 코루틴 감사에서 발견된 Medium 이슈 수정 완료
+**수정**: `JdbcUserMemoryStore.kt` throwIfCancellation 추가
+**커밋**: CancellationException 수정
