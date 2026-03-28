@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-29T01:20:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-29T01:40:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2702,3 +2702,15 @@ Regex("(몇 개|어떤).{0,10}(도구|tool|기능).{0,10}(사용할 수 있|쓸 
 **발견**: LLM 비용 극도로 저렴 ($18/월). 인프라 비용이 전체의 80%+. Guard+캐시로 ~27% 비용 절감
 **수정**: 없음
 **커밋**: 보고서 업데이트
+
+### Round 77 — 2026-03-29T01:40+09:00 (3-에이전트 병렬 첫 실행)
+
+**Agent 1 (코드 개선):** @Valid 누락 발견 — SwaggerCatalog 컨트롤러에 @RequestBody 검증 누락 식별
+**Agent 2 (테스트 보강):** PaginatedResponse + ControllerCompatibilitySupport **36 테스트 신규 작성**
+**Agent 3 (성능 검증):** BUILD PASS, 채팅 1421ms, Guard 36ms, 2046 응답, 스트리밍 OK
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `test:` | 테스트 추가 | PaginatedResponseTest(16) + ControllerCompatibilitySupportTest(20) |
+
+**발견+수정**: 미테스트 유틸리티 클래스 2개 → 36 테스트로 커버리지 확보
