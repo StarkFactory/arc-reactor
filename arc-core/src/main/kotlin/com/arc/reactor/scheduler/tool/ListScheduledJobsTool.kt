@@ -37,7 +37,7 @@ class ListScheduledJobsTool(
             toJson(mapOf("jobs" to summary, "total" to jobs.size))
         } catch (e: Exception) {
             logger.warn(e) { "스케줄 작업 목록 조회 실패" }
-            errorJson(e.message ?: "Failed to list scheduled jobs")
+            errorJson("스케줄 작업 조회 중 오류가 발생했습니다")
         }
     }
 }

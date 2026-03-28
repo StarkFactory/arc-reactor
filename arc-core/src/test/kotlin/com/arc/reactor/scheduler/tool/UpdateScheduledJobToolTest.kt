@@ -208,7 +208,7 @@ class UpdateScheduledJobToolTest {
 
             val response = objectMapper.readValue<Map<String, String>>(result)
             assertTrue(response.containsKey("error"), "Should return error")
-            assertTrue(response["error"]!!.contains("cron"),
+            assertTrue(response["error"]!!.contains("스케줄 작업 수정 중 오류가 발생했습니다"),
                 "Error should mention cron: ${response["error"]}")
         }
 

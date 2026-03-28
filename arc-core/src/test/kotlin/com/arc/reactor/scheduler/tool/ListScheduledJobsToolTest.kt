@@ -123,8 +123,8 @@ class ListScheduledJobsToolTest {
             val response = objectMapper.readValue<Map<String, String>>(result)
 
             assertTrue(response.containsKey("error"), "Should return error, not throw")
-            assertTrue(response["error"]!!.contains("Store unavailable"),
-                "Error should contain exception message: ${response["error"]}")
+            assertTrue(response["error"]!!.contains("스케줄 작업 조회 중 오류가 발생했습니다"),
+                "Error should contain Korean error message: ${response["error"]}")
         }
     }
 }

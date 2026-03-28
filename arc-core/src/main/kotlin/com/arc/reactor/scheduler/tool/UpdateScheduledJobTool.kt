@@ -88,7 +88,7 @@ NOTE: Changing agentPrompt alters what the job executes on every future run. Con
             )
         } catch (e: Exception) {
             logger.warn(e) { "스케줄 작업 갱신 실패: ${trimmedId ?: trimmedName}" }
-            errorJson(e.message ?: "Failed to update scheduled job")
+            errorJson("스케줄 작업 수정 중 오류가 발생했습니다")
         }
     }
 }

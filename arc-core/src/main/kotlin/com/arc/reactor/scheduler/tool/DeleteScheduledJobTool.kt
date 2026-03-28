@@ -46,7 +46,7 @@ class DeleteScheduledJobTool(
             toJson(mapOf("status" to "deleted", "id" to job.id, "name" to job.name))
         } catch (e: Exception) {
             logger.warn(e) { "스케줄 작업 삭제 실패: ${trimmedId ?: trimmedName}" }
-            errorJson(e.message ?: "Failed to delete scheduled job")
+            errorJson("스케줄 작업 삭제 중 오류가 발생했습니다")
         }
     }
 }

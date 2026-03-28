@@ -80,7 +80,7 @@ IMPORTANT: AGENT mode schedules invoke the LLM on each execution, which incurs A
             )
         } catch (e: Exception) {
             logger.warn(e) { "스케줄 작업 생성 실패: $trimmedName" }
-            errorJson(e.message ?: "Failed to create scheduled job")
+            errorJson("스케줄 작업 생성 중 오류가 발생했습니다")
         }
     }
 }
