@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:20:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T11:40:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1421,5 +1421,36 @@ WITH (m = 16, ef_construction = 64);
 - [pgvector 0.8.0 performance (AWS)](https://aws.amazon.com/blogs/database/supercharging-vector-search-performance-and-relevance-with-pgvector-0-8-0-on-amazon-aurora-postgresql/)
 
 **발견**: 현재 4 docs에서 인덱스 불필요. 5000 docs 전에 halfvec HNSW 추가 필요
+**수정**: 없음
+**커밋**: 보고서 업데이트
+
+### Round 35 — 2026-03-28T11:40+09:00
+
+**렌즈**: Admin 6순환 + **D-09: 에러 복구력(Resilience) 테스트 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| Dashboard | PASS | 1,765 응답, 133 차단 |
+
+#### D-09: 에러 복구력 테스트 결과 — **13/13 PASS, 500 에러 0건**
+
+| 테스트 | 시나리오 | 결과 |
+|--------|---------|------|
+| T1-MCP 다운 | Swagger disconnect → 채팅 → reconnect | PASS — graceful degradation, 11 tools 복원 |
+| T2-잘못된 도구 호출 | JAR-999999 존재하지 않는 이슈 | PASS — LLM이 도구 에러를 우아하게 처리 |
+| T3-버스트 부하 | 10연속 요청 | PASS — 10/10 HTTP 200, 0 failures |
+| T4-악성 요청 4종 | Content-Type 누락/잘못된 JSON/필드 누락/깊은 중첩 | PASS — 415/400/400/200 (500 없음) |
+| T5-복구 확인 | Health + MCP 상태 | PASS — UP, 2/2 CONNECTED |
+
+**핵심 발견:**
+1. **MCP 서버 다운 → 복구 완전** — disconnect 후에도 채팅 정상 (swagger 없이 다른 경로), reconnect 시 11 tools 100% 복원
+2. **도구 에러 격리** — 존재하지 않는 Jira 이슈 요청 시 에이전트가 도구 에러를 받아 사용자에게 자연어로 응답 (500 아님)
+3. **악성 요청 방어** — 모든 잘못된 요청에 적절한 4xx 반환, 서버 크래시 없음
+4. **복구 후 상태** — 모든 테스트 후 Health UP, MCP 2/2 CONNECTED 유지
+
+**발견**: 복구력 우수 — 13/13 PASS, 500 에러 0건
 **수정**: 없음
 **커밋**: 보고서 업데이트
