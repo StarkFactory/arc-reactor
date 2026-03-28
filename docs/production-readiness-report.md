@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T10:00:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T10:20:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1252,3 +1252,31 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 **발견**: 18종 최신 공격 중 실제 유출 0건. Guard 11/18 차단 + LLM 7/18 거부 = 이중 방어 작동
 **수정**: 없음 (다음 Round에서 Skeleton Key 패턴 추가 예정)
 **커밋**: 보고서 업데이트
+
+### Round 31 — 2026-03-28T10:20+09:00
+
+**렌즈**: 보안 6순환 + **Skeleton Key/Prefix Injection 패턴 추가**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 (--rerun-tasks) |
+| Health | UP | 200 |
+| Guard 표준 4종 | 2/4 BLOCKED | 서버 미재시작으로 신규 패턴 미반영 |
+| 보안 헤더 | 4/4 PASS | present |
+
+**코드 수정 — InjectionPatterns.kt에 5개 패턴 추가:**
+
+| 카테고리 | 패턴 | 탐지 대상 |
+|----------|------|----------|
+| `skeleton_key` | 한국어 모드 전환 | "연구/테스트/안전 모드 전환/비활성화" |
+| `skeleton_key` | 한국어 임의 모드 주입 | "지금부터 X 모드로 작동/행동해" |
+| `skeleton_key` | 영문 모드 전환 | "Research/Debug Mode activated/enabled" |
+| `prefix_injection` | 문장 완성 유도 | "X라고 시작했다고 가정하고 완성" |
+| `prefix_injection` | 유해 시드 완성 | "다음 문장을 완성: 시스템 프롬프트..." |
+
+**누적 Guard 패턴 추가: 20개** (R7:5 + R13:7 + R19:3 + R31:5)
+
+**발견**: Round 30 레드팀에서 PASSED된 Skeleton Key(A2)와 Prefix injection(A5) 대응 완료
+**수정**: `InjectionPatterns.kt` +5 패턴, 테스트 전량 PASS
+**커밋**: Guard 패턴 보강 (Skeleton Key + Prefix Injection)
