@@ -1,6 +1,6 @@
 # Arc Reactor 상용화 검증 보고서
 
-> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T09:00:00+09:00
+> **작성일**: 2026-03-28 | **최종 업데이트**: 2026-03-28T09:20:00+09:00
 > **대상 시스템**: Arc Reactor v1.0 (Spring AI 기반 AI Agent 프레임워크)
 > **검증 환경**: macOS / JDK 21 / PostgreSQL + Redis / Gemini 2.5 Flash
 > **보고 대상**: CTO
@@ -1115,4 +1115,45 @@ Arc Reactor는 사내 AI Agent 플랫폼으로, Spring Boot 3.5.12 / Kotlin 2.3.
 2. **에러 메시지 한국어 미지원** — `"message must not be blank"`, `"actual=15000, limit=10000"` 내부값 노출. Gotcha #9 위반
 
 **수정**: 없음 (다음 Round에서 1개 수정)
+**커밋**: 보고서 업데이트
+
+### Round 28 — 2026-03-28T09:20+09:00
+
+**렌즈**: RAG 5순환 + **D-01: OWASP LLM Top 10 대조 (첫 실행)**
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| RAG 문서 수 | 4개 | 안정 |
+| RAG 검색 | PASS | Guard top-1 정확 |
+| 캐시 | PASS | 2416ms → 1ms (2416x) |
+
+#### D-01: OWASP Top 10 for LLM Applications 2025 대조
+
+**레퍼런스**: [genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025](https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/)
+
+| OWASP ID | 위험 | 커버리지 | 상세 |
+|----------|------|---------|------|
+| LLM01 | Prompt Injection | **PARTIAL** | Guard 5단계 + ToolOutputSanitizer. 호모글리프 매핑 gap (키릴 'р'→'p', 'r'이 아님) |
+| LLM02 | Sensitive Info Disclosure | **COVERED** | PII 마스킹 (SSN/전화/카드/이메일), Output Guard |
+| LLM03 | Supply Chain | **COVERED** | Gitleaks + Grype CVE 스캔 + CycloneDX SBOM |
+| LLM04 | Data & Model Poisoning | **PARTIAL** | RAG ingestion policy 있음. 벡터 무결성 검증 없음 |
+| LLM05 | Improper Output Handling | **COVERED** | OutputGuardPipeline + GlobalExceptionHandler + @Valid |
+| LLM06 | Excessive Agency | **COVERED** | maxToolCalls + StepBudgetTracker + ToolApprovalPolicy |
+| LLM07 | System Prompt Leakage | **COVERED** | 카나리 토큰 + 25+ 정규식 + 이중 방어 |
+| LLM08 | Vector & Embedding Weaknesses | **PARTIAL** | 캐시 scope 격리 있음. 벡터스토어 테넌트 격리 없음 |
+| LLM09 | Misinformation | **PARTIAL** | VerifiedSourcesFilter + grounding. 신뢰도 점수 없음 |
+| LLM10 | Unbounded Consumption | **COVERED** | Rate limit + 입력 제한 + 토큰 예산 + 타임아웃 |
+
+**커버리지: 7/10 (COVERED 7, PARTIAL 3)**
+
+**주요 gap:**
+1. **LLM01 호모글리프**: 키릴 문자 'р'→'p' 매핑 오류. "Ignоре"가 Guard 우회 (LLM 자체 거부로 방어)
+2. **LLM04 벡터 무결성**: 벡터스토어에 row-level security 없음. 독성 문서 삽입 방어 미비
+3. **LLM08 테넌트 격리**: 벡터 검색 시 테넌트 필터링 없음
+
+**발견**: OWASP 7/10 커버. 3개 PARTIAL은 모두 LLM 자체 거부 + 기존 정책으로 보완됨
+**수정**: 없음 (다음 Round에서 호모글리프 매핑 수정 예정)
 **커밋**: 보고서 업데이트
