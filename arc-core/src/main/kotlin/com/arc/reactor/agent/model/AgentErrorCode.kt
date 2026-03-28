@@ -13,7 +13,7 @@ package com.arc.reactor.agent.model
  *         AgentErrorCode.RATE_LIMITED -> "요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
  *         AgentErrorCode.TIMEOUT -> "요청 시간이 초과되었습니다."
  *         AgentErrorCode.CONTEXT_TOO_LONG -> "입력이 너무 깁니다. 내용을 줄여주세요."
- *         AgentErrorCode.TOOL_ERROR -> "도구 실행 중 오류가 발생했습니다: $originalMessage"
+ *         AgentErrorCode.TOOL_ERROR -> "도구 실행 중 오류가 발생했습니다."
  *         AgentErrorCode.UNKNOWN -> "알 수 없는 오류가 발생했습니다."
  *     }
  * }
@@ -78,9 +78,7 @@ fun interface ErrorMessageResolver {
 class DefaultErrorMessageResolver : ErrorMessageResolver {
     override fun resolve(code: AgentErrorCode, originalMessage: String?): String {
         return when (code) {
-            AgentErrorCode.TOOL_ERROR ->
-                if (originalMessage != null) "${code.defaultMessage}: $originalMessage"
-                else code.defaultMessage
+            AgentErrorCode.TOOL_ERROR -> code.defaultMessage
             else -> code.defaultMessage
         }
     }

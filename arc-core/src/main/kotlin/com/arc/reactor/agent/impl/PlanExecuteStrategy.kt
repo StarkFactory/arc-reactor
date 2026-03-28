@@ -241,7 +241,7 @@ internal class PlanExecuteStrategy(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "PLAN_EXECUTE 단계 실패: ${step.tool}" }
-            StepResult(step.description, step.tool, "Error: ${e.message}")
+            StepResult(step.description, step.tool, "Error: 도구 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})")
         }
     }
 

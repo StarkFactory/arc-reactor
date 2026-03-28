@@ -100,6 +100,6 @@ class ArcToolCallbackAdapterTest {
 
         assertTrue(output.startsWith("Error:"), "Exception should return error string, got: $output")
         assertTrue(output.contains("failing_tool"), "Error should mention tool name, got: $output")
-        assertTrue(output.contains("disk full"), "Error should include original message, got: $output")
+        assertTrue(output.contains("IllegalStateException"), "Error should include exception class name, got: $output")
     }
 }

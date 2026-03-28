@@ -58,7 +58,7 @@ internal class ArcToolCallbackAdapter(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             logger.error(e) { "Tool callback execution failed for '${arcCallback.name}'" }
-            "Error: Tool '${arcCallback.name}' execution failed: ${e.message.orEmpty()}"
+            "Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
         }
     }
 }
