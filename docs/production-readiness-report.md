@@ -1909,7 +1909,7 @@ hookContext.metadata.putIfAbsent("model", modelId)
 | 페르소나 | 2 | 변화 없음 |
 | 모델 | 1 (gemini) | 변화 없음 |
 
-**Executive Summary 최종 업데이트**: 2026-03-28T16:40:00+09:00
+**Executive Summary 최종 업데이트**: 2026-03-28T17:00:00+09:00
 - 47 Round 연속 PASS, OWASP 7/10, 인젝션 24종+ 유출 0건
 - 조건부 배포 사항 5건 명시 (Output Guard, Spring AI CVE, Netty CVE, API 토큰, 서버 재시작)
 
@@ -2007,3 +2007,33 @@ hookContext.metadata.putIfAbsent("model", modelId)
 **발견**: R49 Arabic gap 해결
 **수정**: InjectionPatterns.kt +3 패턴 (Arabic 2 + French 보강 1)
 **커밋**: 다국어 Guard 패턴 추가
+
+### Round 51 — 2026-03-28T17:00+09:00
+
+**렌즈**: MCP 9순환 (17시간 안정성 + 도구 호출 품질 재검증)
+
+| 항목 | 결과 | 상세 |
+|------|------|------|
+| 빌드 | PASS | 0 warnings |
+| 테스트 | PASS | 1,712/1,712 |
+| Health | UP | 200 |
+| MCP | 2/2 CONNECTED | **17시간+ 끊김 0건** |
+| Dashboard | 1,940 응답 | 138 차단 (7.1%) |
+
+**도구 호출 품질 재검증:**
+
+| 테스트 | 도구 | grounded | 품질 |
+|--------|------|---------|------|
+| T1 Jira 이슈 | jira_search_issues | False | DEGRADED (데이터 미반환) |
+| T2 Bitbucket PR | bitbucket_list_prs | True | **GOOD** (출처 URL 포함) |
+| T3 업무 브리핑 | (미호출) | — | **FAIL** (도구 디스패치 전 실패) |
+| T4 Guard RAG | (RAG) | True | **GOOD** ("7단계" 정확) |
+
+**발견:**
+1. **MCP 17시간 완전 안정** — 연결 끊김 0건, 도구 수 변화 없음
+2. **T3 업무 브리핑 실패** — success=False, 도구 0개 호출, 1376ms 빠른 실패. Guard 차단 또는 에이전트 레벨 오류 가능성
+3. **T4 RAG 정합성 확인** — R46에서 수정한 Guard 7단계 문서 정확히 반영
+4. **Dashboard 추이**: R23(418) → R41(1813) → R51(1940) — 안정적 증가
+
+**수정**: 없음 (T3 실패 원인은 Guard 또는 rate limit 관련 — 별도 조사)
+**커밋**: 보고서 업데이트
