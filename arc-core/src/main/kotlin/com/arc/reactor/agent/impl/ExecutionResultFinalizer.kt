@@ -97,9 +97,12 @@ internal class ExecutionResultFinalizer(
         }
 
         // ── 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도) ──
+        val boundaryApplied = applyOutputBoundaryRule(
+            guarded, command, hookContext, toolsUsed,
+            startTime, attemptLongerResponse, eventMetadata
+        )
         val bounded = enrichResponseMetadata(
-            applyOutputBoundaryRule(guarded, command, hookContext, toolsUsed, startTime, attemptLongerResponse, eventMetadata),
-            hookContext
+            boundaryApplied, hookContext
         )
         if (isBoundaryRejected(bounded)) {
             return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime, eventMetadata)

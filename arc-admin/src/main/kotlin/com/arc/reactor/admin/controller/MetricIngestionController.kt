@@ -3,6 +3,7 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.MetricRingBuffer
 import com.arc.reactor.admin.model.EvalResultEvent
 import com.arc.reactor.admin.model.McpHealthEvent
+import com.arc.reactor.admin.model.MetricEvent
 import com.arc.reactor.admin.model.ToolCallEvent
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -53,7 +54,10 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/mcp-health")
-    fun ingestMcpHealth(@Valid @RequestBody request: McpHealthRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestMcpHealth(
+        @Valid @RequestBody request: McpHealthRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val event = McpHealthEvent(
             time = Instant.now(),
@@ -65,14 +69,7 @@ class MetricIngestionController(
             errorMessage = request.errorMessage,
             toolCount = request.toolCount
         )
-        val accepted = ringBuffer.publish(event)
-        return if (accepted) {
-            ResponseEntity.accepted().body(mapOf("status" to "accepted"))
-        } else {
-            ResponseEntity.status(503).body(
-                AdminErrorResponse(error = "Metric buffer full, event dropped")
-            )
-        }
+        return publishOrBufferFull(event)
     }
 
     /** 단건 MCP 도구 호출 이벤트를 수집한다. */
@@ -83,7 +80,10 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/tool-call")
-    fun ingestToolCall(@Valid @RequestBody request: ToolCallRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestToolCall(
+        @Valid @RequestBody request: ToolCallRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val event = ToolCallEvent(
             time = Instant.now(),
@@ -98,14 +98,7 @@ class MetricIngestionController(
             errorClass = request.errorClass,
             errorMessage = request.errorMessage
         )
-        val accepted = ringBuffer.publish(event)
-        return if (accepted) {
-            ResponseEntity.accepted().body(mapOf("status" to "accepted"))
-        } else {
-            ResponseEntity.status(503).body(
-                AdminErrorResponse(error = "Metric buffer full, event dropped")
-            )
-        }
+        return publishOrBufferFull(event)
     }
 
     /** 단건 평가 결과 이벤트를 수집한다. */
@@ -116,31 +109,12 @@ class MetricIngestionController(
         ApiResponse(responseCode = "503", description = "Metric buffer full")
     ])
     @PostMapping("/eval-result")
-    fun ingestEvalResult(@Valid @RequestBody request: EvalResultRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestEvalResult(
+        @Valid @RequestBody request: EvalResultRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val event = EvalResultEvent(
-            time = Instant.now(),
-            tenantId = request.tenantId,
-            evalRunId = request.evalRunId,
-            testCaseId = request.testCaseId,
-            pass = request.pass,
-            score = request.score,
-            latencyMs = request.latencyMs,
-            tokenUsage = request.tokenUsage,
-            cost = request.cost ?: BigDecimal.ZERO,
-            assertionType = request.assertionType,
-            failureClass = request.failureClass,
-            failureDetail = request.failureDetail?.take(500),
-            tags = request.tags ?: emptyList()
-        )
-        val accepted = ringBuffer.publish(event)
-        return if (accepted) {
-            ResponseEntity.accepted().body(mapOf("status" to "accepted"))
-        } else {
-            ResponseEntity.status(503).body(
-                AdminErrorResponse(error = "Metric buffer full, event dropped")
-            )
-        }
+        return publishOrBufferFull(request.toEvalResultEvent())
     }
 
     /** 단일 eval run의 평가 결과를 일괄 수집한다. 최대 [MAX_BATCH_SIZE]건. */
@@ -151,11 +125,16 @@ class MetricIngestionController(
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/eval-results")
-    fun ingestEvalResults(@Valid @RequestBody request: EvalRunResultsRequest, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestEvalResults(
+        @Valid @RequestBody request: EvalRunResultsRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         if (request.results.size > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(
-                AdminErrorResponse(error = "Batch size exceeds limit of $MAX_BATCH_SIZE")
+                AdminErrorResponse(
+                    error = "Batch size exceeds limit of $MAX_BATCH_SIZE"
+                )
             )
         }
         if (request.results.isEmpty()) {
@@ -165,27 +144,39 @@ class MetricIngestionController(
         }
         var accepted = 0
         var dropped = 0
-        for (result in request.results) {
-            val event = EvalResultEvent(
-                time = Instant.now(),
+        for (tc in request.results) {
+            val event = tc.toEvalResultEvent(
                 tenantId = request.tenantId,
-                evalRunId = request.evalRunId,
-                testCaseId = result.testCaseId,
-                pass = result.pass,
-                score = result.score,
-                latencyMs = result.latencyMs,
-                tokenUsage = result.tokenUsage,
-                cost = result.cost ?: BigDecimal.ZERO,
-                assertionType = result.assertionType,
-                failureClass = result.failureClass,
-                failureDetail = result.failureDetail?.take(500),
-                tags = result.tags ?: emptyList()
+                evalRunId = request.evalRunId
             )
             if (ringBuffer.publish(event)) accepted++ else dropped++
         }
         return ResponseEntity.ok(
-            mapOf("evalRunId" to request.evalRunId, "accepted" to accepted, "dropped" to dropped)
+            mapOf(
+                "evalRunId" to request.evalRunId,
+                "accepted" to accepted,
+                "dropped" to dropped
+            )
         )
+    }
+
+    /**
+     * 이벤트를 버퍼에 발행하고 결과에 따라 202 또는 503 응답을 반환한다.
+     *
+     * 단건 수집 엔드포인트([ingestMcpHealth], [ingestToolCall], [ingestEvalResult])에서
+     * 동일한 publish → accepted/dropped 분기를 공유한다.
+     */
+    private fun publishOrBufferFull(event: MetricEvent): ResponseEntity<Any> {
+        return if (ringBuffer.publish(event)) {
+            ResponseEntity.accepted()
+                .body(mapOf("status" to "accepted"))
+        } else {
+            ResponseEntity.status(503).body(
+                AdminErrorResponse(
+                    error = "Metric buffer full, event dropped"
+                )
+            )
+        }
     }
 
     /** 다수의 MCP 상태 이벤트를 일괄 수집한다. 최대 [MAX_BATCH_SIZE]건. */
@@ -196,7 +187,10 @@ class MetricIngestionController(
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/batch")
-    fun ingestBatch(@Valid @RequestBody requests: List<McpHealthRequest>, exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun ingestBatch(
+        @Valid @RequestBody requests: List<McpHealthRequest>,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         if (requests.size > MAX_BATCH_SIZE) {
             return ResponseEntity.badRequest().body(
@@ -263,7 +257,24 @@ data class EvalResultRequest(
     val failureClass: String? = null,
     val failureDetail: String? = null,
     val tags: List<String>? = null
-)
+) {
+    /** 이 요청 DTO를 [EvalResultEvent] 도메인 이벤트로 변환한다. */
+    fun toEvalResultEvent(): EvalResultEvent = EvalResultEvent(
+        time = Instant.now(),
+        tenantId = tenantId,
+        evalRunId = evalRunId,
+        testCaseId = testCaseId,
+        pass = pass,
+        score = score,
+        latencyMs = latencyMs,
+        tokenUsage = tokenUsage,
+        cost = cost ?: BigDecimal.ZERO,
+        assertionType = assertionType,
+        failureClass = failureClass,
+        failureDetail = failureDetail?.take(500),
+        tags = tags ?: emptyList()
+    )
+}
 
 /** Eval run 단위 일괄 평가 결과 수집 요청 DTO. */
 data class EvalRunResultsRequest(
@@ -284,4 +295,24 @@ data class EvalTestCaseResult(
     val failureClass: String? = null,
     val failureDetail: String? = null,
     val tags: List<String>? = null
-)
+) {
+    /** 이 테스트 케이스 결과를 [EvalResultEvent]로 변환한다. */
+    fun toEvalResultEvent(
+        tenantId: String,
+        evalRunId: String
+    ): EvalResultEvent = EvalResultEvent(
+        time = Instant.now(),
+        tenantId = tenantId,
+        evalRunId = evalRunId,
+        testCaseId = testCaseId,
+        pass = pass,
+        score = score,
+        latencyMs = latencyMs,
+        tokenUsage = tokenUsage,
+        cost = cost ?: BigDecimal.ZERO,
+        assertionType = assertionType,
+        failureClass = failureClass,
+        failureDetail = failureDetail?.take(500),
+        tags = tags ?: emptyList()
+    )
+}
