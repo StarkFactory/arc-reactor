@@ -617,7 +617,8 @@ class SpringAiAgentExecutor(
                     conversationHistory = conversationHistory,
                     hookContext = hookContext,
                     toolsUsed = toolsUsed,
-                    maxToolCalls = maxToolCalls
+                    maxToolCalls = maxToolCalls,
+                    budgetTracker = createBudgetTracker()
                 )
             } else {
                 manualReActLoopExecutor.execute(

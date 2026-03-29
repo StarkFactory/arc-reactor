@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.BudgetStatus
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
@@ -61,6 +63,7 @@ internal class PlanExecuteStrategy(
      * @param hookContext Hook 컨텍스트
      * @param toolsUsed 사용된 도구 이름 누적 리스트
      * @param maxToolCalls 최대 도구 호출 횟수
+     * @param budgetTracker 토큰 예산 추적기 (null이면 예산 추적 비활성)
      * @return 에이전트 실행 결과
      */
     suspend fun execute(
@@ -71,7 +74,8 @@ internal class PlanExecuteStrategy(
         conversationHistory: List<org.springframework.ai.chat.messages.Message>,
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
-        maxToolCalls: Int
+        maxToolCalls: Int,
+        budgetTracker: StepBudgetTracker? = null
     ): AgentResult {
         val toolDescriptions = describeTools(tools)
         val plan = generatePlan(
@@ -93,7 +97,7 @@ internal class PlanExecuteStrategy(
         }
 
         val results = executeSteps(
-            plan, tools, hookContext, toolsUsed, maxToolCalls
+            plan, tools, hookContext, toolsUsed, maxToolCalls, budgetTracker
         )
         return synthesize(command, activeChatClient, systemPrompt, results)
     }
@@ -195,13 +199,17 @@ internal class PlanExecuteStrategy(
         return null
     }
 
-    /** 계획의 각 단계를 순차적으로 실행한다. maxToolCalls를 초과하면 조기 종료한다. */
+    /**
+     * 계획의 각 단계를 순차적으로 실행한다.
+     * maxToolCalls 초과 또는 토큰 예산 소진 시 조기 종료한다.
+     */
     private suspend fun executeSteps(
         plan: List<PlanStep>,
         tools: List<Any>,
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
-        maxToolCalls: Int
+        maxToolCalls: Int,
+        budgetTracker: StepBudgetTracker?
     ): List<StepResult> {
         val results = mutableListOf<StepResult>()
         var totalCalls = 0
@@ -217,8 +225,46 @@ internal class PlanExecuteStrategy(
             )
             results.add(result)
             totalCalls++
+
+            // 각 단계의 LLM 호출은 이미 StepBudgetTracker에 기록됨
+            // (ToolCallOrchestrator -> ChatClient가 hookContext.metadata["tokensUsed"]에 누적)
+            if (budgetTracker != null) {
+                val status = checkBudgetFromHookContext(
+                    budgetTracker, hookContext, step.tool
+                )
+                if (status == BudgetStatus.EXHAUSTED) {
+                    logger.warn {
+                        "PLAN_EXECUTE: 토큰 예산 소진, 남은 단계 건너뜀" +
+                            " (${results.size}/${plan.size} 완료)"
+                    }
+                    break
+                }
+            }
         }
         return results
+    }
+
+    /**
+     * HookContext 메타데이터에서 누적 토큰 사용량을 읽어 예산을 추적한다.
+     * 토큰 정보가 없으면 [BudgetStatus.OK]를 반환한다.
+     */
+    private fun checkBudgetFromHookContext(
+        tracker: StepBudgetTracker,
+        hookContext: HookContext,
+        stepName: String
+    ): BudgetStatus {
+        // hookContext.metadata["tokensUsed"]는 ToolCallOrchestrator가 갱신
+        val tokensUsed = hookContext.metadata["tokensUsed"]
+        if (tokensUsed is Int && tokensUsed > tracker.totalConsumed()) {
+            val delta = tokensUsed - tracker.totalConsumed()
+            return tracker.trackStep(
+                step = "plan-step-$stepName",
+                inputTokens = delta,
+                outputTokens = 0
+            )
+        }
+        return if (tracker.isExhausted()) BudgetStatus.EXHAUSTED
+            else BudgetStatus.OK
     }
 
     /** 단일 계획 단계를 실행한다. */

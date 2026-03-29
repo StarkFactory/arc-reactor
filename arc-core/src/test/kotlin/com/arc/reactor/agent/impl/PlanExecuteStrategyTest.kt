@@ -4,6 +4,7 @@ import com.arc.reactor.agent.AgentTestFixture
 import com.arc.reactor.agent.assertErrorCode
 import com.arc.reactor.agent.assertFailure
 import com.arc.reactor.agent.assertSuccess
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
@@ -367,6 +368,73 @@ class PlanExecuteStrategyTest {
         assertEquals(
             "두 도구 모두 성공", result.content,
             "모든 도구가 유효하면 합성 응답이 반환되어야 한다"
+        )
+    }
+
+    @Test
+    fun `토큰 예산 소진 시 남은 단계를 건너뛰고 부분 결과로 합성해야 한다`() = runTest {
+        val planJson = """
+            [
+              {"tool":"tool_a","args":{},"description":"1단계"},
+              {"tool":"tool_b","args":{},"description":"2단계"},
+              {"tool":"tool_c","args":{},"description":"3단계"}
+            ]
+        """.trimIndent()
+        val planResponse = simpleChatResponse(planJson)
+        val synthesisResponse = simpleChatResponse("1단계만 실행된 결과")
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, synthesisResponse)
+
+        // 토큰 예산을 1로 설정하여 첫 단계 실행 후 소진되도록 함
+        val budgetTracker = StepBudgetTracker(maxTokens = 1, softLimitPercent = 50)
+        // 사전에 예산을 소진시킴
+        budgetTracker.trackStep("pre-exhaust", inputTokens = 1, outputTokens = 0)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = any(),
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "결과", success = true)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "예산 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+        val tools = listOf(
+            createMockSpringTool("tool_a"),
+            createMockSpringTool("tool_b"),
+            createMockSpringTool("tool_c")
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = tools,
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10,
+            budgetTracker = budgetTracker
+        )
+
+        // 예산이 이미 소진되었으므로 첫 단계 실행 후 나머지를 건너뛰고 합성
+        result.assertSuccess("예산 소진 시에도 부분 결과 합성은 성공이어야 한다")
+        assertTrue(
+            budgetTracker.isExhausted(),
+            "예산 추적기가 소진 상태여야 한다"
         )
     }
 
