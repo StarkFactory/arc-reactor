@@ -3881,3 +3881,17 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **Guard:** false-positive 검증 OK + 인젝션 차단 OK
 
 **R77-149 (73 Round): 60 fixes + 2,215 tests**
+
+### Round 150 — 2026-03-30T09:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **arc-core 영문 로그 최종 60건→한글 (30파일)** — guard 15건, autoconfigure 11건, promptlab 14건, memory 6건, agent 14건. arc-core 전체 영문 로그 한글화 사실상 완료
+**Agent 2:** JdbcScheduledJobStoreTest 20개 — CRUD(8), 실행결과(4), 태그직렬화(4), Truncation(2), null(4). 전체 테스트 6,981개 확인
+**Agent 3:** BUILD/TEST/Hardening/Safety PASS, Guard OK, RAG 캐시 0ms, 단순 채팅 avg 1.5s
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **최종 한글화+JDBC 테스트** | 30파일 60건 한글화, 20 테스트 |
+
+**arc-core 영문 로그 한글화 최종 현황:** 전체 패키지 완료 — agent ✓ guard ✓ cache ✓ auth ✓ scheduler ✓ hook ✓ streaming ✓ rag ✓ tool ✓ mcp ✓ memory ✓ promptlab ✓ autoconfigure ✓ resilience ✓ approval ✓ response ✓
+
+**R77-150 (74 Round): 61 fixes + 2,235 tests**
