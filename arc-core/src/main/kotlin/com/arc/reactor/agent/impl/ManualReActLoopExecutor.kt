@@ -393,17 +393,9 @@ internal class ManualReActLoopExecutor(
         tracker: StepBudgetTracker?,
         llmCallIndex: Int,
         hookContext: HookContext
-    ): Boolean {
-        tracker ?: return false
-        val usage = chatResponse?.metadata?.usage ?: return false
-        val status = tracker.trackStep(
-            step = "llm-call-$llmCallIndex",
-            inputTokens = usage.promptTokens.toInt(),
-            outputTokens = usage.completionTokens.toInt()
-        )
-        writeBudgetMetadata(hookContext, tracker, status)
-        return status == BudgetStatus.EXHAUSTED
-    }
+    ): Boolean = ReActLoopUtils.trackBudgetAndCheckExhausted(
+        chatResponse?.metadata, tracker, "llm-call-$llmCallIndex", hookContext
+    )
 
     /** 예산 소진 시 반환할 AgentResult를 생성한다. */
     private fun buildBudgetExhaustedResult(
@@ -423,16 +415,6 @@ internal class ManualReActLoopExecutor(
                 "budgetStatus" to BudgetStatus.EXHAUSTED.name
             )
         )
-    }
-
-    /** 예산 상태를 HookContext 메타데이터에 기록한다. */
-    private fun writeBudgetMetadata(
-        hookContext: HookContext,
-        tracker: StepBudgetTracker,
-        status: BudgetStatus
-    ) {
-        hookContext.metadata["tokensUsed"] = tracker.totalConsumed()
-        hookContext.metadata["budgetStatus"] = status.name
     }
 
     // ── private 메서드: LLM 호출 ──
@@ -463,23 +445,9 @@ internal class ManualReActLoopExecutor(
     private fun emitTokenUsageMetric(
         chatResponse: ChatResponse?,
         hookContext: HookContext
-    ) {
-        val meta = chatResponse?.metadata ?: return
-        val usage = meta.usage ?: return
-        val tokenMetadata = buildMap<String, Any>(3) {
-            put("runId", hookContext.runId)
-            meta.model?.let { put("model", it) }
-            hookContext.metadata["tenantId"]?.let { put("tenantId", it) }
-        }
-        recordTokenUsage(
-            TokenUsage(
-                promptTokens = usage.promptTokens.toInt(),
-                completionTokens = usage.completionTokens.toInt(),
-                totalTokens = usage.totalTokens.toInt()
-            ),
-            tokenMetadata
-        )
-    }
+    ) = ReActLoopUtils.emitTokenUsageMetric(
+        chatResponse?.metadata, hookContext, recordTokenUsage
+    )
 
     // ── private 메서드: 도구 실행 ──
 
@@ -552,30 +520,18 @@ internal class ManualReActLoopExecutor(
         activeTools: List<Any>,
         messages: MutableList<Message>,
         textRetryCount: Int
-    ): Boolean {
-        if (!hadToolError || pendingToolCalls.isNotEmpty()
-            || activeTools.isEmpty()
-        ) {
-            return false
-        }
-        return ReActLoopUtils.injectForceRetryHintIfNeeded(
-            messages, textRetryCount
-        )
-    }
+    ): Boolean = ReActLoopUtils.shouldRetryAfterToolError(
+        hadToolError, pendingToolCalls, activeTools, messages, textRetryCount
+    )
 
     /** 루프 종료 시 LLM/Tool 소요 시간을 HookContext에 기록한다. */
     private fun recordLoopDurations(
         hookContext: HookContext,
         totalLlmDurationMs: Long,
         totalToolDurationMs: Long
-    ) {
-        hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
-        hookContext.metadata["toolDurationMs"] = totalToolDurationMs
-        recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
-        recordStageTiming(
-            hookContext, "tool_execution", totalToolDurationMs
-        )
-    }
+    ) = ReActLoopUtils.recordLoopDurations(
+        hookContext, totalLlmDurationMs, totalToolDurationMs
+    )
 
     /** 여러 LLM 호출의 Token 사용량을 누적합니다. */
     private fun accumulateTokenUsage(

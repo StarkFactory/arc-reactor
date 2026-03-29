@@ -1,6 +1,5 @@
 package com.arc.reactor.agent.impl
 
-import com.arc.reactor.agent.budget.BudgetStatus
 import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.config.RetryProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
@@ -246,20 +245,13 @@ internal class StreamingReActLoopExecutor(
         hookContext: HookContext,
         emit: suspend (String) -> Unit
     ): Boolean {
-        tracker ?: return false
-        val usage = meta?.usage ?: return false
-        val status = tracker.trackStep(
-            step = "streaming-llm",
-            inputTokens = usage.promptTokens.toInt(),
-            outputTokens = usage.completionTokens.toInt()
+        val exhausted = ReActLoopUtils.trackBudgetAndCheckExhausted(
+            meta, tracker, "streaming-llm", hookContext
         )
-        hookContext.metadata["tokensUsed"] = tracker.totalConsumed()
-        hookContext.metadata["budgetStatus"] = status.name
-        if (status == BudgetStatus.EXHAUSTED) {
+        if (exhausted) {
             emit(StreamEventMarker.error(BUDGET_EXHAUSTED_MESSAGE))
-            return true
         }
-        return false
+        return exhausted
     }
 
     // ── private 메서드: 도구 이벤트 SSE 전송 ──
@@ -362,27 +354,13 @@ internal class StreamingReActLoopExecutor(
 
     // ── private 메서드: 토큰 사용량 기록 ──
 
-    /** LLM 응답 메타데이터에서 토큰 사용량을 메트릭 콜백으로 전달한다. 식별자만 포함하는 최소 메타데이터를 사용한다. */
+    /** LLM 응답 메타데이터에서 토큰 사용량을 메트릭 콜백으로 전달한다. */
     private fun emitTokenUsageMetric(
         meta: ChatResponseMetadata?,
         hookContext: HookContext
-    ) {
-        if (meta == null) return
-        val usage = meta.usage ?: return
-        val tokenMetadata = buildMap<String, Any>(3) {
-            put("runId", hookContext.runId)
-            meta.model?.let { put("model", it) }
-            hookContext.metadata["tenantId"]?.let { put("tenantId", it) }
-        }
-        recordTokenUsage(
-            TokenUsage(
-                promptTokens = usage.promptTokens.toInt(),
-                completionTokens = usage.completionTokens.toInt(),
-                totalTokens = usage.totalTokens.toInt()
-            ),
-            tokenMetadata
-        )
-    }
+    ) = ReActLoopUtils.emitTokenUsageMetric(
+        meta, hookContext, recordTokenUsage
+    )
 
     // ── private 메서드: 루프 종료 조건 ──
 
@@ -396,12 +374,9 @@ internal class StreamingReActLoopExecutor(
         activeTools: List<Any>,
         messages: MutableList<Message>,
         textRetryCount: Int
-    ): Boolean {
-        if (!hadToolError || pendingToolCalls.isNotEmpty() || activeTools.isEmpty()) {
-            return false
-        }
-        return ReActLoopUtils.injectForceRetryHintIfNeeded(messages, textRetryCount)
-    }
+    ): Boolean = ReActLoopUtils.shouldRetryAfterToolError(
+        hadToolError, pendingToolCalls, activeTools, messages, textRetryCount
+    )
 
     /**
      * 루프 종료 시 LLM/Tool 소요 시간을 HookContext와 AgentMetrics에 기록한다.
@@ -411,18 +386,10 @@ internal class StreamingReActLoopExecutor(
         totalLlmDurationMs: Long,
         totalToolDurationMs: Long,
         command: AgentCommand
-    ) {
-        hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
-        hookContext.metadata["toolDurationMs"] = totalToolDurationMs
-        recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
-        recordStageTiming(hookContext, "tool_execution", totalToolDurationMs)
-        agentMetrics.recordStageLatency(
-            "llm_calls", totalLlmDurationMs, command.metadata
-        )
-        agentMetrics.recordStageLatency(
-            "tool_execution", totalToolDurationMs, command.metadata
-        )
-    }
+    ) = ReActLoopUtils.recordLoopDurations(
+        hookContext, totalLlmDurationMs, totalToolDurationMs,
+        agentMetrics, command.metadata
+    )
 
     companion object {
         internal const val BUDGET_EXHAUSTED_MESSAGE =

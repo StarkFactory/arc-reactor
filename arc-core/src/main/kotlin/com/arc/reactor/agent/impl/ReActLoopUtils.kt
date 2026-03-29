@@ -1,10 +1,17 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.budget.BudgetStatus
+import com.arc.reactor.agent.budget.StepBudgetTracker
+import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.model.TokenUsage
+import com.arc.reactor.hook.model.HookContext
 import mu.KotlinLogging
+import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.prompt.ChatOptions
 import org.springframework.ai.google.genai.GoogleGenAiChatOptions
 
@@ -117,5 +124,115 @@ internal object ReActLoopUtils {
             (it is UserMessage && it.text == TOOL_ERROR_RETRY_HINT) ||
                 (it is SystemMessage && it.text == TOOL_ERROR_FORCE_RETRY_HINT)
         }
+    }
+
+    // ── 공통 메서드: Manual / Streaming ReAct 루프 양쪽에서 호출 ──
+
+    /**
+     * 도구 에러 직후 텍스트 응답(tool_call 없음)이면 강화 힌트를 주입하고
+     * 루프 재시도 여부를 반환한다.
+     */
+    fun shouldRetryAfterToolError(
+        hadToolError: Boolean,
+        pendingToolCalls: List<AssistantMessage.ToolCall>,
+        activeTools: List<Any>,
+        messages: MutableList<Message>,
+        textRetryCount: Int
+    ): Boolean {
+        if (!hadToolError || pendingToolCalls.isNotEmpty()
+            || activeTools.isEmpty()
+        ) {
+            return false
+        }
+        return injectForceRetryHintIfNeeded(messages, textRetryCount)
+    }
+
+    /**
+     * LLM 응답 메타데이터에서 토큰 사용량을 메트릭 콜백으로 전달한다.
+     *
+     * @param meta LLM 응답 메타데이터 (null이면 무시)
+     * @param hookContext 실행 컨텍스트 (runId, tenantId 등 식별자 추출용)
+     * @param recordTokenUsage 토큰 사용량을 기록하는 콜백
+     */
+    fun emitTokenUsageMetric(
+        meta: ChatResponseMetadata?,
+        hookContext: HookContext,
+        recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit
+    ) {
+        if (meta == null) return
+        val usage = meta.usage ?: return
+        val tokenMetadata = buildMap<String, Any>(3) {
+            put("runId", hookContext.runId)
+            meta.model?.let { put("model", it) }
+            hookContext.metadata["tenantId"]?.let { put("tenantId", it) }
+        }
+        recordTokenUsage(
+            TokenUsage(
+                promptTokens = usage.promptTokens.toInt(),
+                completionTokens = usage.completionTokens.toInt(),
+                totalTokens = usage.totalTokens.toInt()
+            ),
+            tokenMetadata
+        )
+    }
+
+    /**
+     * 루프 종료 시 LLM/Tool 소요 시간을 HookContext에 기록한다.
+     * 스트리밍 모드에서는 [agentMetrics]를 통해 추가 메트릭도 기록한다.
+     *
+     * @param hookContext 타이밍을 저장할 훅 컨텍스트
+     * @param totalLlmDurationMs LLM 호출 총 소요 시간(밀리초)
+     * @param totalToolDurationMs 도구 실행 총 소요 시간(밀리초)
+     * @param agentMetrics 추가 메트릭 기록기 (null이면 생략)
+     * @param metricsMetadata agentMetrics에 전달할 메타데이터 (null이면 생략)
+     */
+    fun recordLoopDurations(
+        hookContext: HookContext,
+        totalLlmDurationMs: Long,
+        totalToolDurationMs: Long,
+        agentMetrics: AgentMetrics? = null,
+        metricsMetadata: Map<String, Any>? = null
+    ) {
+        hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
+        hookContext.metadata["toolDurationMs"] = totalToolDurationMs
+        recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
+        recordStageTiming(
+            hookContext, "tool_execution", totalToolDurationMs
+        )
+        if (agentMetrics != null && metricsMetadata != null) {
+            agentMetrics.recordStageLatency(
+                "llm_calls", totalLlmDurationMs, metricsMetadata
+            )
+            agentMetrics.recordStageLatency(
+                "tool_execution", totalToolDurationMs, metricsMetadata
+            )
+        }
+    }
+
+    /**
+     * LLM 호출 후 토큰 예산을 추적하고 EXHAUSTED 여부를 반환한다.
+     * tracker가 null이면 항상 false를 반환한다.
+     *
+     * @param meta LLM 응답 메타데이터 (null이면 false)
+     * @param tracker 토큰 예산 추적기 (null이면 false)
+     * @param stepName 예산 추적에 사용할 단계 이름
+     * @param hookContext 예산 상태를 기록할 훅 컨텍스트
+     */
+    fun trackBudgetAndCheckExhausted(
+        meta: ChatResponseMetadata?,
+        tracker: StepBudgetTracker?,
+        stepName: String,
+        hookContext: HookContext
+    ): Boolean {
+        tracker ?: return false
+        val usage = meta?.usage ?: return false
+        val status = tracker.trackStep(
+            step = stepName,
+            inputTokens = usage.promptTokens.toInt(),
+            outputTokens = usage.completionTokens.toInt()
+        )
+        hookContext.metadata["tokensUsed"] = tracker.totalConsumed()
+        hookContext.metadata["budgetStatus"] = status.name
+        return status == BudgetStatus.EXHAUSTED
     }
 }
