@@ -251,8 +251,8 @@ internal class AgentExecutionCoordinator(
         val history = conversationManager.loadHistory(command)
         hookContext.metadata[HookMetadataKeys.HISTORY_MESSAGE_COUNT] = history.size
         logger.debug {
-            "Loaded ${history.size} history messages " +
-                "for session=${command.metadata["sessionId"]}"
+            "대화 히스토리 ${history.size}건 로드 완료: " +
+                "session=${command.metadata["sessionId"]}"
         }
         return history
     }
@@ -263,7 +263,7 @@ internal class AgentExecutionCoordinator(
         hookContext: HookContext
     ): String? {
         if (!RagRelevanceClassifier.isRagRequired(command)) {
-            logger.debug { "RAG retrieval skipped: not a knowledge query" }
+            logger.debug { "RAG 검색 생략: 지식 질의가 아님" }
             return null
         }
         val ragResult = retrieveRagContext(command)
@@ -279,8 +279,7 @@ internal class AgentExecutionCoordinator(
             selectAndPrepareTools(command.userPrompt)
         }
         logger.debug {
-            "Selected ${tools.size} tools for execution " +
-                "(mode=${command.mode})"
+            "도구 ${tools.size}개 선택 완료 (mode=${command.mode})"
         }
         return tools
     }
@@ -352,7 +351,7 @@ internal class AgentExecutionCoordinator(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to cache response" }
+            logger.warn(e) { "응답 캐시 저장 실패" }
         }
     }
 
@@ -374,7 +373,7 @@ internal class AgentExecutionCoordinator(
             if (hit != null) return cacheHitResult(key, hit, startTime, toolNames)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Cache lookup failed, proceeding without cache" }
+            logger.warn(e) { "캐시 조회 실패, 캐시 없이 계속 진행" }
         }
         agentMetrics.recordCacheMiss(key)
         cacheMetricsRecorder?.recordMiss()
@@ -404,7 +403,7 @@ internal class AgentExecutionCoordinator(
 
     /** 정확 캐시 적중 시 메트릭을 기록하고 캐시 응답을 반환합니다. */
     private fun handleCacheHit(key: String, cached: CachedResponse, label: String): CachedResponse {
-        logger.debug { "$label cache hit for request" }
+        logger.debug { "$label 캐시 히트" }
         agentMetrics.recordExactCacheHit(key)
         cacheMetricsRecorder?.recordExactHit()
         return cached
@@ -412,7 +411,7 @@ internal class AgentExecutionCoordinator(
 
     /** 시맨틱 캐시 적중 시 메트릭을 기록하고 캐시 응답을 반환합니다. */
     private fun handleSemanticCacheHit(key: String, cached: CachedResponse): CachedResponse {
-        logger.debug { "Semantic cache hit for request" }
+        logger.debug { "시맨틱 캐시 히트" }
         agentMetrics.recordSemanticCacheHit(key)
         cacheMetricsRecorder?.recordSemanticHit(semanticSimilarityThreshold)
         return cached
@@ -445,13 +444,13 @@ internal class AgentExecutionCoordinator(
             val error = Exception(originalResult.errorMessage ?: "Agent execution failed")
             val fallbackResult = fallbackStrategy?.execute(command, error)
             if (fallbackResult != null) {
-                logger.info { "Fallback succeeded, using fallback response" }
+                logger.info { "폴백 성공, 폴백 응답 사용" }
                 fallbackResult
             } else {
                 originalResult
             }
         }.getOrElse { e ->
-            logger.warn(e) { "Fallback strategy failed, using original error" }
+            logger.warn(e) { "폴백 전략 실패, 원본 에러 사용" }
             originalResult
         }
     }

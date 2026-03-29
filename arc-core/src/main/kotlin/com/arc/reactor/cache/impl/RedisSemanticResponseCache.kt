@@ -61,7 +61,7 @@ class RedisSemanticResponseCache(
      */
     override suspend fun put(key: String, response: CachedResponse) = withContext(Dispatchers.IO) {
         if (response.content.isBlank()) {
-            logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }
+            logger.debug { "빈 응답 캐시 저장 생략: key=${key.take(16)}..." }
             return@withContext
         }
         val record = StoredEntry(
@@ -114,7 +114,7 @@ class RedisSemanticResponseCache(
 
             val bestEntry = best?.first ?: return@withContext null
             logger.debug {
-                "Semantic cache hit scope=${scope.take(12)} key=${bestEntry.key.take(12)} " +
+                "시맨틱 캐시 히트: scope=${scope.take(12)} key=${bestEntry.key.take(12)} " +
                     "threshold=$similarityThreshold"
             }
             bestEntry.toCachedResponse()
@@ -128,7 +128,7 @@ class RedisSemanticResponseCache(
         response: CachedResponse
     ) {
         if (response.content.isBlank()) {
-            logger.debug { "Skipping semantic cache for blank response: ${exactKey.take(16)}..." }
+            logger.debug { "빈 응답 시맨틱 캐시 저장 생략: key=${exactKey.take(16)}..." }
             return
         }
         val scope = CacheKeyBuilder.buildScopeFingerprint(command, toolNames)
@@ -185,9 +185,9 @@ class RedisSemanticResponseCache(
             if (chunk.isNotEmpty()) {
                 totalDeleted += redisTemplate.delete(chunk)
             }
-            logger.info { "Invalidated $totalDeleted Redis semantic cache keys for prefix=$keyPrefix" }
+            logger.info { "Redis 시맨틱 캐시 무효화 완료: ${totalDeleted}건 삭제 (prefix=$keyPrefix)" }
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to invalidate Redis semantic cache for prefix=$keyPrefix" }
+            logger.warn(e) { "Redis 시맨틱 캐시 무효화 실패: prefix=$keyPrefix" }
         }
     }
 
@@ -197,7 +197,7 @@ class RedisSemanticResponseCache(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Semantic cache embedding failed; falling back to exact-cache behavior" }
+            logger.warn(e) { "시맨틱 캐시 임베딩 실패, 정확 매칭 캐시로 폴백" }
             null
         }
     }
@@ -209,7 +209,7 @@ class RedisSemanticResponseCache(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to write cache entry key=${key.take(16)}..." }
+            logger.warn(e) { "캐시 엔트리 쓰기 실패: key=${key.take(16)}..." }
         }
     }
 
@@ -220,7 +220,7 @@ class RedisSemanticResponseCache(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Corrupted cache payload key=${key.take(16)}... removing entry" }
+            logger.warn(e) { "손상된 캐시 페이로드 삭제: key=${key.take(16)}..." }
             redisTemplate.delete(entryKey(key))
             null
         }

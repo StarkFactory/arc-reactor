@@ -80,7 +80,7 @@ internal class ConversationMessageTrimmer(
         // ── 예산이 음수이면 마지막 UserMessage만 보존 ──
         if (budget <= 0) {
             logger.warn {
-                "Context budget is non-positive ($budget). " +
+                "컨텍스트 예산이 0 이하 ($budget). " +
                     "system=$systemTokens, outputReserve=$outputReserveTokens, max=$maxContextWindowTokens"
             }
             val lastUserMsgIndex = messages.indexOfLast { it is UserMessage }
@@ -137,7 +137,7 @@ internal class ConversationMessageTrimmer(
             }
             totalTokens -= removedTokens
             protectedIdx -= removeCount
-            logger.debug { "Trimmed $removeCount messages (old history). Remaining tokens: $totalTokens/$budget" }
+            logger.debug { "오래된 히스토리 ${removeCount}건 트리밍. 잔여 토큰: $totalTokens/$budget" }
         }
         return totalTokens
     }
@@ -169,7 +169,7 @@ internal class ConversationMessageTrimmer(
                 }
             }
             totalTokens -= removedTokens
-            logger.debug { "Trimmed $removeCount messages (tool history). Remaining tokens: $totalTokens/$budget" }
+            logger.debug { "도구 히스토리 ${removeCount}건 트리밍. 잔여 토큰: $totalTokens/$budget" }
         }
     }
 
@@ -197,7 +197,7 @@ internal class ConversationMessageTrimmer(
             messages.removeAt(0)
             lastUserIdx--
             logger.debug {
-                "Trimmed 1 message (leading system for fresh tool history). Remaining tokens: $totalTokens/$budget"
+                "선행 시스템 메시지 1건 트리밍 (최신 도구 히스토리 보존). 잔여 토큰: $totalTokens/$budget"
             }
         }
         return totalTokens

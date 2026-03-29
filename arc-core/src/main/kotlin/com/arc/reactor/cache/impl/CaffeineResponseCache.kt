@@ -32,24 +32,24 @@ class CaffeineResponseCache(
     override suspend fun get(key: String): CachedResponse? {
         val cached = cache.getIfPresent(key)
         if (cached != null) {
-            logger.debug { "Cache hit for key: ${key.take(16)}..." }
+            logger.debug { "캐시 히트: key=${key.take(16)}..." }
         }
         return cached
     }
 
     override suspend fun put(key: String, response: CachedResponse) {
         if (response.content.isBlank()) {
-            logger.debug { "Skipping cache for blank response: ${key.take(16)}..." }
+            logger.debug { "빈 응답 캐시 저장 생략: key=${key.take(16)}..." }
             return
         }
         cache.put(key, response)
-        logger.debug { "Cached response for key: ${key.take(16)}..." }
+        logger.debug { "응답 캐시 저장 완료: key=${key.take(16)}..." }
     }
 
     override fun invalidateAll() {
         val size = cache.estimatedSize()
         cache.invalidateAll()
-        logger.info { "Invalidated all $size cached responses" }
+        logger.info { "캐시 전체 무효화 완료: ${size}건 삭제" }
     }
 
     /**
