@@ -3516,3 +3516,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **ConcurrentHashMap 잔여 분석:** InMemory*Store 12곳(개발용, CHM 적합), 메트릭/Registry 5곳(키 제한, 적합), 전환 필요 0곳 → **CHM 마이그레이션 완료**
 
 **R77-126 (50 Round): 39 fixes + 1,513 tests**
+
+### Round 127 — 2026-03-29T20:30+09:00 (3-에이전트 병렬)
+
+**Agent 1:** arc-slack 전면 개선 — .forEach 8곳→for (suspend 내 Critical 1건 포함), 영문→한글 50건 (16파일), SlackSocketModeGateway 91줄→5메서드, SlackSignatureWebFilter 33줄→추출
+**Agent 2:** RagCacheGapTest 36개 — RrfFusion(5), CacheKeyBuilder(5), VectorStoreRetriever(5), RagPipeline(4), IngestionDocument(10), PolicyStore(7)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,488 응답/260 차단, 단순 채팅 avg 1,100ms
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **arc-slack 전면+RAG 테스트** | 20 파일 수정, .forEach 8곳, 영문 50건, 메서드 2곳 추출, RAG 36 테스트 |
+
+**MCP 정확도:** Confluence 도구 미호출 (라우팅 실패 지속, R122이후) / 한국어 인젝션 Guard 39ms 차단 OK / 단순 채팅 avg 1,100ms
+**발견:** Confluence 도구 선택 실패가 upstream_auth_failed와 연관 가능성 — 도구가 존재하나 LLM이 선택 회피
+
+**R77-127 (51 Round): 40 fixes + 1,549 tests**
