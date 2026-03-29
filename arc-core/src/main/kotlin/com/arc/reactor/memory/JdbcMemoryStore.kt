@@ -10,23 +10,23 @@ import java.time.Instant
 private val logger = KotlinLogging.logger {}
 
 /**
- * JDBC-based MemoryStore for persistent conversation storage.
+ * JDBC 기반 영구 대화 저장소
  *
- * Stores conversation history in a relational database (PostgreSQL, H2, etc.).
- * Requires the `conversation_messages` table — see Flyway migration V1.
+ * 관계형 데이터베이스(PostgreSQL, H2 등)에 대화 이력을 저장한다.
+ * `conversation_messages` 테이블이 필요하다 — Flyway migration V1 참조.
  *
- * ## Features
- * - Persistent across server restarts
- * - Per-session max message limit (FIFO eviction)
- * - Session cleanup by TTL
- * - Thread-safe via database transactions
+ * ## 주요 기능
+ * - 서버 재시작 후에도 영속성 유지
+ * - 세션별 최대 메시지 제한 (FIFO 퇴거)
+ * - TTL 기반 세션 정리
+ * - 데이터베이스 트랜잭션을 통한 스레드 안전성
  *
- * ## Usage
- * When `spring-boot-starter-jdbc` and a DataSource are on the classpath,
- * this bean is auto-configured by [ArcReactorAutoConfiguration].
+ * ## 사용 방법
+ * `spring-boot-starter-jdbc`와 DataSource가 classpath에 존재하면
+ * [ArcReactorAutoConfiguration]에 의해 자동 설정된다.
  *
- * @see MemoryStore for the interface contract
- * @see ConversationMemory for the per-session memory interface
+ * @see MemoryStore 인터페이스 계약
+ * @see ConversationMemory 세션별 메모리 인터페이스
  */
 class JdbcMemoryStore(
     private val jdbcTemplate: JdbcTemplate,
@@ -58,7 +58,7 @@ class JdbcMemoryStore(
             sessionId, role, content, Instant.now().toEpochMilli()
         )
 
-        // Enforce max messages per session (FIFO eviction)
+        // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
         evictOldMessages(sessionId)
     }
 
@@ -68,7 +68,7 @@ class JdbcMemoryStore(
             sessionId, role, content, Instant.now().toEpochMilli(), userId
         )
 
-        // Enforce max messages per session (FIFO eviction)
+        // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
         evictOldMessages(sessionId)
     }
 

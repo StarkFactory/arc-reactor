@@ -3,17 +3,17 @@ package com.arc.reactor.tool
 import com.arc.reactor.support.throwIfCancellation
 
 /**
- * Tool Callback Interface
+ * 도구 콜백 인터페이스
  *
- * Framework-agnostic abstraction for tool execution.
- * Provides independence from Spring AI's ToolCallback while maintaining compatibility.
+ * 프레임워크 비의존적 도구 실행 추상화.
+ * Spring AI의 ToolCallback에 대한 독립성을 유지하면서 호환성을 제공한다.
  *
- * ## Purpose
- * - Decouple tool implementations from Spring AI specifics
- * - Enable testing without Spring AI dependencies
- * - Support both local tools and MCP (Model Context Protocol) tools
+ * ## 목적
+ * - 도구 구현을 Spring AI 구체 사항에서 분리
+ * - Spring AI 의존성 없이 테스트 가능
+ * - 로컬 도구와 MCP(Model Context Protocol) 도구 모두 지원
  *
- * ## Example Implementation
+ * ## 구현 예시
  * ```kotlin
  * class WeatherTool : ToolCallback {
  *     override val name = "get_weather"
@@ -27,65 +27,64 @@ import com.arc.reactor.support.throwIfCancellation
  * }
  * ```
  *
- * @see SpringAiToolCallbackAdapter for wrapping Spring AI tools
- * @see ToolDefinition for tool metadata
+ * @see SpringAiToolCallbackAdapter Spring AI 도구 래핑용 어댑터
+ * @see ToolDefinition 도구 메타데이터
  */
 interface ToolCallback {
-    /** Unique tool identifier used by the LLM to invoke this tool */
+    /** LLM이 이 도구를 호출할 때 사용하는 고유 식별자 */
     val name: String
 
-    /** Human-readable description of what this tool does (shown to LLM) */
+    /** 이 도구의 기능을 설명하는 문자열 (LLM에게 노출됨) */
     val description: String
 
     /**
-     * JSON Schema describing the tool's input parameters.
-     * Used by the LLM to generate correct tool call arguments.
+     * 도구의 입력 파라미터를 설명하는 JSON Schema.
+     * LLM이 올바른 도구 호출 인자를 생성하는 데 사용된다.
      *
-     * Override this to specify parameters:
+     * 파라미터를 지정하려면 오버라이드한다:
      * ```kotlin
      * override val inputSchema: String get() = """
      *   {"type":"object","properties":{"location":{"type":"string","description":"City name"}},"required":["location"]}
      * """
      * ```
      *
-     * Default: empty object (no parameters).
+     * 기본값: 빈 객체 (파라미터 없음).
      */
     val inputSchema: String
         get() = """{"type":"object","properties":{}}"""
 
     /**
-     * Per-tool timeout in milliseconds. When set, overrides the global
-     * `arc.reactor.concurrency.tool-call-timeout-ms` for this tool only.
-     * Null means use the global default.
+     * 도구별 타임아웃 (밀리초). 설정하면 전역 `arc.reactor.concurrency.tool-call-timeout-ms`를
+     * 이 도구에 한해 오버라이드한다. null이면 전역 기본값을 사용한다.
      */
     val timeoutMs: Long?
         get() = null
 
     /**
-     * Execute the tool with the given arguments.
+     * 주어진 인자로 도구를 실행한다.
      *
-     * @param arguments Key-value pairs of tool parameters (parsed from LLM's JSON)
-     * @return Tool execution result (will be converted to string for LLM)
+     * @param arguments 도구 파라미터 키-값 쌍 (LLM의 JSON에서 파싱됨)
+     * @return 도구 실행 결과 (LLM을 위해 문자열로 변환됨)
      */
     suspend fun call(arguments: Map<String, Any?>): Any?
 }
 
 /**
- * Spring AI ToolCallback Adapter
+ * Spring AI ToolCallback 어댑터
  *
- * Wraps Spring AI's ToolCallback to provide framework-agnostic access.
- * Uses reflection to maintain loose coupling with Spring AI classes.
+ * Spring AI의 ToolCallback을 래핑하여 프레임워크 비의존적 접근을 제공한다.
+ * 리플렉션을 사용하여 Spring AI 클래스와의 느슨한 결합을 유지한다.
  *
- * ## Usage
+ * ## 사용 예시
  * ```kotlin
  * val springTool: org.springframework.ai.tool.ToolCallback = ...
  * val arcTool = SpringAiToolCallbackAdapter(springTool)
  *
- * // Use through Arc Reactor's interface
+ * // Arc Reactor 인터페이스를 통해 사용
  * val result = arcTool.call(mapOf("query" to "test"))
  * ```
  *
- * @param springAiCallback The Spring AI ToolCallback instance to wrap
+ * @param springAiCallback 래핑할 Spring AI ToolCallback 인스턴스
  */
 class SpringAiToolCallbackAdapter(
     private val springAiCallback: Any  // org.springframework.ai.tool.ToolCallback
@@ -133,7 +132,7 @@ class SpringAiToolCallbackAdapter(
         }
     }
 
-    /** Returns the original Spring AI ToolCallback (if needed) */
+    /** 원본 Spring AI ToolCallback을 반환한다 (필요 시 사용) */
     fun unwrap(): Any = springAiCallback
 
     private fun readToolDefinitionProperty(vararg methodNames: String): String? {
