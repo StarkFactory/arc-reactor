@@ -186,9 +186,32 @@ Agent 1이 따라야 할 리팩터링 체크리스트:
 | ASI06 | Memory Poisoning | RAG 삽입 정책 + blockedPatterns |
 | ASI08 | Cascading Failures | CircuitBreaker + failOnError 정책 |
 
+### AI 코딩 실수 패턴 Top 10 (2026 최신)
+
+**Agent 1이 코드 수정 시 반드시 확인할 것 — AI가 자주 만드는 실수:**
+
+| # | 실수 | 확인 방법 |
+|---|------|----------|
+| 1 | `catch(e: Exception)`에서 CancellationException 삼킴 | `throwIfCancellation()` 첫 줄 |
+| 2 | `!!` 사용 | `.orEmpty()`, `?: default` 대체 |
+| 3 | `.forEach {}` in suspend fun | `for (item in list)` 사용 |
+| 4 | `Regex()` 함수 내 생성 | companion object/top-level |
+| 5 | `@ConditionalOnMissingBean` 누락 | auto-config 빈에 필수 |
+| 6 | 선택 의존성 직접 주입 | `ObjectProvider<T>` 사용 |
+| 7 | `@RequestBody`에 `@Valid` 누락 | 모든 @RequestBody에 필수 |
+| 8 | `e.message` HTTP 응답 노출 | 서버 로그에만, 한글 메시지 반환 |
+| 9 | 존재하지 않는 API/패키지 호출 | import 경로 실제 확인 |
+| 10 | `>=` vs `>` off-by-one 오류 | 경계값 테스트 필수 |
+
+> AI PR은 인간 대비 **75% 더 많은 로직 오류** 발생 (IEEE Spectrum 2026)
+> 참조: [IEEE Spectrum](https://spectrum.ieee.org/ai-coding-degrades), [Sonar LLM Research](https://www.sonarsource.com/resources/library/llm-code-generation/)
+
 **레퍼런스:**
 - [OWASP Top 10 for Agentic AI 2026](https://www.aikido.dev/blog/owasp-top-10-agentic-applications)
 - [Confident AI Agent Evaluation Guide](https://www.confident-ai.com/blog/definitive-ai-agent-evaluation-guide)
 - [Detekt Kotlin Static Analysis](https://detekt.dev/)
 - [OpenTelemetry GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/)
 - [MCP Best Practices](https://modelcontextprotocol.info/docs/best-practices/)
+- [IEEE Spectrum — AI Coding Degrades](https://spectrum.ieee.org/ai-coding-degrades)
+- [Sonar — LLM Code Quality](https://www.sonarsource.com/resources/library/llm-code-generation/)
+- [Stack Overflow — Bugs with AI Agents](https://stackoverflow.blog/2026/01/28/are-bugs-and-incidents-inevitable-with-ai-coding-agents/)
