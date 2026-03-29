@@ -1,6 +1,7 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentTestFixture
+import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.MediaConverter
@@ -15,11 +16,17 @@ import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.ToolResponseMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.Usage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.ChatOptions
 import reactor.core.publisher.Flux
 import java.util.concurrent.atomic.AtomicInteger
@@ -192,6 +199,197 @@ class StreamingReActLoopExecutorTest {
         assertEquals(listOf(false), optionsUsed)
         coVerify(exactly = 0) {
             toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    @Nested
+    inner class 예산추적 {
+
+        /** 토큰 사용량 메타데이터를 포함한 ChatResponse 청크를 생성한다. */
+        private fun chunkWithTokens(text: String, promptTokens: Int, completionTokens: Int): ChatResponse {
+            val usage = mockk<Usage>()
+            every { usage.promptTokens } returns promptTokens
+            every { usage.completionTokens } returns completionTokens
+            every { usage.totalTokens } returns promptTokens + completionTokens
+
+            val metadata = mockk<ChatResponseMetadata>()
+            every { metadata.usage } returns usage
+            every { metadata.model } returns null
+
+            val msg = AssistantMessage(text)
+            val generation = mockk<Generation>()
+            every { generation.output } returns msg
+
+            val response = mockk<ChatResponse>()
+            every { response.result } returns generation
+            every { response.results } returns listOf(generation)
+            every { response.metadata } returns metadata
+            return response
+        }
+
+        @Test
+        fun `budgetTracker EXHAUSTED 시 루프를 실패로 종료하고 에러 이벤트를 emit해야 한다`() = runTest {
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            // 110토큰 응답 → maxTokens=50인 예산 초과
+            every { streamResponseSpec.chatResponse() } returns Flux.just(
+                chunkWithTokens("partial answer", promptTokens = 30, completionTokens = 80)
+            )
+
+            val emitted = mutableListOf<String>()
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = mockk(relaxed = true),
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() }
+            )
+
+            // maxTokens=50, 응답은 110토큰 → EXHAUSTED
+            val budgetTracker = StepBudgetTracker(maxTokens = 50)
+
+            val result = loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = emptyList(),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 3,
+                emit = { emitted.add(it) },
+                budgetTracker = budgetTracker
+            )
+
+            assertFalse(result.success) {
+                "토큰 예산 초과 시 루프는 실패로 종료되어야 한다"
+            }
+            val errorMarkers = emitted
+                .mapNotNull { StreamEventMarker.parse(it) }
+                .filter { it.first == "error" }
+            assertTrue(errorMarkers.isNotEmpty()) {
+                "토큰 예산 초과 시 error 이벤트가 emit되어야 한다, 실제 emit: $emitted"
+            }
+            assertTrue(
+                errorMarkers.any { it.second.contains("예산") || it.second.contains("토큰") }
+            ) { "에러 이벤트에 예산 초과 메시지가 포함되어야 한다, markers: $errorMarkers" }
+        }
+
+        @Test
+        fun `budgetTracker null일 때 예산 검사 없이 정상 실행되어야 한다`() = runTest {
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            every { streamResponseSpec.chatResponse() } returns Flux.just(
+                AgentTestFixture.textChunk("ok")
+            )
+
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = mockk(relaxed = true),
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() }
+            )
+
+            val result = loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = emptyList(),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 3,
+                emit = {},
+                budgetTracker = null
+            )
+
+            assertTrue(result.success) {
+                "budgetTracker가 null이면 예산 검사 없이 정상 완료되어야 한다"
+            }
+            assertEquals("ok", result.collectedContent) {
+                "콘텐츠가 올바르게 수집되어야 한다"
+            }
+        }
+    }
+
+    @Nested
+    inner class 토큰사용량기록 {
+
+        @Test
+        fun `recordTokenUsage 콜백이 토큰 메타데이터로 호출되어야 한다`() = runTest {
+            val usage = mockk<Usage>()
+            every { usage.promptTokens } returns 200
+            every { usage.completionTokens } returns 100
+            every { usage.totalTokens } returns 300
+
+            val metadata = mockk<ChatResponseMetadata>()
+            every { metadata.usage } returns usage
+            every { metadata.model } returns "gemini-pro"
+
+            val assistantMsg = AssistantMessage("result")
+            val generation = mockk<Generation>()
+            every { generation.output } returns assistantMsg
+
+            val chunkResponse = mockk<ChatResponse>()
+            every { chunkResponse.result } returns generation
+            every { chunkResponse.results } returns listOf(generation)
+            every { chunkResponse.metadata } returns metadata
+
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            every { streamResponseSpec.chatResponse() } returns Flux.just(chunkResponse)
+
+            val recordedUsages = mutableListOf<com.arc.reactor.agent.model.TokenUsage>()
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = mockk(relaxed = true),
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() },
+                recordTokenUsage = { tokenUsage, _ -> recordedUsages.add(tokenUsage) }
+            )
+
+            loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = emptyList(),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "r", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 3,
+                emit = {}
+            )
+
+            assertTrue(recordedUsages.isNotEmpty()) {
+                "토큰 메타데이터가 있는 응답에 대해 recordTokenUsage가 호출되어야 한다"
+            }
+            val recorded = recordedUsages.first()
+            assertEquals(200, recorded.promptTokens) {
+                "프롬프트 토큰 수가 올바르게 기록되어야 한다"
+            }
+            assertEquals(100, recorded.completionTokens) {
+                "완성 토큰 수가 올바르게 기록되어야 한다"
+            }
         }
     }
 }
