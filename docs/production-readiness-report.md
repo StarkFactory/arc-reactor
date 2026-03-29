@@ -3501,3 +3501,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `refactor:` | **i18n+Guard테스트** | 핵심 API KDoc 한글화 4파일, Guard 54 테스트 |
 
 **R77-125 (49 Round): 38 fixes + 1,481 tests**
+
+### Round 126 — 2026-03-29T19:50+09:00 (3-에이전트 병렬)
+
+**Agent 1:** ExperimentCaptureHook CHM+수동eviction→Caffeine(10k, 1h) + OutputGuardRuleEvaluator CHM.newKeySet→Caffeine(1024, 1h) — 메모리 폭발 방지
+**Agent 2:** ReActExecutorGapTest 32개 — ReActLoopUtils(12), StepBudgetTracker(6), AgentExecutionCoordinator(5), PlanExecuteStrategy(6), ManualReAct(3)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,482 응답/259 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **Caffeine+ReAct테스트** | CHM→Caffeine 2곳, ReAct 32 테스트 |
+
+**MCP 정확도:** Jira 도구 선택 OK (jira_search_issues, 결과 없음=프로젝트 데이터 부재) / RAG grounded=true, ReAct 루프 정확 설명 / **캐시 2,297ms→0ms**
+**ConcurrentHashMap 잔여 분석:** InMemory*Store 12곳(개발용, CHM 적합), 메트릭/Registry 5곳(키 제한, 적합), 전환 필요 0곳 → **CHM 마이그레이션 완료**
+
+**R77-126 (50 Round): 39 fixes + 1,513 tests**
