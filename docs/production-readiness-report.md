@@ -3493,4 +3493,11 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 - 도구 사용 분포: jira_search_issues(96), confluence_answer_question(71), confluence_search_by_text(38), jira_search_by_text(37), work_morning_briefing(12)
 - MCP 서버 2개 CONNECTED, Scheduler 실행 0건
 
-**R77-125 (49 Round): 37 fixes + 1,427 tests**
+**Agent 1 (코드 개선):** ToolResult/ToolCategory/ToolCallback/JdbcMemoryStore 영문 KDoc→한글. 프로덕션 !! 0건, Regex 함수내 0건 확인
+**Agent 2 (테스트 보강):** GuardEdgeCaseGapTest 54개 — InjectionDetection(10), OutputGuardRule(16), PiiMasking(10), DynamicRule(8), CanaryToken(10)
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **i18n+Guard테스트** | 핵심 API KDoc 한글화 4파일, Guard 54 테스트 |
+
+**R77-125 (49 Round): 38 fixes + 1,481 tests**
