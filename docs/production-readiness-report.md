@@ -3215,3 +3215,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 
 **전체 모듈 P0-P2 스캔 현황: 전부 클린**
 - arc-core ✓ | arc-web ✓ | arc-slack ✓ | arc-admin ✓
+
+### Round 113 — 2026-03-29T13:40+09:00 (3-에이전트 병렬)
+
+**Agent 1:** SystemPromptBuilder 성능 스캔 — `uppercase()` 3중 할당 + regex 12회 중복 발견
+**Agent 2:** ToolResponse **12 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 1326ms, 2174 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `perf:` | 성능 | ISSUE_KEY_REGEX IGNORE_CASE → uppercase() 3회 제거 |
+| `test:` | 테스트 | ToolResponse 12 tests |
+
+**R77-113 (37 Round): 27 fixes + 1,042 tests**
