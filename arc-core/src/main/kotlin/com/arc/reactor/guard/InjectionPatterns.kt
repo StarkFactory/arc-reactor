@@ -249,10 +249,13 @@ object InjectionPatterns {
                 RegexOption.DOT_MATCHES_ALL
             )
         ),
-        // 예: "Do Anything Now (DAN)"
+        // 예: "Do Anything Now (DAN)" — "DAN" 단독은 인명/패턴명과 충돌하므로 컨텍스트 필수
         InjectionPattern(
             "role_override",
-            Regex("(?i)\\b(DAN|do anything now)\\b")
+            Regex(
+                "(?i)(do anything now|act as DAN|you are DAN|DAN mode|be DAN|DAN jailbreak|pretend.*DAN)",
+                RegexOption.DOT_MATCHES_ALL
+            )
         ),
 
         // ── 시스템 구분자 주입 (System Delimiter Injection) ──
