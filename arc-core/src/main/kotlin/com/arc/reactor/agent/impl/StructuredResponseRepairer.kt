@@ -63,13 +63,13 @@ internal class StructuredResponseRepairer(
         }
 
         // ── 단계 3: LLM을 통한 복구 시도 ──
-        logger.warn { "Invalid $format response detected, attempting repair" }
+        logger.warn { "유효하지 않은 $format 응답 감지, 복구 시도" }
         val repaired = attemptRepair(stripped, format, command)
         if (repaired != null && structuredOutputValidator.isValidFormat(repaired, format)) {
             return AgentResult.success(content = repaired, toolsUsed = toolsUsed, tokenUsage = tokenUsage)
         }
 
-        logger.error { "Structured output validation failed after repair attempt" }
+        logger.error { "구조화 출력 검증 실패: 복구 시도 후에도 유효하지 않음" }
         return AgentResult.failure(
             errorMessage = errorMessageResolver.resolve(AgentErrorCode.INVALID_RESPONSE, null),
             errorCode = AgentErrorCode.INVALID_RESPONSE
@@ -102,7 +102,7 @@ internal class StructuredResponseRepairer(
             val repairedContent = response?.results?.firstOrNull()?.output?.text
             if (repairedContent != null) structuredOutputValidator.stripMarkdownCodeFence(repairedContent) else null
         }.getOrElse { e ->
-            logger.warn(e) { "Repair attempt failed" }
+            logger.warn(e) { "복구 시도 실패" }
             null
         }
     }

@@ -76,7 +76,7 @@ class ArcReactorCoreBeansConfiguration {
         if (strategy == "semantic") {
             val model = embeddingModel.ifAvailable
             if (model != null) {
-                logger.info { "Using SemanticToolSelector (threshold=${properties.toolSelection.similarityThreshold})" }
+                logger.info { "SemanticToolSelector 사용 (threshold=${properties.toolSelection.similarityThreshold})" }
                 return SemanticToolSelector(
                     embeddingModel = model,
                     similarityThreshold = properties.toolSelection.similarityThreshold,
@@ -84,8 +84,8 @@ class ArcReactorCoreBeansConfiguration {
                 )
             }
             logger.warn {
-                "SemanticToolSelector requested but no EmbeddingModel found, " +
-                    "falling back to AllToolSelector"
+                "SemanticToolSelector 요청되었으나 EmbeddingModel 없음, " +
+                    "AllToolSelector로 폴백"
             }
         }
         return AllToolSelector()

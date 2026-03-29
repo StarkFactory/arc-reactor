@@ -53,7 +53,7 @@ class PromptCandidateGenerator(
             val version = promptTemplateStore.createVersion(templateId, candidate, changeLog)
             version?.id
         }.also { ids ->
-            logger.info { "Generated ${ids.size} candidate versions for template=$templateId" }
+            logger.info { "후보 버전 ${ids.size}개 생성 완료: template=$templateId" }
         }
     }
 
@@ -96,7 +96,7 @@ class PromptCandidateGenerator(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.error(e) { "LLM call failed during candidate generation" }
+            logger.error(e) { "후보 생성 중 LLM 호출 실패" }
             return ""
         }
     }
@@ -115,7 +115,7 @@ class PromptCandidateGenerator(
                 .filter { it.isNotBlank() }
                 .take(expectedCount)
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to parse LLM candidate response" }
+            logger.warn(e) { "LLM 후보 응답 파싱 실패" }
             emptyList()
         }
     }

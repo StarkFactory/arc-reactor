@@ -95,7 +95,7 @@ class ArcReactorTokenRevocationStoreConfiguration {
             val ctor = redisStoreClass.getConstructor(redisTemplateClass, String::class.java)
             ctor.newInstance(redisTemplate, keyPrefix) as TokenRevocationStore
         } catch (e: Exception) {
-            logger.warn(e) { "Redis token revocation store instantiation failed" }
+            logger.warn(e) { "Redis 토큰 폐기 저장소 인스턴스화 실패" }
             null
         }
     }
@@ -112,7 +112,7 @@ class ArcReactorTokenRevocationStoreConfiguration {
             future.get(5, java.util.concurrent.TimeUnit.SECONDS)
             true
         } catch (e: Exception) {
-            logger.warn(e) { "Redis connectivity probe failed during token revocation store selection" }
+            logger.warn(e) { "토큰 폐기 저장소 선택 중 Redis 연결 프로브 실패" }
             false
         }
     }

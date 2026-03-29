@@ -123,7 +123,7 @@ internal class ExecutionResultFinalizer(
 
         // ── 단계 6.5: 빈 응답 안전망 — LLM이 빈 content를 반환한 경우 에러 처리 ──
         if (isEmptySuccessResponse(completed)) {
-            logger.warn { "LLM returned empty content, converting to error (runId=${hookContext.runId})" }
+            logger.warn { "LLM이 빈 콘텐츠 반환, 에러로 변환 (runId=${hookContext.runId})" }
             val emptyFailure = emptyContentFailure(hookContext, startTime)
             return finalizeEarlyReturn(emptyFailure, command, hookContext, toolsUsed, startTime, eventMetadata)
         }
@@ -251,7 +251,7 @@ internal class ExecutionResultFinalizer(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Output guard pipeline failed, rejecting (fail-close)" }
+            logger.error(e) { "출력 Guard 파이프라인 실패, 거부 (fail-close)" }
             recordGuardMetadataOnly(hookContext, GUARD_ACTION_REJECTED, "pipeline", "Output guard check failed")
             outputGuardFailure(reason = "Output guard check failed", startTime = startTime)
         }
@@ -334,7 +334,7 @@ internal class ExecutionResultFinalizer(
             result.copy(content = filteredContent)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Response filter chain failed, using original content" }
+            logger.warn(e) { "응답 필터 체인 실패, 원본 콘텐츠 사용" }
             result
         }
     }
@@ -421,7 +421,7 @@ internal class ExecutionResultFinalizer(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "AfterAgentComplete hook failed" }
+            logger.error(e) { "AfterAgentComplete 훅 실행 실패" }
         }
     }
 

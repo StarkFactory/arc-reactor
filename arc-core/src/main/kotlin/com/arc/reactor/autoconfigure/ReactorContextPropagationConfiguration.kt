@@ -32,9 +32,9 @@ class ReactorContextPropagationConfiguration {
     init {
         try {
             ContextRegistry.getInstance().registerContextAccessor(ReactorContextAccessor())
-            logger.info { "ReactorContextAccessor explicitly registered with ContextRegistry" }
+            logger.info { "ReactorContextAccessor를 ContextRegistry에 명시적으로 등록 완료" }
         } catch (_: IllegalArgumentException) {
-            logger.debug { "ReactorContextAccessor already registered (ServiceLoader)" }
+            logger.debug { "ReactorContextAccessor 이미 등록됨 (ServiceLoader)" }
         }
     }
 }

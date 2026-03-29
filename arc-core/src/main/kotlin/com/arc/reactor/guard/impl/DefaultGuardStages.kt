@@ -190,7 +190,7 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
         // 모든 패턴을 순회하며 매칭 여부 확인
         for (pattern in SUSPICIOUS_PATTERNS) {
             if (pattern.containsMatchIn(text)) {
-                logger.warn { "Injection pattern detected: ${pattern.pattern}" }
+                logger.warn { "인젝션 패턴 감지: ${pattern.pattern}" }
                 return buildRejection("Suspicious pattern detected", RejectionCategory.PROMPT_INJECTION)
             }
         }

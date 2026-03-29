@@ -43,13 +43,13 @@ class CompositeClassificationStage(
         val ruleResult = ruleBasedStage.enforce(command)
 
         if (ruleResult is GuardResult.Rejected) {
-            logger.debug { "Rule-based classification rejected: ${ruleResult.reason}" }
+            logger.debug { "규칙 기반 분류 거부: ${ruleResult.reason}" }
             return ruleResult
         }
 
         // ── 단계 2: LLM 폴백 (규칙 통과 + LLM 활성화 시) ──
         if (llmStage != null) {
-            logger.debug { "Rule-based passed, trying LLM classification fallback" }
+            logger.debug { "규칙 기반 통과, LLM 분류 폴백 시도" }
             return llmStage.enforce(command)
         }
 

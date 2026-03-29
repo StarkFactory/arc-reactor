@@ -91,7 +91,7 @@ class UnicodeNormalizationStage(
 
         // 텍스트가 변경된 경우에만 힌트로 전달 (불필요한 복사 방지)
         return if (normalized != text) {
-            logger.debug { "Unicode normalized: changed ${text.length} → ${normalized.length} chars" }
+            logger.debug { "유니코드 정규화: ${text.length} → ${normalized.length}자로 변환" }
             GuardResult.Allowed(hints = listOf("normalized:$normalized"))
         } else {
             GuardResult.Allowed.DEFAULT

@@ -53,7 +53,7 @@ class TracingConfiguration {
             "OpenTelemetry bean required for arcReactorOtelTracer"
         }
         val tracer = otel.getTracer(properties.tracing.serviceName)
-        logger.info { "ArcReactorTracer: OTel active (service=${properties.tracing.serviceName})" }
+        logger.info { "ArcReactorTracer: OTel 활성화 (service=${properties.tracing.serviceName})" }
         return OtelArcReactorTracer(tracer)
     }
 
@@ -67,7 +67,7 @@ class TracingConfiguration {
     @Bean
     @ConditionalOnMissingBean(ArcReactorTracer::class)
     fun noOpTracer(): ArcReactorTracer {
-        logger.debug { "ArcReactorTracer: using NoOp (OTel absent or disabled)" }
+        logger.debug { "ArcReactorTracer: NoOp 사용 (OTel 부재 또는 비활성화)" }
         return NoOpArcReactorTracer()
     }
 }

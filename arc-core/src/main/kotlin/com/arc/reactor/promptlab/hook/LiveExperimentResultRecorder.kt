@@ -50,7 +50,7 @@ class LiveExperimentResultRecorder(
             val variant = try {
                 PromptVariant.valueOf(variantStr)
             } catch (_: IllegalArgumentException) {
-                logger.warn { "Unknown variant value: $variantStr" }
+                logger.warn { "알 수 없는 variant 값: $variantStr" }
                 return
             }
 
@@ -66,13 +66,13 @@ class LiveExperimentResultRecorder(
             store.recordResult(result)
 
             logger.debug {
-                "Recorded live experiment result: " +
+                "라이브 실험 결과 기록: " +
                     "experiment=$experimentId, variant=$variant, " +
                     "success=${response.success}"
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn { "Failed to record experiment result: ${e.message}" }
+            logger.warn { "실험 결과 기록 실패: ${e.message}" }
         }
     }
 

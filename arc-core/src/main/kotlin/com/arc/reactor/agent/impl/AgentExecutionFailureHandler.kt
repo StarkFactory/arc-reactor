@@ -94,7 +94,7 @@ internal class AgentExecutionFailureHandler(
             )
         } catch (hookEx: Exception) {
             hookEx.throwIfCancellation()
-            logger.error(hookEx) { "AfterAgentComplete hook failed during error handling" }
+            logger.error(hookEx) { "에러 처리 중 AfterAgentComplete 훅 실행 실패" }
         }
     }
 }

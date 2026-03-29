@@ -86,7 +86,7 @@ internal object ReActLoopUtils {
         cleanupRetryHints(messages)
 
         if (hasToolError(toolResponses)) {
-            logger.debug { "Tool error detected, injecting retry hint" }
+            logger.debug { "도구 에러 감지, 재시도 힌트 주입" }
             messages.add(UserMessage(TOOL_ERROR_RETRY_HINT))
         }
     }

@@ -166,7 +166,7 @@ class JdbcExperimentStore(
                     Timestamp.from(trial.executedAt)
                 )
             } catch (e: DuplicateKeyException) {
-                logger.debug { "Trial ${trial.id} already saved — idempotent skip on retry" }
+                logger.debug { "Trial ${trial.id} 이미 저장됨 — 멱등성으로 재시도 건너뜀" }
             }
         }
     }
@@ -214,7 +214,7 @@ class JdbcExperimentStore(
             return try {
                 objectMapper.readValue<T>(json)
             } catch (e: Exception) {
-                logger.warn { "Failed to parse JSON: ${e.message}" }
+                logger.warn { "JSON 파싱 실패: ${e.message}" }
                 null
             }
         }

@@ -190,7 +190,7 @@ internal class PreExecutionResolver(
             throw e
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Intent resolution failed, using original command" }
+            logger.error(e) { "인텐트 해석 실패, 원본 명령 사용" }
             return command.also {
                 recordMeasuredIntentResolutionDuration(command, hookContext, intentStartTime)
             }

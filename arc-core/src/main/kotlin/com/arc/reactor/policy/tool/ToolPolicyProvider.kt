@@ -93,7 +93,7 @@ class ToolPolicyProvider(
             cachedAtMs.set(now)
             normalized
         }.getOrElse { e ->
-            logger.warn(e) { "Failed to load dynamic tool policy; falling back to cached/properties" }
+            logger.warn(e) { "동적 도구 정책 로드 실패; 캐시/속성으로 폴백" }
             existing ?: normalize(ToolPolicy.fromProperties(properties))
         }
     }

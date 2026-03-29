@@ -66,7 +66,7 @@ class LlmClassificationStage(
         } catch (e: Exception) {
             e.throwIfCancellation()
             // Fail-Open: 분류는 방어-심층 계층이므로, LLM 실패 시 요청 허용
-            logger.warn(e) { "LLM classification failed, allowing request (fail-open)" }
+            logger.warn(e) { "LLM 분류 실패, 요청 허용 (fail-open)" }
             GuardResult.Allowed.DEFAULT
         }
     }
@@ -93,7 +93,7 @@ class LlmClassificationStage(
             label == "safe" -> GuardResult.Allowed.DEFAULT
             // 위험 label + 높은 confidence → 거부
             confidence >= confidenceThreshold -> {
-                logger.warn { "LLM classified as $label with confidence $confidence" }
+                logger.warn { "LLM 분류 결과: label=$label, confidence=$confidence" }
                 GuardResult.Rejected(
                     reason = "Content classified as $label (confidence: $confidence)",
                     category = RejectionCategory.OFF_TOPIC
@@ -101,7 +101,7 @@ class LlmClassificationStage(
             }
             // 위험 label이지만 낮은 confidence → 보수적으로 허용
             else -> {
-                logger.debug { "LLM classified as $label but below threshold ($confidence < $confidenceThreshold)" }
+                logger.debug { "LLM 분류: label=$label 이지만 임계값 미달 ($confidence < $confidenceThreshold)" }
                 GuardResult.Allowed.DEFAULT
             }
         }

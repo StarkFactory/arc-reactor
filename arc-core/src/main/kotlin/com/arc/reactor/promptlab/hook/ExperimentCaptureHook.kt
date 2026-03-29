@@ -83,10 +83,10 @@ class ExperimentCaptureHook(
                 capturedAt = Instant.now(clock)
             )
             cache.put(context.runId, data)
-            logger.debug { "Captured experiment data for runId=${context.runId}" }
+            logger.debug { "실험 데이터 캡처 완료: runId=${context.runId}" }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn { "Failed to capture experiment data: ${e.javaClass.simpleName}" }
+            logger.warn { "실험 데이터 캡처 실패: ${e.javaClass.simpleName}" }
         }
     }
 

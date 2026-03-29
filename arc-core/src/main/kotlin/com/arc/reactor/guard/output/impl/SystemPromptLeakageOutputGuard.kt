@@ -46,7 +46,7 @@ class SystemPromptLeakageOutputGuard(
     override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
         // ── 검사 1: Canary 토큰 유출 확인 ──
         if (canaryTokenProvider != null && canaryTokenProvider.containsToken(content)) {
-            logger.warn { "Canary token detected in output — system prompt leakage" }
+            logger.warn { "출력에서 카나리 토큰 감지 — 시스템 프롬프트 유출" }
             return OutputGuardResult.Rejected(
                 reason = "System prompt leakage detected (canary token found)",
                 category = OutputRejectionCategory.POLICY_VIOLATION,
@@ -57,7 +57,7 @@ class SystemPromptLeakageOutputGuard(
         // ── 검사 2: 유출 패턴 매칭 ──
         for (pattern in LEAKAGE_PATTERNS) {
             if (pattern.containsMatchIn(content)) {
-                logger.warn { "System prompt leakage pattern detected: ${pattern.pattern}" }
+                logger.warn { "시스템 프롬프트 유출 패턴 감지: ${pattern.pattern}" }
                 return OutputGuardResult.Rejected(
                     reason = "Potential system prompt leakage detected",
                     category = OutputRejectionCategory.POLICY_VIOLATION,

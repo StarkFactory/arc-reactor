@@ -131,7 +131,7 @@ class RagIngestionCaptureHook(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to capture rag ingestion candidate for runId=${context.runId}" }
+            logger.warn(e) { "RAG 인제스션 후보 캡처 실패: runId=${context.runId}" }
         }
     }
 
@@ -168,7 +168,7 @@ class RagIngestionCaptureHook(
                 Pattern.compile(rawPattern, Pattern.CASE_INSENSITIVE).toRegex()
                     .also { regexCache.put(rawPattern, it) }
             } catch (e: PatternSyntaxException) {
-                logger.warn { "Ignoring invalid blocked regex pattern: $rawPattern" }
+                logger.warn { "유효하지 않은 차단 정규식 패턴 무시: $rawPattern" }
                 null
             }
     }

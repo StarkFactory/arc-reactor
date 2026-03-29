@@ -44,7 +44,7 @@ class ResponseFilterChain(filters: List<ResponseFilter>) {
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 // fail-open: 필터 실패 시 로깅하고 이전 콘텐츠로 계속
-                logger.warn(e) { "ResponseFilter '${filter::class.simpleName}' failed, skipping" }
+                logger.warn(e) { "ResponseFilter '${filter::class.simpleName}' 실패, 건너뜀" }
             }
         }
         return result

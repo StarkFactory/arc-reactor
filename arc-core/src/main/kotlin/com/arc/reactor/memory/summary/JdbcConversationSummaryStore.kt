@@ -76,7 +76,7 @@ class JdbcConversationSummaryStore(
         val facts: List<StructuredFact> = try {
             objectMapper.readValue(factsJson)
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to parse facts JSON for session ${rs.getString("session_id")}" }
+            logger.warn(e) { "팩트 JSON 파싱 실패: session=${rs.getString("session_id")}" }
             emptyList()
         }
 

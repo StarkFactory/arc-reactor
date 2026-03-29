@@ -63,7 +63,7 @@ class JdbcUserMemoryStore(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to load user memory for $userId" }
+            logger.warn(e) { "사용자 기억 로드 실패: $userId" }
             null
         }
     }
@@ -153,7 +153,7 @@ class JdbcUserMemoryStore(
             tableInitialized = true
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to auto-create $tableName table. Please create it manually." }
+            logger.warn(e) { "$tableName 테이블 자동 생성 실패. 수동으로 생성해야 합니다." }
         }
     }
 }

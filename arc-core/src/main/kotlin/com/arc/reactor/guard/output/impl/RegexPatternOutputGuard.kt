@@ -68,7 +68,7 @@ class RegexPatternOutputGuard(
             when (pattern.action) {
                 PatternAction.REJECT -> {
                     // REJECT: 패턴이 매칭되면 응답 전체를 즉시 차단
-                    logger.warn { "RegexPattern '${pattern.name}' matched, rejecting response" }
+                    logger.warn { "정규식 패턴 '${pattern.name}' 매칭, 응답 거부" }
                     return OutputGuardResult.Rejected(
                         reason = "Response blocked: ${pattern.name}",
                         category = OutputRejectionCategory.POLICY_VIOLATION
@@ -86,7 +86,7 @@ class RegexPatternOutputGuard(
             return OutputGuardResult.Allowed.DEFAULT
         }
 
-        logger.info { "RegexPattern masked: ${maskedNames.joinToString(", ")}" }
+        logger.info { "정규식 패턴 마스킹 완료: ${maskedNames.joinToString(", ")}" }
         return OutputGuardResult.Modified(
             content = masked,
             reason = "Pattern masked: ${maskedNames.joinToString(", ")}"

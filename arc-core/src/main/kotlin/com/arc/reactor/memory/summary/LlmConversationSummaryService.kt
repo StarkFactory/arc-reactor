@@ -86,7 +86,7 @@ class LlmConversationSummaryService(
                 response?.result?.output?.text.orEmpty()
             }
         } catch (e: TimeoutCancellationException) {
-            logger.warn { "LLM summarization call timed out after ${llmCallTimeoutMs}ms" }
+            logger.warn { "LLM 요약 호출 타임아웃: ${llmCallTimeoutMs}ms 경과" }
             ""
         }
     }
@@ -105,7 +105,7 @@ class LlmConversationSummaryService(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to parse summarization response, using raw text as narrative" }
+            logger.warn(e) { "요약 응답 파싱 실패, 원본 텍스트를 내러티브로 사용" }
             SummarizationResult(narrative = cleaned.trim(), facts = emptyList())
         }
     }

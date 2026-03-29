@@ -76,12 +76,12 @@ class DynamicRuleOutputGuard(
         val evaluation = evaluator.evaluate(content = content, rules = rules)
 
         for (invalid in evaluation.invalidRules) {
-            logger.warn { "Skipping invalid dynamic output rule id=${invalid.ruleId}, name=${invalid.ruleName}" }
+            logger.warn { "유효하지 않은 동적 출력 규칙 건너뜀: id=${invalid.ruleId}, name=${invalid.ruleName}" }
         }
 
         if (evaluation.blocked) {
             val blockedBy = evaluation.blockedBy?.ruleName ?: "unknown"
-            logger.warn { "Dynamic output rule '$blockedBy' matched, rejecting response" }
+            logger.warn { "동적 출력 규칙 '$blockedBy' 매칭, 응답 거부" }
             return OutputGuardResult.Rejected(
                 reason = "Response blocked: $blockedBy",
                 category = OutputRejectionCategory.POLICY_VIOLATION,

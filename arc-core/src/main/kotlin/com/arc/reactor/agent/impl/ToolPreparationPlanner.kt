@@ -57,7 +57,7 @@ internal class ToolPreparationPlanner(
             localToolFilters.fold(localTools.toList()) { acc, filter ->
                 runCatching { filter.filter(acc) }
                     .getOrElse { ex ->
-                        logger.warn(ex) { "LocalToolFilter failed; keeping previously resolved tool list" }
+                        logger.warn(ex) { "LocalToolFilter 실패; 이전 도구 목록 유지" }
                         acc
                     }
             }
@@ -76,8 +76,8 @@ internal class ToolPreparationPlanner(
                 val dropped = combined.drop(maxToolsPerRequest)
                     .filterIsInstance<ArcToolCallbackAdapter>()
                     .map { it.arcCallback.name }
-                "maxToolsPerRequest ($maxToolsPerRequest) exceeded; " +
-                    "dropped ${dropped.size} callback tools: $dropped"
+                "maxToolsPerRequest ($maxToolsPerRequest) 초과; " +
+                    "콜백 도구 ${dropped.size}개 제외: $dropped"
             }
         }
         return combined.take(maxToolsPerRequest)
@@ -107,7 +107,7 @@ internal class ToolPreparationPlanner(
         for (callback in callbacks) {
             val existing = uniqueByName.putIfAbsent(callback.name, callback)
             if (existing != null && existing !== callback) {
-                logger.warn { "Duplicate tool callback name '${callback.name}' detected; keeping first callback" }
+                logger.warn { "도구 콜백 이름 중복 감지: '${callback.name}'; 첫 번째 콜백 유지" }
             }
         }
         return uniqueByName.values.toList()

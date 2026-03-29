@@ -52,14 +52,14 @@ class FeedbackAnalyzer(
         val allFeedbackCount = countAllFeedback(since, templateId)
         val negativeFeedback = fetchNegativeFeedback(since, maxSamples, templateId)
         if (negativeFeedback.isEmpty()) {
-            logger.info { "No negative feedback found for template=$templateId" }
+            logger.info { "부정 피드백 없음: template=$templateId" }
             return emptyAnalysis()
         }
         val weaknesses = classifyWeaknesses(negativeFeedback)
         val sampleQueries = extractTestQueries(negativeFeedback)
         logger.info {
-            "Analyzed ${negativeFeedback.size} negative feedback for " +
-                "template=$templateId, found ${weaknesses.size} categories"
+            "부정 피드백 ${negativeFeedback.size}건 분석 완료: " +
+                "template=$templateId, 약점 카테고리 ${weaknesses.size}개 발견"
         }
         return FeedbackAnalysis(
             totalFeedback = allFeedbackCount,
@@ -112,7 +112,7 @@ class FeedbackAnalyzer(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.error(e) { "LLM call failed during feedback analysis" }
+            logger.error(e) { "피드백 분석 중 LLM 호출 실패" }
             return ""
         }
     }
@@ -135,7 +135,7 @@ class FeedbackAnalyzer(
                 )
             }
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to parse LLM weakness response" }
+            logger.warn(e) { "LLM 약점 응답 파싱 실패" }
             emptyList()
         }
     }

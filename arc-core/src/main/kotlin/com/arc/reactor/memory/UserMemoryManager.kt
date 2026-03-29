@@ -47,7 +47,7 @@ class UserMemoryManager(
             store.addRecentTopic(userId, topic, maxRecentTopics)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to record topic for user $userId" }
+            logger.warn(e) { "사용자 토픽 기록 실패: $userId" }
         }
     }
 

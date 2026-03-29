@@ -66,7 +66,7 @@ class TopicDriftDetectionStage(
 
         // ── 단계 4: 임계값 비교하여 거부/허용 결정 ──
         return if (score >= maxDriftScore) {
-            logger.warn { "Topic drift detected: score=$score threshold=$maxDriftScore" }
+            logger.warn { "토픽 드리프트 감지: score=$score threshold=$maxDriftScore" }
             GuardResult.Rejected(
                 reason = "Conversation pattern indicates potential jailbreak attempt",
                 category = RejectionCategory.PROMPT_INJECTION

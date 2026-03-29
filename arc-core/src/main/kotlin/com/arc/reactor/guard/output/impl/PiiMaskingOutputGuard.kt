@@ -61,7 +61,7 @@ class PiiMaskingOutputGuard : OutputGuardStage {
         }
 
         // PII가 탐지되면 마스킹된 콘텐츠를 Modified로 반환
-        logger.info { "PII detected and masked: ${detectedTypes.joinToString(", ")}" }
+        logger.info { "PII 감지 및 마스킹 완료: ${detectedTypes.joinToString(", ")}" }
         return OutputGuardResult.Modified(
             content = masked,
             reason = "PII masked: ${detectedTypes.joinToString(", ")}"

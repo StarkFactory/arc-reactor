@@ -57,7 +57,7 @@ internal class ArcToolCallbackAdapter(
             "Error: $timeoutMessage"
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            logger.error(e) { "Tool callback execution failed for '${arcCallback.name}'" }
+            logger.error(e) { "도구 콜백 실행 실패: '${arcCallback.name}'" }
             "Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
         }
     }

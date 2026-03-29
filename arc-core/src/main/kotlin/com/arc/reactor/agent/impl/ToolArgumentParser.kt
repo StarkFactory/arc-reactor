@@ -29,7 +29,7 @@ internal fun parseToolArguments(json: String?): Map<String, Any?> {
     return try {
         objectMapper.readValue(json, mapTypeRef)
     } catch (e: Exception) {
-        logger.warn(e) { "Failed to parse JSON arguments" }
+        logger.warn(e) { "JSON 인자 파싱 실패" }
         emptyMap()
     }
 }

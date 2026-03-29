@@ -89,10 +89,10 @@ class ArcReactorSemanticCacheConfiguration {
     ): CacheMetricsRecorder {
         val registry = meterRegistryProvider.ifAvailable
         if (registry != null) {
-            logger.info { "CacheMetricsRecorder: Micrometer registry detected, enabling metrics" }
+            logger.info { "CacheMetricsRecorder: Micrometer 레지스트리 감지, 메트릭 활성화" }
             return MicrometerCacheMetricsRecorder(registry)
         }
-        logger.info { "CacheMetricsRecorder: No Micrometer registry, using NoOp" }
+        logger.info { "CacheMetricsRecorder: Micrometer 레지스트리 없음, NoOp 사용" }
         return NoOpCacheMetricsRecorder()
     }
 
@@ -105,7 +105,7 @@ class ArcReactorSemanticCacheConfiguration {
             future.get(5, java.util.concurrent.TimeUnit.SECONDS)
             true
         } catch (e: Exception) {
-            logger.warn(e) { "Redis connectivity probe failed during semantic cache selection" }
+            logger.warn(e) { "시맨틱 캐시 선택 중 Redis 연결 프로브 실패" }
             false
         }
     }

@@ -483,7 +483,7 @@ internal class ManualReActLoopExecutor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.error(e) { "Tool execution failed, skipping message pair" }
+            logger.error(e) { "도구 실행 실패, 메시지 쌍 건너뜀" }
             throw e
         } finally {
             for (span in toolSpans) {

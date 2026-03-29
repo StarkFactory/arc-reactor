@@ -67,7 +67,7 @@ class ToolOutputSanitizer(
         }
 
         if (warnings.isNotEmpty()) {
-            logger.warn { "Tool '$toolName' output sanitized: ${warnings.joinToString("; ")}" }
+            logger.warn { "도구 '$toolName' 출력 새니타이징 완료: ${warnings.joinToString("; ")}" }
         }
 
         // ── 단계 3: 데이터-지시사항 분리 마커 래핑 ──
