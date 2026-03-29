@@ -51,39 +51,8 @@ class DefaultSlackCommandHandler(
             )
             return
         }
-
         try {
-            when (val intent = SlackSlashIntentParser.parse(rawPrompt)) {
-                SlackSlashIntent.Help -> {
-                    handleHelp(command)
-                    return
-                }
-
-                is SlackSlashIntent.ReminderAdd -> {
-                    handleReminderAdd(command, intent)
-                    return
-                }
-
-                SlackSlashIntent.ReminderList -> {
-                    handleReminderList(command)
-                    return
-                }
-
-                is SlackSlashIntent.ReminderDone -> {
-                    handleReminderDone(command, intent)
-                    return
-                }
-
-                SlackSlashIntent.ReminderClear -> {
-                    handleReminderClear(command)
-                    return
-                }
-
-                is SlackSlashIntent.Agent -> {
-                    handleAgentIntent(command, intent, rawPrompt)
-                    return
-                }
-            }
+            dispatchIntent(command, rawPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "Failed to process slash command for channel=${command.channelId}" }
@@ -91,6 +60,18 @@ class DefaultSlackCommandHandler(
                 responseUrl = command.responseUrl,
                 text = ":x: An internal error occurred. Please try again later."
             )
+        }
+    }
+
+    /** 파싱된 인텐트에 따라 적절한 핸들러로 분기한다. */
+    private suspend fun dispatchIntent(command: SlackSlashCommand, rawPrompt: String) {
+        when (val intent = SlackSlashIntentParser.parse(rawPrompt)) {
+            SlackSlashIntent.Help -> handleHelp(command)
+            is SlackSlashIntent.ReminderAdd -> handleReminderAdd(command, intent)
+            SlackSlashIntent.ReminderList -> handleReminderList(command)
+            is SlackSlashIntent.ReminderDone -> handleReminderDone(command, intent)
+            SlackSlashIntent.ReminderClear -> handleReminderClear(command)
+            is SlackSlashIntent.Agent -> handleAgentIntent(command, intent, rawPrompt)
         }
     }
 
@@ -168,6 +149,24 @@ class DefaultSlackCommandHandler(
         intent: SlackSlashIntent.Agent,
         sessionId: String
     ): com.arc.reactor.agent.model.AgentResult {
+        val metadata = buildMetadata(command, intent, sessionId)
+        val systemPrompt = buildSystemPrompt(command.userId)
+        return agentExecutor.execute(
+            AgentCommand(
+                systemPrompt = systemPrompt,
+                userPrompt = intent.prompt,
+                userId = command.userId,
+                metadata = metadata
+            )
+        )
+    }
+
+    /** 에이전트 실행에 필요한 메타데이터 맵을 구성한다. */
+    private suspend fun buildMetadata(
+        command: SlackSlashCommand,
+        intent: SlackSlashIntent.Agent,
+        sessionId: String
+    ): MutableMap<String, Any> {
         val requesterEmail = SlackHandlerSupport.resolveRequesterEmail(command.userId, userEmailResolver)
         val metadata = mutableMapOf<String, Any>(
             "sessionId" to sessionId,
@@ -182,24 +181,19 @@ class DefaultSlackCommandHandler(
             metadata["slackUserEmail"] = requesterEmail
             metadata["userEmail"] = requesterEmail
         }
+        return metadata
+    }
 
-        val userContext = SlackHandlerSupport.resolveUserContext(command.userId, userMemoryManager)
-        val systemPrompt = buildString {
+    /** 사용자 컨텍스트를 포함한 시스템 프롬프트를 구성한다. */
+    private suspend fun buildSystemPrompt(userId: String): String {
+        val userContext = SlackHandlerSupport.resolveUserContext(userId, userMemoryManager)
+        return buildString {
             append(SlackSystemPromptFactory.build(defaultProvider, SlackHandlerSupport.buildToolSummary(mcpManager)))
             if (userContext.isNotBlank()) {
                 append("\n\n")
                 append(userContext)
             }
         }
-
-        return agentExecutor.execute(
-            AgentCommand(
-                systemPrompt = systemPrompt,
-                userPrompt = intent.prompt,
-                userId = command.userId,
-                metadata = metadata
-            )
-        )
     }
 
     private suspend fun handleReminderAdd(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderAdd) {
