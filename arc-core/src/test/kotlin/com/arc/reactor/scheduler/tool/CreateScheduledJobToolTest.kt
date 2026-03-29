@@ -168,7 +168,7 @@ class CreateScheduledJobToolTest {
         fun `error on invalid cron expression를 반환한다`() {
             every { schedulerService.findByName(any()) } returns null
             every { schedulerService.create(any()) } throws
-                IllegalArgumentException("Invalid cron expression: bad-cron")
+                IllegalArgumentException("유효하지 않은 cron 표현식: bad-cron")
 
             val result = tool.create_scheduled_job(
                 name = "Bad Cron",

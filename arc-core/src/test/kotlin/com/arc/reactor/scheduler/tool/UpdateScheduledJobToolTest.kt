@@ -199,7 +199,7 @@ class UpdateScheduledJobToolTest {
         fun `error on invalid cron expression를 반환한다`() {
             every { schedulerService.findById("job-1") } returns existingJob
             every { schedulerService.update(any(), any()) } throws
-                IllegalArgumentException("Invalid cron expression: bad")
+                IllegalArgumentException("유효하지 않은 cron 표현식: bad")
 
             val result = tool.update_scheduled_job(
                 jobId = "job-1",

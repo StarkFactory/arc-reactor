@@ -36,7 +36,7 @@ class DynamicSchedulerServiceValidationTest {
         val ex = assertThrows<IllegalArgumentException>("blank name should be rejected") {
             service.create(job)
         }
-        ex.message shouldContain "Job name must not be blank"
+        ex.message shouldContain "작업 이름은 비어있을 수 없다"
         verify(exactly = 0) { store.save(any()) }
     }
 
@@ -47,7 +47,7 @@ class DynamicSchedulerServiceValidationTest {
         val ex = assertThrows<IllegalArgumentException>("whitespace-only name should be rejected") {
             service.create(job)
         }
-        ex.message shouldContain "Job name must not be blank"
+        ex.message shouldContain "작업 이름은 비어있을 수 없다"
         verify(exactly = 0) { store.save(any()) }
     }
 

@@ -66,8 +66,8 @@ class MultimodalTest {
             val exception = assertThrows(IllegalArgumentException::class.java) {
                 MediaAttachment(mimeType = MimeTypeUtils.IMAGE_PNG)
             }
-            assertTrue(exception.message!!.contains("Either data or uri")) {
-                "Expected validation message, got: ${exception.message}"
+            assertTrue(exception.message.orEmpty().contains("data 또는 uri")) {
+                "검증 메시지에 'data 또는 uri'가 포함되어야 한다, 실제: ${exception.message}"
             }
         }
     }

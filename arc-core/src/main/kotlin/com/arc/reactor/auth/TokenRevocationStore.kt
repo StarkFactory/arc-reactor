@@ -162,7 +162,7 @@ class RedisTokenRevocationStore(
 ) : TokenRevocationStore {
 
     init {
-        require(keyPrefix.isNotBlank()) { "keyPrefix must not be blank" }
+        require(keyPrefix.isNotBlank()) { "keyPrefix는 비어있을 수 없다" }
     }
 
     override fun revoke(tokenId: String, expiresAt: Instant) {

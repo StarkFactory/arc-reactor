@@ -73,7 +73,7 @@ data class MediaAttachment(
     val name: String? = null
 ) {
     init {
-        require(data != null || uri != null) { "Either data or uri must be provided" }
+        require(data != null || uri != null) { "data 또는 uri 중 하나는 반드시 제공해야 한다" }
     }
 
     override fun equals(other: Any?): Boolean {

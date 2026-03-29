@@ -432,11 +432,11 @@ private fun validateJobFields(
 ) {
     when (type) {
         ScheduledJobType.MCP_TOOL -> {
-            require(!mcpServerName.isNullOrBlank()) { "mcpServerName is required for MCP_TOOL jobs" }
-            require(!toolName.isNullOrBlank()) { "toolName is required for MCP_TOOL jobs" }
+            require(!mcpServerName.isNullOrBlank()) { "MCP_TOOL 작업에는 mcpServerName이 필수이다" }
+            require(!toolName.isNullOrBlank()) { "MCP_TOOL 작업에는 toolName이 필수이다" }
         }
         ScheduledJobType.AGENT -> {
-            require(!agentPrompt.isNullOrBlank()) { "agentPrompt is required for AGENT jobs" }
+            require(!agentPrompt.isNullOrBlank()) { "AGENT 작업에는 agentPrompt가 필수이다" }
         }
     }
 }

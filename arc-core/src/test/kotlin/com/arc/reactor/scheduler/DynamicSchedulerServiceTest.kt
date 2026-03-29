@@ -380,7 +380,7 @@ class DynamicSchedulerServiceTest {
             val job = mcpJob(cronExpression = "invalid cron")
 
             val ex = assertThrows<IllegalArgumentException> { service.create(job) }
-            ex.message shouldContain "Invalid cron expression" withMessage
+            ex.message shouldContain "유효하지 않은 cron 표현식" withMessage
                 "크론 표현식 검증 실패 메시지가 포함되어야 한다"
         }
 

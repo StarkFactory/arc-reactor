@@ -241,25 +241,25 @@ class DynamicSchedulerService(
         try {
             CronExpression.parse(cron)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid cron expression: $cron", e)
+            throw IllegalArgumentException("유효하지 않은 cron 표현식: $cron", e)
         }
     }
 
     private fun validateJobName(name: String) {
-        require(name.isNotBlank()) { "Job name must not be blank" }
+        require(name.isNotBlank()) { "작업 이름은 비어있을 수 없다" }
     }
 
     private fun validateExecutionTimeout(timeoutMs: Long?) {
         if (timeoutMs == null || timeoutMs == 0L) return
         require(timeoutMs in MIN_EXECUTION_TIMEOUT_MS..MAX_EXECUTION_TIMEOUT_MS) {
-            "executionTimeoutMs must be 0 (unlimited) or between $MIN_EXECUTION_TIMEOUT_MS and $MAX_EXECUTION_TIMEOUT_MS, got: $timeoutMs"
+            "executionTimeoutMs는 0(무제한) 또는 ${MIN_EXECUTION_TIMEOUT_MS}~${MAX_EXECUTION_TIMEOUT_MS} 범위여야 한다: $timeoutMs"
         }
     }
 
     private fun validateRetryConfig(job: ScheduledJob) {
         if (!job.retryOnFailure) return
         require(job.maxRetryCount >= 1) {
-            "maxRetryCount must be >= 1 when retryOnFailure is enabled, got: ${job.maxRetryCount}"
+            "retryOnFailure 활성화 시 maxRetryCount는 1 이상이어야 한다: ${job.maxRetryCount}"
         }
     }
 
@@ -267,15 +267,15 @@ class DynamicSchedulerService(
         when (job.jobType) {
             ScheduledJobType.MCP_TOOL -> {
                 require(!job.mcpServerName.isNullOrBlank()) {
-                    "mcpServerName is required for MCP_TOOL job"
+                    "MCP_TOOL 작업에는 mcpServerName이 필수이다"
                 }
                 require(!job.toolName.isNullOrBlank()) {
-                    "toolName is required for MCP_TOOL job"
+                    "MCP_TOOL 작업에는 toolName이 필수이다"
                 }
             }
             ScheduledJobType.AGENT -> {
                 require(!job.agentPrompt.isNullOrBlank()) {
-                    "agentPrompt is required for AGENT job"
+                    "AGENT 작업에는 agentPrompt가 필수이다"
                 }
             }
         }
