@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Size
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import java.util.regex.Pattern as JavaPattern
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -77,6 +78,7 @@ class RagIngestionPolicyController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        validateBlockedPatterns(request.blockedPatterns)
         val saved = store.save(request.toPolicy())
         provider.invalidate()
         recordAdminAudit(
@@ -152,6 +154,16 @@ data class UpdateRagIngestionPolicyRequest(
         minResponseChars = minResponseChars.coerceAtLeast(1),
         blockedPatterns = blockedPatterns.map { it.trim() }.filter { it.isNotBlank() }.toSet()
     )
+}
+
+/** 각 blockedPattern 항목의 길이와 정규식 유효성을 검증한다. */
+private fun validateBlockedPatterns(patterns: Set<String>) {
+    for (pattern in patterns) {
+        require(pattern.length <= 500) { "각 blockedPattern은 500자 이하여야 합니다" }
+        runCatching { JavaPattern.compile(pattern) }.onFailure {
+            throw IllegalArgumentException("유효하지 않은 정규식 패턴: ${pattern.take(30)}...")
+        }
+    }
 }
 
 private fun RagIngestionPolicy.toResponse(): RagIngestionPolicyResponse = RagIngestionPolicyResponse(
