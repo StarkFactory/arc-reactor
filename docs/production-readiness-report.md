@@ -3852,3 +3852,17 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **Agent 2 추가:** McpDeepGapCoverageTest 33개 — Reconnection(7), ToolAvailability(4), HealthPinger(6), DeduplicateCallbacks(6), EnsureConnected(3), SecurityConfig(3), SecurityFallback(2), SyncRuntimeServer(2)
 
 **R77-147 (71 Round): 58 fixes + 2,160 tests**
+
+### Round 148 — 2026-03-30T07:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** rag+tool 12파일 영문 로그 32건→한글 (rag 패키지 완전 소거 + SemanticToolSelector 7건)
+**Agent 2:** MicrometerSlaMetricsTest 18개 — 가용성 롤링 윈도우(5), ReAct 수렴(7), 도구 실패(2), E2E 지연(3), NoOp(1)
+**Agent 3:** BUILD/TEST/Hardening/Safety PASS, Guard OK, MCP 2/2, 단순 채팅 avg 1.5s
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **rag+tool 한글화+SLA 테스트** | 12파일 32건 한글화, SlaMetrics 18 테스트 |
+
+**영문 로그 한글화 현황:** agent ✓ guard ✓ cache ✓ auth ✓ scheduler ✓ hook ✓ streaming ✓ rag ✓ tool ✓ — **arc-core 핵심 패키지 완료**
+
+**R77-148 (72 Round): 59 fixes + 2,178 tests**
