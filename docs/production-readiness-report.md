@@ -4043,3 +4043,9 @@ BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard 1ms REJECTED, 성능 av
 BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard REJECTED, 성능 avg 1,246ms (1,191~1,344ms)
 
 **R77-164 (88 Round): 65 fixes + 2,318 tests — 안정**
+
+### Round 165 — 2026-03-31T00:00+09:00 (3-에이전트 병렬)
+
+BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard 1ms REJECTED, 성능 avg 1,096ms (960~1,216ms)
+
+**R77-165 (89 Round): 65 fixes + 2,318 tests — 안정**
