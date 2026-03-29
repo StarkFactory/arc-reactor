@@ -3187,3 +3187,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | e.message | 5+ 파일 노출 | **0건** |
 | `!!` | 1건 | **0건** |
 | P0-P2 잔여 | 다수 | **0건** |
+
+### Round 111 — 2026-03-29T13:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** Slack handler 스캔 — P2 ConcurrentHashMap 무한증가 + 응답 무시 + 긴 메서드
+**Agent 2:** SlackProperties **44 테스트 추가** (14 nested — 전 필드 기본값/계약)
+**Agent 3:** BUILD PASS, 채팅 1317ms, 2168 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | 메모리 | SlackMessagingService rate-limit 맵 1000항목 상한 |
+| `test:` | 테스트 | SlackProperties 44 tests |
+
+**R77-111 (35 Round): 26 fixes + 971 tests**
