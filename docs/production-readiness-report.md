@@ -3261,3 +3261,22 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 - Output Guard 활성화
 - API 토큰 갱신
 - 서버 재시작
+
+### Round 116 — 2026-03-29T15:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **SlackMessagingService 53줄→19줄 리팩터링** (5 메서드 추출)
+**Agent 2:** **Output Guard 통합 테스트 22개** (PII 마스킹 + 시스템 프롬프트 유출 차단)
+**Agent 3:** BUILD PASS, 채팅 1569ms, 2183 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | 코드 품질 | callSlackApi() 53줄→19줄 |
+| `test:` | **통합 테스트** | Output Guard 22 integration tests |
+
+**R77-116 (40 Round): 30 fixes + 1,108 tests**
+
+| 통합 테스트 현황 |
+|-----------------|
+| Guard Pipeline: 34 tests (R115) |
+| **Output Guard Pipeline: 22 tests (R116)** |
+| **합계: 56 통합 테스트** |
