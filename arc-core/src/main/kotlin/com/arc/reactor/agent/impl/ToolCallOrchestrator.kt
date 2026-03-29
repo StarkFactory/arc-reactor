@@ -245,7 +245,7 @@ internal class ToolCallOrchestrator(
     ): ParallelToolExecution? {
         if (allowedTools == null || toolName in allowedTools) return null
         val msg = toolNotAllowedMessage(toolName)
-        logger.info { "Tool call blocked by allowlist: tool=$toolName allowedTools=${allowedTools.size}" }
+        logger.info { "허용 목록에 의해 도구 호출 차단: tool=$toolName allowedTools=${allowedTools.size}" }
         agentMetrics.recordToolCall(toolName, 0, false)
         return ParallelToolExecution(
             response = buildToolResponse(toolCall, toolName, msg, normalizeToolResponseToJson)
@@ -261,7 +261,7 @@ internal class ToolCallOrchestrator(
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution? {
         checkBeforeToolCallHook(toolCallContext)?.let { rejection ->
-            logger.info { "Tool call $toolName rejected by hook: ${rejection.reason}" }
+            logger.info { "Hook에 의해 도구 호출 $toolName 거부: ${rejection.reason}" }
             return ParallelToolExecution(
                 response = buildToolResponse(
                     toolCall, toolName, "Tool call rejected: ${rejection.reason}", normalizeToolResponseToJson
@@ -290,7 +290,7 @@ internal class ToolCallOrchestrator(
         val toolExists = findToolAdapter(toolName, tools) != null ||
             springCallbacksByName.containsKey(toolName)
         if (!toolExists) {
-            logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+            logger.warn { "도구 '$toolName' 미발견 (LLM 환각 가능성): tool=$toolName" }
             return ParallelToolExecution(
                 response = buildToolResponse(
                     toolCall, toolName, toolNotFoundMessage(toolName), normalizeToolResponseToJson
@@ -298,7 +298,7 @@ internal class ToolCallOrchestrator(
             )
         }
         if (reserveToolExecutionSlot(totalToolCallsCounter, maxToolCalls) == null) {
-            logger.warn { "maxToolCalls ($maxToolCalls) reached, stopping tool execution" }
+            logger.warn { "maxToolCalls ($maxToolCalls) 도달, 도구 실행 중단" }
             return ParallelToolExecution(
                 response = buildToolResponse(
                     toolCall, toolCall.name(),
@@ -388,7 +388,7 @@ internal class ToolCallOrchestrator(
     /** allowedTools에 의해 차단된 직접 호출 결과를 생성합니다. */
     private fun rejectByAllowlist(toolName: String, allowedToolsSize: Int): ToolCallResult {
         val message = toolNotAllowedMessage(toolName)
-        logger.info { "Direct tool call blocked by allowlist: tool=$toolName allowedTools=$allowedToolsSize" }
+        logger.info { "허용 목록에 의해 직접 도구 호출 차단: tool=$toolName allowedTools=$allowedToolsSize" }
         agentMetrics.recordToolCall(toolName, 0, false)
         return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
     }
@@ -396,7 +396,7 @@ internal class ToolCallOrchestrator(
     /** Hook에 의해 거부된 직접 호출 결과를 생성합니다. */
     private fun rejectByHook(toolName: String, reason: String): ToolCallResult {
         val message = "Tool call rejected: $reason"
-        logger.info { "Direct tool call $toolName rejected by hook: $reason" }
+        logger.info { "Hook에 의해 직접 도구 호출 $toolName 거부: $reason" }
         return ToolCallResult(success = false, output = message, errorMessage = message, durationMs = 0)
     }
 
@@ -541,7 +541,7 @@ internal class ToolCallOrchestrator(
             ?: return "Tool call blocked: Approval store unavailable for required tool '$toolName'"
                 .also { logger.error { it } }
 
-        logger.info { "Tool '$toolName' requires human approval, suspending execution..." }
+        logger.info { "도구 '$toolName' 사람 승인 필요, 실행 일시 중단..." }
         return requestAndProcessApproval(approvalStore, toolName, toolCallContext, hookContext)
     }
 
@@ -563,7 +563,7 @@ internal class ToolCallOrchestrator(
             recordApprovalMetadata(hookContext, toolCallContext, toolName, hitlStartNanos, response)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Approval check failed for tool '$toolName': ${e.message ?: "unknown error"}" }
+            logger.error(e) { "도구 '$toolName' 승인 확인 실패: ${e.message ?: "알 수 없는 오류"}" }
             "Tool call blocked: Approval check failed for tool '$toolName'"
         }
     }
@@ -581,11 +581,11 @@ internal class ToolCallOrchestrator(
         hookContext.metadata["hitlWaitMs_$keySuffix"] = hitlWaitMs
         hookContext.metadata["hitlApproved_$keySuffix"] = response.approved
         if (response.approved) {
-            logger.info { "Tool '$toolName' approved by human (waited ${hitlWaitMs}ms)" }
+            logger.info { "도구 '$toolName' 사람에 의해 승인됨 (대기 ${hitlWaitMs}ms)" }
             return null
         }
         val reason = response.reason ?: "Rejected by human"
-        logger.info { "Tool '$toolName' rejected by human: $reason (waited ${hitlWaitMs}ms)" }
+        logger.info { "도구 '$toolName' 사람에 의해 거부됨: $reason (대기 ${hitlWaitMs}ms)" }
         hookContext.metadata["hitlRejectionReason_$keySuffix"] = reason
         return "Tool call rejected by human: $reason"
     }
@@ -635,7 +635,7 @@ internal class ToolCallOrchestrator(
     /** 출력 길이 초과 시 잘라냅니다. */
     private fun truncateIfExceeded(toolName: String, outcome: ToolInvocationOutcome): ToolInvocationOutcome {
         if (maxToolOutputLength <= 0 || outcome.output.length <= maxToolOutputLength) return outcome
-        logger.warn { "Tool '$toolName' output truncated: ${outcome.output.length} -> $maxToolOutputLength chars" }
+        logger.warn { "도구 '$toolName' 출력 잘림: ${outcome.output.length} -> $maxToolOutputLength 자" }
         return outcome.copy(
             output = outcome.output.take(maxToolOutputLength) +
                 "\n[TRUNCATED: output exceeded $maxToolOutputLength characters]"
@@ -694,7 +694,7 @@ internal class ToolCallOrchestrator(
         springCallbacksByName[toolName]?.let { callback ->
             return invokeSpringCallback(toolName, toolInput, callback)
         }
-        logger.warn { "Tool '$toolName' not found (possibly hallucinated by LLM)" }
+        logger.warn { "도구 '$toolName' 미발견 (LLM 환각 가능성)" }
         return ToolInvocationOutcome(output = toolNotFoundMessage(toolName), success = false, trackAsUsed = false)
     }
 
@@ -711,11 +711,11 @@ internal class ToolCallOrchestrator(
             ToolInvocationOutcome(output = output, success = success, trackAsUsed = true)
         } catch (e: TimeoutCancellationException) {
             val timeoutMs = adapter.arcCallback.timeoutMs ?: toolCallTimeoutMs
-            logger.error { "Tool $toolName timed out after ${timeoutMs}ms" }
+            logger.error { "도구 $toolName 타임아웃: ${timeoutMs}ms 초과" }
             timeoutErrorOutcome(toolName, timeoutMs)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Tool $toolName execution failed" }
+            logger.error(e) { "도구 $toolName 실행 실패" }
             executionErrorOutcome(e)
         }
     }
@@ -734,11 +734,11 @@ internal class ToolCallOrchestrator(
                 output = normalizeSpringToolOutput(output), success = true, trackAsUsed = true
             )
         } catch (e: TimeoutCancellationException) {
-            logger.error { "Tool $toolName timed out after ${toolCallTimeoutMs}ms" }
+            logger.error { "도구 $toolName 타임아웃: ${toolCallTimeoutMs}ms 초과" }
             timeoutErrorOutcome(toolName, toolCallTimeoutMs)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Tool $toolName execution failed" }
+            logger.error(e) { "도구 $toolName 실행 실패" }
             executionErrorOutcome(e)
         }
     }
@@ -824,7 +824,7 @@ internal class ToolCallOrchestrator(
                 .toList()
         }.getOrElse { ex ->
             logger.warn(ex) {
-                "Failed to resolve @Tool callbacks from LocalTool beans; skipping local tool callback map."
+                "LocalTool 빈에서 @Tool 콜백 해석 실패; 로컬 도구 콜백 맵 건너뜀"
             }
             emptyList()
         }
@@ -839,7 +839,7 @@ internal class ToolCallOrchestrator(
         if (bean !is Advised) return bean
         val target = runCatching { bean.targetSource.target }.getOrNull()
         if (target == null) {
-            logger.warn { "AOP proxy target is null for ${bean.javaClass.name}; @Tool annotations may not be discovered" }
+            logger.warn { "AOP 프록시 타겟이 null: ${bean.javaClass.name}; @Tool 어노테이션이 발견되지 않을 수 있음" }
         }
         return target ?: bean
     }
@@ -964,7 +964,7 @@ internal class ToolCallOrchestrator(
             agentMetrics.recordToolResultCacheMiss(toolName, cacheKey)
             return null
         }
-        logger.debug { "Tool result cache hit: tool=$toolName key=$cacheKey" }
+        logger.debug { "도구 결과 캐시 히트: tool=$toolName key=$cacheKey" }
         agentMetrics.recordToolResultCacheHit(toolName, cacheKey)
         return ToolInvocationOutcome(output = cachedOutput, success = true, trackAsUsed = true)
     }

@@ -104,7 +104,7 @@ class HookExecutor(
                     hook.afterToolCall(context, result)
                 } catch (e: Exception) {
                     e.throwIfCancellation()
-                    logger.error(e) { "AfterToolCallHook failed: ${hook::class.simpleName}" }
+                    logger.error(e) { "AfterToolCallHook 실행 실패: ${hook::class.simpleName}" }
                     span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
                     if (hook.failOnError) throw e
                 }
@@ -136,7 +136,7 @@ class HookExecutor(
                     hook.afterAgentComplete(context, response)
                 } catch (e: Exception) {
                     e.throwIfCancellation()
-                    logger.error(e) { "AfterAgentCompleteHook failed: ${hook::class.simpleName}" }
+                    logger.error(e) { "AfterAgentCompleteHook 실행 실패: ${hook::class.simpleName}" }
                     span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
                     if (hook.failOnError) throw e
                 }
@@ -200,14 +200,14 @@ class HookExecutor(
                 when (val result = execute(hook, context)) {
                     is HookResult.Continue -> continue
                     is HookResult.Reject -> {
-                        logger.warn { "Hook rejected: ${result.reason}" }
+                        logger.warn { "Hook 거부: ${result.reason}" }
                         return result
                     }
                 }
             } catch (e: Exception) {
                 // CancellationException은 반드시 먼저 처리하여 재던진다
                 e.throwIfCancellation()
-                logger.error(e) { "Hook execution failed: ${hook::class.simpleName}" }
+                logger.error(e) { "Hook 실행 실패: ${hook::class.simpleName}" }
                 if (hook.failOnError) {
                     // Fail-Close: 중요한 Hook 실패 시 실행 중단
                     return HookResult.Reject("내부 처리 중 오류가 발생했습니다")

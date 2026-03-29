@@ -63,7 +63,7 @@ class GuardPipeline(
         validateStageOrders()
         logger.debug {
             val desc = sortedStages.joinToString { "order=${it.order}:${it.stageName}" }
-            "Guard stages: [$desc]"
+            "Guard 단계 초기화: [$desc]"
         }
     }
 
@@ -77,15 +77,15 @@ class GuardPipeline(
             .forEach { (order, stages) ->
                 val names = stages.joinToString { it.stageName }
                 logger.warn {
-                    "Duplicate guard stage order=$order: [$names]. " +
-                        "Execution order among these stages is undefined."
+                    "Guard 단계 order 중복: order=$order: [$names]. " +
+                        "이 단계들 간의 실행 순서는 보장되지 않습니다."
                 }
             }
     }
 
     override suspend fun guard(command: GuardCommand): GuardResult {
         if (sortedStages.isEmpty()) {
-            logger.debug { "No guard stages enabled, allowing request" }
+            logger.debug { "활성화된 Guard 단계 없음, 요청 허용" }
             return GuardResult.Allowed.DEFAULT
         }
         val span = tracer.startSpan(
@@ -138,7 +138,7 @@ class GuardPipeline(
     ): StageOutcome {
         val stageStartNanos = System.nanoTime()
         return try {
-            logger.debug { "Executing guard stage: ${stage.stageName}" }
+            logger.debug { "Guard 단계 실행: ${stage.stageName}" }
             when (val result = stage.enforce(command)) {
                 is GuardResult.Allowed -> handleAllowed(
                     stage, result, command, stageStartNanos, pipelineStartNanos
@@ -163,7 +163,7 @@ class GuardPipeline(
         stageStartNanos: Long,
         pipelineStartNanos: Long
     ): StageOutcome.Passed {
-        logger.debug { "Stage ${stage.stageName} passed" }
+        logger.debug { "Guard 단계 ${stage.stageName} 통과" }
         val effective = applyNormalizedText(result, command)
         publishAudit(
             effective, stage.stageName, "allowed", null, null,
@@ -181,7 +181,7 @@ class GuardPipeline(
         pipelineStartNanos: Long,
         span: ArcReactorTracer.SpanHandle
     ): StageOutcome.Rejected {
-        logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
+        logger.warn { "Guard 단계 ${stage.stageName} 거부: ${result.reason}" }
         publishAudit(
             command, stage.stageName, "rejected",
             result.reason, result.category.name,
@@ -202,7 +202,7 @@ class GuardPipeline(
         pipelineStartNanos: Long,
         span: ArcReactorTracer.SpanHandle
     ): StageOutcome.Rejected {
-        logger.error(e) { "Guard stage ${stage.stageName} failed" }
+        logger.error(e) { "Guard 단계 ${stage.stageName} 실행 실패" }
         publishAudit(
             command, stage.stageName, "error", e.message, null,
             stageStartNanos, pipelineStartNanos
@@ -212,7 +212,7 @@ class GuardPipeline(
         span.setError(e)
         return StageOutcome.Rejected(
             GuardResult.Rejected(
-                reason = "Security check failed",
+                reason = "보안 검사 실패",
                 category = RejectionCategory.SYSTEM_ERROR,
                 stage = stage.stageName
             )
