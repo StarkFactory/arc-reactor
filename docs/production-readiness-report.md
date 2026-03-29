@@ -3097,3 +3097,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **신규 발견 P2**: `ExecutionResultFinalizer:616` — `calculateCost(model, totalTokens, totalTokens/3)` 비용 33% 과다 (다음 Round 수정)
 
 **R77-104 (28 Round): 22 fixes + 798 tests**
+
+### Round 105 — 2026-03-29T11:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **비용 계산 33% 과다 수정** — tokens*3/4 + tokens-input 정확 분할
+**Agent 2:** OutputBoundaryEnforcer **18 테스트 추가** (7 nested — truncation/WARN/FAIL/RETRY)
+**Agent 3:** BUILD PASS, 채팅 1216ms, 2150 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | 비용 | appendCostEstimate 토큰 33% 과다 → 정확 분할 |
+| `test:` | 테스트 | OutputBoundaryEnforcer 18 tests |
+
+**R77-105 (29 Round): 23 fixes + 816 tests**
