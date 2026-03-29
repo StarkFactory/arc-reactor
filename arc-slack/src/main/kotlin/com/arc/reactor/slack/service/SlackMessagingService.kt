@@ -131,6 +131,12 @@ class SlackMessagingService(
         }
     }
 
+    /**
+     * Slack Web API를 호출하고, 429/5xx 시 재시도한다.
+     *
+     * @param method 호출할 API 메서드 (예: "chat.postMessage")
+     * @param body 요청 본문
+     */
     private suspend fun callSlackApi(method: String, body: Map<String, Any>): SlackApiResult {
         val started = System.currentTimeMillis()
         var attempt = 0
@@ -139,51 +145,95 @@ class SlackMessagingService(
         while (true) {
             attempt++
             try {
-                val result = webClient.post()
-                    .uri("/$method")
-                    .bodyValue(body)
-                    .retrieve()
-                    .awaitBody<SlackApiResult>()
-                metricsRecorder.recordApiCall(
-                    method = method,
-                    outcome = if (result.ok) "success" else "api_error",
-                    durationMs = System.currentTimeMillis() - started
-                )
-                return result
+                return executeApiCall(method, body, started)
             } catch (e: WebClientResponseException.TooManyRequests) {
-                metricsRecorder.recordApiRetry(method = method, reason = "rate_limit")
-                if (attempt >= maxAttempts) throw e
-                val retryAfterMillis = e.headers.getFirst("Retry-After")
-                    ?.toLongOrNull()
-                    ?.coerceAtLeast(1L)
-                    ?.times(1000)
-                    ?: retryDefaultDelayMs.coerceAtLeast(1L)
-
-                logger.warn {
-                    "Slack API rate-limited for method=$method, " +
-                        "retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
-                }
-                delay(retryAfterMillis)
+                handleRateLimitRetry(e, method, attempt, maxAttempts)
             } catch (e: WebClientResponseException) {
-                val reason = if (e.statusCode.is5xxServerError) "server_error" else "client_error"
-                metricsRecorder.recordApiRetry(method = method, reason = reason)
-                if (!e.statusCode.is5xxServerError || attempt >= maxAttempts) throw e
-
-                val backoffMillis = retryDefaultDelayMs.coerceAtLeast(1L) * attempt
-                logger.warn {
-                    "Slack API 5xx for method=$method, retrying in ${backoffMillis}ms (attempt=$attempt/$maxAttempts)"
-                }
-                delay(backoffMillis)
+                handleServerErrorRetry(e, method, attempt, maxAttempts)
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                metricsRecorder.recordApiCall(
-                    method = method,
-                    outcome = "exception",
-                    durationMs = System.currentTimeMillis() - started
-                )
+                recordApiException(method, started)
                 throw e
             }
         }
+    }
+
+    /**
+     * 단일 HTTP 요청을 실행하고 결과를 반환한다.
+     */
+    private suspend fun executeApiCall(
+        method: String,
+        body: Map<String, Any>,
+        started: Long
+    ): SlackApiResult {
+        val result = webClient.post()
+            .uri("/$method")
+            .bodyValue(body)
+            .retrieve()
+            .awaitBody<SlackApiResult>()
+        metricsRecorder.recordApiCall(
+            method = method,
+            outcome = if (result.ok) "success" else "api_error",
+            durationMs = System.currentTimeMillis() - started
+        )
+        return result
+    }
+
+    /**
+     * 429 Rate Limit 응답을 처리한다. Retry-After 헤더가 있으면 해당 시간만큼 대기한다.
+     *
+     * @throws WebClientResponseException.TooManyRequests 최대 재시도 횟수 초과 시
+     */
+    private suspend fun handleRateLimitRetry(
+        e: WebClientResponseException.TooManyRequests,
+        method: String,
+        attempt: Int,
+        maxAttempts: Int
+    ) {
+        metricsRecorder.recordApiRetry(method = method, reason = "rate_limit")
+        if (attempt >= maxAttempts) throw e
+        val retryAfterMillis = e.headers.getFirst("Retry-After")
+            ?.toLongOrNull()
+            ?.coerceAtLeast(1L)
+            ?.times(1000)
+            ?: retryDefaultDelayMs.coerceAtLeast(1L)
+        logger.warn {
+            "Slack API rate-limited for method=$method, " +
+                "retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
+        }
+        delay(retryAfterMillis)
+    }
+
+    /**
+     * 5xx 서버 오류 응답을 처리한다. 5xx가 아니거나 최대 재시도 초과 시 예외를 다시 던진다.
+     *
+     * @throws WebClientResponseException 5xx가 아닌 오류 또는 최대 재시도 초과 시
+     */
+    private suspend fun handleServerErrorRetry(
+        e: WebClientResponseException,
+        method: String,
+        attempt: Int,
+        maxAttempts: Int
+    ) {
+        val reason = if (e.statusCode.is5xxServerError) "server_error" else "client_error"
+        metricsRecorder.recordApiRetry(method = method, reason = reason)
+        if (!e.statusCode.is5xxServerError || attempt >= maxAttempts) throw e
+        val backoffMillis = retryDefaultDelayMs.coerceAtLeast(1L) * attempt
+        logger.warn {
+            "Slack API 5xx for method=$method, retrying in ${backoffMillis}ms (attempt=$attempt/$maxAttempts)"
+        }
+        delay(backoffMillis)
+    }
+
+    /**
+     * 예상치 못한 예외 발생 시 메트릭을 기록한다.
+     */
+    private fun recordApiException(method: String, started: Long) {
+        metricsRecorder.recordApiCall(
+            method = method,
+            outcome = "exception",
+            durationMs = System.currentTimeMillis() - started
+        )
     }
 
     private suspend fun enforceRateLimit(channelId: String) {
