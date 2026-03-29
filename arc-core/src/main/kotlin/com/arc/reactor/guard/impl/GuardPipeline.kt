@@ -84,83 +84,147 @@ class GuardPipeline(
     }
 
     override suspend fun guard(command: GuardCommand): GuardResult {
-        // ── 단계 1: 빈 파이프라인 처리 ──
-        // Guard 단계가 하나도 없으면 모든 요청을 허용한다
         if (sortedStages.isEmpty()) {
             logger.debug { "No guard stages enabled, allowing request" }
             return GuardResult.Allowed.DEFAULT
         }
-
         val span = tracer.startSpan(
             "arc.guard.input",
             mapOf("guard.stage.count" to sortedStages.size.toString())
         )
-        val pipelineStartNanos = System.nanoTime()
-        var currentCommand = command
-
         try {
-            // ── 단계 2: 각 Guard 단계를 순서대로 실행 ──
-            for (stage in sortedStages) {
-                val stageStartNanos = System.nanoTime()
-                try {
-                    logger.debug { "Executing guard stage: ${stage.stageName}" }
-                    val result = stage.enforce(currentCommand)
-
-                    when (result) {
-                        is GuardResult.Allowed -> {
-                            logger.debug { "Stage ${stage.stageName} passed" }
-                            currentCommand = applyNormalizedText(result, currentCommand)
-                            publishAudit(
-                                currentCommand, stage.stageName, "allowed", null, null,
-                                stageStartNanos, pipelineStartNanos
-                            )
-                            continue
-                        }
-                        is GuardResult.Rejected -> {
-                            // ── 거부: 파이프라인 즉시 중단 ──
-                            logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
-                            publishAudit(
-                                currentCommand, stage.stageName, "rejected",
-                                result.reason, result.category.name,
-                                stageStartNanos, pipelineStartNanos
-                            )
-                            span.setAttribute("guard.result", "rejected")
-                            span.setAttribute("guard.stage", stage.stageName)
-                            span.setAttribute("guard.reason", result.reason)
-                            return result.copy(stage = stage.stageName)
-                        }
-                    }
-                } catch (e: Exception) {
-                    // ── CancellationException은 반드시 먼저 처리하여 재던진다 ──
-                    e.throwIfCancellation()
-
-                    // ── Fail-Close: 예외 발생 시 요청 거부 ──
-                    logger.error(e) { "Guard stage ${stage.stageName} failed" }
-                    publishAudit(
-                        currentCommand, stage.stageName, "error", e.message, null,
-                        stageStartNanos, pipelineStartNanos
-                    )
-                    span.setAttribute("guard.result", "error")
-                    span.setAttribute("guard.stage", stage.stageName)
-                    span.setError(e)
-                    return GuardResult.Rejected(
-                        reason = "Security check failed",
-                        category = RejectionCategory.SYSTEM_ERROR,
-                        stage = stage.stageName
-                    )
-                }
-            }
-
-            // ── 단계 3: 모든 단계 통과 — 요청 허용 ──
-            publishAudit(
-                currentCommand, "pipeline", "allowed", null, null,
-                pipelineStartNanos, pipelineStartNanos
-            )
-            span.setAttribute("guard.result", "allowed")
-            return GuardResult.Allowed.DEFAULT
+            return executeAllStages(command, span)
         } finally {
             span.close()
         }
+    }
+
+    /** 모든 Guard 단계를 순서대로 실행하고 최종 결과를 반환한다. */
+    private suspend fun executeAllStages(
+        command: GuardCommand,
+        span: ArcReactorTracer.SpanHandle
+    ): GuardResult {
+        val pipelineStartNanos = System.nanoTime()
+        var currentCommand = command
+
+        for (stage in sortedStages) {
+            val outcome = executeSingleStage(
+                stage, currentCommand, pipelineStartNanos, span
+            )
+            when (outcome) {
+                is StageOutcome.Passed -> {
+                    currentCommand = outcome.effectiveCommand
+                }
+                is StageOutcome.Rejected -> return outcome.result
+            }
+        }
+        publishAudit(
+            currentCommand, "pipeline", "allowed", null, null,
+            pipelineStartNanos, pipelineStartNanos
+        )
+        span.setAttribute("guard.result", "allowed")
+        return GuardResult.Allowed.DEFAULT
+    }
+
+    /**
+     * 단일 Guard 단계를 실행한다.
+     * 허용 시 [StageOutcome.Passed], 거부/에러 시 [StageOutcome.Rejected]를 반환한다.
+     */
+    private suspend fun executeSingleStage(
+        stage: GuardStage,
+        command: GuardCommand,
+        pipelineStartNanos: Long,
+        span: ArcReactorTracer.SpanHandle
+    ): StageOutcome {
+        val stageStartNanos = System.nanoTime()
+        return try {
+            logger.debug { "Executing guard stage: ${stage.stageName}" }
+            when (val result = stage.enforce(command)) {
+                is GuardResult.Allowed -> handleAllowed(
+                    stage, result, command, stageStartNanos, pipelineStartNanos
+                )
+                is GuardResult.Rejected -> handleRejected(
+                    stage, result, command, stageStartNanos, pipelineStartNanos, span
+                )
+            }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            handleStageError(
+                stage, e, command, stageStartNanos, pipelineStartNanos, span
+            )
+        }
+    }
+
+    /** 단계 통과 시 정규화된 텍스트를 적용하고 감사 이벤트를 발행한다. */
+    private fun handleAllowed(
+        stage: GuardStage,
+        result: GuardResult.Allowed,
+        command: GuardCommand,
+        stageStartNanos: Long,
+        pipelineStartNanos: Long
+    ): StageOutcome.Passed {
+        logger.debug { "Stage ${stage.stageName} passed" }
+        val effective = applyNormalizedText(result, command)
+        publishAudit(
+            effective, stage.stageName, "allowed", null, null,
+            stageStartNanos, pipelineStartNanos
+        )
+        return StageOutcome.Passed(effective)
+    }
+
+    /** 단계 거부 시 tracing 속성을 설정하고 감사 이벤트를 발행한다. */
+    private fun handleRejected(
+        stage: GuardStage,
+        result: GuardResult.Rejected,
+        command: GuardCommand,
+        stageStartNanos: Long,
+        pipelineStartNanos: Long,
+        span: ArcReactorTracer.SpanHandle
+    ): StageOutcome.Rejected {
+        logger.warn { "Stage ${stage.stageName} rejected: ${result.reason}" }
+        publishAudit(
+            command, stage.stageName, "rejected",
+            result.reason, result.category.name,
+            stageStartNanos, pipelineStartNanos
+        )
+        span.setAttribute("guard.result", "rejected")
+        span.setAttribute("guard.stage", stage.stageName)
+        span.setAttribute("guard.reason", result.reason)
+        return StageOutcome.Rejected(result.copy(stage = stage.stageName))
+    }
+
+    /** Fail-Close: 단계 예외 발생 시 요청을 거부한다. */
+    private fun handleStageError(
+        stage: GuardStage,
+        e: Exception,
+        command: GuardCommand,
+        stageStartNanos: Long,
+        pipelineStartNanos: Long,
+        span: ArcReactorTracer.SpanHandle
+    ): StageOutcome.Rejected {
+        logger.error(e) { "Guard stage ${stage.stageName} failed" }
+        publishAudit(
+            command, stage.stageName, "error", e.message, null,
+            stageStartNanos, pipelineStartNanos
+        )
+        span.setAttribute("guard.result", "error")
+        span.setAttribute("guard.stage", stage.stageName)
+        span.setError(e)
+        return StageOutcome.Rejected(
+            GuardResult.Rejected(
+                reason = "Security check failed",
+                category = RejectionCategory.SYSTEM_ERROR,
+                stage = stage.stageName
+            )
+        )
+    }
+
+    /** 단일 Guard 단계 실행 결과를 표현하는 sealed 인터페이스. */
+    private sealed interface StageOutcome {
+        /** 단계 통과 — 정규화된 커맨드를 후속 단계에 전달한다. */
+        data class Passed(val effectiveCommand: GuardCommand) : StageOutcome
+        /** 단계 거부 또는 에러 — 파이프라인을 즉시 종료한다. */
+        data class Rejected(val result: GuardResult.Rejected) : StageOutcome
     }
 
     /**

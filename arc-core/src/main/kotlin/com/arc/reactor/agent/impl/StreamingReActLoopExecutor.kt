@@ -76,118 +76,269 @@ internal class StreamingReActLoopExecutor(
         emit: suspend (String) -> Unit,
         budgetTracker: StepBudgetTracker? = null
     ): StreamingLoopResult {
-        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
-        var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
+        val state = initLoopState(command, maxToolCalls, initialTools)
+        val messages = buildInitialMessages(conversationHistory, command)
+
+        while (true) {
+            val processResult = streamAndAccumulate(
+                activeChatClient, systemPrompt, messages,
+                state, emit, hookContext
+            )
+            if (checkBudgetExhausted(processResult, budgetTracker, state, hookContext, emit, command)) {
+                return buildResult(false, state)
+            }
+            val action = resolveLoopAction(processResult, state, messages)
+            when (action) {
+                StreamLoopAction.FINISH -> {
+                    recordLoopDurations(hookContext, state.totalLlmDurationMs, state.totalToolDurationMs, command)
+                    return buildResult(true, state)
+                }
+                StreamLoopAction.RETRY -> continue
+                StreamLoopAction.EXECUTE_TOOLS -> processToolCalls(
+                    processResult, state, messages, hookContext,
+                    toolsUsed, maxToolCalls, allowedTools, emit, command
+                )
+            }
+        }
+    }
+
+    // ── 루프 상태 컨테이너 ──
+
+    /**
+     * 스트리밍 ReAct 루프의 가변 상태를 보관하는 내부 컨테이너.
+     * 루프 반복마다 읽기/쓰기되는 변수를 하나로 묶어 메서드 간 전달을 단순화한다.
+     */
+    private class StreamingLoopState(
+        initialTools: List<Any>,
+        maxToolCalls: Int,
+        initialChatOptions: ChatOptions
+    ) {
+        var activeTools: List<Any> =
+            if (maxToolCalls > 0) initialTools else emptyList()
+        var chatOptions: ChatOptions = initialChatOptions
         var totalToolCalls = 0
-        val totalToolCallsCounter = AtomicInteger(0) // 루프 밖 1회 할당 (매 반복 재생성 방지)
+        val totalToolCallsCounter = AtomicInteger(0)
         var lastIterationContent = ""
         val collectedContent = StringBuilder()
         var totalLlmDurationMs = 0L
         var totalToolDurationMs = 0L
         var hadToolError = false
         var textRetryCount = 0
+    }
 
+    /** 루프 반복의 분기 결정을 표현하는 열거형. */
+    private enum class StreamLoopAction { FINISH, RETRY, EXECUTE_TOOLS }
+
+    // ── 루프 초기화 ──
+
+    /** 루프 상태를 초기화한다. */
+    private fun initLoopState(
+        command: AgentCommand,
+        maxToolCalls: Int,
+        initialTools: List<Any>
+    ): StreamingLoopState = StreamingLoopState(
+        initialTools, maxToolCalls,
+        buildChatOptions(command, maxToolCalls > 0 && initialTools.isNotEmpty())
+    )
+
+    /** 대화 히스토리 + 현재 사용자 메시지를 결합한 초기 메시지 리스트를 생성한다. */
+    private fun buildInitialMessages(
+        conversationHistory: List<Message>,
+        command: AgentCommand
+    ): MutableList<Message> {
         val messages = mutableListOf<Message>()
         if (conversationHistory.isNotEmpty()) {
             messages.addAll(conversationHistory)
         }
-        messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
+        messages.add(
+            MediaConverter.buildUserMessage(command.userPrompt, command.media)
+        )
+        return messages
+    }
 
-        while (true) {
-            // 단계 A: 스트리밍 LLM 호출 + 청크 수집
-            val processResult = collectAndProcessStream(
-                activeChatClient, systemPrompt, messages, chatOptions,
-                activeTools, emit, collectedContent, hookContext
+    // ── 단계 A: 스트리밍 LLM 호출 + 누적 ──
+
+    /** 스트리밍 LLM을 호출하고 결과를 상태에 누적한다. */
+    private suspend fun streamAndAccumulate(
+        activeChatClient: ChatClient,
+        systemPrompt: String,
+        messages: MutableList<Message>,
+        state: StreamingLoopState,
+        emit: suspend (String) -> Unit,
+        hookContext: HookContext
+    ): StreamProcessResult {
+        val result = collectAndProcessStream(
+            activeChatClient, systemPrompt, messages,
+            state.chatOptions, state.activeTools,
+            emit, state.collectedContent, hookContext
+        )
+        state.totalLlmDurationMs += result.llmDurationMs
+        state.lastIterationContent = result.iterationContent
+        return result
+    }
+
+    // ── 단계 A-2: 예산 소진 확인 ──
+
+    /** 토큰 예산 소진 여부를 확인한다. 소진 시 true를 반환한다. */
+    private suspend fun checkBudgetExhausted(
+        processResult: StreamProcessResult,
+        budgetTracker: StepBudgetTracker?,
+        state: StreamingLoopState,
+        hookContext: HookContext,
+        emit: suspend (String) -> Unit,
+        command: AgentCommand
+    ): Boolean {
+        if (!trackBudgetAndCheckExhausted(
+                processResult.streamResult.lastChunkMeta,
+                budgetTracker, hookContext, emit
             )
-            totalLlmDurationMs += processResult.llmDurationMs
-            lastIterationContent = processResult.iterationContent
+        ) return false
+        recordLoopDurations(
+            hookContext, state.totalLlmDurationMs,
+            state.totalToolDurationMs, command
+        )
+        return true
+    }
 
-            // 단계 A-2: 토큰 예산 추적 — EXHAUSTED 시 루프 종료
-            if (trackBudgetAndCheckExhausted(
-                    processResult.streamResult.lastChunkMeta,
-                    budgetTracker, hookContext, emit
+    // ── 단계 B: 도구 호출 분기 판정 ──
+
+    /** LLM 응답을 분석하여 루프 제어 액션을 결정한다. */
+    private fun resolveLoopAction(
+        processResult: StreamProcessResult,
+        state: StreamingLoopState,
+        messages: MutableList<Message>
+    ): StreamLoopAction {
+        val noPendingTools =
+            processResult.streamResult.pendingToolCalls.isEmpty() ||
+                state.activeTools.isEmpty()
+        if (noPendingTools) {
+            if (shouldRetryAfterToolError(
+                    state.hadToolError,
+                    processResult.streamResult.pendingToolCalls,
+                    state.activeTools, messages, state.textRetryCount
                 )
             ) {
-                recordLoopDurations(
-                    hookContext, totalLlmDurationMs, totalToolDurationMs, command
-                )
-                return StreamingLoopResult(
-                    success = false,
-                    collectedContent = collectedContent.toString(),
-                    lastIterationContent = lastIterationContent
-                )
+                state.textRetryCount++
+                state.hadToolError = false
+                return StreamLoopAction.RETRY
             }
+            return StreamLoopAction.FINISH
+        }
+        state.textRetryCount = 0
+        return StreamLoopAction.EXECUTE_TOOLS
+    }
 
-            // 단계 B: 도구 호출 없으면 루프 종료 판단
-            if (processResult.streamResult.pendingToolCalls.isEmpty() ||
-                activeTools.isEmpty()
-            ) {
-                if (shouldRetryAfterToolError(
-                        hadToolError,
-                        processResult.streamResult.pendingToolCalls,
-                        activeTools, messages, textRetryCount
-                    )
-                ) {
-                    textRetryCount++
-                    hadToolError = false
-                    continue
-                }
-                recordLoopDurations(
-                    hookContext, totalLlmDurationMs, totalToolDurationMs, command
-                )
-                return StreamingLoopResult(
-                    success = true,
-                    collectedContent = collectedContent.toString(),
-                    lastIterationContent = lastIterationContent
-                )
-            }
-            textRetryCount = 0
+    // ── 단계 C-G: 도구 실행 + 후처리 ──
 
-            // 단계 C: AssistantMessage 조립 후 메시지에 추가
-            val pendingToolCalls = processResult.streamResult.pendingToolCalls
-            val assistantMsg = AssistantMessage.builder()
-                .content(processResult.streamResult.chunkText)
-                .toolCalls(pendingToolCalls)
+    /** 도구를 실행하고 메시지 쌍 추가, 에러 힌트, maxToolCalls 검사를 수행한다. */
+    private suspend fun processToolCalls(
+        processResult: StreamProcessResult,
+        state: StreamingLoopState,
+        messages: MutableList<Message>,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        maxToolCalls: Int,
+        allowedTools: Set<String>?,
+        emit: suspend (String) -> Unit,
+        command: AgentCommand
+    ) {
+        val pendingToolCalls = processResult.streamResult.pendingToolCalls
+        appendAssistantMessage(messages, processResult)
+        val toolResponses = executeAndRecordTools(
+            pendingToolCalls, state, hookContext,
+            toolsUsed, maxToolCalls, allowedTools, emit
+        )
+        appendToolResponseMessage(messages, toolResponses)
+        applyPostToolHints(toolResponses, state, messages, maxToolCalls)
+        enforceMaxToolCalls(state, maxToolCalls, command, messages)
+    }
+
+    /** AssistantMessage를 조립하여 메시지에 추가한다 (메시지 쌍의 첫 번째). */
+    private fun appendAssistantMessage(
+        messages: MutableList<Message>,
+        processResult: StreamProcessResult
+    ) {
+        val assistantMsg = AssistantMessage.builder()
+            .content(processResult.streamResult.chunkText)
+            .toolCalls(processResult.streamResult.pendingToolCalls)
+            .build()
+        messages.add(assistantMsg)
+    }
+
+    /** 도구를 병렬 실행하고 소요 시간을 상태에 누적한다. */
+    private suspend fun executeAndRecordTools(
+        pendingToolCalls: List<AssistantMessage.ToolCall>,
+        state: StreamingLoopState,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        maxToolCalls: Int,
+        allowedTools: Set<String>?,
+        emit: suspend (String) -> Unit
+    ): List<ToolResponseMessage.ToolResponse> {
+        emitToolEvents(pendingToolCalls, emit, isStart = true)
+        state.totalToolCallsCounter.set(state.totalToolCalls)
+        val toolStart = System.nanoTime()
+        val toolResponses = toolCallOrchestrator.executeInParallel(
+            pendingToolCalls, state.activeTools, hookContext,
+            toolsUsed, state.totalToolCallsCounter, maxToolCalls,
+            allowedTools,
+            normalizeToolResponseToJson =
+                ReActLoopUtils.shouldNormalizeToolResponses(state.chatOptions)
+        )
+        state.totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
+        state.totalToolCalls = state.totalToolCallsCounter.get()
+        emitToolEvents(pendingToolCalls, emit, isStart = false)
+        return toolResponses
+    }
+
+    /** ToolResponseMessage를 메시지에 추가한다 (메시지 쌍의 두 번째). */
+    private fun appendToolResponseMessage(
+        messages: MutableList<Message>,
+        toolResponses: List<ToolResponseMessage.ToolResponse>
+    ) {
+        messages.add(
+            ToolResponseMessage.builder()
+                .responses(toolResponses)
                 .build()
-            messages.add(assistantMsg)
+        )
+    }
 
-            // 단계 D: 도구 이벤트 전송 + 병렬 실행
-            emitToolEvents(pendingToolCalls, emit, isStart = true)
-            totalToolCallsCounter.set(totalToolCalls)
-            val toolStart = System.nanoTime()
-            val toolResponses = toolCallOrchestrator.executeInParallel(
-                pendingToolCalls, activeTools, hookContext,
-                toolsUsed, totalToolCallsCounter, maxToolCalls, allowedTools,
-                normalizeToolResponseToJson =
-                    ReActLoopUtils.shouldNormalizeToolResponses(chatOptions)
-            )
-            totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
-            totalToolCalls = totalToolCallsCounter.get()
-            emitToolEvents(pendingToolCalls, emit, isStart = false)
-
-            // 단계 E: ToolResponseMessage 추가 (메시지 쌍 무결성)
-            messages.add(
-                ToolResponseMessage.builder()
-                    .responses(toolResponses)
-                    .build()
-            )
-
-            // 단계 F: 도구 에러 시 재시도 힌트 주입
-            hadToolError = ReActLoopUtils.hasToolError(toolResponses)
-            if (totalToolCalls < maxToolCalls) {
-                ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
-            }
-
-            // 단계 G: maxToolCalls 도달 시 Tool 비활성화
-            val maxReachedResult = handleMaxToolCallsReached(
-                totalToolCalls, maxToolCalls, command, messages
-            )
-            if (maxReachedResult != null) {
-                activeTools = maxReachedResult.first
-                chatOptions = maxReachedResult.second
-            }
+    /** 도구 에러 여부를 기록하고 재시도 힌트를 주입한다. */
+    private fun applyPostToolHints(
+        toolResponses: List<ToolResponseMessage.ToolResponse>,
+        state: StreamingLoopState,
+        messages: MutableList<Message>,
+        maxToolCalls: Int
+    ) {
+        state.hadToolError = ReActLoopUtils.hasToolError(toolResponses)
+        if (state.totalToolCalls < maxToolCalls) {
+            ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
         }
     }
+
+    /** maxToolCalls 도달 시 도구를 비활성화하고 최종 답변 요청 메시지를 주입한다. */
+    private fun enforceMaxToolCalls(
+        state: StreamingLoopState,
+        maxToolCalls: Int,
+        command: AgentCommand,
+        messages: MutableList<Message>
+    ) {
+        val result = handleMaxToolCallsReached(
+            state.totalToolCalls, maxToolCalls, command, messages
+        ) ?: return
+        state.activeTools = result.first
+        state.chatOptions = result.second
+    }
+
+    /** 루프 결과를 상태에서 조립한다. */
+    private fun buildResult(
+        success: Boolean,
+        state: StreamingLoopState
+    ) = StreamingLoopResult(
+        success = success,
+        collectedContent = state.collectedContent.toString(),
+        lastIterationContent = state.lastIterationContent
+    )
 
     // ── private 메서드: 스트리밍 수집 + 처리 ──
 
