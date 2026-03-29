@@ -157,8 +157,8 @@ class LlmJudgeEvaluatorTest {
 
             assertFalse(result.passed) { "Error should result in not passed" }
             assertEquals(0.0, result.score) { "Score should be 0.0 on error" }
-            assertTrue(result.reason.contains("API error")) {
-                "Reason should contain error message"
+            assertTrue(result.reason.contains("RuntimeException")) {
+                "Reason should contain exception class name, got: ${result.reason}"
             }
         }
 

@@ -85,7 +85,7 @@ class LlmJudgeEvaluator(
             throw e
         } catch (e: Exception) {
             logger.error(e) { "LLM 심판 호출 실패" }
-            fallbackResult(e.message.orEmpty())
+            fallbackResult(e.javaClass.simpleName)
         }
     }
 

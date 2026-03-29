@@ -13,7 +13,7 @@ package com.arc.reactor.tool
  *         val results = companyService.search(name)
  *         SimpleToolResult.success("Found ${results.size} companies", results)
  *     } catch (e: Exception) {
- *         SimpleToolResult.failure("Search failed: ${e.message}")
+ *         SimpleToolResult.failure("Search failed: ${e.javaClass.simpleName}")
  *     }
  * }
  * ```

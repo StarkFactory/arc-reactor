@@ -128,7 +128,7 @@ class SpringAiToolCallbackAdapter(
             method.invoke(springAiCallback, jsonArgs)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            throw RuntimeException("Tool call failed: ${e.message}", e)
+            throw RuntimeException("Tool call failed: ${e.javaClass.simpleName}", e)
         }
     }
 

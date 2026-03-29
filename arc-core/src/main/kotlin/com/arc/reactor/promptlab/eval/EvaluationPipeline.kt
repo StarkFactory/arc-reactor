@@ -98,7 +98,7 @@ class EvaluationPipeline(
                 tier = tier,
                 passed = false,
                 score = 0.0,
-                reason = "평가기 오류: ${e.message}"
+                reason = "평가기 오류: ${e.javaClass.simpleName}"
             )
         }
     }

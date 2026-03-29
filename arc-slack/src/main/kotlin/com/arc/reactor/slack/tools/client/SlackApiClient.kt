@@ -604,7 +604,7 @@ class SlackApiClient(
         if (e is CircuitOpenException) {
             return SlackErrorDetails(
                 code = CIRCUIT_OPEN_ERROR,
-                message = e.message?.takeIf { it.isNotBlank() },
+                message = "서킷 브레이커가 열려 있어 요청을 차단합니다",
                 retryable = false,
                 retryAfterSeconds = e.retryAfterSeconds
             )
