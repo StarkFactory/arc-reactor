@@ -3445,3 +3445,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **발견:** Confluence 도구 라우팅 불안정 (MFS 스페이스 쿼리에 도구 미선택), Atlassian 인증 간헐 실패 지속
 
 **R77-122 (46 Round): 35 fixes + 1,382 tests**
+
+### Round 123 — 2026-03-29T18:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** FeedbackMetadataCaptureHook ConcurrentHashMap+수동TTL 50줄→Caffeine 1줄 + AgentTracingHooks 영문로그 4곳→한글
+**Agent 2:** WebCoverageGapTest 20개 — ChangePassword(6), Logout(3), Me(2), GlobalExceptionHandler(9)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,466 응답/257 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **Caffeine+i18n+테스트** | ConcurrentHashMap→Caffeine, 영문→한글, Web 20 테스트 |
+
+**MCP 정확도:** Guard 차단 OK (1ms 즉시 차단, GUARD_REJECTED) / RAG grounded=true, Output Guard 4종 정확 / **캐시 4,888ms→0ms (100% 히트)**
+**발견:** 시맨틱 캐시 완전 작동 확인 (0ms 응답), Guard 인젝션 탐지 정상
+
+**R77-123 (47 Round): 36 fixes + 1,402 tests**
