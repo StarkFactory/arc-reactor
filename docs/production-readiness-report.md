@@ -3415,3 +3415,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **발견 이슈:** Swagger MCP 도구 활용률 극저(총 2회), Atlassian 인증 간헐 실패, 시맨틱 캐시 효과 미확인
 
 **R77-120 (44 Round): 33 fixes + 1,318 tests**
+
+### Round 121 — 2026-03-29T17:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** @Valid 누락 4곳 수정 (McpSwaggerCatalogController 3 + McpAccessPolicyController 1) + DTO 검증 애노테이션 + SlaMetricsConfiguration @ConditionalOnMissingBean
+**Agent 2:** CoverageGapTest2 38개 — ToolPolicyProvider(9), Classification 다중매칭(6), RagIngestionDocumentSupport(12), PolicyStore(11)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,458 응답/274 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | **Security+Config** | @Valid 4곳 + @ConditionalOnMissingBean + 38 테스트 |
+
+**MCP 정확도:** Jira 도구 선택 OK (jira_search_issues) / RAG grounded=true, 7단계 정확 / **캐시 3,465ms→30ms (99% 단축)**
+**발견:** 시맨틱 캐시 정상 작동 확인 (R120에서 미작동→R121에서 30ms 캐시 히트)
+
+**R77-121 (45 Round): 34 fixes + 1,356 tests**
