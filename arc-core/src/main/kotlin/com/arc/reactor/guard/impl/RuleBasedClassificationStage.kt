@@ -46,9 +46,14 @@ class RuleBasedClassificationStage(
             // 차단 대상 카테고리가 아닌 규칙은 건너뜀
             if (rule.category !in blockedCategories) continue
 
-            // 규칙의 키워드 중 입력에 포함된 개수를 셈
-            val matchCount = rule.keywords.count { keyword -> text.contains(keyword) }
-            if (matchCount >= rule.minMatchCount) {
+            // 규칙의 키워드 중 입력에 포함된 개수를 셈 (minMatchCount=1이면 any로 단축)
+            val matched = if (rule.minMatchCount <= 1) {
+                rule.keywords.any { keyword -> text.contains(keyword) }
+            } else {
+                rule.keywords.count { keyword -> text.contains(keyword) } >= rule.minMatchCount
+            }
+            if (matched) {
+                val matchCount = if (rule.minMatchCount <= 1) 1 else rule.minMatchCount
                 logger.warn {
                     "Classification blocked: category=${rule.category} " +
                         "matches=$matchCount threshold=${rule.minMatchCount}"
