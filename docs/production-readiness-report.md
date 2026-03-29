@@ -3848,4 +3848,7 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **성능:** avg 1,302ms (3회 측정: 1,324ms / 1,291ms / 1,293ms)
 **MCP:** Jira toolsUsed=["jira_search_issues"] 확인 (도구 호출 정상, 프로젝트명 미매칭으로 응답 일부 실패)
 
-**R77-147 (71 Round): 57 fixes + 2,127 tests**
+**Agent 1 추가:** auth+scheduler+hook 7파일 영문 로그 37건→한글 (auth 패키지 완전 소거)
+**Agent 2 추가:** McpDeepGapCoverageTest 33개 — Reconnection(7), ToolAvailability(4), HealthPinger(6), DeduplicateCallbacks(6), EnsureConnected(3), SecurityConfig(3), SecurityFallback(2), SyncRuntimeServer(2)
+
+**R77-147 (71 Round): 58 fixes + 2,160 tests**
