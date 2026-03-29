@@ -3110,3 +3110,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `test:` | 테스트 | OutputBoundaryEnforcer 18 tests |
 
 **R77-105 (29 Round): 23 fixes + 816 tests**
+
+### Round 106 — 2026-03-29T11:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **스트리밍 budget exhaustion errorCode 누락 수정** (Gotcha #11 패리티)
+**Agent 2:** Streaming Coordinator(11) + ReActLoop(3) **14 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 1310ms, 2153 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | 패리티 | 스트리밍 BUDGET_EXHAUSTED errorCode 설정 |
+| `test:` | 테스트 | Streaming 14 tests |
+
+**R77-106 (30 Round): 24 fixes + 830 tests**
