@@ -45,7 +45,7 @@ class HybridRagPipelineTest {
         mockRetriever = mockk()
         bm25Scorer = Bm25Scorer()
 
-        // Pre-index documents in BM25
+        // BM25에 문서 사전 색인
         for (doc in listOf(docAlpha, docBeta, docGamma)) {
             bm25Scorer.index(doc.id, doc.content)
         }
@@ -200,7 +200,7 @@ class HybridRagPipelineTest {
             val docVectorOnly = RetrievedDocument(id = "doc-vector-only", content = "vector isolated document", score = 0.9)
 
             scorerLocal.index("doc-common", docCommon.content)
-            // Intentionally NOT indexing doc-vector-only in BM25
+            // doc-vector-only는 BM25에 의도적으로 색인하지 않음
 
             coEvery { mockRetriever.retrieve(any(), any(), any()) } returns listOf(docVectorOnly, docCommon)
 
@@ -231,7 +231,7 @@ class HybridRagPipelineTest {
             val pipeline = HybridRagPipeline(
                 retriever = mockRetriever,
                 bm25Scorer = scorerLocal,
-                vectorWeight = 0.1,  // Heavily weight BM25
+                vectorWeight = 0.1,  // BM25 가중치를 높게 설정
                 bm25Weight = 0.9,
                 rrfK = 60.0
             )

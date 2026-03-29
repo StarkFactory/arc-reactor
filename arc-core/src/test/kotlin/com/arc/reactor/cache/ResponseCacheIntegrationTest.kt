@@ -52,7 +52,7 @@ class ResponseCacheIntegrationTest {
             assertTrue(result2.success) { "Second call should succeed (cached)" }
             assertEquals("The answer to your question is four (2+2=4).", result2.content) { "Cached content should match" }
 
-            // LLM was called only once 확인
+            // LLM이 한 번만 호출되었는지 확인
             verify(exactly = 1) { fixture.requestSpec.call() }
         }
 
@@ -74,10 +74,10 @@ class ResponseCacheIntegrationTest {
                 systemPrompt = "You are helpful",
                 userPrompt = "Tell me a joke",
                 mode = AgentMode.STANDARD,
-                temperature = 0.8 // Above cacheable threshold
+                temperature = 0.8 // 캐시 가능 임계값 초과
             )
 
-            // Both calls은(는) hit LLM해야 합니다
+            // 두 호출 모두 LLM에 도달해야 한다
             executor.execute(command)
             executor.execute(command)
 
@@ -89,7 +89,7 @@ class ResponseCacheIntegrationTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
-            // different responses for each call 반환
+            // 각 호출에 대해 다른 응답 반환
             val callSpec1 = fixture.mockFinalResponse("Answer A")
             val callSpec2 = fixture.mockFinalResponse("Answer B")
             every { fixture.requestSpec.call() } returnsMany listOf(callSpec1, callSpec2)
@@ -129,7 +129,7 @@ class ResponseCacheIntegrationTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
-            // First call returns empty, second returns valid
+            // 첫 번째 호출은 빈 응답, 두 번째 호출은 유효한 응답 반환
             val emptyCallSpec = fixture.mockFinalResponse("")
             val validCallSpec = fixture.mockFinalResponse("Valid answer")
             every { fixture.requestSpec.call() } returnsMany listOf(emptyCallSpec, validCallSpec)
@@ -153,11 +153,11 @@ class ResponseCacheIntegrationTest {
             val result1 = executor.execute(command)
             assertFalse(result1.success) { "빈 응답은 실패로 처리되어야 한다" }
 
-            // Second call — should hit LLM again (not cached empty)
+            // 두 번째 호출 — 빈 응답이 캐시되지 않았으므로 LLM을 다시 호출해야 한다
             val result2 = executor.execute(command)
             assertEquals("Valid answer", result2.content) { "Second call should get valid response, not cached empty" }
 
-            // LLM was called twice (empty response was not cached)
+            // LLM이 두 번 호출되었는지 확인 (빈 응답은 캐시되지 않음)
             verify(exactly = 2) { fixture.requestSpec.call() }
         }
     }
@@ -174,7 +174,7 @@ class ResponseCacheIntegrationTest {
             val executor = SpringAiAgentExecutor(
                 chatClient = fixture.chatClient,
                 properties = AgentTestFixture.defaultProperties(),
-                responseCache = null // Disabled
+                responseCache = null // 캐시 비활성화
             )
 
             val command = AgentCommand(
@@ -187,7 +187,7 @@ class ResponseCacheIntegrationTest {
             executor.execute(command)
             executor.execute(command)
 
-            // Both calls은(는) hit LLM해야 합니다
+            // 두 호출 모두 LLM에 도달해야 한다
             verify(exactly = 2) { fixture.requestSpec.call() }
         }
     }

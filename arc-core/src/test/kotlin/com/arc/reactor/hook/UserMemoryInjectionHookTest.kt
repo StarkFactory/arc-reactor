@@ -165,8 +165,8 @@ class UserMemoryInjectionHookTest {
             hook.beforeAgentStart(context)
 
             val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-            assertNotNull(injected, "Context should be injected")
-            assertTrue(injected!!.startsWith("Facts:"), "Injected context should start with 'Facts:' but was: $injected")
+                ?: fail("Context should be injected")
+            assertTrue(injected.startsWith("Facts:"), "Injected context should start with 'Facts:' but was: $injected")
         }
 
         @Test
@@ -180,9 +180,9 @@ class UserMemoryInjectionHookTest {
             hook.beforeAgentStart(context)
 
             val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-            assertNotNull(injected, "Context should be injected when preferences exist")
+                ?: fail("Context should be injected when preferences exist")
             assertTrue(
-                injected!!.contains("Preferences: detail_level=brief"),
+                injected.contains("Preferences: detail_level=brief"),
                 "Injected context should contain 'Preferences: detail_level=brief' but was: $injected"
             )
         }
@@ -202,8 +202,8 @@ class UserMemoryInjectionHookTest {
             hook.beforeAgentStart(context)
 
             val injected = context.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-            assertNotNull(injected, "Context should be injected for full user")
-            val lines = injected!!.split("\n")
+                ?: fail("Context should be injected for full user")
+            val lines = injected.split("\n")
             assertEquals(2, lines.size, "Context should have exactly 2 lines (Facts + Preferences)")
             assertTrue(lines[0].startsWith("Facts:"), "First line should be Facts")
             assertTrue(lines[1].startsWith("Preferences:"), "Second line should be Preferences")

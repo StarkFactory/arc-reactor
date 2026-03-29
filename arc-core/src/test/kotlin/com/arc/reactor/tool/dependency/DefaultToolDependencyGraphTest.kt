@@ -215,7 +215,7 @@ class DefaultToolDependencyGraphTest {
                     setOf("toolA", "toolB", "toolC")
                 )
             }
-            ex.message!!.contains("순환") shouldBe true
+            ex.message.orEmpty().contains("순환") shouldBe true
         }
 
         @Test
@@ -226,7 +226,7 @@ class DefaultToolDependencyGraphTest {
             val ex = assertThrows<IllegalStateException> {
                 graph.getExecutionPlan(setOf("toolA"))
             }
-            ex.message!!.contains("순환") shouldBe true
+            ex.message.orEmpty().contains("순환") shouldBe true
         }
 
         @Test
@@ -240,7 +240,7 @@ class DefaultToolDependencyGraphTest {
                     setOf("toolA", "toolB")
                 )
             }
-            ex.message!!.contains("순환") shouldBe true
+            ex.message.orEmpty().contains("순환") shouldBe true
         }
     }
 

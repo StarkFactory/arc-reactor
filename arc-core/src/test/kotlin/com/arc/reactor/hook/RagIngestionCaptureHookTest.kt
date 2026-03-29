@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
 import org.junit.jupiter.api.Test
 import org.springframework.ai.vectorstore.VectorStore
 
@@ -45,9 +46,9 @@ class RagIngestionCaptureHookTest {
         )
 
         val items = store.list(limit = 10)
-        assertEquals(1, items.size)
-        assertEquals(RagIngestionCandidateStatus.PENDING, items.first().status)
-        assertEquals("slack", items.first().channel)
+        assertEquals(1, items.size) { "리뷰 필요 시 후보가 1개 저장되어야 한다" }
+        assertEquals(RagIngestionCandidateStatus.PENDING, items.first().status) { "상태가 PENDING이어야 한다" }
+        assertEquals("slack", items.first().channel) { "채널이 slack이어야 한다" }
     }
 
     @Test
@@ -95,10 +96,10 @@ class RagIngestionCaptureHookTest {
         )
 
         val saved = store.list(limit = 10).firstOrNull()
-        assertNotNull(saved, "Auto-ingestion should produce a candidate record in the store")
-        assertEquals(RagIngestionCandidateStatus.INGESTED, saved!!.status)
-        assertEquals("system:auto", saved.reviewedBy)
-        assertNotNull(saved.ingestedDocumentId, "Auto-ingested candidate should have a non-null ingestedDocumentId")
+            ?: fail("자동 인제스트 시 후보 레코드가 저장되어야 한다")
+        assertEquals(RagIngestionCandidateStatus.INGESTED, saved.status) { "자동 인제스트 상태는 INGESTED여야 한다" }
+        assertEquals("system:auto", saved.reviewedBy) { "자동 인제스트의 reviewedBy는 system:auto여야 한다" }
+        assertNotNull(saved.ingestedDocumentId) { "자동 인제스트 후보는 ingestedDocumentId가 null이 아니어야 한다" }
         verify(exactly = 1) { vectorStore.add(any<List<org.springframework.ai.document.Document>>()) }
     }
 
@@ -121,7 +122,7 @@ class RagIngestionCaptureHookTest {
         hook.afterAgentComplete(context, AgentResponse(success = true, response = "first"))
         hook.afterAgentComplete(context, AgentResponse(success = true, response = "second"))
 
-        assertEquals(1, store.list(limit = 10).size)
+        assertEquals(1, store.list(limit = 10).size) { "동일 runId로 두 번 호출해도 후보는 1개만 저장되어야 한다" }
     }
 
     private fun provider(policy: RagIngestionPolicy): RagIngestionPolicyProvider {
