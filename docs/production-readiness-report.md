@@ -3636,3 +3636,17 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **전체 테스트 현황:** 6,576개 케이스 (495 파일), 전량 PASS
 
 **R77-134 (58 Round): 47 fixes + 1,829 tests**
+
+### Round 135 — 2026-03-30T00:30+09:00 (3-에이전트 병렬)
+
+**Agent 1:** LocalTool/ToolSelector/KeywordBasedToolSelector/AllToolSelector 영문 KDoc→한글. 주요 공개 인터페이스 한글화 추가 완료
+**Agent 2:** JdbcFeedbackStoreTest 30개 — CRUD(7), NullableRoundTrip(3), JSON직렬화(5), Filtering(13), FlywayMigration(2). H2 기반 실제 JDBC 테스트
+**Agent 3:** BUILD/TEST PASS, MCP 2/2 CONNECTED, 단순 채팅 avg 1.18s
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **KDoc 한글화+JDBC 테스트** | 2 파일 KDoc 한글화, JdbcFeedbackStore 30 테스트 |
+
+**참고:** Agent 3에서 MCP 도구 수 0으로 보고 — 서버 재시작 후 도구 재로드 필요 가능성. 연결 자체는 CONNECTED
+
+**R77-135 (59 Round): 48 fixes + 1,859 tests**
