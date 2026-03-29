@@ -30,13 +30,13 @@ class PromptCandidateGenerator(
     private val objectMapper = jacksonObjectMapper()
 
     /**
-     * Generate candidate prompt versions addressing identified weaknesses.
+     * 식별된 약점을 보완하는 후보 프롬프트 버전을 생성한다.
      *
-     * @param templateId the prompt template to improve
-     * @param analysis feedback analysis with identified weaknesses
-     * @param candidateCount number of candidate prompts to generate
-     * @return list of created PromptVersion IDs
-     * @throws IllegalStateException if no active version exists
+     * @param templateId 개선할 프롬프트 템플릿 ID
+     * @param analysis 식별된 약점이 포함된 피드백 분석 결과
+     * @param candidateCount 생성할 후보 프롬프트 수
+     * @return 생성된 PromptVersion ID 목록
+     * @throws IllegalStateException 활성 버전이 없는 경우
      */
     suspend fun generate(
         templateId: String,

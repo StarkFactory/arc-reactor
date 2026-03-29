@@ -34,15 +34,15 @@ class FeedbackAnalyzer(
     private val objectMapper = jacksonObjectMapper()
 
     /**
-     * Analyze negative feedback for a template and identify weaknesses.
+     * 템플릿에 대한 부정 피드백을 분석하고 약점을 식별한다.
      *
-     * Filters feedback by templateId when available. Feedback entries
-     * without a templateId are excluded when filtering by template.
+     * templateId가 있는 피드백만 필터링한다.
+     * templateId가 없는 피드백 항목은 템플릿 기준 필터링에서 제외된다.
      *
-     * @param templateId the prompt template to analyze feedback for
-     * @param since only consider feedback after this timestamp
-     * @param maxSamples maximum number of feedback entries to analyze
-     * @return analysis result with identified weaknesses and sample queries
+     * @param templateId 피드백을 분석할 프롬프트 템플릿 ID
+     * @param since 이 시각 이후의 피드백만 분석 대상으로 포함
+     * @param maxSamples 분석할 최대 피드백 항목 수
+     * @return 식별된 약점과 샘플 쿼리가 포함된 분석 결과
      */
     suspend fun analyze(
         templateId: String,

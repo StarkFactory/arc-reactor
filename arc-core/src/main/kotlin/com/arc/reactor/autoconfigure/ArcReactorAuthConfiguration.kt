@@ -29,9 +29,9 @@ private const val JWT_SECRET_MIN_BYTES = 32
 /**
  * 애플리케이션 시작 시 JWT 시크릿을 검증한다.
  *
- * Fails fast with a clear, actionable error message so misconfiguration
- * is caught before the context fully initialises rather than at the first
- * authenticated request.
+ * 명확하고 조치 가능한 에러 메시지와 함께 빠르게 실패하여,
+ * 첫 번째 인증 요청이 아닌 컨텍스트 초기화 전에
+ * 설정 오류를 감지한다.
  */
 class JwtSecretValidator(secret: String) {
     init {

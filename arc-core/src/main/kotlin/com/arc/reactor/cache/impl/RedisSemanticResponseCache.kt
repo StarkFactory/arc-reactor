@@ -21,13 +21,13 @@ private val logger = KotlinLogging.logger {}
 private const val INVALIDATE_CHUNK_SIZE = 500
 
 /**
- * Redis-backed semantic response cache.
+ * Redis 기반 시맨틱 응답 캐시.
  *
- * This cache performs:
- * 1) Exact-key lookup (same behavior as hash cache)
- * 2) Semantic fallback lookup within a strict request scope fingerprint
+ * 다음 두 단계의 캐시 조회를 수행한다:
+ * 1) 정확 키 조회 (해시 캐시와 동일한 동작)
+ * 2) 요청 스코프 핑거프린트 내에서의 시맨틱 폴백 조회
  *
- * Scope fingerprinting prevents cross-tenant/cross-user/cross-session cache leakage.
+ * 스코프 핑거프린팅으로 cross-tenant/cross-user/cross-session 캐시 누출을 방지한다.
  */
 class RedisSemanticResponseCache(
     private val redisTemplate: StringRedisTemplate,
@@ -41,11 +41,11 @@ class RedisSemanticResponseCache(
 ) : SemanticResponseCache {
 
     init {
-        require(ttlMinutes > 0) { "ttlMinutes must be > 0" }
-        require(similarityThreshold in 0.0..1.0) { "similarityThreshold must be between 0.0 and 1.0" }
-        require(maxCandidates > 0) { "maxCandidates must be > 0" }
-        require(maxEntriesPerScope > 0) { "maxEntriesPerScope must be > 0" }
-        require(keyPrefix.isNotBlank()) { "keyPrefix must not be blank" }
+        require(ttlMinutes > 0) { "ttlMinutes는 0보다 커야 한다" }
+        require(similarityThreshold in 0.0..1.0) { "similarityThreshold는 0.0~1.0 범위여야 한다" }
+        require(maxCandidates > 0) { "maxCandidates는 0보다 커야 한다" }
+        require(maxEntriesPerScope > 0) { "maxEntriesPerScope는 0보다 커야 한다" }
+        require(keyPrefix.isNotBlank()) { "keyPrefix는 비어있으면 안 된다" }
     }
 
     override suspend fun get(key: String): CachedResponse? = withContext(Dispatchers.IO) {

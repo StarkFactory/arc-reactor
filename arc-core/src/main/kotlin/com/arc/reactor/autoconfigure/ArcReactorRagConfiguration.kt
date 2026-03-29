@@ -304,9 +304,9 @@ class RagConfiguration {
     }
 
     /**
-     * Document Chunker — splits long documents into smaller chunks for better embedding quality.
+     * 문서 청커 — 긴 문서를 더 작은 청크로 분할하여 임베딩 품질을 향상시킨다.
      * 청킹이 비활성화된 경우 NoOpDocumentChunker를 반환한다.
-     * Wraps with [InstrumentedDocumentChunker] when MeterRegistry is available.
+     * MeterRegistry가 사용 가능하면 [InstrumentedDocumentChunker]로 래핑한다.
      */
     @Bean
     @ConditionalOnMissingBean
