@@ -13,6 +13,9 @@ import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -103,7 +106,7 @@ class McpSwaggerCatalogController(
     @PostMapping
     suspend fun createSource(
         @PathVariable name: String,
-        @RequestBody request: SwaggerSpecSourceRequest,
+        @Valid @RequestBody request: SwaggerSpecSourceRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -122,7 +125,7 @@ class McpSwaggerCatalogController(
     suspend fun updateSource(
         @PathVariable name: String,
         @PathVariable sourceName: String,
-        @RequestBody request: SwaggerSpecSourceUpdateRequest,
+        @Valid @RequestBody request: SwaggerSpecSourceUpdateRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -207,7 +210,7 @@ class McpSwaggerCatalogController(
     suspend fun publishRevision(
         @PathVariable name: String,
         @PathVariable sourceName: String,
-        @RequestBody request: SwaggerPublishRevisionRequest,
+        @Valid @RequestBody request: SwaggerPublishRevisionRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
@@ -398,28 +401,47 @@ class McpSwaggerCatalogController(
 }
 
 data class SwaggerSpecSourceRequest(
+    @field:NotBlank(message = "name must not be blank")
+    @field:Size(max = 200, message = "name must not exceed 200 characters")
     val name: String,
+    @field:NotBlank(message = "url must not be blank")
+    @field:Size(max = 2000, message = "url must not exceed 2000 characters")
     val url: String,
     val enabled: Boolean = true,
+    @field:Size(max = 100, message = "syncCron must not exceed 100 characters")
     val syncCron: String? = null,
+    @field:Size(max = 50, message = "jiraProjectKey must not exceed 50 characters")
     val jiraProjectKey: String? = null,
+    @field:Size(max = 64, message = "confluenceSpaceKey must not exceed 64 characters")
     val confluenceSpaceKey: String? = null,
+    @field:Size(max = 120, message = "bitbucketRepository must not exceed 120 characters")
     val bitbucketRepository: String? = null,
+    @field:Size(max = 200, message = "serviceSlug must not exceed 200 characters")
     val serviceSlug: String? = null,
+    @field:Size(max = 200, message = "ownerTeam must not exceed 200 characters")
     val ownerTeam: String? = null
 )
 
 data class SwaggerSpecSourceUpdateRequest(
+    @field:Size(max = 2000, message = "url must not exceed 2000 characters")
     val url: String? = null,
     val enabled: Boolean? = null,
+    @field:Size(max = 100, message = "syncCron must not exceed 100 characters")
     val syncCron: String? = null,
+    @field:Size(max = 50, message = "jiraProjectKey must not exceed 50 characters")
     val jiraProjectKey: String? = null,
+    @field:Size(max = 64, message = "confluenceSpaceKey must not exceed 64 characters")
     val confluenceSpaceKey: String? = null,
+    @field:Size(max = 120, message = "bitbucketRepository must not exceed 120 characters")
     val bitbucketRepository: String? = null,
+    @field:Size(max = 200, message = "serviceSlug must not exceed 200 characters")
     val serviceSlug: String? = null,
+    @field:Size(max = 200, message = "ownerTeam must not exceed 200 characters")
     val ownerTeam: String? = null
 )
 
 data class SwaggerPublishRevisionRequest(
+    @field:NotBlank(message = "revisionId must not be blank")
+    @field:Size(max = 200, message = "revisionId must not exceed 200 characters")
     val revisionId: String
 )

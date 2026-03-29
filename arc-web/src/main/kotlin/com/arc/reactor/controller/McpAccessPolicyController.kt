@@ -13,6 +13,7 @@ import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -78,7 +79,7 @@ class McpAccessPolicyController(
     @PutMapping
     suspend fun updatePolicy(
         @PathVariable name: String,
-        @RequestBody request: UpdateMcpAccessPolicyRequest,
+        @Valid @RequestBody request: UpdateMcpAccessPolicyRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()

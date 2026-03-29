@@ -26,6 +26,7 @@ class SlaMetricsConfiguration {
      */
     @Bean
     @Primary
+    @ConditionalOnMissingBean(MicrometerSlaMetrics::class)
     @ConditionalOnBean(MeterRegistry::class)
     fun micrometerSlaMetrics(registry: MeterRegistry): SlaMetrics = MicrometerSlaMetrics(registry)
 
