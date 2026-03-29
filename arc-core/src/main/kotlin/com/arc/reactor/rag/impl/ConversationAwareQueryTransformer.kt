@@ -51,7 +51,7 @@ class ConversationAwareQueryTransformer(
             else listOf(rewrittenQuery)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Conversation-aware query rewriting failed, falling back to original" }
+            logger.warn(e) { "대화 맥락 인식 쿼리 재작성 실패, 원본 쿼리로 폴백" }
             listOf(query)
         }
     }

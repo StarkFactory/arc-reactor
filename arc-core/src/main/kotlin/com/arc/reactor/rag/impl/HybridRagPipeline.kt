@@ -60,7 +60,7 @@ class HybridRagPipeline(
 ) : RagPipeline {
 
     override suspend fun retrieve(query: RagQuery): RagContext {
-        logger.debug { "Hybrid RAG pipeline started: ${query.query}" }
+        logger.debug { "하이브리드 RAG 파이프라인 시작: ${query.query}" }
 
         val transformedQueries = transformQuery(query.query)
         val vectorDocs = retrieveFromVectorStore(transformedQueries, query)
@@ -88,7 +88,7 @@ class HybridRagPipeline(
         ragQuery: RagQuery
     ): List<RetrievedDocument> {
         val docs = retriever.retrieve(queries, ragQuery.topK * 2, ragQuery.filters)
-        logger.debug { "Vector search returned ${docs.size} documents" }
+        logger.debug { "벡터 검색 결과: ${docs.size}개 문서" }
         return docs
     }
 
@@ -98,7 +98,7 @@ class HybridRagPipeline(
         topK: Int
     ): List<Pair<String, Double>> {
         val results = bm25Scorer.search(query, topK * 2)
-        logger.debug { "BM25 search returned ${results.size} documents" }
+        logger.debug { "BM25 검색 결과: ${results.size}개 문서" }
         return results
     }
 
@@ -155,7 +155,7 @@ class HybridRagPipeline(
     ): RagContext {
         val context = contextBuilder.build(docs, maxContextTokens)
         logger.debug {
-            "Hybrid RAG complete: vectorDocs=$vectorCount, " +
+            "하이브리드 RAG 완료: vectorDocs=$vectorCount, " +
                 "bm25Docs=$bm25Count, fused=$fusedCount"
         }
         return RagContext(

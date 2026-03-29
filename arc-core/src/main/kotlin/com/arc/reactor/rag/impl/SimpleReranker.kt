@@ -19,7 +19,7 @@ class SimpleScoreReranker : DocumentReranker {
         documents: List<RetrievedDocument>,
         topK: Int
     ): List<RetrievedDocument> {
-        logger.debug { "Reranking ${documents.size} documents, topK=$topK" }
+        logger.debug { "${documents.size}개 문서 리랭킹, topK=$topK" }
 
         // 점수 내림차순 정렬 후 상위 topK만 반환
         return documents
@@ -46,7 +46,7 @@ class KeywordWeightedReranker(
         documents: List<RetrievedDocument>,
         topK: Int
     ): List<RetrievedDocument> {
-        logger.debug { "Keyword-weighted reranking ${documents.size} documents" }
+        logger.debug { "키워드 가중 리랭킹: ${documents.size}개 문서" }
 
         val queryTerms = query.lowercase().split(" ").filter { it.isNotBlank() }
 
@@ -104,7 +104,7 @@ class DiversityReranker(
     ): List<RetrievedDocument> {
         if (documents.isEmpty()) return emptyList()
 
-        logger.debug { "MMR reranking ${documents.size} documents with lambda=$lambda" }
+        logger.debug { "MMR 리랭킹: ${documents.size}개 문서, lambda=$lambda" }
 
         // O(n^2) 유사도 비교에서 반복되는 lowercase() 할당을 방지하기 위해 사전 캐싱
         val wordSetCache = buildWordSetCache(documents)

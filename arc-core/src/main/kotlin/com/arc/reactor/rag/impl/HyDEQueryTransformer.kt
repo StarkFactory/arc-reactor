@@ -48,7 +48,7 @@ class HyDEQueryTransformer(
         return try {
             val hypotheticalDocument = generateHypotheticalDocument(query)
             if (hypotheticalDocument.isNullOrBlank()) {
-                logger.warn { "HyDE generation returned empty result, falling back to original query" }
+                logger.warn { "HyDE 생성 결과가 비어 있음, 원본 쿼리로 폴백" }
                 listOf(query)
             } else {
                 // 원본 쿼리 + 가상 문서 모두 사용하여 검색 범위를 극대화
@@ -56,7 +56,7 @@ class HyDEQueryTransformer(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "HyDE generation failed, falling back to original query" }
+            logger.warn(e) { "HyDE 생성 실패, 원본 쿼리로 폴백" }
             listOf(query)
         }
     }

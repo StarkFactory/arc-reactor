@@ -30,7 +30,7 @@ class Bm25WarmUpRunner(
 
     override fun run(args: ApplicationArguments) {
         val store = vectorStore.ifAvailable ?: run {
-            logger.debug { "No VectorStore available — BM25 warm-up skipped" }
+            logger.debug { "VectorStore 없음 — BM25 워밍업 건너뜀" }
             return
         }
         try {
@@ -40,17 +40,17 @@ class Bm25WarmUpRunner(
             )
 
             if (springDocs.isEmpty()) {
-                logger.debug { "VectorStore is empty — BM25 warm-up skipped" }
+                logger.debug { "VectorStore 비어 있음 — BM25 워밍업 건너뜀" }
                 return
             }
 
             val docs = springDocs.map { it.toRetrievedDocument() }
             hybridRagPipeline.indexDocuments(docs)
-            logger.info { "BM25 warm-up complete: indexed ${docs.size} documents" }
+            logger.info { "BM25 워밍업 완료: ${docs.size}개 문서 인덱싱" }
         } catch (e: Exception) {
             // 워밍업 실패는 서비스 시작을 차단하지 않는다
             logger.warn(e) {
-                "BM25 warm-up failed — hybrid search will use vector-only until next indexDocuments() call"
+                "BM25 워밍업 실패 — 다음 indexDocuments() 호출까지 벡터 전용 검색 사용"
             }
         }
     }

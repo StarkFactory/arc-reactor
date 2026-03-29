@@ -103,7 +103,7 @@ class Bm25Scorer(
             }
             idfCache = emptyMap()
         }
-        logger.debug { "BM25: indexed doc=$docId tokens=${tokens.size}" }
+        logger.debug { "BM25: 문서 인덱싱 완료 doc=$docId tokens=${tokens.size}" }
     }
 
     /**

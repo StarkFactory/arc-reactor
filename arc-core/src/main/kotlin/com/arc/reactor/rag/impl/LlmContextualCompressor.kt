@@ -41,7 +41,7 @@ class LlmContextualCompressor(
     ): List<RetrievedDocument> {
         if (documents.isEmpty()) return emptyList()
 
-        logger.debug { "Compressing ${documents.size} documents for query: $query" }
+        logger.debug { "${documents.size}개 문서 압축 시작: $query" }
 
         // coroutineScope로 모든 문서를 병렬 압축. 하나가 실패해도 다른 것에 영향 없음.
         val compressed = coroutineScope {
@@ -51,7 +51,7 @@ class LlmContextualCompressor(
         }
 
         logger.debug {
-            "Compression complete: ${documents.size} -> ${compressed.size} documents"
+            "압축 완료: ${documents.size} -> ${compressed.size}개 문서"
         }
         return compressed
     }
@@ -76,7 +76,7 @@ class LlmContextualCompressor(
             when {
                 extracted == null -> document  // LLM 응답 없음 → 원본 유지
                 IRRELEVANT_PATTERN.matches(extracted.trim()) -> {
-                    logger.debug { "Document ${document.id} irrelevant to query" }
+                    logger.debug { "문서 ${document.id}이(가) 쿼리와 무관하여 제거" }
                     null  // 관련 없음 → 제거
                 }
                 extracted.isBlank() -> document  // 빈 응답 → 원본 유지
@@ -86,7 +86,7 @@ class LlmContextualCompressor(
             e.throwIfCancellation()
             // 압축 실패 시 원본을 보존하여 정보 손실을 방지
             logger.warn(e) {
-                "Compression failed for document ${document.id}, keeping original"
+                "문서 ${document.id} 압축 실패, 원본 유지"
             }
             document
         }

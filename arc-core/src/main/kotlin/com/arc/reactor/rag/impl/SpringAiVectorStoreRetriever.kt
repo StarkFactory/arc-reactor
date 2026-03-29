@@ -38,7 +38,7 @@ class SpringAiVectorStoreRetriever(
         topK: Int,
         filters: Map<String, Any>
     ): List<RetrievedDocument> {
-        logger.debug { "Retrieving documents for ${queries.size} queries, topK=$topK, filters=$filters" }
+        logger.debug { "${queries.size}개 쿼리로 문서 검색 시작, topK=$topK, filters=$filters" }
 
         // 여러 쿼리에 대해 검색을 수행하고 결과를 합친다
         val allDocuments = queries.flatMap { query ->
@@ -88,11 +88,11 @@ class SpringAiVectorStoreRetriever(
 
             documents.map { doc -> doc.toRetrievedDocument() }
         } catch (e: TimeoutCancellationException) {
-            logger.warn { "Vector search timed out after ${timeoutMs}ms for query: $query" }
+            logger.warn { "벡터 검색 타임아웃 (${timeoutMs}ms): $query" }
             emptyList()
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Vector search failed for query: $query" }
+            logger.error(e) { "벡터 검색 실패: $query" }
             emptyList()
         }
     }

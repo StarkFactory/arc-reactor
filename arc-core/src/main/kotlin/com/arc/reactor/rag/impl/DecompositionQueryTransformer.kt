@@ -45,7 +45,7 @@ class DecompositionQueryTransformer(
         return try {
             val subQueries = decomposeQuery(query)
             if (subQueries.isEmpty()) {
-                logger.warn { "Decomposition returned empty result, falling back to original query" }
+                logger.warn { "쿼리 분해 결과가 비어 있음, 원본 쿼리로 폴백" }
                 listOf(query)
             } else {
                 // 원본 쿼리도 포함하여 검색 범위를 넓히고, 중복 제거
@@ -53,7 +53,7 @@ class DecompositionQueryTransformer(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Query decomposition failed, falling back to original query" }
+            logger.warn(e) { "쿼리 분해 실패, 원본 쿼리로 폴백" }
             listOf(query)
         }
     }

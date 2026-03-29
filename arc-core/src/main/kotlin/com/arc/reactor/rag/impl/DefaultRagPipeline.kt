@@ -35,7 +35,7 @@ class DefaultRagPipeline(
 ) : RagPipeline {
 
     override suspend fun retrieve(query: RagQuery): RagContext {
-        logger.debug { "RAG pipeline started: ${query.query}" }
+        logger.debug { "RAG 파이프라인 시작: ${query.query}" }
 
         // 1단계: 쿼리 변환 (HyDE, 분해, 대화 맥락 인식 등)
         val transformedQueries = if (queryTransformer != null) {
@@ -48,11 +48,11 @@ class DefaultRagPipeline(
         val documents = retriever.retrieve(transformedQueries, query.topK, query.filters)
 
         if (documents.isEmpty()) {
-            logger.info { "RAG retrieval returned empty results for query: ${query.query}" }
+            logger.info { "RAG 검색 결과 없음: ${query.query}" }
             return RagContext.EMPTY
         }
 
-        logger.debug { "Retrieved ${documents.size} documents" }
+        logger.debug { "${documents.size}개 문서 검색 완료" }
 
         // 3단계: 리랭킹 (선택적)
         val rerankedDocs = if (query.rerank && reranker != null) {

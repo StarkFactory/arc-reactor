@@ -79,7 +79,7 @@ class RagIngestionPolicyProvider(
             cachedAtMs.set(now)
             normalized
         }.getOrElse { e ->
-            logger.warn(e) { "Failed to load dynamic rag ingestion policy; falling back to cached/properties" }
+            logger.warn(e) { "동적 RAG 수집 정책 로딩 실패, 캐시/프로퍼티로 폴백" }
             cachedValue ?: normalize(RagIngestionPolicy.fromProperties(properties))
         }
     }

@@ -80,8 +80,8 @@ class SemanticToolSelector(
         if (availableTools.isEmpty()) return emptyList()
         selectDeterministicallyIfPossible(prompt, availableTools)?.let { fastPath ->
             logger.debug {
-                "Deterministic tool selection fast-path selected " +
-                    "${fastPath.size}/${availableTools.size} tools"
+                "결정적 도구 선택 fast-path: " +
+                    "${fastPath.size}/${availableTools.size}개 도구 선택됨"
             }
             return fastPath
         }
@@ -92,7 +92,7 @@ class SemanticToolSelector(
         return try {
             selectSemantically(prompt, availableTools)
         } catch (e: Exception) {
-            logger.warn(e) { "Semantic tool selection failed, falling back to all tools" }
+            logger.warn(e) { "시맨틱 도구 선택 실패, 전체 도구로 폴백" }
             applyDeterministicRouting(prompt, availableTools, availableTools)
         }
     }
@@ -134,8 +134,8 @@ class SemanticToolSelector(
 
         val baseSelection = if (selected.isEmpty()) {
             logger.debug {
-                "No tools above threshold $similarityThreshold, " +
-                    "returning all ${availableTools.size} tools"
+                "임계값 $similarityThreshold 이상 도구 없음, " +
+                    "전체 ${availableTools.size}개 도구 반환"
             }
             availableTools
         } else {
@@ -147,8 +147,8 @@ class SemanticToolSelector(
                 .joinToString {
                     "${it.first.name}(${String.format("%.3f", it.second)})"
                 }
-            "Semantic tool selection: top scores = [$names], " +
-                "selected ${baseSelection.size}/${availableTools.size}"
+            "시맨틱 도구 선택: 상위 점수 = [$names], " +
+                "${baseSelection.size}/${availableTools.size}개 선택됨"
         }
 
         val resolved = applyDeterministicRouting(prompt, baseSelection, availableTools)
@@ -167,14 +167,13 @@ class SemanticToolSelector(
         if (resolved.size != cachedToolNames.size) {
             semanticSelectionCache.invalidate(cacheKey)
             logger.debug {
-                "Invalidated stale semantic selection cache entry " +
-                    "due to tool mismatch"
+                "도구 불일치로 시맨틱 선택 캐시 항목 무효화"
             }
             return null
         }
         logger.debug {
-            "Semantic tool selection exact cache hit selected " +
-                "${resolved.size}/${availableTools.size} tools"
+            "시맨틱 도구 선택 캐시 히트: " +
+                "${resolved.size}/${availableTools.size}개 도구 선택됨"
         }
         return resolved
     }
@@ -333,7 +332,7 @@ class SemanticToolSelector(
             semanticSelectionCache.invalidateAll()
             lastToolFingerprint = fingerprint
             logger.info {
-                "Refreshed semantic embeddings for ${tools.size} tools"
+                "${tools.size}개 도구의 시맨틱 임베딩 갱신 완료"
             }
         } finally {
             refreshLock.unlock()
