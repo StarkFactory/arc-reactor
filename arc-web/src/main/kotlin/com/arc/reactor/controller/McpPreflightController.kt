@@ -138,7 +138,7 @@ class McpPreflightController(
             proxy.errorResponse(HttpStatus.BAD_GATEWAY, "MCP admin API closed the connection unexpectedly")
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to proxy preflight request to MCP server '$serverName'" }
+            logger.warn(e) { "MCP 서버 '$serverName' preflight 프록시 요청 실패" }
             proxy.errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API")
         }
     }

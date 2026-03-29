@@ -40,7 +40,7 @@ internal class SystemPromptResolver(
         return try {
             personaStore?.get(personaId)?.let { it.resolveEffectivePrompt(promptTemplateStore) }
         } catch (e: Exception) {
-            logger.warn(e) { "Persona lookup failed for personaId='$personaId'; falling back to default prompt" }
+            logger.warn(e) { "페르소나 조회 실패: personaId='$personaId'; 기본 프롬프트로 폴백" }
             null
         }
     }
@@ -49,7 +49,7 @@ internal class SystemPromptResolver(
         return try {
             promptTemplateStore?.getActiveVersion(promptTemplateId)?.content
         } catch (e: Exception) {
-            logger.warn(e) { "Prompt template lookup failed for promptTemplateId='$promptTemplateId'" }
+            logger.warn(e) { "프롬프트 템플릿 조회 실패: promptTemplateId='$promptTemplateId'" }
             null
         }
     }
@@ -58,7 +58,7 @@ internal class SystemPromptResolver(
         return try {
             personaStore?.getDefault()?.takeIf { it.isActive }?.let { it.resolveEffectivePrompt(promptTemplateStore) }
         } catch (e: Exception) {
-            logger.warn(e) { "Default persona lookup failed; using hardcoded fallback system prompt" }
+            logger.warn(e) { "기본 페르소나 조회 실패; 하드코딩 폴백 시스템 프롬프트 사용" }
             null
         }
     }
@@ -91,8 +91,8 @@ internal fun resolveUserId(exchange: ServerWebExchange, requestUserId: String?):
     // JWT 인증이 비활성화된 환경에서 requestUserId 사용 시 스푸핑 경고
     if (!requestUserId.isNullOrBlank()) {
         logger.warn {
-            "userId '$requestUserId' provided without JWT verification; " +
-                "ignoring to prevent spoofing. Enable JWT auth for user identification."
+            "JWT 검증 없이 userId '$requestUserId'가 제공됨; " +
+                "스푸핑 방지를 위해 무시. 사용자 식별을 위해 JWT 인증을 활성화할 것."
         }
     }
     return "anonymous"

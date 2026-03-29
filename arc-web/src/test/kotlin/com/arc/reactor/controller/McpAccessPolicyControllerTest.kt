@@ -117,7 +117,7 @@ class McpAccessPolicyControllerTest {
                 "Expected 403 FORBIDDEN for non-admin access"
             }
             val body = response.body as ErrorResponse
-            assertEquals("Admin access required", body.error) {
+            assertEquals("관리자 권한이 필요합니다", body.error) {
                 "Forbidden response should use standardized admin error message"
             }
             assertTrue(auditStore.list().isEmpty()) { "Forbidden requests should not create admin audit entries" }

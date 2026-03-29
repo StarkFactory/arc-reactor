@@ -273,7 +273,7 @@ class OutputGuardRuleController(
                 )
             )
         }.onFailure { e ->
-            logger.warn(e) { "Failed to persist output guard audit log: action=$action, ruleId=$ruleId" }
+            logger.warn(e) { "출력 가드 감사 로그 저장 실패: action=$action, ruleId=$ruleId" }
         }
     }
 

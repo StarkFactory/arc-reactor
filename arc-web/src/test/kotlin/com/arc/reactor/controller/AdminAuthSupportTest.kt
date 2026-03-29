@@ -104,8 +104,8 @@ class AdminAuthSupportTest {
                 "forbiddenResponse should return 403 status"
             }
             val body = response.body as ErrorResponse
-            assertEquals("Admin access required", body.error) {
-                "Error body should include standard admin access message"
+            assertEquals("관리자 권한이 필요합니다", body.error) {
+                "오류 본문에 표준 관리자 접근 메시지가 포함되어야 한다"
             }
         }
     }

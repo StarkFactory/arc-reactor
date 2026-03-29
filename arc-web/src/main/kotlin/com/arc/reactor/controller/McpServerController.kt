@@ -128,7 +128,7 @@ class McpServerController(
                 }
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.warn(e) { "Auto-connect failed for '${server.name}'" }
+                logger.warn(e) { "MCP 서버 자동 연결 실패: '${server.name}'" }
             }
         }
 
@@ -259,19 +259,19 @@ class McpServerController(
 
         when {
             reconnectRequired -> withContext(Dispatchers.IO) {
-                logger.info { "Reconnecting MCP server '${updated.name}' after configuration update" }
+                logger.info { "설정 변경 후 MCP 서버 '${updated.name}' 재연결 시도" }
                 mcpManager.disconnect(updated.name)
                 val connected = mcpManager.connect(updated.name)
                 if (!connected) {
-                    logger.warn { "MCP server '${updated.name}' failed to reconnect after update" }
+                    logger.warn { "MCP 서버 '${updated.name}' 업데이트 후 재연결 실패" }
                 }
             }
 
             connectRequired -> withContext(Dispatchers.IO) {
-                logger.info { "Connecting MCP server '${updated.name}' after enabling autoConnect or updating config" }
+                logger.info { "autoConnect 활성화 또는 설정 변경 후 MCP 서버 '${updated.name}' 연결 시도" }
                 val connected = mcpManager.connect(updated.name)
                 if (!connected) {
-                    logger.warn { "MCP server '${updated.name}' failed to connect after update" }
+                    logger.warn { "MCP 서버 '${updated.name}' 업데이트 후 연결 실패" }
                 }
             }
         }
@@ -414,7 +414,7 @@ class McpServerController(
         try {
             mcpServerStore.save(server)
         } catch (e: IllegalArgumentException) {
-            logger.debug(e) { "MCP server '${server.name}' was concurrently saved by another request" }
+            logger.debug(e) { "MCP 서버 '${server.name}' 동시 저장 충돌 (다른 요청에 의해 이미 저장됨)" }
         }
     }
 

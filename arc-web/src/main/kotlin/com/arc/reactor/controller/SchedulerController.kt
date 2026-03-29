@@ -95,7 +95,7 @@ class SchedulerController(
         val job = try {
             schedulerService.create(request.toScheduledJob())
         } catch (e: IllegalArgumentException) {
-            logger.warn(e) { "Invalid create job request" }
+            logger.warn(e) { "잘못된 작업 생성 요청" }
             return badRequestResponse("Invalid request")
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(job.toResponse())
@@ -134,7 +134,7 @@ class SchedulerController(
         val updated = try {
             schedulerService.update(id, request.toScheduledJob()) ?: return notFoundResponse("Scheduled job not found: $id")
         } catch (e: IllegalArgumentException) {
-            logger.warn(e) { "Invalid update job request: $id" }
+            logger.warn(e) { "잘못된 작업 수정 요청: $id" }
             return badRequestResponse("Invalid request")
         }
         return ResponseEntity.ok(updated.toResponse())

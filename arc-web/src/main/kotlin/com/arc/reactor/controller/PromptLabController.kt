@@ -41,7 +41,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -70,12 +69,14 @@ class PromptLabController(
     private val properties: PromptLabProperties
 ) : org.springframework.beans.factory.DisposableBean {
     private val exceptionHandler = CoroutineExceptionHandler { _, t ->
-        logger.error(t) { "Async experiment execution failed" }
+        logger.error(t) { "비동기 실험 실행 실패" }
     }
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.IO + exceptionHandler
     )
-    private val runningJobs = ConcurrentHashMap<String, Job>()
+    private val runningJobs = com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+        .maximumSize((properties.maxConcurrentExperiments * 2).toLong().coerceAtLeast(16))
+        .build<String, Job>()
 
     // ── 실험 CRUD ──
 
@@ -170,7 +171,7 @@ class PromptLabController(
         if (experiment.status != ExperimentStatus.PENDING) {
             return badRequestResponse("Experiment must be PENDING to run, current: ${experiment.status}")
         }
-        if (runningJobs.size >= properties.maxConcurrentExperiments) {
+        if (runningJobs.estimatedSize() >= properties.maxConcurrentExperiments) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
                 ErrorResponse(
                     error = "Max concurrent experiments reached: ${properties.maxConcurrentExperiments}",
@@ -183,10 +184,10 @@ class PromptLabController(
             try {
                 orchestrator.execute(id)
             } finally {
-                runningJobs.remove(id)
+                runningJobs.invalidate(id)
             }
         }
-        runningJobs[id] = job
+        runningJobs.put(id, job)
         return ResponseEntity.accepted().body(
             mapOf("status" to "RUNNING", "experimentId" to id)
         )
@@ -211,7 +212,8 @@ class PromptLabController(
         if (experiment.status != ExperimentStatus.RUNNING) {
             return badRequestResponse("Only RUNNING experiments can be cancelled")
         }
-        runningJobs.remove(id)?.cancel()
+        runningJobs.getIfPresent(id)?.cancel()
+        runningJobs.invalidate(id)
         val cancelled = experiment.copy(
             status = ExperimentStatus.CANCELLED,
             completedAt = Instant.now()
@@ -311,7 +313,7 @@ class PromptLabController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        if (runningJobs.size >= properties.maxConcurrentExperiments) {
+        if (runningJobs.estimatedSize() >= properties.maxConcurrentExperiments) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
                 ErrorResponse(
                     error = "Max concurrent experiments reached: ${properties.maxConcurrentExperiments}",
@@ -328,10 +330,10 @@ class PromptLabController(
                     judgeModel = request.judgeModel
                 )
             } finally {
-                runningJobs.remove(jobId)
+                runningJobs.invalidate(jobId)
             }
         }
-        runningJobs[jobId] = job
+        runningJobs.put(jobId, job)
         return ResponseEntity.accepted().body(
             mapOf("status" to "STARTED", "templateId" to request.templateId, "jobId" to jobId)
         )

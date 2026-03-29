@@ -307,7 +307,7 @@ class ChatController(
         val activeVersion = try {
             promptTemplateStore.getActiveVersion(templateId)
         } catch (e: Exception) {
-            logger.warn(e) { "Prompt template metadata lookup failed for id='$templateId'" }
+            logger.warn(e) { "프롬프트 템플릿 메타데이터 조회 실패: id='$templateId'" }
             null
         } ?: return metadata
         return metadata + mapOf(
@@ -347,7 +347,7 @@ class ChatController(
                 try {
                     personaStore?.get(personaId)?.promptTemplateId
                 } catch (e: Exception) {
-                    logger.warn(e) { "Persona prompt template lookup failed for personaId='$personaId'" }
+                    logger.warn(e) { "페르소나 프롬프트 템플릿 조회 실패: personaId='$personaId'" }
                     null
                 }
             }

@@ -85,7 +85,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
-        logger.warn(ex) { "Bad request: ${ex.message}" }
+        logger.warn(ex) { "잘못된 요청" }
         return ResponseEntity.badRequest().body(
             ErrorResponse(
                 error = "잘못된 요청입니다",
@@ -96,7 +96,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException::class)
     fun handleIllegalState(ex: IllegalStateException): ResponseEntity<ErrorResponse> {
-        logger.error(ex) { "Illegal state" }
+        logger.error(ex) { "잘못된 상태 예외" }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
             ErrorResponse(
                 error = "서버 오류가 발생했습니다",
@@ -108,14 +108,14 @@ class GlobalExceptionHandler {
     /** 코루틴 취소를 500이 아닌 503으로 처리하고 재전파한다. */
     @ExceptionHandler(CancellationException::class)
     fun handleCancellation(ex: CancellationException): ResponseEntity<Void> {
-        logger.debug { "Request cancelled: ${ex.message}" }
+        logger.debug { "요청 취소됨" }
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build()
     }
 
     @ExceptionHandler(Exception::class)
     fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
         if (ex is CancellationException) throw ex
-        logger.error(ex) { "Unhandled exception" }
+        logger.error(ex) { "처리되지 않은 예외" }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
             ErrorResponse(
                 error = "서버 오류가 발생했습니다",

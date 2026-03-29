@@ -25,6 +25,9 @@ dependencies {
     // Logging
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
 
+    // Caffeine (bounded cache)
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
+
     // Spring AI BOM (for VectorStore, Document types used by DocumentController)
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     compileOnly("org.springframework.ai:spring-ai-vector-store")

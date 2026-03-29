@@ -201,7 +201,7 @@ private object ProactiveChannelStoreBridge {
                 "Proactive channel store method returned null: $methodName"
             }
         } catch (e: InvocationTargetException) {
-            logger.error(e.targetException) { "Proactive channel store invocation failed: $methodName" }
+            logger.error(e.targetException) { "프로액티브 채널 스토어 호출 실패: $methodName" }
             throw IllegalStateException("Proactive channel operation failed")
         }
     }
@@ -214,10 +214,10 @@ private object ProactiveChannelStoreBridge {
             val addedAt = type.getMethod("getAddedAt").invoke(channel) as Long
             ProactiveChannelView(channelId = channelId, channelName = channelName, addedAt = addedAt)
         } catch (e: InvocationTargetException) {
-            logger.error(e.targetException) { "Proactive channel view conversion failed" }
+            logger.error(e.targetException) { "프로액티브 채널 뷰 변환 실패" }
             throw IllegalStateException("Proactive channel operation failed")
         } catch (e: ClassCastException) {
-            logger.error(e) { "Proactive channel view type mismatch" }
+            logger.error(e) { "프로액티브 채널 뷰 타입 불일치" }
             throw IllegalStateException("Proactive channel operation failed")
         }
     }

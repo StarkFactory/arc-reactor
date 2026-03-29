@@ -85,7 +85,7 @@ class ApprovalControllerAuthTest {
         val body = response.body as ErrorResponse
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "Non-admin approval action should be forbidden" }
-        assertEquals("Admin access required", body.error) { "Forbidden responses should use standard admin message" }
+        assertEquals("관리자 권한이 필요합니다", body.error) { "403 응답에 표준 관리자 접근 메시지가 포함되어야 한다" }
         verify(exactly = 0) { store.approve(any(), any()) }
     }
 

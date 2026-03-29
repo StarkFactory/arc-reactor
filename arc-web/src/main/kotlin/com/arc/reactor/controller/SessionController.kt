@@ -250,12 +250,12 @@ class SessionController(
 
     private fun unauthorizedResponse(): ResponseEntity<Any> {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(ErrorResponse(error = "Authentication required", timestamp = Instant.now().toString()))
+            .body(ErrorResponse(error = "인증이 필요합니다", timestamp = Instant.now().toString()))
     }
 
     private fun sessionForbidden(): ResponseEntity<Any> {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(ErrorResponse(error = "Access denied", timestamp = Instant.now().toString()))
+            .body(ErrorResponse(error = "세션 접근이 거부되었습니다", timestamp = Instant.now().toString()))
     }
 
     /** 사용 가능한 LLM 프로바이더 목록을 조회한다. */

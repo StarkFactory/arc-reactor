@@ -179,7 +179,7 @@ class McpAccessPolicyController(
             proxy.errorResponse(HttpStatus.GATEWAY_TIMEOUT, "MCP admin API timed out after ${timeoutMs}ms")
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to proxy access-policy request to MCP server '$serverName'" }
+            logger.warn(e) { "MCP 서버 '$serverName' 접근 정책 프록시 요청 실패" }
             proxy.errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API")
         }
     }

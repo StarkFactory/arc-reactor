@@ -93,7 +93,7 @@ class McpSwaggerCatalogControllerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "비관리자 요청은 403이어야 한다" }
         val body = response.body as ErrorResponse
-        assertEquals("Admin access required", body.error) { "에러 메시지가 일치해야 한다" }
+        assertEquals("관리자 권한이 필요합니다", body.error) { "에러 메시지가 일치해야 한다" }
         assertTrue(auditStore.list().isEmpty()) {
             "비관리자 요청 거부 시 감사 항목이 기록되지 않아야 한다"
         }

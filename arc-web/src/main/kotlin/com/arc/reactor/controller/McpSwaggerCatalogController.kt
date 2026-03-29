@@ -284,7 +284,7 @@ class McpSwaggerCatalogController(
             proxySupport.errorResponse(HttpStatus.GATEWAY_TIMEOUT, "MCP admin API timed out after ${timeoutMs}ms")
         } catch (e: Exception) {
             e.throwIfCancellation()
-            swaggerCatalogLogger.warn(e) { "Failed to proxy Swagger catalog request to MCP server '$serverName'" }
+            swaggerCatalogLogger.warn(e) { "MCP 서버 '$serverName' Swagger 카탈로그 프록시 요청 실패" }
             proxySupport.errorResponse(HttpStatus.BAD_GATEWAY, "Failed to call MCP admin API")
         }
     }
@@ -365,7 +365,9 @@ class McpSwaggerCatalogController(
         target: AdminRequestTarget
     ): java.net.URI {
         var current = builder.path(target.path)
-        target.queryParams.forEach { (key, value) -> current = current.queryParam(key, value) }
+        for ((key, value) in target.queryParams) {
+            current = current.queryParam(key, value)
+        }
         return current.build()
     }
 
@@ -376,9 +378,11 @@ class McpSwaggerCatalogController(
         val normalized = queryParams.mapNotNull { (key, value) ->
             value?.takeIf { it.isNotBlank() }?.let { key to it }
         }
-        val encoded = UriComponentsBuilder.newInstance().path(basePath).apply {
-            normalized.forEach { (key, value) -> queryParam(key, value) }
-        }.build().encode().toUri()
+        val builder = UriComponentsBuilder.newInstance().path(basePath)
+        for ((key, value) in normalized) {
+            builder.queryParam(key, value)
+        }
+        val encoded = builder.build().encode().toUri()
         return AdminRequestTarget(
             path = encoded.rawPath?.takeIf { it.isNotBlank() } ?: basePath,
             rawQuery = encoded.rawQuery.orEmpty(),

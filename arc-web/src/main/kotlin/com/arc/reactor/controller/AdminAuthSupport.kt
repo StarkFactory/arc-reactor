@@ -22,7 +22,7 @@ fun isAnyAdmin(exchange: ServerWebExchange): Boolean {
 /** 비관리자에 대한 표준 403 Forbidden 응답. */
 fun forbiddenResponse(): ResponseEntity<Any> {
     return ResponseEntity.status(HttpStatus.FORBIDDEN)
-        .body(ErrorResponse(error = "Admin access required", timestamp = java.time.Instant.now().toString()))
+        .body(ErrorResponse(error = "관리자 권한이 필요합니다", timestamp = java.time.Instant.now().toString()))
 }
 
 /** 설명 메시지를 포함하는 표준 404 Not Found 응답. */

@@ -149,7 +149,7 @@ class OpsDashboardController(
         val aggregated = linkedMapOf<String, Double>()
         val series = meters.map { meter ->
             val measurements = measurementSnapshot(meter)
-            measurements.forEach { (key, value) ->
+            for ((key, value) in measurements) {
                 aggregated[key] = (aggregated[key] ?: 0.0) + value
             }
             OpsMetricSeries(
@@ -335,7 +335,7 @@ class OpsDashboardController(
 
     private fun measurementSnapshot(meter: io.micrometer.core.instrument.Meter): Map<String, Double> {
         val measurements = linkedMapOf<String, Double>()
-        meter.measure().forEach { measurement ->
+        for (measurement in meter.measure()) {
             measurements[measurement.statistic.toMetricKey()] = measurement.value
         }
         return measurements

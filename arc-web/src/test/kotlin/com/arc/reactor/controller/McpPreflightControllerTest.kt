@@ -95,7 +95,7 @@ class McpPreflightControllerTest {
             "Expected 403 FORBIDDEN when non-admin reads MCP preflight"
         }
         val body = response.body as ErrorResponse
-        assertEquals("Admin access required", body.error) {
+        assertEquals("관리자 권한이 필요합니다", body.error) {
             "Forbidden response should use the standard admin message"
         }
         assertTrue(auditStore.list().isEmpty()) {

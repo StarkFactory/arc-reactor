@@ -176,9 +176,9 @@ internal object McpAdminProxySupport {
     private fun logProxyResult(logPrefix: String, serverName: String, statusCode: Int, durationNanos: Long) {
         val durationMs = TimeUnit.NANOSECONDS.toMillis(durationNanos)
         if (statusCode >= 400) {
-            proxyLogger.warn { "$logPrefix failed: server=$serverName status=$statusCode durationMs=$durationMs" }
+            proxyLogger.warn { "$logPrefix 실패: server=$serverName status=$statusCode durationMs=$durationMs" }
         } else {
-            proxyLogger.debug { "$logPrefix succeeded: server=$serverName status=$statusCode durationMs=$durationMs" }
+            proxyLogger.debug { "$logPrefix 성공: server=$serverName status=$statusCode durationMs=$durationMs" }
         }
     }
 
