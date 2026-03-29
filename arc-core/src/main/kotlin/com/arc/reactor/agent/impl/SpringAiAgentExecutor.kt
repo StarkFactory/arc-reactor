@@ -390,16 +390,16 @@ class SpringAiAgentExecutor(
             return result
         // ── 단계 4: 예외 처리 — 각 예외 유형별 에러 코드 분류 ──
         } catch (e: BlockedIntentException) {
-            logger.info { "Blocked intent: ${e.intentName}" }
+            logger.info { "차단된 인텐트: ${e.intentName}" }
             requestSpan.setError(e)
             return executionFailureHandler.handle(AgentErrorCode.GUARD_REJECTED, e, hookContext, startTime)
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            logger.warn { "Request timed out after ${properties.concurrency.requestTimeoutMs}ms" }
+            logger.warn { "요청 타임아웃: ${properties.concurrency.requestTimeoutMs}ms 경과" }
             requestSpan.setError(e)
             return executionFailureHandler.handle(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Agent execution failed" }
+            logger.error(e) { "에이전트 실행 실패" }
             requestSpan.setError(e)
             return executionFailureHandler.handle(agentErrorPolicy.classify(e), e, hookContext, startTime)
         } finally {
@@ -460,7 +460,7 @@ class SpringAiAgentExecutor(
             }
             response?.results?.firstOrNull()?.output?.text
         }.getOrElse { e ->
-            logger.warn(e) { "Longer response retry failed" }
+            logger.warn(e) { "더 긴 응답 재시도 실패" }
             null
         }
     }
@@ -596,7 +596,7 @@ class SpringAiAgentExecutor(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "LLM call with tools failed" }
+            logger.error(e) { "도구 포함 LLM 호출 실패" }
             val errorCode = agentErrorPolicy.classify(e)
             return AgentResult.failure(
                 errorMessage = errorMessageResolver.resolve(errorCode, e.message),

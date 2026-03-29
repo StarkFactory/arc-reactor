@@ -95,7 +95,7 @@ internal class StreamingCompletionFinalizer(
             )
         } catch (hookEx: Exception) {
             hookEx.throwIfCancellation()
-            logger.error(hookEx) { "AfterAgentComplete hook failed in streaming finally" }
+            logger.error(hookEx) { "스트리밍 finally에서 AfterAgentComplete 훅 실패" }
         }
     }
 
@@ -129,7 +129,7 @@ internal class StreamingCompletionFinalizer(
                     agentMetrics.recordOutputGuardAction(
                         result.stage ?: "unknown", "modified", result.reason, command.metadata
                     )
-                    logger.warn { "Streaming output guard modified content: ${result.reason}" }
+                    logger.warn { "스트리밍 출력 가드 콘텐츠 수정: ${result.reason}" }
                     emit(StreamEventMarker.error(
                         "Output guard modified response: ${result.reason}"
                     ))
@@ -139,7 +139,7 @@ internal class StreamingCompletionFinalizer(
                     agentMetrics.recordOutputGuardAction(
                         result.stage ?: "unknown", "rejected", result.reason, command.metadata
                     )
-                    logger.warn { "Streaming output guard rejected: ${result.reason}" }
+                    logger.warn { "스트리밍 출력 가드 거부: ${result.reason}" }
                     emit(StreamEventMarker.error(
                         "Output guard rejected response: ${result.reason}"
                     ))
@@ -148,7 +148,7 @@ internal class StreamingCompletionFinalizer(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Streaming output guard failed, rejecting (fail-close)" }
+            logger.error(e) { "스트리밍 출력 가드 실패, 거부 처리 (fail-close)" }
             emit(StreamEventMarker.error("Output guard check failed"))
             false // fail-close: do not save potentially unsafe content to conversation history
         }
@@ -185,7 +185,7 @@ internal class StreamingCompletionFinalizer(
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.debug { "Could not emit boundary error (collector cancelled)" }
+                logger.debug { "경계값 위반 에러 전송 불가 (collector 취소됨)" }
             }
         }
 
@@ -214,7 +214,7 @@ internal class StreamingCompletionFinalizer(
                 ))
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.debug { "Could not emit boundary error (collector cancelled)" }
+                logger.debug { "경계값 위반 에러 전송 불가 (collector 취소됨)" }
             }
         }
     }

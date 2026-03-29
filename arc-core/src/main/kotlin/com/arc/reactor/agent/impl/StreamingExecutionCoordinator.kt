@@ -172,7 +172,7 @@ internal class StreamingExecutionCoordinator(
                         ragContextRetriever.retrieve(command)
                     } else {
                         logger.debug {
-                            "RAG retrieval skipped: not a knowledge query"
+                            "RAG 검색 생략: 지식 질의가 아님"
                         }
                         null
                     }
@@ -201,7 +201,7 @@ internal class StreamingExecutionCoordinator(
                 toolPreparationPlanner.prepareForPrompt(command.userPrompt)
             }
         }
-        logger.debug { "Streaming ReAct: ${selectedTools.size} tools selected (mode=${command.mode})" }
+        logger.debug { "스트리밍 ReAct: 도구 ${selectedTools.size}개 선택 (mode=${command.mode})" }
         return StreamingLoopSetup(
             activeChatClient = resolveChatClient(command),
             systemPrompt = systemPrompt,
@@ -244,7 +244,7 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ) {
-        logger.info { "Blocked intent in streaming: ${exception.intentName}" }
+        logger.info { "스트리밍에서 차단된 인텐트: ${exception.intentName}" }
         state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
         state.streamErrorMessage = "요청이 보안 정책에 의해 차단되었습니다 (${exception.javaClass.simpleName})"
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
@@ -255,7 +255,7 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ) {
-        logger.warn { "Streaming request timed out after ${requestTimeoutMs}ms" }
+        logger.warn { "스트리밍 요청 타임아웃: ${requestTimeoutMs}ms 경과" }
         state.streamErrorCode = AgentErrorCode.TIMEOUT
         state.streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, exception.message)
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
@@ -269,7 +269,7 @@ internal class StreamingExecutionCoordinator(
         exception.throwIfCancellation()
         val unwrapped = unwrapReactorException(exception)
         val effectiveException = if (unwrapped is Exception) unwrapped else exception
-        logger.error(effectiveException) { "Streaming execution failed" }
+        logger.error(effectiveException) { "스트리밍 실행 실패" }
         val errorCode = agentErrorPolicy.classify(effectiveException)
         state.streamErrorCode = errorCode
         state.streamErrorMessage = errorMessageResolver.resolve(
