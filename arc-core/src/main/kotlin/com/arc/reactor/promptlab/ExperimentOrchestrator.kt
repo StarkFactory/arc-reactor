@@ -78,7 +78,7 @@ class ExperimentOrchestrator(
             startedAt = Instant.now()
         )
         experimentStore.save(running)
-        logger.info { "Starting experiment: ${experiment.id} (${experiment.name})" }
+        logger.info { "실험 시작: ${experiment.id} (${experiment.name})" }
 
         return try {
             withTimeout(properties.experimentTimeoutMs) {
@@ -93,7 +93,7 @@ class ExperimentOrchestrator(
                     completedAt = Instant.now()
                 )
                 experimentStore.save(completed)
-                logger.info { "Experiment completed: $experimentId, trials=${trials.size}" }
+                logger.info { "실험 완료: $experimentId, trials=${trials.size}" }
                 completed
             }
         } catch (e: TimeoutCancellationException) {
@@ -103,7 +103,7 @@ class ExperimentOrchestrator(
                 completedAt = Instant.now()
             )
             experimentStore.save(failed)
-            logger.error { "Experiment timed out: $experimentId" }
+            logger.error { "실험 타임아웃: $experimentId" }
             failed
         } catch (e: Exception) {
             e.throwIfCancellation()
@@ -113,7 +113,7 @@ class ExperimentOrchestrator(
                 completedAt = Instant.now()
             )
             experimentStore.save(failed)
-            logger.error { "Experiment failed: $experimentId - ${e.message}" }
+            logger.error { "실험 실패: $experimentId - ${e.message}" }
             failed
         }
     }
@@ -133,13 +133,13 @@ class ExperimentOrchestrator(
         candidateCount: Int? = null,
         judgeModel: String? = null
     ): Experiment? {
-        logger.info { "Starting auto pipeline for template=$templateId" }
+        logger.info { "자동 파이프라인 시작: template=$templateId" }
 
         val analysis = feedbackAnalyzer.analyze(templateId, since)
         if (analysis.negativeCount < properties.minNegativeFeedback) {
             logger.info {
-                "Skipping: only ${analysis.negativeCount} negative feedback " +
-                    "(min=${properties.minNegativeFeedback})"
+                "건너뜀: 부정 피드백 ${analysis.negativeCount}건만 존재 " +
+                    "(최소=${properties.minNegativeFeedback})"
             }
             return null
         }
@@ -150,7 +150,7 @@ class ExperimentOrchestrator(
             candidateCount = candidateCount ?: properties.candidateCount
         )
         if (candidateIds.isEmpty()) {
-            logger.warn { "No candidates generated for template=$templateId" }
+            logger.warn { "후보 프롬프트 생성 실패: template=$templateId" }
             return null
         }
 
@@ -184,7 +184,7 @@ class ExperimentOrchestrator(
         for (versionId in allVersionIds) {
             val version = promptTemplateStore.getVersion(versionId)
             if (version == null) {
-                logger.warn { "Version not found, skipping: $versionId" }
+                logger.warn { "버전을 찾을 수 없어 건너뜀: $versionId" }
                 continue
             }
             executeVersionTrials(
@@ -245,7 +245,7 @@ class ExperimentOrchestrator(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn { "Trial failed for version=$versionId, query=${query.query}: ${e.message}" }
+            logger.warn { "트라이얼 실패: version=$versionId, query=${query.query}: ${e.message}" }
             Trial(
                 experimentId = experiment.id,
                 promptVersionId = versionId,

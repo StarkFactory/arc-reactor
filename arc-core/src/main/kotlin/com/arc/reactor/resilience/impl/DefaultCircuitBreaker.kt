@@ -76,7 +76,7 @@ class DefaultCircuitBreaker(
         when (currentState) {
             CircuitBreakerState.OPEN -> {
                 // 회로가 열려있으면 즉시 거부하여 다운스트림 부하를 차단한다
-                logger.debug { "Circuit breaker '$name' is OPEN, rejecting call" }
+                logger.debug { "서킷 브레이커 '$name' OPEN 상태, 호출 거부" }
                 throw CircuitBreakerOpenException(name)
             }
             CircuitBreakerState.HALF_OPEN -> {
@@ -113,7 +113,7 @@ class DefaultCircuitBreaker(
         halfOpenCallCount.set(0)
         lastFailureTime.set(0)
         openedAt.set(0)
-        logger.info { "Circuit breaker '$name' reset to CLOSED" }
+        logger.info { "서킷 브레이커 '$name' CLOSED로 초기화" }
     }
 
     override fun metrics(): CircuitBreakerMetrics = CircuitBreakerMetrics(
@@ -142,7 +142,7 @@ class DefaultCircuitBreaker(
                 // CAS: 정확히 하나의 스레드만 OPEN → HALF_OPEN 전환을 수행
                 if (state.compareAndSet(CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN)) {
                     halfOpenCallCount.set(0)
-                    logger.info { "Circuit breaker '$name' transitioned OPEN → HALF_OPEN after ${elapsed}ms" }
+                    logger.info { "서킷 브레이커 '$name' 상태 전이 OPEN → HALF_OPEN (${elapsed}ms 경과)" }
                     agentMetrics.recordCircuitBreakerStateChange(
                         name, CircuitBreakerState.OPEN, CircuitBreakerState.HALF_OPEN
                     )
@@ -167,7 +167,7 @@ class DefaultCircuitBreaker(
                 failureCount.set(0)
                 successCount.incrementAndGet()
                 halfOpenCallCount.set(0)
-                logger.info { "Circuit breaker '$name' transitioned HALF_OPEN → CLOSED (recovery confirmed)" }
+                logger.info { "서킷 브레이커 '$name' 상태 전이 HALF_OPEN → CLOSED (복구 확인)" }
                 agentMetrics.recordCircuitBreakerStateChange(
                     name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.CLOSED
                 )
@@ -198,7 +198,7 @@ class DefaultCircuitBreaker(
             if (state.compareAndSet(CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN)) {
                 openedAt.set(clock())
                 halfOpenCallCount.set(0)
-                logger.warn { "Circuit breaker '$name' transitioned HALF_OPEN → OPEN (trial call failed)" }
+                logger.warn { "서킷 브레이커 '$name' 상태 전이 HALF_OPEN → OPEN (시험 호출 실패)" }
                 agentMetrics.recordCircuitBreakerStateChange(
                     name, CircuitBreakerState.HALF_OPEN, CircuitBreakerState.OPEN
                 )
@@ -210,7 +210,7 @@ class DefaultCircuitBreaker(
                 if (state.compareAndSet(CircuitBreakerState.CLOSED, CircuitBreakerState.OPEN)) {
                     openedAt.set(clock())
                     logger.warn {
-                        "Circuit breaker '$name' transitioned CLOSED → OPEN " +
+                        "서킷 브레이커 '$name' 상태 전이 CLOSED → OPEN " +
                             "(failures=$failures, threshold=$failureThreshold)"
                     }
                     agentMetrics.recordCircuitBreakerStateChange(

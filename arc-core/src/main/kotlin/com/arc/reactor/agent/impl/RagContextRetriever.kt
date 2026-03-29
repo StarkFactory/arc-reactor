@@ -68,24 +68,24 @@ internal class RagContextRetriever(
                 )
                 val durationMs = System.currentTimeMillis() - startTime
                 if (ragResult.hasDocuments) {
-                    logger.debug { "RAG retrieval succeeded with ${ragResult.documents.size} documents in ${durationMs}ms" }
+                    logger.debug { "RAG 검색 성공: 문서 ${ragResult.documents.size}건, ${durationMs}ms" }
                     metrics.recordRagRetrieval("success", durationMs)
                     ragResult
                 } else {
-                    logger.info { "RAG retrieval returned empty results in ${durationMs}ms" }
+                    logger.info { "RAG 검색 결과 없음: ${durationMs}ms" }
                     metrics.recordRagRetrieval("empty", durationMs)
                     null
                 }
             }
         } catch (e: TimeoutCancellationException) {
             val durationMs = System.currentTimeMillis() - startTime
-            logger.warn { "RAG retrieval timed out after ${retrievalTimeoutMs}ms, continuing without context" }
+            logger.warn { "RAG 검색 타임아웃: ${retrievalTimeoutMs}ms 경과, 컨텍스트 없이 계속 진행" }
             metrics.recordRagRetrieval("timeout", durationMs)
             null
         } catch (e: Exception) {
             e.throwIfCancellation()
             val durationMs = System.currentTimeMillis() - startTime
-            logger.error(e) { "RAG retrieval failed after ${durationMs}ms, continuing without context" }
+            logger.error(e) { "RAG 검색 실패: ${durationMs}ms 경과, 컨텍스트 없이 계속 진행" }
             metrics.recordRagRetrieval("error", durationMs)
             null
         }
@@ -104,15 +104,15 @@ internal class RagContextRetriever(
 
         return when (queryRouter.route(query)) {
             QueryComplexity.NO_RETRIEVAL -> {
-                logger.debug { "Adaptive routing: NO_RETRIEVAL, skipping RAG" }
+                logger.debug { "적응형 라우팅: NO_RETRIEVAL, RAG 검색 생략" }
                 null
             }
             QueryComplexity.SIMPLE -> {
-                logger.debug { "Adaptive routing: SIMPLE, topK=$topK" }
+                logger.debug { "적응형 라우팅: SIMPLE, topK=$topK" }
                 topK
             }
             QueryComplexity.COMPLEX -> {
-                logger.debug { "Adaptive routing: COMPLEX, topK=$complexTopK" }
+                logger.debug { "적응형 라우팅: COMPLEX, topK=$complexTopK" }
                 complexTopK
             }
         }

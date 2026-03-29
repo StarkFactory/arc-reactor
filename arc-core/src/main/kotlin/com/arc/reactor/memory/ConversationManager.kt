@@ -132,7 +132,7 @@ class DefaultConversationManager(
         }
         val sessionId = command.metadata["sessionId"]?.toString()
         if (sessionId == null) {
-            logger.debug { "No sessionId in metadata" }
+            logger.debug { "메타데이터에 sessionId 없음" }
             return emptyList()
         }
         val span = tracer.startSpan(
@@ -157,11 +157,11 @@ class DefaultConversationManager(
                 memoryStore?.get(sessionId)?.getHistory()
             }
             if (allMessages == null) {
-                logger.debug { "No memory found for session $sessionId" }
+                logger.debug { "세션 $sessionId 에 대한 메모리 없음" }
                 span.setAttribute("memory.message.count", "0")
                 return emptyList()
             }
-            logger.debug { "Loaded ${allMessages.size} messages for session $sessionId" }
+            logger.debug { "세션 $sessionId 에서 메시지 ${allMessages.size}건 로드 완료" }
             span.setAttribute("memory.message.count", allMessages.size.toString())
             loadFromHistory(sessionId, allMessages)
         } catch (e: Exception) {
@@ -186,7 +186,7 @@ class DefaultConversationManager(
             buildHierarchicalHistory(sessionId, allMessages)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Hierarchical memory failed for session $sessionId, falling back" }
+            logger.warn(e) { "세션 $sessionId 계층적 메모리 실패, takeLast 폴백" }
             allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
         }
@@ -257,8 +257,8 @@ class DefaultConversationManager(
         // 요약이 비어있으면 맥락이 손실되므로 안전하게 takeLast로 폴백한다
         if (result.isEmpty()) {
             logger.warn {
-                "Summary empty: facts=${summary.facts.size}, " +
-                    "narrative=${summary.narrative.length} for session $sessionId, falling back to takeLast"
+                "요약 비어있음: facts=${summary.facts.size}, " +
+                    "narrative=${summary.narrative.length}, session=$sessionId — takeLast 폴백"
             }
             return allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
@@ -338,10 +338,10 @@ class DefaultConversationManager(
                 val messagesToSummarize = allMessages.subList(0, actualSplitIndex)
                 val existingSummary = summaryStore?.get(sessionId)
                 summarizeAndStore(sessionId, messagesToSummarize, existingSummary)
-                logger.debug { "Async summarization completed for session $sessionId" }
+                logger.debug { "비동기 요약 완료: session=$sessionId" }
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.debug(e) { "Async summarization failed for session $sessionId (will retry on next load)" }
+                logger.debug(e) { "비동기 요약 실패: session=$sessionId (다음 로드 시 재시도)" }
             }
         }
         activeSummarizations.put(sessionId, job)
@@ -398,11 +398,11 @@ class DefaultConversationManager(
         assistantContent: String?
     ): Int {
         val sessionId = metadata["sessionId"]?.toString() ?: run {
-            logger.debug { "Skipping save: no sessionId in metadata" }
+            logger.debug { "저장 생략: 메타데이터에 sessionId 없음" }
             return 0
         }
         val store = memoryStore ?: run {
-            logger.debug { "Skipping save: memoryStore is null" }
+            logger.debug { "저장 생략: memoryStore가 null" }
             return 0
         }
         val resolvedUserId = userId ?: "anonymous"
@@ -424,14 +424,14 @@ class DefaultConversationManager(
                         store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
                     }
                 }
-                logger.debug { "Saved conversation for session $sessionId" }
+                logger.debug { "대화 이력 저장 완료: session=$sessionId" }
             }
             // 저장 후 메시지 수 반환 (요약 임계값 사전 판단용)
             return store.get(sessionId)?.getHistory()?.size ?: messageCount
         } catch (e: Exception) {
             e.throwIfCancellation()
             span.setError(e)
-            logger.error(e) { "Failed to save conversation history for session $sessionId" }
+            logger.error(e) { "대화 이력 저장 실패: session=$sessionId" }
             return 0
         } finally {
             span.close()
