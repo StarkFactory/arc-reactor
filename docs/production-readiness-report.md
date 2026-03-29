@@ -3908,3 +3908,15 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `docs:` | **최종 갱신+Classification** | 보고서 수치 최신화, 13 테스트 |
 
 **R77-151 (75 Round): 62 fixes + 2,248 tests**
+
+### Round 152 — 2026-03-30T11:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** require/check 영문 12건→한글 (DynamicScheduler 7, SchedulerController 3, TokenRevocation 1, AgentModels 1) + 테스트 기대값 5파일 수정
+**Agent 2:** SecurityE2eRegressionTest 10개 — RateLimitRecovery(3), GuardOutputGuardCombined(3), RateLimitAgentIntegration(2), CounterDecrement(2)
+**Agent 3:** BUILD/TEST PASS (실패 4건 → 기대값 수정 후 전량 통과), Guard OK, RAG 캐시 0ms, 단순 채팅 avg 1,292ms
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **한글화+보안 E2E** | require 12건 한글화, 테스트 5파일 수정, 보안 E2E 10 테스트 |
+
+**R77-152 (76 Round): 63 fixes + 2,258 tests**
