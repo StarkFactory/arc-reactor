@@ -3154,3 +3154,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 - **P2**: `generatePlan`/`synthesize` 예외 시 e.message 간접 노출 (errorMessageResolver 경유)
 
 **R77-108 (32 Round): 24 fixes + 889 tests**
+
+### Round 109 — 2026-03-29T12:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **PLAN_EXECUTE StepBudgetTracker 적용** (P1 수정) + 테스트 추가
+**Agent 2:** HashUtils **20 테스트 추가** (SHA-256, HMAC, bytesToHex)
+**Agent 3:** BUILD PASS, 채팅 1505ms, 2162 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `fix:` | 예산 | PLAN_EXECUTE budgetTracker 적용 (P1) |
+| `test:` | 테스트 | HashUtils 20 tests |
+
+**R77-109 (33 Round): 25 fixes + 909 tests**
