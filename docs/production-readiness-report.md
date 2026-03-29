@@ -3324,3 +3324,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **MCP 정확도:** Jira 도구 선택 ✓ / RAG grounded=true,7단계 ✓ / 캐시 0ms ✓
 
 **R77-119 (43 Round): 32 fixes + 1,288 tests**
+
+### Round 120 — 2026-03-29T16:40+09:00 (3-에이전트 병렬)
+
+**Agent 1:** SemanticToolSelector ConcurrentHashMap→Caffeine bounded cache (1024, 30m TTW) + 영문KDoc→한글
+**Agent 2:** CoverageGapTest 30개 신규 — ErrorClassifier 경계값, Classification minMatchCount>1, Bm25 동시성, MutationDetector 엣지케이스
+**Agent 3:** BUILD/TEST PASS, MCP 2/2 CONNECTED (atlassian 37, swagger 11), Dashboard 2,456 응답/274 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **Code+Test** | SemanticToolSelector Caffeine 마이그레이션 + 30 테스트 |
+
+**MCP 정확도:** Swagger 도구 미호출(LLM 선택 실패) / 멀티도구 work_morning_briefing만 호출 / 캐시 미작동(LLM 재호출)
+**발견 이슈:** Swagger MCP 도구 활용률 극저(총 2회), Atlassian 인증 간헐 실패, 시맨틱 캐시 효과 미확인
+
+**R77-120 (44 Round): 33 fixes + 1,318 tests**
