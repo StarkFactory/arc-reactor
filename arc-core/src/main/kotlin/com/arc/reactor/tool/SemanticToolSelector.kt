@@ -8,30 +8,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.ai.embedding.EmbeddingModel
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
 private val logger = KotlinLogging.logger {}
 
 /**
- * Semantic Tool Selector
+ * 시맨틱 도구 선택기
  *
- * Uses embedding-based cosine similarity to select relevant tools.
- * Tool descriptions are embedded and cached; the user prompt is embedded per request.
+ * 임베딩 기반 코사인 유사도를 사용하여 관련 도구를 선택한다.
+ * 도구 설명은 임베딩 후 캐시하고, 사용자 프롬프트는 요청마다 임베딩한다.
  *
- * ## How It Works
- * 1. On first call (or when tools change), embeds each tool's `name + description`
- * 2. Embeds the user prompt
- * 3. Computes cosine similarity between prompt and each tool
- * 4. Returns tools above the similarity threshold (sorted by relevance)
- * 5. Falls back to all tools if none meet the threshold
+ * ## 동작 방식
+ * 1. 첫 호출 시(또는 도구 목록 변경 시) 각 도구의 `name + description`을 임베딩
+ * 2. 사용자 프롬프트를 임베딩
+ * 3. 프롬프트와 각 도구 간 코사인 유사도 계산
+ * 4. 유사도 임계값 이상인 도구를 관련성 순으로 반환
+ * 5. 임계값을 충족하는 도구가 없으면 전체 도구를 폴백으로 반환
  *
- * ## Deterministic Routing
- * Before semantic selection, checks tool-routing.yml for deterministic category matches.
- * Keywords and preferred tools are loaded from the unified config — no hardcoded constants.
+ * ## 결정적 라우팅
+ * 시맨틱 선택 전 tool-routing.yml에서 결정적 카테고리 매칭을 확인한다.
+ * 키워드와 우선 도구는 통합 설정에서 로딩 — 하드코딩 상수 없음.
  *
- * ## Configuration
+ * ## 설정
  * ```yaml
  * arc:
  *   reactor:
@@ -41,12 +40,12 @@ private val logger = KotlinLogging.logger {}
  *       max-results: 10
  * ```
  *
- * @param embeddingModel Spring AI embedding model for vectorization
- * @param similarityThreshold Minimum cosine similarity to include a tool (0.0 to 1.0)
- * @param maxResults Maximum number of tools to return
- * @param routingConfig Tool routing configuration (loaded from tool-routing.yml)
+ * @param embeddingModel 벡터화를 위한 Spring AI 임베딩 모델
+ * @param similarityThreshold 도구 포함 최소 코사인 유사도 (0.0 ~ 1.0)
+ * @param maxResults 반환할 최대 도구 수
+ * @param routingConfig tool-routing.yml에서 로딩한 도구 라우팅 설정
  *
- * @see ToolSelector for the interface contract
+ * @see ToolSelector 인터페이스 계약
  */
 class SemanticToolSelector(
     private val embeddingModel: EmbeddingModel,
@@ -57,9 +56,12 @@ class SemanticToolSelector(
     private val routingConfig: ToolRoutingConfig = ToolRoutingConfig.loadFromClasspath()
 ) : ToolSelector {
 
-    /** Cache: tool name -> embedding vector. Invalidated when tool list changes. */
-    private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
-    /** synchronized 대신 ReentrantLock 사용 — 코루틴 carrier 스레드 차단 방지 (IO 전환 후 lock) */
+    /** 도구 이름 → 임베딩 벡터 캐시. 도구 목록 변경 시 무효화된다. */
+    private val embeddingCache: Cache<String, FloatArray> = Caffeine.newBuilder()
+        .maximumSize(1024)
+        .expireAfterWrite(30, TimeUnit.MINUTES)
+        .build()
+    /** synchronized 대신 ReentrantLock 사용 — 코루틴 carrier 스레드 차단 방지 (IO 전환 후 lock). */
     private val refreshLock = ReentrantLock()
     private val semanticSelectionCache: Cache<SemanticSelectionCacheKey, List<String>> =
         Caffeine.newBuilder()
@@ -67,7 +69,7 @@ class SemanticToolSelector(
             .expireAfterWrite(selectionCacheTtlMinutes, TimeUnit.MINUTES)
             .build()
 
-    /** Fingerprint of the last tool list (to detect changes). */
+    /** 마지막 도구 목록의 fingerprint (변경 감지용). */
     @Volatile
     private var lastToolFingerprint: Int = 0
 
@@ -100,7 +102,7 @@ class SemanticToolSelector(
         refreshEmbeddingsIfNeeded(availableTools)
     }
 
-    // ── Semantic selection ──
+    // ── 시맨틱 선택 ──
 
     private fun selectSemantically(
         prompt: String,
@@ -119,8 +121,8 @@ class SemanticToolSelector(
 
         val promptEmbedding = embed(prompt)
         val scored = availableTools.map { tool ->
-            val toolEmbedding = embeddingCache[tool.name]
-                ?: embed(buildToolText(tool)).also { embeddingCache[tool.name] = it }
+            val toolEmbedding = embeddingCache.getIfPresent(tool.name)
+                ?: embed(buildToolText(tool)).also { embeddingCache.put(tool.name, it) }
             tool to cosineSimilarity(promptEmbedding, toolEmbedding)
         }
 
@@ -177,7 +179,7 @@ class SemanticToolSelector(
         return resolved
     }
 
-    // ── Deterministic routing (fast-path, pre-semantic) ──
+    // ── 결정적 라우팅 (fast-path, 시맨틱 선택 전) ──
 
     private fun selectDeterministicallyIfPossible(
         prompt: String,
@@ -192,7 +194,7 @@ class SemanticToolSelector(
         return resolveFirstMatchingRoute(prompt, availableByName, DETERMINISTIC_CATEGORIES)
     }
 
-    // ── Deterministic routing (post-semantic, overlay) ──
+    // ── 결정적 라우팅 (시맨틱 선택 후, 오버레이) ──
 
     private fun applyDeterministicRouting(
         prompt: String,
@@ -211,7 +213,7 @@ class SemanticToolSelector(
         return applyConfluenceRouting(prompt, selected, availableByName)
     }
 
-    // ── Config-driven route resolution ──
+    // ── 설정 기반 라우트 매칭 ──
 
     private fun resolveFirstMatchingRoute(
         prompt: String,
@@ -231,7 +233,7 @@ class SemanticToolSelector(
         return null
     }
 
-    // ── Confluence routing (special handling for answer vs discovery) ──
+    // ── Confluence 라우팅 (답변 vs 탐색 구분 처리) ──
 
     private fun applyConfluenceRouting(
         prompt: String,
@@ -259,7 +261,7 @@ class SemanticToolSelector(
         return ordered.values.take(maxResults)
     }
 
-    // ── Workspace mutation (special: read-only evidence tools) ──
+    // ── 워크스페이스 변경 의도 (읽기 전용 증거 도구 우선) ──
 
     private fun preferredReadOnlyMutationEvidenceTools(
         prompt: String,
@@ -304,7 +306,7 @@ class SemanticToolSelector(
             normalized.contains("pr")
     }
 
-    // ── Embedding utilities ──
+    // ── 임베딩 유틸리티 ──
 
     /**
      * 도구 목록 변경 시 임베딩을 갱신한다.
@@ -326,7 +328,7 @@ class SemanticToolSelector(
             }.mapIndexed { index, embedding ->
                 tools[index].name to embedding
             }.toMap(LinkedHashMap())
-            embeddingCache.clear()
+            embeddingCache.invalidateAll()
             embeddingCache.putAll(refreshed)
             semanticSelectionCache.invalidateAll()
             lastToolFingerprint = fingerprint
@@ -358,7 +360,7 @@ class SemanticToolSelector(
             }
     }
 
-    /** 단일 텍스트 임베딩 — 블로킹 HTTP 호출이므로 IO 디스패처에서 실행한다. */
+    /** 단일 텍스트를 임베딩한다. 블로킹 HTTP 호출이므로 IO 디스패처에서 실행한다. */
     private fun embed(text: String): FloatArray = runBlocking(Dispatchers.IO) {
         embeddingModel.embed(text)
     }
@@ -384,19 +386,19 @@ class SemanticToolSelector(
             "confluence_search", "confluence_search_by_text"
         )
 
-        /** Categories to check in deterministic fast-path (pre-semantic). */
+        /** 결정적 fast-path에서 확인할 카테고리 (시맨틱 선택 전). */
         private val DETERMINISTIC_CATEGORIES = listOf(
             "workContext", "work", "jira", "bitbucket", "swagger", "confluence"
         )
 
-        /** Categories to check in deterministic overlay (post-semantic, excluding confluence). */
+        /** 결정적 오버레이에서 확인할 카테고리 (시맨틱 선택 후, Confluence 제외). */
         private val NON_CONFLUENCE_CATEGORIES = listOf(
             "workContext", "work", "jira", "bitbucket", "swagger"
         )
 
         /**
-         * Compute cosine similarity between two vectors.
-         * Returns a value between -1.0 and 1.0 (1.0 = identical direction).
+         * 두 벡터 간 코사인 유사도를 계산한다.
+         * 반환값 범위: -1.0 ~ 1.0 (1.0 = 동일 방향).
          */
         fun cosineSimilarity(a: FloatArray, b: FloatArray): Double {
             require(a.size == b.size) {
