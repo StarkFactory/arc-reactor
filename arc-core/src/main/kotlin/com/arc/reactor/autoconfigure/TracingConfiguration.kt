@@ -50,7 +50,7 @@ class TracingConfiguration {
         properties: AgentProperties
     ): ArcReactorTracer {
         val otel = requireNotNull(openTelemetryProvider.ifAvailable) {
-            "OpenTelemetry bean required for arcReactorOtelTracer"
+            "arcReactorOtelTracer에 OpenTelemetry 빈이 필요합니다"
         }
         val tracer = otel.getTracer(properties.tracing.serviceName)
         logger.info { "ArcReactorTracer: OTel 활성화 (service=${properties.tracing.serviceName})" }

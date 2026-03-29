@@ -32,7 +32,7 @@ object MediaConverter {
                 .data(ByteArrayResource(attachment.data))
                 .apply { attachment.name?.let { name(it) } }
                 .build()
-            else -> error("MediaAttachment must have either data or uri")
+            else -> error("MediaAttachment에 data 또는 uri가 필요합니다")
         }
     }
 

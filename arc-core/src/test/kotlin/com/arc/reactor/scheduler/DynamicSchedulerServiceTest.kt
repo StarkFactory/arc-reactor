@@ -400,7 +400,7 @@ class DynamicSchedulerServiceTest {
             val job = mcpJob(timezone = "Invalid/Zone")
 
             val ex = assertThrows<IllegalArgumentException> { service.create(job) }
-            ex.message shouldContain "Invalid timezone" withMessage
+            ex.message shouldContain "유효하지 않은 타임존" withMessage
                 "타임존 검증 실패 메시지가 포함되어야 한다"
         }
 
@@ -971,7 +971,7 @@ class DynamicSchedulerServiceTest {
 
             val result = service.trigger(job.id)
 
-            result shouldContain "no content" withMessage
+            result shouldContain "콘텐츠 없음" withMessage
                 "content가 null이면 기본 메시지가 반환되어야 한다"
         }
 

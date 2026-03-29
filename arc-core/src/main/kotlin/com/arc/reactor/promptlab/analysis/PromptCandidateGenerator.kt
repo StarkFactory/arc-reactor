@@ -44,7 +44,7 @@ class PromptCandidateGenerator(
         candidateCount: Int = 3
     ): List<String> {
         val activeVersion = promptTemplateStore.getActiveVersion(templateId)
-            ?: throw IllegalStateException("No active version for template=$templateId")
+            ?: throw IllegalStateException("템플릿 $templateId 의 활성 버전이 없습니다")
         val metaPrompt = buildMetaPrompt(activeVersion.content, analysis, candidateCount)
         val candidates = generateCandidates(metaPrompt, candidateCount)
         val categories = analysis.weaknesses.joinToString(", ") { it.category }

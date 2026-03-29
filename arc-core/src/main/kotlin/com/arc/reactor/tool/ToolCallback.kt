@@ -122,13 +122,13 @@ class SpringAiToolCallbackAdapter(
 
     override suspend fun call(arguments: Map<String, Any?>): Any? {
         val method = callMethod
-            ?: throw RuntimeException("Tool call failed: 'call' method not found on ${springAiCallback::class.java}")
+            ?: throw RuntimeException("도구 호출 실패: ${springAiCallback::class.java}에 'call' 메서드 없음")
         return try {
             val jsonArgs = objectMapper.writeValueAsString(arguments)
             method.invoke(springAiCallback, jsonArgs)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            throw RuntimeException("Tool call failed: ${e.javaClass.simpleName}", e)
+            throw RuntimeException("도구 호출 실패: ${e.javaClass.simpleName}", e)
         }
     }
 

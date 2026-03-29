@@ -75,8 +75,9 @@ class SpringAiToolCallbackAdapterTest {
             }
         }
 
-        assertTrue(exception.message.orEmpty().contains("'call' method not found"),
-            "Exception should mention missing 'call' method")
+        assertTrue(exception.message.orEmpty().contains("'call' 메서드 없음")) {
+            "예외 메시지에 'call 메서드 없음'이 포함되어야 한다"
+        }
     }
 
     @Test

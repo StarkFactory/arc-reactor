@@ -91,7 +91,7 @@ data class ToolRoutingConfig(
         fun resolveRegex(ref: String): Regex = when (ref) {
             "ISSUE_KEY" -> WorkContextPatterns.ISSUE_KEY_REGEX
             "OPENAPI_URL" -> WorkContextPatterns.OPENAPI_URL_REGEX
-            else -> error("Unknown regex reference: $ref")
+            else -> error("알 수 없는 정규식 참조: $ref")
         }
     }
 }

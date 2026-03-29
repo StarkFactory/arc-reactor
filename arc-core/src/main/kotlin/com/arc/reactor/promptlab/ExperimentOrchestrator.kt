@@ -68,9 +68,9 @@ class ExperimentOrchestrator(
      */
     suspend fun execute(experimentId: String): Experiment {
         val experiment = experimentStore.get(experimentId)
-            ?: throw IllegalArgumentException("Experiment not found: $experimentId")
+            ?: throw IllegalArgumentException("실험을 찾을 수 없습니다: $experimentId")
         require(experiment.status == ExperimentStatus.PENDING) {
-            "Experiment must be PENDING, was: ${experiment.status}"
+            "실험 상태가 PENDING이어야 하지만 현재: ${experiment.status}"
         }
 
         val running = experiment.copy(
@@ -99,7 +99,7 @@ class ExperimentOrchestrator(
         } catch (e: TimeoutCancellationException) {
             val failed = running.copy(
                 status = ExperimentStatus.FAILED,
-                errorMessage = "Experiment timed out after ${properties.experimentTimeoutMs}ms",
+                errorMessage = "실험 ${properties.experimentTimeoutMs}ms 후 타임아웃",
                 completedAt = Instant.now()
             )
             experimentStore.save(failed)
@@ -155,7 +155,7 @@ class ExperimentOrchestrator(
         }
 
         val activeVersion = promptTemplateStore.getActiveVersion(templateId)
-            ?: throw IllegalStateException("No active version for template=$templateId")
+            ?: throw IllegalStateException("템플릿 $templateId 의 활성 버전이 없습니다")
 
         val experiment = Experiment(
             name = "Auto-optimize: $templateId",

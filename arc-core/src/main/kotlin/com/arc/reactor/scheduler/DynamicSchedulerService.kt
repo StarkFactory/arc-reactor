@@ -233,7 +233,7 @@ class DynamicSchedulerService(
         try {
             ZoneId.of(timezone)
         } catch (e: Exception) {
-            throw IllegalArgumentException("Invalid timezone: $timezone", e)
+            throw IllegalArgumentException("유효하지 않은 타임존: $timezone", e)
         }
     }
 
@@ -356,7 +356,7 @@ class DynamicSchedulerService(
         return try {
             withTimeout(timeoutMs) { runWithRetry(job) }
         } catch (@Suppress("SwallowedException") e: kotlinx.coroutines.TimeoutCancellationException) {
-            throw RuntimeException("Job '${job.name}' timed out after ${timeoutMs}ms")
+            throw RuntimeException("작업 '${job.name}' ${timeoutMs}ms 후 타임아웃")
         }
     }
 
@@ -382,7 +382,7 @@ class DynamicSchedulerService(
                 }
             }
         }
-        throw lastException ?: IllegalStateException("All retries failed for job '${job.name}'")
+        throw lastException ?: IllegalStateException("작업 '${job.name}' 모든 재시도 실패")
     }
 
     private suspend fun dispatchJobByType(job: ScheduledJob): String = when (job.jobType) {
@@ -394,18 +394,18 @@ class DynamicSchedulerService(
 
     private suspend fun runMcpToolJob(job: ScheduledJob): String {
         val serverName = job.mcpServerName
-            ?: throw IllegalStateException("mcpServerName is required for MCP_TOOL job: ${job.name}")
+            ?: throw IllegalStateException("MCP_TOOL 작업 '${job.name}'에 mcpServerName이 필요합니다")
         val toolName = job.toolName
-            ?: throw IllegalStateException("toolName is required for MCP_TOOL job: ${job.name}")
+            ?: throw IllegalStateException("MCP_TOOL 작업 '${job.name}'에 toolName이 필요합니다")
 
         val connected = mcpManager.ensureConnected(serverName)
         if (!connected) {
-            throw IllegalStateException("MCP server '$serverName' is not connected")
+            throw IllegalStateException("MCP 서버 '$serverName' 연결되지 않음")
         }
 
         val tools = mcpManager.getToolCallbacks(serverName)
         val tool = tools.find { it.name == toolName }
-            ?: throw IllegalStateException("Tool '$toolName' not found on server '$serverName'")
+            ?: throw IllegalStateException("서버 '$serverName'에서 도구 '$toolName'을 찾을 수 없습니다")
 
         return invokeToolWithPolicies(job, tool)
     }
@@ -424,7 +424,7 @@ class DynamicSchedulerService(
                 callIndex = 0
             )
         )?.let { rejection ->
-            throw IllegalStateException("Tool call rejected: ${rejection.reason}")
+            throw IllegalStateException("도구 호출 거부됨: ${rejection.reason}")
         }
 
         val effectiveArguments = resolveApprovedArguments(tool, baseArguments, hookContext)
@@ -471,7 +471,7 @@ class DynamicSchedulerService(
 
         val approvalStore = pendingApprovalStore
         if (approvalStore == null) {
-            val message = "Approval store unavailable for required scheduled tool '${tool.name}'"
+            val message = "스케줄된 도구 '${tool.name}'에 승인 저장소를 사용할 수 없습니다"
             logger.error { message }
             throw IllegalStateException(message)
         }
@@ -486,8 +486,8 @@ class DynamicSchedulerService(
             if (response.approved) {
                 response.modifiedArguments ?: arguments
             } else {
-                val reason = response.reason ?: "Rejected by human"
-                throw IllegalStateException("Tool call rejected by human: $reason")
+                val reason = response.reason ?: "사람에 의해 거부됨"
+                throw IllegalStateException("사람에 의한 도구 호출 거부: $reason")
             }
         } catch (e: IllegalStateException) {
             throw e
@@ -509,20 +509,20 @@ class DynamicSchedulerService(
     private suspend fun runAgentJob(job: ScheduledJob): String {
         val executor = agentExecutor
             ?: agentExecutorProvider?.invoke()
-            ?: throw IllegalStateException("AgentExecutor not available for AGENT job '${job.name}'. " +
-                "Ensure the agent bean is configured.")
+            ?: throw IllegalStateException("AGENT 작업 '${job.name}'에 AgentExecutor를 사용할 수 없습니다. " +
+                "에이전트 빈 설정을 확인하세요.")
 
         val prompt = job.agentPrompt
-            ?: throw IllegalStateException("agentPrompt is required for AGENT job '${job.name}'")
+            ?: throw IllegalStateException("AGENT 작업 '${job.name}'에 agentPrompt가 필요합니다")
 
         val resolvedPrompt = resolveTemplateVariables(prompt, job)
         val command = buildAgentCommand(job, resolvedPrompt)
 
         val result = executor.execute(command)
         return if (result.success) {
-            result.content ?: "Agent completed with no content"
+            result.content ?: "에이전트 실행 완료 (콘텐츠 없음)"
         } else {
-            throw IllegalStateException("Agent execution failed: ${result.errorMessage}")
+            throw IllegalStateException("에이전트 실행 실패: ${result.errorMessage}")
         }
     }
 

@@ -164,23 +164,23 @@ private object ProactiveChannelStoreBridge {
 
     fun list(store: Any): List<ProactiveChannelView> {
         val result = invoke(store, "list") as? Iterable<*>
-            ?: error("Unexpected proactive channel list result")
+            ?: error("프로액티브 채널 목록 결과가 예상과 다릅니다")
         return result.map { channel ->
-            requireNotNull(channel) { "Proactive channel entry must not be null" }
+            requireNotNull(channel) { "프로액티브 채널 항목은 null일 수 없습니다" }
             toView(channel)
         }
     }
 
     fun isEnabled(store: Any, channelId: String): Boolean =
         invoke(store, "isEnabled", channelId) as? Boolean
-            ?: error("Unexpected proactive channel enabled result")
+            ?: error("프로액티브 채널 활성화 상태 결과가 예상과 다릅니다")
 
     fun add(store: Any, channelId: String, channelName: String?): ProactiveChannelView =
         toView(invoke(store, "add", channelId, channelName))
 
     fun remove(store: Any, channelId: String): Boolean =
         invoke(store, "remove", channelId) as? Boolean
-            ?: error("Unexpected proactive channel remove result")
+            ?: error("프로액티브 채널 삭제 결과가 예상과 다릅니다")
 
     private fun invoke(store: Any, methodName: String, vararg args: Any?): Any {
         val parameterTypes = args.map { arg ->
@@ -198,11 +198,11 @@ private object ProactiveChannelStoreBridge {
         }
         return try {
             requireNotNull(method.invoke(store, *args)) {
-                "Proactive channel store method returned null: $methodName"
+                "프로액티브 채널 스토어 메서드가 null 반환: $methodName"
             }
         } catch (e: InvocationTargetException) {
             logger.error(e.targetException) { "프로액티브 채널 스토어 호출 실패: $methodName" }
-            throw IllegalStateException("Proactive channel operation failed")
+            throw IllegalStateException("프로액티브 채널 작업 실패")
         }
     }
 
@@ -215,10 +215,10 @@ private object ProactiveChannelStoreBridge {
             ProactiveChannelView(channelId = channelId, channelName = channelName, addedAt = addedAt)
         } catch (e: InvocationTargetException) {
             logger.error(e.targetException) { "프로액티브 채널 뷰 변환 실패" }
-            throw IllegalStateException("Proactive channel operation failed")
+            throw IllegalStateException("프로액티브 채널 작업 실패")
         } catch (e: ClassCastException) {
             logger.error(e) { "프로액티브 채널 뷰 타입 불일치" }
-            throw IllegalStateException("Proactive channel operation failed")
+            throw IllegalStateException("프로액티브 채널 작업 실패")
         }
     }
 }

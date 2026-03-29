@@ -125,8 +125,8 @@ class ExperimentOrchestratorTest {
                 orchestrator.execute("unknown")
                 assertTrue(false) { "Should throw for unknown experiment" }
             } catch (e: IllegalArgumentException) {
-                assertTrue(e.message.orEmpty().contains("not found")) {
-                    "Error should mention not found"
+                assertTrue(e.message.orEmpty().contains("찾을 수 없")) {
+                    "에러 메시지에 '찾을 수 없'이 포함되어야 한다"
                 }
             }
         }
@@ -182,8 +182,8 @@ class ExperimentOrchestratorTest {
             assertEquals(ExperimentStatus.FAILED, result.status) {
                 "Should be FAILED after timeout"
             }
-            assertTrue(result.errorMessage.orEmpty().contains("timed out")) {
-                "Error message should mention timeout: ${result.errorMessage}"
+            assertTrue(result.errorMessage.orEmpty().contains("타임아웃")) {
+                "에러 메시지에 '타임아웃'이 포함되어야 한다: ${result.errorMessage}"
             }
         }
 

@@ -77,9 +77,9 @@ internal class RetryExecutor(
 
             if (completed) {
                 @Suppress("UNCHECKED_CAST")
-                checkNotNull(result) { "Retry completed but result is null" } as T
+                checkNotNull(result) { "재시도 완료되었으나 결과가 null" } as T
             } else {
-                throw lastException ?: IllegalStateException("Retry exhausted")
+                throw lastException ?: IllegalStateException("재시도 횟수 소진")
             }
         }
 

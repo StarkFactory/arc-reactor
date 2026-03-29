@@ -90,7 +90,7 @@ class JdbcToolPolicyStore(
             }
 
             updated
-        } ?: error("Transaction returned null while saving tool policy")
+        } ?: error("도구 정책 저장 중 트랜잭션이 null 반환")
     }
 
     override fun delete(): Boolean {

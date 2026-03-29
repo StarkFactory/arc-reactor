@@ -281,7 +281,7 @@ class DefaultConversationManager(
         existingSummary: ConversationSummary?
     ): ConversationSummary {
         val service = summaryService
-            ?: throw IllegalStateException("SummaryService is required for hierarchical memory")
+            ?: throw IllegalStateException("계층적 메모리에 SummaryService가 필요합니다")
 
         val summaryResult = service.summarize(messages, existingSummary?.facts.orEmpty())
         val summary = ConversationSummary(
