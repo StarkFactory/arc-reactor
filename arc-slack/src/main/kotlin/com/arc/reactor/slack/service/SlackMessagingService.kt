@@ -45,6 +45,7 @@ class SlackMessagingService(
     private val responseWebClient: WebClient = WebClient.builder().build(),
     private val allowedResponseHosts: Set<String> = DEFAULT_ALLOWED_RESPONSE_HOSTS
 ) {
+    /** 채널별 마지막 요청 시각 (최대 1000 항목, 초과 시 오래된 항목 제거) */
     private val lastRequestTimeByChannel = ConcurrentHashMap<String, AtomicLong>()
 
     /**
@@ -186,6 +187,10 @@ class SlackMessagingService(
     }
 
     private suspend fun enforceRateLimit(channelId: String) {
+        if (lastRequestTimeByChannel.size > MAX_RATE_LIMIT_ENTRIES) {
+            lastRequestTimeByChannel.keys.take(lastRequestTimeByChannel.size / 4)
+                .forEach(lastRequestTimeByChannel::remove)
+        }
         val lastTime = lastRequestTimeByChannel.computeIfAbsent(channelId) { AtomicLong(0L) }
         val now = System.currentTimeMillis()
         val elapsed = now - lastTime.get()
@@ -212,6 +217,7 @@ class SlackMessagingService(
     companion object {
         private const val RATE_LIMIT_DELAY_MS = 1000L
         private const val RESPONSE_URL_TIMEOUT_SECONDS = 10L
+        private const val MAX_RATE_LIMIT_ENTRIES = 1_000
         private val DEFAULT_ALLOWED_RESPONSE_HOSTS = setOf("hooks.slack.com", "slack.com")
     }
 }
