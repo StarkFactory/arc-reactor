@@ -38,11 +38,11 @@ Agent(subagent_type: "codebase-scanner" 또는 "general-purpose", model: "opus",
   /Users/jinan/ai/arc-reactor 코드베이스를 스캔하여 개선할 수 있는 코드를 찾고 수정하라.
 
   **찾아야 할 것 (우선순위순):**
-  1. CLAUDE.md 규칙 위반 (!! 사용, .forEach in suspend, catch without throwIfCancellation, 120자 초과 등)
-  2. 보안 취약점 (e.message 노출, 하드코딩 값, 인증 누락)
-  3. 코드 품질 (중복 코드, 긴 메서드, 불필요한 코드)
-  4. 누락된 @Valid, @ConditionalOnMissingBean, KDoc
-  5. 의존성 업데이트 (build.gradle.kts에서 CVE 패치 버전)
+  1. **의존성 CVE 패치** (최우선): Spring AI 1.1.3→1.1.4, Netty 4.1.131→4.1.132 업그레이드
+  2. **긴 메서드 리팩터링** (≤20줄): ManualReActLoopExecutor.execute(126줄), SlackMessagingService.callSlackApi(53줄) 등
+  3. **중복 코드 추출**: ManualReActLoopExecutor ↔ StreamingReActLoopExecutor 공유 메서드 5개 → ReActLoopUtils로
+  4. CLAUDE.md 규칙 위반 (!! 사용, .forEach in suspend, catch without throwIfCancellation)
+  5. 코드 품질 (미사용 코드 제거, 120자 초과, 누락된 KDoc)
 
   **수정 규칙:**
   - 발견한 이슈 중 가장 영향력 있는 1개를 실제로 수정
@@ -61,12 +61,12 @@ Agent(subagent_type: "codebase-scanner" 또는 "general-purpose", model: "opus",
 Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
   /Users/jinan/ai/arc-reactor에서 테스트 커버리지 gap을 찾고 새 테스트를 작성하라.
 
-  **찾아야 할 것:**
-  1. src/main에 있으나 src/test에 대응 테스트가 없는 클래스
-  2. 기존 테스트에서 assertion 메시지 누락 (trailing lambda 필수)
-  3. 엣지 케이스 미테스트 (null, empty, boundary)
-  4. 새로 추가/수정된 코드의 테스트 부재
-  5. Hardening/Safety 테스트에 추가할 시나리오
+  **찾아야 할 것 (우선순위순):**
+  1. **통합 테스트** (@SpringBootTest): Guard 파이프라인, 캐시, MCP 연결 등 Spring 컨텍스트 필요한 테스트
+  2. **Hardening 시나리오 추가**: 새로 추가된 Guard 패턴 23개에 대한 hardening 테스트 케이스
+  3. **엣지 케이스**: null, empty, boundary, 동시성 시나리오
+  4. src/main에 있으나 src/test에 대응 테스트가 없는 클래스
+  5. 최근 수정된 코드(R77-114)의 회귀 테스트
 
   **작성 규칙:**
   - CLAUDE.md 테스트 규칙 준수: runTest, coEvery/coVerify, assertion 메시지 필수
