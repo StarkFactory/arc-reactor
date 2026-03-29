@@ -54,7 +54,7 @@ class AdminJdbcConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = ["jdbcTenantStore"])
     fun jdbcTenantStore(jdbcTemplate: JdbcTemplate): TenantStore {
-        logger.info { "Using JdbcTenantStore" }
+        logger.info { "JdbcTenantStore 사용" }
         return JdbcTenantStore(jdbcTemplate)
     }
 
@@ -62,7 +62,7 @@ class AdminJdbcConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = ["jdbcModelPricingStore"])
     fun jdbcModelPricingStore(jdbcTemplate: JdbcTemplate): ModelPricingStore {
-        logger.info { "Using JdbcModelPricingStore" }
+        logger.info { "JdbcModelPricingStore 사용" }
         return JdbcModelPricingStore(jdbcTemplate)
     }
 
@@ -131,7 +131,7 @@ class AdminJdbcConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = ["jdbcAlertRuleStore"])
     fun jdbcAlertRuleStore(jdbcTemplate: JdbcTemplate): AlertRuleStore {
-        logger.info { "Using JdbcAlertRuleStore" }
+        logger.info { "JdbcAlertRuleStore 사용" }
         return JdbcAlertRuleStore(jdbcTemplate)
     }
 
@@ -156,7 +156,7 @@ class AdminJdbcConfiguration {
         healthMonitor: PipelineHealthMonitor,
         ringBuffer: MetricRingBuffer
     ): QuotaEnforcerHook {
-        logger.info { "QuotaEnforcerHook registered (order=5, fail-open)" }
+        logger.info { "QuotaEnforcerHook 등록 완료 (order=5, fail-open)" }
         return QuotaEnforcerHook(tenantStore, queryService, circuitBreakerRegistry, healthMonitor, ringBuffer)
     }
 

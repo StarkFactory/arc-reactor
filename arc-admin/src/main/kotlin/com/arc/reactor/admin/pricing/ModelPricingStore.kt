@@ -3,7 +3,7 @@ package com.arc.reactor.admin.pricing
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /** 모델 가격 정보. provider/model별 토큰당 가격과 유효 기간을 포함한다. */
 data class ModelPricing(
@@ -33,23 +33,25 @@ interface ModelPricingStore {
     fun delete(id: String): Boolean
 }
 
-/** ConcurrentHashMap 기반 인메모리 [ModelPricingStore] 구현체. */
+/** Caffeine 기반 인메모리 [ModelPricingStore] 구현체. */
 class InMemoryModelPricingStore : ModelPricingStore {
-    private val pricings = ConcurrentHashMap<String, ModelPricing>()
+    private val pricings = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .build<String, ModelPricing>()
 
     override fun findEffective(provider: String, model: String, at: Instant): ModelPricing? =
-        pricings.values
+        pricings.asMap().values
             .filter { it.provider == provider && it.model == model }
             .filter { it.effectiveFrom <= at && (it.effectiveTo == null || it.effectiveTo > at) }
             .maxByOrNull { it.effectiveFrom }
 
     override fun findAll(): List<ModelPricing> =
-        pricings.values.sortedByDescending { it.effectiveFrom }
+        pricings.asMap().values.sortedByDescending { it.effectiveFrom }
 
     override fun save(pricing: ModelPricing): ModelPricing {
-        pricings[pricing.id] = pricing
+        pricings.put(pricing.id, pricing)
         return pricing
     }
 
-    override fun delete(id: String): Boolean = pricings.remove(id) != null
+    override fun delete(id: String): Boolean = pricings.asMap().remove(id) != null
 }

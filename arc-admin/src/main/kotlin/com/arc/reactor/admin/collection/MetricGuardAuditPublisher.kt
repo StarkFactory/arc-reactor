@@ -50,7 +50,7 @@ class MetricGuardAuditPublisher(
 
         if (!ringBuffer.publish(event)) {
             healthMonitor.recordDrop(1)
-            logger.debug { "MetricRingBuffer full, guard audit event dropped" }
+            logger.debug { "MetricRingBuffer 가득 참, 가드 감사 이벤트 drop" }
         }
     }
 

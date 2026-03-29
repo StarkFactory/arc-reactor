@@ -69,7 +69,7 @@ class MetricCollectionHook(
             throw e
         } catch (e: Exception) {
             healthMonitor.recordDrop(1)
-            logger.warn(e) { "Failed to record agent completion metric for runId=${context.runId}" }
+            logger.warn(e) { "에이전트 완료 메트릭 기록 실패: runId=${context.runId}" }
         }
     }
 
@@ -95,14 +95,14 @@ class MetricCollectionHook(
             throw e
         } catch (e: Exception) {
             healthMonitor.recordDrop(1)
-            logger.warn(e) { "Failed to record tool call metric for ${context.toolName}" }
+            logger.warn(e) { "도구 호출 메트릭 기록 실패: ${context.toolName}" }
         }
     }
 
     private fun publishGuardEvent(context: HookContext, execution: AgentExecutionEvent) {
         val guardDurationMs = context.metadata["guardDurationMs"]?.toString()?.toLongOrNull()
         if (guardDurationMs == null) {
-            logger.debug { "guardDurationMs missing in metadata, skipping guard event for runId=${context.runId}" }
+            logger.debug { "guardDurationMs 메타데이터 누락, 가드 이벤트 건너뜀: runId=${context.runId}" }
             return
         }
         val action = if (execution.guardRejected) "rejected" else "allowed"

@@ -38,7 +38,7 @@ class OtlpExporterConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun tenantSpanProcessor(tenantResolver: TenantResolver): SpanProcessor {
-        logger.info { "TenantSpanProcessor registered" }
+        logger.info { "TenantSpanProcessor 등록 완료" }
         return TenantSpanProcessor(tenantResolver)
     }
 
@@ -50,7 +50,7 @@ class OtlpExporterConfiguration {
     )
     @ConditionalOnBean(DataSource::class)
     fun timescaleSpanExporter(jdbcTemplate: JdbcTemplate): SpanExporter {
-        logger.info { "TimescaleSpanExporter registered — spans → metric_spans table" }
+        logger.info { "TimescaleSpanExporter 등록 완료 — span → metric_spans 테이블" }
         return TimescaleSpanExporter(jdbcTemplate)
     }
 
@@ -64,15 +64,15 @@ class OtlpExporterConfiguration {
         val otlp = properties.tracing.otlp
         val endpoint = otlp.endpoint
 
-        logger.info { "OTLP SpanExporter → $endpoint (protocol=${otlp.protocol})" }
+        logger.info { "OTLP SpanExporter 등록 → $endpoint (protocol=${otlp.protocol})" }
 
         return if (otlp.protocol == "grpc") {
             val builder = OtlpGrpcSpanExporter.builder().setEndpoint(endpoint)
-            otlp.headers.forEach { (k, v) -> builder.addHeader(k, v) }
+            for ((k, v) in otlp.headers) { builder.addHeader(k, v) }
             builder.build()
         } else {
             val builder = OtlpHttpSpanExporter.builder().setEndpoint(endpoint)
-            otlp.headers.forEach { (k, v) -> builder.addHeader(k, v) }
+            for ((k, v) in otlp.headers) { builder.addHeader(k, v) }
             builder.build()
         }
     }

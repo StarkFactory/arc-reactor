@@ -33,7 +33,7 @@ class AlertScheduler(
 
     /** 스케줄러를 시작한다. 지정 간격으로 평가 사이클을 반복한다. */
     fun start() {
-        logger.info { "Alert scheduler started (interval=${intervalSeconds}s)" }
+        logger.info { "알림 스케줄러 시작 (interval=${intervalSeconds}s)" }
         scheduler.scheduleAtFixedRate(
             { runEvaluation() },
             intervalSeconds,
@@ -50,7 +50,7 @@ class AlertScheduler(
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
-        logger.info { "Alert scheduler stopped" }
+        logger.info { "알림 스케줄러 중지" }
     }
 
     override fun destroy() {
@@ -70,12 +70,12 @@ class AlertScheduler(
                 for (alert in newAlerts) {
                     notificationService.dispatch(alert)
                 }
-                logger.info { "Alert evaluation: ${newAlerts.size} new alerts fired (total active: ${afterAlerts.size})" }
+                logger.info { "알림 평가 완료: 신규 ${newAlerts.size}건 발동 (전체 활성: ${afterAlerts.size}건)" }
             }
         } catch (e: Exception) {
             val failures = consecutiveFailures.incrementAndGet()
             if (failures <= 3 || failures % 10 == 0L) {
-                logger.warn(e) { "Alert evaluation cycle failed (consecutive failures: $failures)" }
+                logger.warn(e) { "알림 평가 사이클 실패 (연속 실패: ${failures}회)" }
             }
         }
     }

@@ -80,18 +80,18 @@ class TracingAutoConfiguration {
         val builder = SdkTracerProvider.builder()
             .setResource(resource)
             .setSampler(sampler)
-        logger.info { "Tracing sampler: ${sampler.description} (sampling-rate=$samplingRate)" }
+        logger.info { "트레이싱 샘플러: ${sampler.description} (sampling-rate=$samplingRate)" }
 
         // ── 단계: SpanProcessor 등록 (예: TenantSpanProcessor) ──
-        spanProcessors.orderedStream().forEach { processor ->
+        for (processor in spanProcessors.orderedStream().toList()) {
             builder.addSpanProcessor(processor)
-            logger.debug { "Registered SpanProcessor: ${processor.javaClass.simpleName}" }
+            logger.debug { "SpanProcessor 등록: ${processor.javaClass.simpleName}" }
         }
 
         // ── 단계: SpanExporter를 BatchSpanProcessor로 감싸서 등록 ──
-        spanExporters.orderedStream().forEach { exporter ->
+        for (exporter in spanExporters.orderedStream().toList()) {
             builder.addSpanProcessor(BatchSpanProcessor.builder(exporter).build())
-            logger.info { "Registered SpanExporter: ${exporter.javaClass.simpleName}" }
+            logger.info { "SpanExporter 등록: ${exporter.javaClass.simpleName}" }
         }
 
         return builder.build()
@@ -128,7 +128,7 @@ class TracingAutoConfiguration {
         val registry = ObservationRegistry.create()
         registry.observationConfig()
             .observationHandler(DefaultTracingObservationHandler(tracer))
-        logger.info { "ObservationRegistry created with tracing bridge — Spring AI auto-observation enabled" }
+        logger.info { "ObservationRegistry 생성 완료 — Spring AI 자동 관측 활성화" }
         return registry
     }
 }

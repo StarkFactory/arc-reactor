@@ -70,11 +70,11 @@ class AlertEvaluator(
 
         if (result != null) {
             if (rule.id in activeAlertRuleIds) {
-                logger.debug { "Alert already active for ruleId=${rule.id}, skipping duplicate" }
+                logger.debug { "이미 활성 알림 존재: ruleId=${rule.id}, 중복 생성 건너뜀" }
                 return
             }
             alertStore.saveAlert(result)
-            logger.info { "Alert fired: ${rule.name} for tenant=${rule.tenantId ?: "platform"}" }
+            logger.info { "알림 발동: ${rule.name}, tenant=${rule.tenantId ?: "platform"}" }
         }
     }
 

@@ -30,10 +30,10 @@ class TimescaleSpanExporter(
         if (spans.isEmpty()) return CompletableResultCode.ofSuccess()
         return try {
             batchInsertSpans(spans.toList())
-            logger.debug { "Exported ${spans.size} spans to TimescaleDB" }
+            logger.debug { "TimescaleDB에 ${spans.size}개 span 저장 완료" }
             CompletableResultCode.ofSuccess()
         } catch (e: Exception) {
-            logger.error(e) { "Failed to export ${spans.size} spans to TimescaleDB" }
+            logger.error(e) { "TimescaleDB span 저장 실패: ${spans.size}개" }
             CompletableResultCode.ofFailure()
         }
     }

@@ -221,7 +221,7 @@ class PlatformAdminController(
             )
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
-            logger.warn(e) { "Invalid create tenant request" }
+            logger.warn(e) { "테넌트 생성 요청 유효성 검증 실패" }
             badRequestResponse("Invalid request")
         }
     }
@@ -298,7 +298,7 @@ class PlatformAdminController(
         val usageByTenant = try {
             queryService.getAllTenantsCurrentMonthUsage()
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to fetch batch tenant usage" }
+            logger.warn(e) { "전체 테넌트 사용량 배치 조회 실패" }
             emptyMap()
         }
         val summaries = tenants.map { tenant ->
@@ -391,7 +391,7 @@ class PlatformAdminController(
                 )
             )
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to invalidate response cache" }
+            logger.warn(e) { "응답 캐시 무효화 실패" }
             ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "cache invalidation failed"))
         }

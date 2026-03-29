@@ -250,7 +250,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
                 Long::class.java, tenantId
             )
         } catch (e: Exception) {
-            logger.debug(e) { "Failed to query MCP consecutive failures for tenant=$tenantId" }
+            logger.debug(e) { "MCP 연속 실패 횟수 조회 실패: tenant=$tenantId" }
             null
         }
     }
@@ -273,7 +273,7 @@ class MetricQueryService(private val jdbcTemplate: JdbcTemplate) {
                 Long::class.java
             )
         } catch (e: Exception) {
-            logger.debug(e) { "Failed to query aggregate refresh lag" }
+            logger.debug(e) { "집계 갱신 지연 조회 실패" }
             null
         }
     }

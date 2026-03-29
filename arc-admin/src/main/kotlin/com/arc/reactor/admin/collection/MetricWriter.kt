@@ -50,8 +50,8 @@ class MetricWriter(
 
         if (writerThreads > 1) {
             logger.warn {
-                "MetricWriter writerThreads=$writerThreads but drain() is single-consumer only. " +
-                    "Extra threads will be idle most of the time — consider using writerThreads=1."
+                "MetricWriter writerThreads=$writerThreads — drain()은 단일 Consumer 전용. " +
+                    "추가 스레드는 대부분 유휴 상태. writerThreads=1 권장."
             }
         }
 
@@ -69,7 +69,7 @@ class MetricWriter(
             )
         }
 
-        logger.info { "MetricWriter started: threads=$writerThreads, batch=$batchSize, interval=${flushIntervalMs}ms" }
+        logger.info { "MetricWriter 시작: threads=$writerThreads, batch=$batchSize, interval=${flushIntervalMs}ms" }
     }
 
     fun stop() {
@@ -92,13 +92,13 @@ class MetricWriter(
                     healthMonitor.recordWrite(events.size, 0)
                 } catch (e: Exception) {
                     healthMonitor.recordWriteError()
-                    logger.error(e) { "Final flush failed: ${events.size} events lost" }
+                    logger.error(e) { "최종 flush 실패: ${events.size}건 유실" }
                 }
             }
         } finally {
             flushLock.unlock()
         }
-        logger.info { "MetricWriter stopped" }
+        logger.info { "MetricWriter 중지 완료" }
     }
 
     override fun destroy() {
@@ -121,7 +121,7 @@ class MetricWriter(
                     )
                     if (cost > BigDecimal.ZERO) event.copy(estimatedCostUsd = cost) else event
                 } catch (e: Exception) {
-                    logger.debug { "Cost calculation failed for ${event.provider}:${event.model}: ${e.message}" }
+                    logger.debug { "비용 계산 실패: ${event.provider}:${event.model} — ${e.javaClass.simpleName}" }
                     event
                 }
             } else {
@@ -131,7 +131,7 @@ class MetricWriter(
     }
 
     private fun flush() {
-        if (!flushLock.tryLock()) return // Another thread is already flushing
+        if (!flushLock.tryLock()) return // 다른 스레드가 이미 flush 중
         try {
             // ── 이전 실패 배치 재시도 (1회) ──
             val pending = retryBuffer
@@ -140,10 +140,10 @@ class MetricWriter(
                 try {
                     store.batchInsert(pending)
                     healthMonitor.recordWrite(pending.size, 0)
-                    logger.info { "Retry succeeded: ${pending.size} events recovered" }
+                    logger.info { "재시도 성공: ${pending.size}건 복구 완료" }
                 } catch (e: Exception) {
                     healthMonitor.recordWriteError()
-                    logger.error(e) { "Retry failed: ${pending.size} events permanently lost" }
+                    logger.error(e) { "재시도 실패: ${pending.size}건 영구 유실" }
                 }
             }
 
@@ -161,7 +161,7 @@ class MetricWriter(
                 healthMonitor.recordWriteError()
                 // DB 실패 시 enriched 이벤트를 retryBuffer에 보관 — 다음 flush에서 1회 재시도
                 retryBuffer = enriched
-                logger.error(e) { "Failed to write ${enriched.size} events — buffering for retry" }
+                logger.error(e) { "${enriched.size}건 기록 실패 — 재시도 버퍼에 보관" }
                 return
             }
             val elapsed = System.currentTimeMillis() - startMs
@@ -169,11 +169,11 @@ class MetricWriter(
             healthMonitor.recordWrite(events.size, elapsed)
 
             if (elapsed > 500) {
-                logger.warn { "Slow metric write: ${events.size} events in ${elapsed}ms" }
+                logger.warn { "메트릭 기록 지연: ${events.size}건 ${elapsed}ms 소요" }
             }
         } catch (e: Exception) {
             healthMonitor.recordWriteError()
-            logger.error(e) { "Unexpected error in metric flush" }
+            logger.error(e) { "메트릭 flush 중 예상치 못한 오류" }
         } finally {
             flushLock.unlock()
         }

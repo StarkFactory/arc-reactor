@@ -40,14 +40,14 @@ class TenantServiceTest {
         fun `reject blank name해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.create("", "acme", TenantPlan.FREE)
-            }.message shouldBe "Tenant name must not be blank"
+            }.message shouldBe "테넌트 이름은 비어 있을 수 없습니다"
         }
 
         @Test
         fun `reject invalid slug해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.create("Acme", "ACME_CORP", TenantPlan.FREE)
-            }.message shouldBe "Slug must contain only lowercase letters, numbers, and hyphens"
+            }.message shouldBe "slug는 소문자, 숫자, 하이픈만 허용됩니다"
         }
 
         @Test
@@ -56,7 +56,7 @@ class TenantServiceTest {
 
             shouldThrow<IllegalArgumentException> {
                 service.create("Acme 2", "acme-corp", TenantPlan.FREE)
-            }.message shouldBe "Tenant with slug 'acme-corp' already exists"
+            }.message shouldBe "slug 'acme-corp'는 이미 사용 중입니다"
         }
     }
 
@@ -76,7 +76,7 @@ class TenantServiceTest {
         fun `non-existent tenant에 대해 fail해야 한다`() {
             shouldThrow<IllegalArgumentException> {
                 service.updatePlan("non-existent", TenantPlan.BUSINESS)
-            }.message shouldBe "Tenant not found: non-existent"
+            }.message shouldBe "테넌트를 찾을 수 없습니다: non-existent"
         }
     }
 

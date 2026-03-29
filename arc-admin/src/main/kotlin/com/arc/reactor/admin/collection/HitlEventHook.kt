@@ -58,7 +58,7 @@ class HitlEventHook(
             throw e
         } catch (e: Exception) {
             healthMonitor.recordDrop(1)
-            logger.warn(e) { "Failed to record HITL event for ${context.toolName}" }
+            logger.warn(e) { "HITL 이벤트 기록 실패: ${context.toolName}" }
         }
     }
 

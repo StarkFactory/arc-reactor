@@ -47,14 +47,14 @@ class AdminAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun tenantStore(): TenantStore {
-        logger.info { "Using InMemoryTenantStore (no DataSource for admin)" }
+        logger.info { "InMemoryTenantStore 사용 (admin용 DataSource 없음)" }
         return InMemoryTenantStore()
     }
 
     @Bean
     @ConditionalOnMissingBean
     fun modelPricingStore(): ModelPricingStore {
-        logger.info { "Using InMemoryModelPricingStore (no DataSource for admin)" }
+        logger.info { "InMemoryModelPricingStore 사용 (admin용 DataSource 없음)" }
         return InMemoryModelPricingStore()
     }
 
@@ -128,7 +128,7 @@ class AdminAutoConfiguration {
         tracer: Tracer,
         properties: AdminProperties
     ): AgentTracingHooks {
-        logger.info { "AgentTracingHooks registered (order=199)" }
+        logger.info { "AgentTracingHooks 등록 완료 (order=199)" }
         return AgentTracingHooks(
             tracer = tracer,
             storeUserIdentifiers = properties.privacy.storeUserIdentifiers,

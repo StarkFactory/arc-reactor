@@ -47,7 +47,7 @@ class CostCalculator(private val pricingStore: ModelPricingStore) {
     ): BigDecimal {
         val pricing = findPricing(provider, model, time)
         if (pricing == null) {
-            logger.debug { "No pricing found for $provider:$model at $time, returning zero cost" }
+            logger.debug { "가격 정보 없음: $provider:$model ($time), 비용 0 반환" }
             return BigDecimal.ZERO
         }
 

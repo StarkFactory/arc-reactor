@@ -46,7 +46,7 @@ class AlertNotificationService(
             try {
                 notifier.notify(alert)
             } catch (e: Exception) {
-                logger.warn(e) { "Failed to send alert notification via ${notifier::class.simpleName}" }
+                logger.warn(e) { "알림 전송 실패: ${notifier::class.simpleName}" }
             }
         }
     }

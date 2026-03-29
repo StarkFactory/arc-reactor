@@ -25,12 +25,12 @@ class TenantService(
 
     /** 신규 테넌트를 생성한다. slug 중복 시 예외를 던진다. */
     fun create(name: String, slug: String, plan: TenantPlan, billingEmail: String? = null): Tenant {
-        require(name.isNotBlank()) { "Tenant name must not be blank" }
-        require(slug.isNotBlank()) { "Tenant slug must not be blank" }
-        require(SLUG_PATTERN.matches(slug)) { "Slug must contain only lowercase letters, numbers, and hyphens" }
+        require(name.isNotBlank()) { "테넌트 이름은 비어 있을 수 없습니다" }
+        require(slug.isNotBlank()) { "테넌트 slug는 비어 있을 수 없습니다" }
+        require(SLUG_PATTERN.matches(slug)) { "slug는 소문자, 숫자, 하이픈만 허용됩니다" }
 
         val existing = tenantStore.findBySlug(slug)
-        require(existing == null) { "Tenant with slug '$slug' already exists" }
+        require(existing == null) { "slug '$slug'는 이미 사용 중입니다" }
 
         val tenant = Tenant(
             name = name,
@@ -43,7 +43,7 @@ class TenantService(
         )
 
         val saved = tenantStore.save(tenant)
-        logger.info { "Created tenant: id=${saved.id}, slug=$slug, plan=$plan" }
+        logger.info { "테넌트 생성: id=${saved.id}, slug=$slug, plan=$plan" }
         return saved
     }
 
@@ -56,7 +56,7 @@ class TenantService(
     /** 테넌트 플랜을 변경하고 기본 쿼터를 재적용한다. */
     fun updatePlan(id: String, plan: TenantPlan): Tenant {
         val tenant = tenantStore.findById(id)
-            ?: throw IllegalArgumentException("Tenant not found: $id")
+            ?: throw IllegalArgumentException("테넌트를 찾을 수 없습니다: $id")
 
         val updated = tenant.copy(
             plan = plan,
@@ -64,29 +64,29 @@ class TenantService(
             updatedAt = Instant.now()
         )
         tenantStore.save(updated)
-        logger.info { "Updated tenant plan: id=$id, plan=$plan" }
+        logger.info { "테넌트 플랜 변경: id=$id, plan=$plan" }
         return updated
     }
 
     /** 테넌트를 정지 상태로 변경한다. */
     fun suspend(id: String): Tenant {
         val tenant = tenantStore.findById(id)
-            ?: throw IllegalArgumentException("Tenant not found: $id")
+            ?: throw IllegalArgumentException("테넌트를 찾을 수 없습니다: $id")
 
         val updated = tenant.copy(status = TenantStatus.SUSPENDED, updatedAt = Instant.now())
         tenantStore.save(updated)
-        logger.info { "Suspended tenant: id=$id" }
+        logger.info { "테넌트 정지: id=$id" }
         return updated
     }
 
     /** 테넌트를 활성 상태로 변경한다. */
     fun activate(id: String): Tenant {
         val tenant = tenantStore.findById(id)
-            ?: throw IllegalArgumentException("Tenant not found: $id")
+            ?: throw IllegalArgumentException("테넌트를 찾을 수 없습니다: $id")
 
         val updated = tenant.copy(status = TenantStatus.ACTIVE, updatedAt = Instant.now())
         tenantStore.save(updated)
-        logger.info { "Activated tenant: id=$id" }
+        logger.info { "테넌트 활성화: id=$id" }
         return updated
     }
 

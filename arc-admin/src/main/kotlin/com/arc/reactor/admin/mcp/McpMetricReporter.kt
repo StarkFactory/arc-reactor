@@ -73,19 +73,19 @@ class McpMetricReporter(
             flushIntervalMs,
             TimeUnit.MILLISECONDS
         )
-        logger.info { "McpMetricReporter started for $serverName -> $endpoint" }
+        logger.info { "McpMetricReporter 시작: $serverName -> $endpoint" }
     }
 
     fun stop() {
         if (!running.compareAndSet(true, false)) return
-        flush() // drain remaining
+        flush() // 잔여 이벤트 배출
         scheduler.shutdown()
         try {
             scheduler.awaitTermination(5, TimeUnit.SECONDS)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
-        logger.info { "McpMetricReporter stopped for $serverName" }
+        logger.info { "McpMetricReporter 중지: $serverName" }
     }
 
     /** 이 MCP 서버에서의 도구 호출 실행을 보고한다. */
@@ -141,7 +141,7 @@ class McpMetricReporter(
 
     private fun enqueue(payload: MetricPayload) {
         if (queue.size >= maxQueueSize) {
-            logger.debug { "McpMetricReporter queue full ($maxQueueSize), dropping event" }
+            logger.debug { "McpMetricReporter 큐 가득 참 ($maxQueueSize), 이벤트 drop" }
             return
         }
         queue.offer(payload)
@@ -181,12 +181,12 @@ class McpMetricReporter(
 
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             if (response.statusCode() !in 200..299) {
-                logger.debug { "McpMetricReporter POST $url returned ${response.statusCode()}" }
+                logger.debug { "McpMetricReporter POST $url 응답: ${response.statusCode()}" }
             }
         } catch (e: IOException) {
-            logger.debug { "McpMetricReporter failed to send to $url: ${e.message}" }
+            logger.debug { "McpMetricReporter 전송 실패: $url — ${e.javaClass.simpleName}" }
         } catch (e: Exception) {
-            logger.debug(e) { "McpMetricReporter unexpected error sending to $url" }
+            logger.debug(e) { "McpMetricReporter 예상치 못한 전송 오류: $url" }
         }
     }
 

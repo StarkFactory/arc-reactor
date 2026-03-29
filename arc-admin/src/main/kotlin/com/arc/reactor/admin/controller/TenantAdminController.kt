@@ -224,7 +224,7 @@ class TenantAdminController(
         try {
             exportService.exportExecutionsCsv(tenantId, from, to, writer)
         } catch (e: Exception) {
-            logger.error(e) { "CSV export failed for executions: tenant=$tenantId" }
+            logger.error(e) { "실행 이력 CSV 내보내기 실패: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "CSV export failed"))
         }
@@ -253,7 +253,7 @@ class TenantAdminController(
         try {
             exportService.exportToolCallsCsv(tenantId, from, to, writer)
         } catch (e: Exception) {
-            logger.error(e) { "CSV export failed for tool calls: tenant=$tenantId" }
+            logger.error(e) { "도구 호출 CSV 내보내기 실패: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "CSV export failed"))
         }

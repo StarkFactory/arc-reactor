@@ -112,12 +112,12 @@ class QuotaEnforcerHook(
                         .also { usageCache.put(tenantId, it) }
             }
         } catch (e: CircuitBreakerOpenException) {
-            logger.warn { "Quota check circuit breaker OPEN for tenant=$tenantId, allowing request" }
+            logger.warn { "쿼터 확인 서킷 브레이커 OPEN: tenant=$tenantId, 요청 허용 (fail-open)" }
             null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Quota check failed for tenant=$tenantId, allowing request (fail-open)" }
+            logger.warn(e) { "쿼터 확인 실패: tenant=$tenantId, 요청 허용 (fail-open)" }
             null
         }
     }

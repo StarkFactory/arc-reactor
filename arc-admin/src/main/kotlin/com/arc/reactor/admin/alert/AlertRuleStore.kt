@@ -5,7 +5,7 @@ import com.arc.reactor.admin.model.AlertRule
 import com.arc.reactor.admin.model.AlertSeverity
 import com.arc.reactor.admin.model.AlertStatus
 import com.arc.reactor.admin.model.AlertType
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
  * 알림 규칙 및 알림 인스턴스 저장소 인터페이스.
@@ -24,44 +24,50 @@ interface AlertRuleStore {
     fun resolveAlert(id: String)
 }
 
-/** ConcurrentHashMap 기반 인메모리 [AlertRuleStore] 구현체. */
+/** Caffeine 기반 인메모리 [AlertRuleStore] 구현체. */
 class InMemoryAlertRuleStore : AlertRuleStore {
-    private val rules = ConcurrentHashMap<String, AlertRule>()
-    private val alerts = ConcurrentHashMap<String, AlertInstance>()
+    private val rules = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .build<String, AlertRule>()
+    private val alerts = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .build<String, AlertInstance>()
 
     override fun findRulesForTenant(tenantId: String): List<AlertRule> =
-        rules.values.filter { it.tenantId == tenantId && it.enabled }
+        rules.asMap().values.filter { it.tenantId == tenantId && it.enabled }
 
     override fun findPlatformRules(): List<AlertRule> =
-        rules.values.filter { it.platformOnly && it.enabled }
+        rules.asMap().values.filter { it.platformOnly && it.enabled }
 
-    override fun findAllRules(): List<AlertRule> = rules.values.toList()
+    override fun findAllRules(): List<AlertRule> = rules.asMap().values.toList()
 
     override fun saveRule(rule: AlertRule): AlertRule {
-        rules[rule.id] = rule
+        rules.put(rule.id, rule)
         return rule
     }
 
-    override fun deleteRule(id: String): Boolean = rules.remove(id) != null
+    override fun deleteRule(id: String): Boolean = rules.asMap().remove(id) != null
 
     override fun findActiveAlerts(tenantId: String?): List<AlertInstance> =
-        alerts.values.filter {
+        alerts.asMap().values.filter {
             it.status == AlertStatus.ACTIVE &&
                 (tenantId == null || it.tenantId == tenantId)
         }
 
     override fun saveAlert(alert: AlertInstance): AlertInstance {
-        alerts[alert.id] = alert
+        alerts.put(alert.id, alert)
         return alert
     }
 
     override fun resolveAlert(id: String) {
-        alerts.computeIfPresent(id) { _, existing ->
+        val existing = alerts.getIfPresent(id) ?: return
+        alerts.put(
+            id,
             existing.copy(
                 status = AlertStatus.RESOLVED,
                 resolvedAt = java.time.Instant.now()
             )
-        }
+        )
     }
 }
 
@@ -99,7 +105,7 @@ object DefaultAlertTemplates {
             type = AlertType.BASELINE_ANOMALY,
             severity = AlertSeverity.WARNING,
             metric = "hourly_cost",
-            threshold = 3.0, // 3 sigma
+            threshold = 3.0, // 3 시그마
             windowMinutes = 60
         ),
         AlertRule(
@@ -118,7 +124,7 @@ object DefaultAlertTemplates {
             severity = AlertSeverity.WARNING,
             metric = "token_budget_usage",
             threshold = 0.80,
-            windowMinutes = 0 // monthly check
+            windowMinutes = 0 // 월간 체크
         ),
         AlertRule(
             tenantId = tenantId,
@@ -127,7 +133,7 @@ object DefaultAlertTemplates {
             severity = AlertSeverity.CRITICAL,
             metric = "mcp_consecutive_failures",
             threshold = 3.0,
-            windowMinutes = 0 // immediate
+            windowMinutes = 0 // 즉시 감지
         )
     )
 
@@ -147,7 +153,7 @@ object DefaultAlertTemplates {
             type = AlertType.STATIC_THRESHOLD,
             severity = AlertSeverity.WARNING,
             metric = "aggregate_refresh_lag_ms",
-            threshold = 600000.0, // 10 min
+            threshold = 600000.0, // 10분
             windowMinutes = 0,
             platformOnly = true
         )

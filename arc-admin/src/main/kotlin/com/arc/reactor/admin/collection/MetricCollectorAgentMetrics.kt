@@ -65,7 +65,7 @@ class MetricCollectorAgentMetrics(
                 completionTokens = usage.completionTokens
             )
         } catch (e: Exception) {
-            logger.debug(e) { "Cost calculation failed for $model" }
+            logger.debug(e) { "비용 계산 실패: $model" }
             BigDecimal.ZERO
         }
         val event = TokenUsageEvent(
@@ -126,7 +126,7 @@ class MetricCollectorAgentMetrics(
     private fun publish(event: com.arc.reactor.admin.model.MetricEvent) {
         if (!ringBuffer.publish(event)) {
             healthMonitor.recordDrop(1)
-            logger.debug { "MetricRingBuffer full, event dropped" }
+            logger.debug { "MetricRingBuffer 가득 참, 이벤트 drop" }
         }
     }
 

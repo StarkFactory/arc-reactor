@@ -2,7 +2,7 @@ package com.arc.reactor.admin.tenant
 
 import com.arc.reactor.admin.model.Tenant
 import com.arc.reactor.admin.model.TenantStatus
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
  * 테넌트 저장소 인터페이스.
@@ -18,24 +18,26 @@ interface TenantStore {
     fun delete(id: String): Boolean
 }
 
-/** ConcurrentHashMap 기반 인메모리 [TenantStore] 구현체. */
+/** Caffeine 기반 인메모리 [TenantStore] 구현체. */
 class InMemoryTenantStore : TenantStore {
-    private val tenants = ConcurrentHashMap<String, Tenant>()
+    private val tenants = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .build<String, Tenant>()
 
-    override fun findById(id: String): Tenant? = tenants[id]
+    override fun findById(id: String): Tenant? = tenants.getIfPresent(id)
 
     override fun findBySlug(slug: String): Tenant? =
-        tenants.values.firstOrNull { it.slug == slug }
+        tenants.asMap().values.firstOrNull { it.slug == slug }
 
     override fun findAll(status: TenantStatus?): List<Tenant> =
-        tenants.values
+        tenants.asMap().values
             .filter { status == null || it.status == status }
             .sortedByDescending { it.createdAt }
 
     override fun save(tenant: Tenant): Tenant {
-        tenants[tenant.id] = tenant
+        tenants.put(tenant.id, tenant)
         return tenant
     }
 
-    override fun delete(id: String): Boolean = tenants.remove(id) != null
+    override fun delete(id: String): Boolean = tenants.asMap().remove(id) != null
 }

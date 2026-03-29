@@ -110,11 +110,11 @@ class AgentTracingHooks(
     }
 
     override fun destroy() {
-        agentSpans.asMap().values.forEach { span ->
+        for (span in agentSpans.asMap().values) {
             runCatching { span.tag("cancelled", "true"); span.end() }
         }
         agentSpans.invalidateAll()
-        toolSpanEntries.asMap().values.forEach { entry ->
+        for (entry in toolSpanEntries.asMap().values) {
             runCatching { entry.span.tag("cancelled", "true"); entry.span.end() }
         }
         toolSpanEntries.invalidateAll()
