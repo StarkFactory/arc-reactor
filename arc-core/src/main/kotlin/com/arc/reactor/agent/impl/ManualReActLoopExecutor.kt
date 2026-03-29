@@ -96,120 +96,290 @@ internal class ManualReActLoopExecutor(
         maxToolCalls: Int,
         budgetTracker: StepBudgetTracker? = null
     ): AgentResult {
-        // ── 루프 상태 초기화 ──
+        val state = initLoopState(command, maxToolCalls, initialTools)
+        val messages = buildInitialMessages(conversationHistory, command)
+        while (true) {
+            trimMessages(messages, systemPrompt, state.activeTools)
+            val response = callLlmAndAccumulate(
+                activeChatClient, systemPrompt, messages, state, hookContext
+            )
+            handleBudgetCheck(response, budgetTracker, state, hookContext, toolsUsed)
+                ?.let { return it }
+            when (val action = resolveToolCallAction(
+                response, state, messages, command, toolsUsed, hookContext
+            )) {
+                is LoopAction.Return -> return action.result
+                is LoopAction.RetryWithoutTools -> continue
+                is LoopAction.ExecuteTools -> processToolCalls(
+                    action, response, state, messages, command,
+                    hookContext, toolsUsed, maxToolCalls, allowedTools
+                )
+            }
+        }
+    }
+
+    // ── private 메서드: 루프 초기화 ──
+
+    /** 루프 상태를 초기화한다. */
+    private fun initLoopState(
+        command: AgentCommand,
+        maxToolCalls: Int,
+        initialTools: List<Any>
+    ): ReActLoopState {
+        val hasTools = maxToolCalls > 0 && initialTools.isNotEmpty()
+        return ReActLoopState(
+            maxToolCalls, initialTools, buildChatOptions(command, hasTools)
+        )
+    }
+
+    /** 대화 히스토리 + 현재 사용자 메시지를 결합한 초기 메시지 리스트를 생성한다. */
+    private fun buildInitialMessages(
+        conversationHistory: List<Message>,
+        command: AgentCommand
+    ): MutableList<Message> {
+        val messages = mutableListOf<Message>()
+        if (conversationHistory.isNotEmpty()) {
+            messages.addAll(conversationHistory)
+        }
+        messages.add(
+            MediaConverter.buildUserMessage(command.userPrompt, command.media)
+        )
+        return messages
+    }
+
+    // ── private 메서드: 단계 A — 메시지 트리밍 ──
+
+    /** 컨텍스트 윈도우 초과 방지를 위해 메시지를 트리밍한다. */
+    private suspend fun trimMessages(
+        messages: MutableList<Message>,
+        systemPrompt: String,
+        activeTools: List<Any>
+    ) {
+        messageTrimmer.trim(
+            messages, systemPrompt,
+            activeTools.size * ReActLoopUtils.TOKENS_PER_TOOL_DEFINITION
+        )
+    }
+
+    // ── private 메서드: 단계 B — LLM 호출 + 토큰 누적 ──
+
+    /** LLM을 호출하고 토큰 사용량을 누적·기록한다. */
+    private suspend fun callLlmAndAccumulate(
+        activeChatClient: ChatClient,
+        systemPrompt: String,
+        messages: List<Message>,
+        state: ReActLoopState,
+        hookContext: HookContext
+    ): ChatResponse? {
+        val requestSpec = buildRequestSpec(
+            activeChatClient, systemPrompt, messages,
+            state.chatOptions, state.activeTools
+        )
+        val llmStart = System.nanoTime()
+        val chatResponse = callLlmWithTracing(requestSpec, state.llmCallIndex)
+        state.llmCallIndex++
+        state.totalLlmDurationMs += (System.nanoTime() - llmStart) / 1_000_000
+        state.totalTokenUsage = accumulateTokenUsage(
+            chatResponse, state.totalTokenUsage
+        )
+        emitTokenUsageMetric(chatResponse, hookContext)
+        return chatResponse
+    }
+
+    // ── private 메서드: 단계 B-2 — 예산 소진 확인 ──
+
+    /** 토큰 예산을 확인하고, 소진 시 결과를 반환한다. null이면 계속 진행. */
+    private fun handleBudgetCheck(
+        chatResponse: ChatResponse?,
+        budgetTracker: StepBudgetTracker?,
+        state: ReActLoopState,
+        hookContext: HookContext,
+        toolsUsed: List<String>
+    ): AgentResult? {
+        if (!trackBudgetAndCheckExhausted(
+                chatResponse, budgetTracker, state.llmCallIndex, hookContext
+            )
+        ) return null
+        recordLoopDurations(
+            hookContext, state.totalLlmDurationMs, state.totalToolDurationMs
+        )
+        val tracker = budgetTracker
+            ?: error("budgetTracker는 null일 수 없음: 예산 소진 판정 후")
+        return buildBudgetExhaustedResult(
+            tracker, state.totalTokenUsage, toolsUsed
+        )
+    }
+
+    // ── private 메서드: 단계 C — Tool Call 분기 판정 ──
+
+    /**
+     * LLM 응답을 분석하여 루프 제어 액션을 결정한다.
+     * - Tool Call 존재 → [LoopAction.ExecuteTools]
+     * - 도구 에러 후 재시도 → [LoopAction.RetryWithoutTools]
+     * - 최종 응답 → [LoopAction.Return]
+     */
+    private suspend fun resolveToolCallAction(
+        chatResponse: ChatResponse?,
+        state: ReActLoopState,
+        messages: MutableList<Message>,
+        command: AgentCommand,
+        toolsUsed: MutableList<String>,
+        hookContext: HookContext
+    ): LoopAction {
+        val output = chatResponse?.results?.firstOrNull()?.output
+        val pending = output?.toolCalls.orEmpty()
+        if (pending.isNotEmpty() && state.activeTools.isNotEmpty()) {
+            state.textRetryCount = 0
+            return LoopAction.ExecuteTools(requireNotNull(output))
+        }
+        if (shouldRetryAfterToolError(
+                state.hadToolError, pending,
+                state.activeTools, messages, state.textRetryCount
+            )) {
+            state.textRetryCount++
+            state.hadToolError = false
+            return LoopAction.RetryWithoutTools
+        }
+        recordLoopDurations(hookContext, state.totalLlmDurationMs, state.totalToolDurationMs)
+        return buildFinalResult(output, command, state, toolsUsed)
+    }
+
+    /** 최종 응답을 검증·복구하여 LoopAction.Return으로 감싼다. */
+    private suspend fun buildFinalResult(
+        output: AssistantMessage?,
+        command: AgentCommand,
+        state: ReActLoopState,
+        toolsUsed: List<String>
+    ): LoopAction.Return {
+        val result = validateAndRepairResponse(
+            output?.text.orEmpty(), command.responseFormat,
+            command, state.totalTokenUsage, ArrayList(toolsUsed)
+        )
+        return LoopAction.Return(result)
+    }
+
+    // ── private 메서드: 단계 D-F — 도구 실행 + 후처리 ──
+
+    /** 도구를 실행하고 메시지 쌍 추가, 에러 힌트, maxToolCalls 검사를 수행한다. */
+    private suspend fun processToolCalls(
+        action: LoopAction.ExecuteTools,
+        chatResponse: ChatResponse?,
+        state: ReActLoopState,
+        messages: MutableList<Message>,
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        maxToolCalls: Int,
+        allowedTools: Set<String>?
+    ) {
+        val toolResponses = executeAndRecordTools(
+            chatResponse, state, hookContext,
+            toolsUsed, maxToolCalls, allowedTools
+        )
+        appendToolMessagePair(messages, action.assistantOutput, toolResponses)
+        applyPostToolHints(toolResponses, state, messages)
+        enforceMaxToolCalls(state, command, messages)
+    }
+
+    // ── private 메서드: 도구 실행 기록 ──
+
+    /** 도구를 병렬 실행하고 소요 시간을 상태에 누적한다. */
+    private suspend fun executeAndRecordTools(
+        chatResponse: ChatResponse?,
+        state: ReActLoopState,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        maxToolCalls: Int,
+        allowedTools: Set<String>?
+    ): List<ToolResponseMessage.ToolResponse> {
+        val pendingToolCalls = chatResponse?.results?.firstOrNull()
+            ?.output?.toolCalls.orEmpty()
+        state.totalToolCallsCounter.set(state.totalToolCalls)
+        val toolStart = System.nanoTime()
+        val toolResponses = executeToolsWithTracing(
+            pendingToolCalls, state.activeTools, hookContext, toolsUsed,
+            state.totalToolCallsCounter, maxToolCalls, allowedTools,
+            state.chatOptions, state.totalToolCalls
+        )
+        state.totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
+        state.totalToolCalls = state.totalToolCallsCounter.get()
+        return toolResponses
+    }
+
+    // ── private 메서드: 단계 E-2 — 도구 에러 힌트 주입 ──
+
+    /** 도구 에러 여부를 기록하고, maxToolCalls 미만이면 재시도 힌트를 주입한다. */
+    private fun applyPostToolHints(
+        toolResponses: List<ToolResponseMessage.ToolResponse>,
+        state: ReActLoopState,
+        messages: MutableList<Message>
+    ) {
+        state.hadToolError = ReActLoopUtils.hasToolError(toolResponses)
+        if (state.totalToolCalls < state.maxToolCalls) {
+            ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
+        }
+    }
+
+    // ── private 메서드: 단계 F — maxToolCalls 도달 시 도구 비활성화 ──
+
+    /** maxToolCalls 도달 시 도구를 비활성화하고 최종 답변 요청 메시지를 주입한다. */
+    private fun enforceMaxToolCalls(
+        state: ReActLoopState,
+        command: AgentCommand,
+        messages: MutableList<Message>
+    ) {
+        if (state.totalToolCalls < state.maxToolCalls) return
+        logger.info {
+            "maxToolCalls reached " +
+                "(${state.totalToolCalls}/${state.maxToolCalls}), final answer"
+        }
+        state.activeTools = emptyList()
+        state.chatOptions = buildChatOptions(command, false)
+        messages.add(
+            ReActLoopUtils.buildMaxToolCallsMessage(
+                state.totalToolCalls, state.maxToolCalls
+            )
+        )
+    }
+
+    // ── 루프 제어 시그널 ──
+
+    /** ReAct 루프 반복에서의 분기 결정을 표현하는 sealed 인터페이스. */
+    private sealed interface LoopAction {
+        /** 최종 결과 반환 (루프 종료). */
+        data class Return(val result: AgentResult) : LoopAction
+
+        /** 도구 에러 후 재시도 (도구 실행 단계 건너뜀). */
+        data object RetryWithoutTools : LoopAction
+
+        /** Tool Call 존재 — 도구 실행 단계로 진행. */
+        data class ExecuteTools(
+            val assistantOutput: AssistantMessage
+        ) : LoopAction
+    }
+
+    // ── 루프 상태 컨테이너 ──
+
+    /**
+     * ReAct 루프의 가변 상태를 보관하는 내부 컨테이너.
+     * 루프 반복마다 읽기/쓰기되는 변수를 하나로 묶어 메서드 간 전달을 단순화한다.
+     */
+    private class ReActLoopState(
+        val maxToolCalls: Int,
+        initialTools: List<Any>,
+        initialChatOptions: ChatOptions
+    ) {
         var totalToolCalls = 0
-        val totalToolCallsCounter = AtomicInteger(0) // 루프 밖 1회 할당 (매 반복 재생성 방지)
+        val totalToolCallsCounter = AtomicInteger(0)
         var llmCallIndex = 0
-        var activeTools = if (maxToolCalls > 0) initialTools else emptyList()
-        var chatOptions = buildChatOptions(command, activeTools.isNotEmpty())
+        var activeTools: List<Any> =
+            if (maxToolCalls > 0) initialTools else emptyList()
+        var chatOptions: ChatOptions = initialChatOptions
         var totalTokenUsage: TokenUsage? = null
         var totalLlmDurationMs = 0L
         var totalToolDurationMs = 0L
         var hadToolError = false
         var textRetryCount = 0
-
-        // ── 대화 히스토리 + 현재 사용자 메시지 조합 ──
-        val messages = mutableListOf<Message>()
-        if (conversationHistory.isNotEmpty()) {
-            messages.addAll(conversationHistory)
-        }
-        messages.add(MediaConverter.buildUserMessage(command.userPrompt, command.media))
-
-        // ── ReAct 루프 시작 — Tool Call이 없을 때까지 반복 ──
-        while (true) {
-            // 단계 A: 컨텍스트 윈도우 초과 방지를 위한 메시지 트리밍
-            messageTrimmer.trim(
-                messages, systemPrompt,
-                activeTools.size * ReActLoopUtils.TOKENS_PER_TOOL_DEFINITION
-            )
-
-            // 단계 B: LLM 호출 (재시도 포함)
-            val requestSpec = buildRequestSpec(
-                activeChatClient, systemPrompt, messages, chatOptions, activeTools
-            )
-            val llmStart = System.nanoTime()
-            val chatResponse = callLlmWithTracing(requestSpec, llmCallIndex)
-            llmCallIndex++
-            totalLlmDurationMs += (System.nanoTime() - llmStart) / 1_000_000
-
-            totalTokenUsage = accumulateTokenUsage(chatResponse, totalTokenUsage)
-            emitTokenUsageMetric(chatResponse, hookContext)
-
-            // 단계 B-2: 토큰 예산 추적 — EXHAUSTED 시 루프 종료
-            if (trackBudgetAndCheckExhausted(
-                    chatResponse, budgetTracker, llmCallIndex, hookContext
-                )
-            ) {
-                recordLoopDurations(
-                    hookContext, totalLlmDurationMs, totalToolDurationMs
-                )
-                val tracker = budgetTracker
-                    ?: error("budgetTracker는 null일 수 없음: 예산 소진 판정 후")
-                return buildBudgetExhaustedResult(
-                    tracker, totalTokenUsage, toolsUsed
-                )
-            }
-
-            // 단계 C: Tool Call 존재 여부 확인
-            val assistantOutput = chatResponse?.results?.firstOrNull()?.output
-            val pendingToolCalls = assistantOutput?.toolCalls.orEmpty()
-            if (pendingToolCalls.isEmpty() || activeTools.isEmpty()) {
-                if (shouldRetryAfterToolError(
-                        hadToolError, pendingToolCalls, activeTools,
-                        messages, textRetryCount
-                    )
-                ) {
-                    textRetryCount++
-                    hadToolError = false
-                    continue
-                }
-                recordLoopDurations(hookContext, totalLlmDurationMs, totalToolDurationMs)
-                return validateAndRepairResponse(
-                    assistantOutput?.text.orEmpty(),
-                    command.responseFormat, command,
-                    totalTokenUsage, ArrayList(toolsUsed)
-                )
-            }
-            textRetryCount = 0
-
-            // assistantOutput은 pendingToolCalls가 비어있지 않으면 항상 non-null
-            // (null이면 toolCalls도 null → orEmpty() → isEmpty → 위에서 이미 반환됨)
-            val safeAssistantOutput = requireNotNull(assistantOutput) {
-                "assistantOutput must be non-null when pendingToolCalls is non-empty"
-            }
-
-            // 단계 D: Tool 병렬 실행 — ToolCallOrchestrator에 위임
-            totalToolCallsCounter.set(totalToolCalls)
-            val toolStart = System.nanoTime()
-            val toolResponses = executeToolsWithTracing(
-                pendingToolCalls, activeTools, hookContext, toolsUsed,
-                totalToolCallsCounter, maxToolCalls, allowedTools, chatOptions,
-                totalToolCalls
-            )
-            totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
-            totalToolCalls = totalToolCallsCounter.get()
-
-            // 단계 E: AssistantMessage + ToolResponseMessage 쌍으로 추가
-            appendToolMessagePair(messages, safeAssistantOutput, toolResponses)
-
-            // 단계 E-2: 도구 에러 시 재시도 힌트 주입
-            hadToolError = ReActLoopUtils.hasToolError(toolResponses)
-            if (totalToolCalls < maxToolCalls) {
-                ReActLoopUtils.injectToolErrorRetryHint(toolResponses, messages)
-            }
-
-            // 단계 F: maxToolCalls 도달 시 Tool 비활성화 — 무한 루프 방지 필수
-            if (totalToolCalls >= maxToolCalls) {
-                logger.info {
-                    "maxToolCalls reached ($totalToolCalls/$maxToolCalls), final answer"
-                }
-                activeTools = emptyList()
-                chatOptions = buildChatOptions(command, false)
-                messages.add(
-                    ReActLoopUtils.buildMaxToolCallsMessage(totalToolCalls, maxToolCalls)
-                )
-            }
-        }
     }
 
     // ── private 메서드: 토큰 예산 추적 ──
@@ -278,7 +448,9 @@ internal class ManualReActLoopExecutor(
         )
         return try {
             callWithRetry {
-                runInterruptible(Dispatchers.IO) { requestSpec.call().chatResponse() }
+                runInterruptible(Dispatchers.IO) {
+                    requestSpec.call().chatResponse()
+                }
             }
         } finally {
             llmSpan.close()
@@ -287,7 +459,7 @@ internal class ManualReActLoopExecutor(
 
     // ── private 메서드: 토큰 사용량 기록 ──
 
-    /** LLM 응답의 토큰 사용량을 메트릭 콜백으로 전달한다. 식별자만 포함하는 최소 메타데이터를 사용한다. */
+    /** LLM 응답의 토큰 사용량을 메트릭 콜백으로 전달한다. */
     private fun emitTokenUsageMetric(
         chatResponse: ChatResponse?,
         hookContext: HookContext
@@ -328,7 +500,8 @@ internal class ManualReActLoopExecutor(
                 "arc.agent.tool.call",
                 mapOf(
                     "tool.name" to tc.name(),
-                    "tool.call.index" to (currentTotalToolCalls + idx).toString()
+                    "tool.call.index" to
+                        (currentTotalToolCalls + idx).toString()
                 )
             )
         }
@@ -380,10 +553,14 @@ internal class ManualReActLoopExecutor(
         messages: MutableList<Message>,
         textRetryCount: Int
     ): Boolean {
-        if (!hadToolError || pendingToolCalls.isNotEmpty() || activeTools.isEmpty()) {
+        if (!hadToolError || pendingToolCalls.isNotEmpty()
+            || activeTools.isEmpty()
+        ) {
             return false
         }
-        return ReActLoopUtils.injectForceRetryHintIfNeeded(messages, textRetryCount)
+        return ReActLoopUtils.injectForceRetryHintIfNeeded(
+            messages, textRetryCount
+        )
     }
 
     /** 루프 종료 시 LLM/Tool 소요 시간을 HookContext에 기록한다. */
@@ -395,7 +572,9 @@ internal class ManualReActLoopExecutor(
         hookContext.metadata["llmDurationMs"] = totalLlmDurationMs
         hookContext.metadata["toolDurationMs"] = totalToolDurationMs
         recordStageTiming(hookContext, "llm_calls", totalLlmDurationMs)
-        recordStageTiming(hookContext, "tool_execution", totalToolDurationMs)
+        recordStageTiming(
+            hookContext, "tool_execution", totalToolDurationMs
+        )
     }
 
     /** 여러 LLM 호출의 Token 사용량을 누적합니다. */
