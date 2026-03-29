@@ -1,7 +1,6 @@
 package com.arc.reactor.guard.output.policy
 
 import com.github.benmanes.caffeine.cache.Caffeine
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -30,8 +29,11 @@ class OutputGuardRuleEvaluator {
         .expireAfterAccess(1, TimeUnit.HOURS)
         .build<String, Regex>()
 
-    /** 컴파일에 실패한 잘못된 패턴 문자열 집합 */
-    private val invalidPatterns: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    /** 컴파일에 실패한 잘못된 패턴 문자열 집합 (Caffeine: 최대 1,024개, 1시간 TTL) */
+    private val invalidPatterns = Caffeine.newBuilder()
+        .maximumSize(1_024)
+        .expireAfterWrite(1, TimeUnit.HOURS)
+        .build<String, Boolean>()
 
     /**
      * 콘텐츠에 대해 규칙 목록을 평가한다.
@@ -50,7 +52,7 @@ class OutputGuardRuleEvaluator {
         for (rule in rules) {
             // ── 잘못된 패턴 건너뛰기 ──
             // 이전에 컴파일 실패한 패턴은 재시도하지 않음
-            if (rule.pattern in invalidPatterns) {
+            if (invalidPatterns.getIfPresent(rule.pattern) != null) {
                 invalid.add(
                     InvalidOutputGuardRule(
                         ruleId = rule.id,
@@ -66,7 +68,7 @@ class OutputGuardRuleEvaluator {
                 ?: runCatching { Regex(rule.pattern) }
                     .onSuccess { regexCache.put(rule.pattern, it) }
                     .getOrElse {
-                        invalidPatterns.add(rule.pattern)
+                        invalidPatterns.put(rule.pattern, true)
                         invalid.add(
                             InvalidOutputGuardRule(
                                 ruleId = rule.id,
