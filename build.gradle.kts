@@ -103,6 +103,11 @@ subprojects {
                 useVersion(jackson3Version)
                 because("GHSA-72hv-8253-57qq: async parser number-length bypass DoS")
             }
+            // Netty: CVE-2026-33870 (HTTP request smuggling via chunked extension)
+            if (requested.group == "io.netty") {
+                useVersion("4.1.132.Final")
+                because("CVE-2026-33870: HTTP request smuggling via chunked extension parsing")
+            }
         }
     }
 

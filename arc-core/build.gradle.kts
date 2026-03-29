@@ -2,8 +2,8 @@ plugins {
     id("org.springframework.boot")
 }
 
-// Spring AI 1.1.3
-val springAiVersion = "1.1.3"
+// Spring AI 1.1.4 — CVE-2026-22738 (SpEL RCE, CVSS 9.8) 패치
+val springAiVersion = "1.1.4"
 
 dependencies {
     // Spring Boot Core
