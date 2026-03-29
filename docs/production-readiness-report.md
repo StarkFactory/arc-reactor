@@ -3228,3 +3228,16 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `test:` | 테스트 | ToolResponse 12 tests |
 
 **R77-113 (37 Round): 27 fixes + 1,042 tests**
+
+### Round 114 — 2026-03-29T14:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** Guard 성능 스캔 — homoglyph/NFC 3중 normalize + classification count→any + drift 20회 regex
+**Agent 2:** WriteOperationIdempotencyService + UseCaseDelegation **10 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 1191ms, 2177 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `perf:` | 성능 | Classification count→any 단축 |
+| `test:` | 테스트 | Idempotency + Delegation 10 tests |
+
+**R77-114 (38 Round): 28 fixes + 1,052 tests**
