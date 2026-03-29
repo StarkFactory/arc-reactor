@@ -3,61 +3,60 @@ package com.arc.reactor.tool
 import com.arc.reactor.agent.config.ToolRoutingConfig
 
 /**
- * Tool Selection Strategy Interface
+ * 도구 선택 전략 인터페이스
  *
- * Filters and selects appropriate tools based on user request.
- * Optimizes context window usage and improves tool selection accuracy.
+ * 사용자 요청에 따라 적절한 도구를 필터링하고 선택한다.
+ * 컨텍스트 윈도우 사용을 최적화하고 도구 선택 정확도를 향상시킨다.
  *
- * ## Why Tool Selection Matters
- * - LLMs have limited context windows
- * - Sending all tools increases token usage and costs
- * - Too many tools can confuse the LLM's tool selection
- * - Relevant tools improve response quality
+ * ## 왜 도구 선택이 중요한가
+ * - LLM은 컨텍스트 윈도우가 제한적이다
+ * - 모든 도구를 전송하면 토큰 사용량과 비용이 증가한다
+ * - 도구가 너무 많으면 LLM의 도구 선택이 혼란스러워진다
+ * - 관련성 높은 도구가 응답 품질을 향상시킨다
  *
- * ## Example Usage
+ * ## 사용 예시
  * ```kotlin
  * val selector = KeywordBasedToolSelector(toolCategoryMap)
  * val relevantTools = selector.select(
- *     prompt = "Search for company information",
+ *     prompt = "회사 정보를 검색해줘",
  *     availableTools = allTools
  * )
- * // Only SEARCH category tools returned
+ * // SEARCH 카테고리 도구만 반환됨
  * ```
  *
- * @see KeywordBasedToolSelector for keyword-based filtering
- * @see AllToolSelector for no filtering (pass-through)
- * @see SemanticToolSelector for embedding-based semantic filtering
- * @see ToolCategory for defining tool categories
+ * @see KeywordBasedToolSelector 키워드 기반 필터링
+ * @see AllToolSelector 필터링 없음 (패스스루)
+ * @see ToolCategory 도구 카테고리 정의
  */
 interface ToolSelector {
     /**
-     * Select relevant tools based on the user prompt.
+     * 사용자 프롬프트에 따라 관련 도구를 선택한다.
      *
-     * @param prompt User's request text
-     * @param availableTools All registered tools
-     * @return Filtered list of tools relevant to the prompt
+     * @param prompt 사용자의 요청 텍스트
+     * @param availableTools 등록된 전체 도구 목록
+     * @return 프롬프트와 관련된 도구만 포함하는 필터링된 목록
      */
     fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback>
 }
 
 /**
- * Keyword-Based Tool Selector
+ * 키워드 기반 도구 선택기
  *
- * Matches tool categories against keywords in the user prompt.
- * Falls back to returning all tools if no categories match.
+ * 사용자 프롬프트의 키워드와 도구 카테고리를 매칭한다.
+ * 매칭되는 카테고리가 없으면 모든 도구를 반환한다 (안전 폴백).
  *
- * ## Matching Logic
- * 1. Extract categories that match keywords in the prompt
- * 2. If matches found: return tools in matched categories + uncategorized tools
- * 3. If no matches: return all tools (safe fallback)
+ * ## 매칭 로직
+ * 1. 프롬프트에서 키워드가 매칭되는 카테고리를 추출한다
+ * 2. 매칭된 카테고리가 있으면: 해당 카테고리 도구 + 미분류 도구를 반환
+ * 3. 매칭된 카테고리가 없으면: 전체 도구를 반환 (안전 폴백)
  *
- * ## Config-driven construction
+ * ## 설정 기반 생성
  * ```kotlin
- * // Build from tool-routing.yml — each route category becomes a ToolCategory
+ * // tool-routing.yml에서 빌드 — 각 라우트 카테고리가 ToolCategory가 된다
  * val selector = KeywordBasedToolSelector.fromRoutingConfig()
  * ```
  *
- * @param toolCategoryMap Mapping of tool names to their categories
+ * @param toolCategoryMap 도구 이름과 카테고리의 매핑
  */
 class KeywordBasedToolSelector(
     private val toolCategoryMap: Map<String, ToolCategory> = emptyMap()
@@ -84,13 +83,13 @@ class KeywordBasedToolSelector(
 
     companion object {
         /**
-         * Build a KeywordBasedToolSelector from the unified tool-routing.yml config.
+         * tool-routing.yml 설정에서 KeywordBasedToolSelector를 생성한다.
          *
-         * Each route with non-empty preferredTools generates entries
-         * in the toolCategoryMap: tool name -> ToolCategory (derived from route category + keywords).
+         * preferredTools가 비어있지 않은 각 라우트에 대해
+         * toolCategoryMap 항목을 생성한다: 도구 이름 -> ToolCategory (라우트 카테고리 + 키워드 파생).
          *
-         * @param config The routing config (defaults to classpath-loaded)
-         * @return A KeywordBasedToolSelector with category mappings from config
+         * @param config 라우팅 설정 (기본값: 클래스패스에서 로딩)
+         * @return 설정에서 카테고리 매핑을 가진 KeywordBasedToolSelector
          */
         fun fromRoutingConfig(
             config: ToolRoutingConfig = ToolRoutingConfig.loadFromClasspath()
@@ -110,8 +109,8 @@ class KeywordBasedToolSelector(
         }
 
         /**
-         * Aggregate all keywords from routes sharing the same category
-         * into a single ToolCategory per category name.
+         * 동일 카테고리를 공유하는 라우트의 모든 키워드를
+         * 카테고리 이름별 단일 ToolCategory로 집계한다.
          */
         private fun buildCategoryMap(
             config: ToolRoutingConfig
@@ -136,15 +135,15 @@ class KeywordBasedToolSelector(
 }
 
 /**
- * Pass-Through Tool Selector
+ * 패스스루 도구 선택기
  *
- * Returns all tools without filtering.
- * Use when tool selection is not needed or handled elsewhere.
+ * 필터링 없이 모든 도구를 반환한다.
+ * 도구 선택이 불필요하거나 다른 곳에서 처리될 때 사용한다.
  *
- * ## Use Cases
- * - Development/testing with all tools available
- * - Small tool sets where filtering overhead isn't worth it
- * - Custom selection logic implemented in agent
+ * ## 사용 사례
+ * - 모든 도구를 사용하는 개발/테스트 환경
+ * - 필터링 오버헤드가 불필요한 소규모 도구 집합
+ * - 에이전트 내부에서 커스텀 선택 로직을 구현하는 경우
  */
 class AllToolSelector : ToolSelector {
     override fun select(prompt: String, availableTools: List<ToolCallback>): List<ToolCallback> {
