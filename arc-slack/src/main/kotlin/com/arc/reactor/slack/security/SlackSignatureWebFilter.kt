@@ -75,12 +75,22 @@ class SlackSignatureWebFilter(
         val body = String(bodyBytes, Charsets.UTF_8)
         val result = verifier.verify(timestamp, signature, body)
         if (!result.success) {
-            logger.warn { "Slack signature verification failed: ${result.errorMessage}" }
+            logger.warn { "Slack 서명 검증 실패: reason=${result.errorMessage}" }
             return sendForbidden(exchange, result.errorMessage ?: "Signature verification failed")
         }
         if (bodyBytes.isEmpty()) {
             return chain.filter(exchange)
         }
+        val decoratedExchange = decorateWithCachedBody(exchange, bodyBytes, body)
+        return chain.filter(decoratedExchange)
+    }
+
+    /** 캐싱된 본문을 재생하는 데코레이터를 생성한다. form-urlencoded이면 폼 파라미터도 포함한다. */
+    private fun decorateWithCachedBody(
+        exchange: ServerWebExchange,
+        bodyBytes: ByteArray,
+        body: String
+    ): ServerWebExchange {
         val isFormUrlEncoded = exchange.request.headers.contentType
             ?.isCompatibleWith(MediaType.APPLICATION_FORM_URLENCODED) == true
         val formParameters = if (isFormUrlEncoded) parseFormParameters(body) else null
@@ -90,35 +100,33 @@ class SlackSignatureWebFilter(
             }
         }
         val mutatedExchange = exchange.mutate().request(decoratedRequest).build()
-        if (!isFormUrlEncoded || formParameters == null) {
-            return chain.filter(mutatedExchange)
-        }
-        val formAwareExchange = object : ServerWebExchangeDecorator(mutatedExchange) {
+        if (!isFormUrlEncoded || formParameters == null) return mutatedExchange
+        return object : ServerWebExchangeDecorator(mutatedExchange) {
             override fun getFormData(): Mono<MultiValueMap<String, String>> =
                 Mono.just(copyParameters(formParameters))
         }
-        return chain.filter(formAwareExchange)
     }
 
     private fun parseFormParameters(body: String): MultiValueMap<String, String> {
         val params = LinkedMultiValueMap<String, String>()
         if (body.isBlank()) return params
-        body.split("&")
-            .filter { it.isNotBlank() }
-            .forEach { pair ->
-                val separatorIndex = pair.indexOf('=')
-                val rawKey = if (separatorIndex >= 0) pair.substring(0, separatorIndex) else pair
-                val rawValue = if (separatorIndex >= 0) pair.substring(separatorIndex + 1) else ""
-                val key = URLDecoder.decode(rawKey, Charsets.UTF_8)
-                val value = URLDecoder.decode(rawValue, Charsets.UTF_8)
-                params.add(key, value)
-            }
+        val pairs = body.split("&").filter { it.isNotBlank() }
+        for (pair in pairs) {
+            val separatorIndex = pair.indexOf('=')
+            val rawKey = if (separatorIndex >= 0) pair.substring(0, separatorIndex) else pair
+            val rawValue = if (separatorIndex >= 0) pair.substring(separatorIndex + 1) else ""
+            val key = URLDecoder.decode(rawKey, Charsets.UTF_8)
+            val value = URLDecoder.decode(rawValue, Charsets.UTF_8)
+            params.add(key, value)
+        }
         return params
     }
 
     private fun copyParameters(source: MultiValueMap<String, String>): MultiValueMap<String, String> {
         val copied = LinkedMultiValueMap<String, String>(source.size)
-        source.forEach { (key, values) -> copied.put(key, values.toMutableList()) }
+        for ((key, values) in source) {
+            copied.put(key, values.toMutableList())
+        }
         return copied
     }
 

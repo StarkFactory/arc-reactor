@@ -73,7 +73,7 @@ class SlackCommandProcessor(
 
         if (backpressureLimiter.rejectImmediatelyIfConfigured()) {
             logger.warn {
-                "Slack slash command rejected due to saturation: " +
+                "슬래시 명령 포화로 거부: " +
                     "entrypoint=$entrypoint, channel=${command.channelId}"
             }
             metricsRecorder.recordDropped(
@@ -88,7 +88,7 @@ class SlackCommandProcessor(
             val acquired = backpressureLimiter.acquireForQueuedMode()
             if (!acquired) {
                 logger.warn {
-                    "Slack slash command dropped due to queue timeout: " +
+                    "슬래시 명령 큐 타임아웃 드롭: " +
                         "entrypoint=$entrypoint, channel=${command.channelId}"
                 }
                 metricsRecorder.recordDropped(
@@ -116,7 +116,7 @@ class SlackCommandProcessor(
                 )
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.error(e) { "Failed to handle slash command for channel=${command.channelId}" }
+                logger.error(e) { "슬래시 명령 처리 실패: channel=${command.channelId}" }
                 metricsRecorder.recordHandler(
                     entrypoint = entrypoint,
                     eventType = command.command,

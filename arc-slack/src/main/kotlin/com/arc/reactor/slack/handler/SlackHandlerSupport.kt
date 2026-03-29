@@ -38,7 +38,7 @@ internal object SlackHandlerSupport {
             manager.getContextPrompt(userId)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve user memory for userId=$userId" }
+            logger.warn(e) { "사용자 메모리 조회 실패: userId=$userId" }
             ""
         }
     }
@@ -53,7 +53,7 @@ internal object SlackHandlerSupport {
             resolver.resolveEmail(userId)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to resolve Slack requester email for userId=$userId" }
+            logger.warn(e) { "Slack 요청자 이메일 조회 실패: userId=$userId" }
             null
         }
     }

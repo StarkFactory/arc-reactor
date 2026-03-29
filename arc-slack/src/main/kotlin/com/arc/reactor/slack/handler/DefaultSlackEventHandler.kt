@@ -47,7 +47,7 @@ class DefaultSlackEventHandler(
     override suspend fun handleAppMention(command: SlackEventCommand) {
         val cleanText = command.text.replace(MENTION_REGEX, "").trim()
         if (cleanText.isBlank()) {
-            logger.debug { "Empty mention from user=${command.userId}, skipping" }
+            logger.debug { "빈 멘션 무시: user=${command.userId}" }
             return
         }
 
@@ -92,7 +92,7 @@ class DefaultSlackEventHandler(
 
             val content = result.content?.trim().orEmpty()
             if (!result.success || content == NO_RESPONSE_MARKER || content.isBlank()) {
-                logger.debug { "Proactive agent declined for channel=${command.channelId}" }
+                logger.debug { "선행적 에이전트 응답 거부: channel=${command.channelId}" }
                 return false
             }
 
@@ -108,7 +108,7 @@ class DefaultSlackEventHandler(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) {
-                "Proactive handling failed: channel=${command.channelId}, " +
+                "선행적 처리 실패: channel=${command.channelId}, " +
                     "user=${command.userId}, text=${command.text.take(50)}"
             }
             return false
@@ -135,10 +135,10 @@ class DefaultSlackEventHandler(
                     userId = userId
                 )
             )
-            logger.info { "Feedback recorded: user=$userId rating=$rating session=$sessionId" }
+            logger.info { "피드백 기록 완료: user=$userId rating=$rating session=$sessionId" }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to save reaction feedback: user=$userId session=$sessionId" }
+            logger.warn(e) { "리액션 피드백 저장 실패: user=$userId session=$sessionId" }
         }
     }
 
@@ -155,7 +155,7 @@ class DefaultSlackEventHandler(
             sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to process Slack event for channel=$channelId, thread=$threadTs" }
+            logger.error(e) { "Slack 이벤트 처리 실패: channel=$channelId, thread=$threadTs" }
             sendErrorFallback(channelId, threadTs)
         }
     }
@@ -206,7 +206,7 @@ class DefaultSlackEventHandler(
         }
         if (!sendResult.ok) {
             logger.warn {
-                "Failed to send Slack event response: " +
+                "Slack 이벤트 응답 전송 실패: " +
                     "channel=$channelId thread=$threadTs error=${sendResult.error}"
             }
         }
@@ -222,7 +222,7 @@ class DefaultSlackEventHandler(
             )
         } catch (sendError: Exception) {
             sendError.throwIfCancellation()
-            logger.error(sendError) { "Failed to send error message to Slack" }
+            logger.error(sendError) { "Slack 오류 메시지 전송 실패" }
         }
     }
 

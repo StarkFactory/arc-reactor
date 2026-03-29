@@ -73,7 +73,7 @@ class SlackMessagingService(
             callSlackApi("chat.postMessage", body)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to send message to channel=$channelId" }
+            logger.error(e) { "메시지 전송 실패: channel=$channelId" }
             SlackApiResult(ok = false, error = "Slack API 호출 실패 (${e.javaClass.simpleName})")
         }
     }
@@ -87,7 +87,7 @@ class SlackMessagingService(
             callSlackApi("reactions.add", body)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to add reaction $emoji to channel=$channelId" }
+            logger.error(e) { "리액션 추가 실패: emoji=$emoji, channel=$channelId" }
             SlackApiResult(ok = false, error = "Slack API 호출 실패 (${e.javaClass.simpleName})")
         }
     }
@@ -104,7 +104,7 @@ class SlackMessagingService(
     ): Boolean {
         if (responseUrl.isBlank()) return false
         if (!isAllowedResponseUrl(responseUrl)) {
-            logger.warn { "Blocked response_url with untrusted host: $responseUrl" }
+            logger.warn { "비허용 호스트의 response_url 차단: $responseUrl" }
             return false
         }
 
@@ -125,7 +125,7 @@ class SlackMessagingService(
             true
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to send response_url callback" }
+            logger.error(e) { "response_url 콜백 전송 실패" }
             metricsRecorder.recordResponseUrl("failure")
             false
         }
@@ -238,8 +238,10 @@ class SlackMessagingService(
 
     private suspend fun enforceRateLimit(channelId: String) {
         if (lastRequestTimeByChannel.size > MAX_RATE_LIMIT_ENTRIES) {
-            lastRequestTimeByChannel.keys.take(lastRequestTimeByChannel.size / 4)
-                .forEach(lastRequestTimeByChannel::remove)
+            val keysToRemove = lastRequestTimeByChannel.keys.take(lastRequestTimeByChannel.size / 4)
+            for (key in keysToRemove) {
+                lastRequestTimeByChannel.remove(key)
+            }
         }
         val lastTime = lastRequestTimeByChannel.computeIfAbsent(channelId) { AtomicLong(0L) }
         val now = System.currentTimeMillis()
@@ -255,7 +257,7 @@ class SlackMessagingService(
         val uri = try {
             java.net.URI(url)
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to validate response_url: ${url.take(50)}" }
+            logger.warn(e) { "response_url 검증 실패: ${url.take(50)}" }
             return false
         }
         val host = uri.host?.lowercase() ?: return false

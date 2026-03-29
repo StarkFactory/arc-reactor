@@ -84,11 +84,11 @@ class SlackEventProcessor(
         val eventId = payload.path("event_id").asText().takeIf { it.isNotBlank() }
 
         if (retryNum != null || retryReason != null) {
-            logger.info { "Slack retry callback received: eventId=$eventId, retryNum=$retryNum, reason=$retryReason" }
+            logger.info { "Slack 재시도 콜백 수신: eventId=$eventId, retryNum=$retryNum, reason=$retryReason" }
         }
 
         if (eventId != null && deduplicator.isDuplicateAndMark(eventId)) {
-            logger.info { "Duplicate Slack event ignored: eventId=$eventId, type=$eventType" }
+            logger.info { "중복 Slack 이벤트 무시: eventId=$eventId, type=$eventType" }
             metricsRecorder.recordDuplicate(eventType)
             return
         }
@@ -132,7 +132,7 @@ class SlackEventProcessor(
         val command = parseEventCommand(event, eventType)
 
         if (command.userId.isBlank() || command.channelId.isBlank()) {
-            logger.debug { "Skipping event with missing user or channel" }
+            logger.debug { "사용자 또는 채널 누락으로 이벤트 무시" }
             return null
         }
         if (userRateLimiter != null && !userRateLimiter.tryAcquire(command.userId)) {
@@ -163,7 +163,7 @@ class SlackEventProcessor(
         if (!backpressureLimiter.rejectImmediatelyIfConfigured()) return true
 
         logger.warn {
-            "Slack event rejected due to saturation: " +
+            "이벤트 포화로 거부: " +
                 "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
         }
         metricsRecorder.recordDropped(entrypoint = entrypoint, reason = "queue_overflow", eventType = eventType)
@@ -182,7 +182,7 @@ class SlackEventProcessor(
         if (backpressureLimiter.acquireForQueuedMode()) return true
 
         logger.warn {
-            "Slack event dropped due to queue timeout: " +
+            "이벤트 큐 타임아웃 드롭: " +
                 "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
         }
         metricsRecorder.recordDropped(entrypoint = entrypoint, reason = "queue_timeout", eventType = eventType)
@@ -208,7 +208,7 @@ class SlackEventProcessor(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) {
-                "Failed to handle Slack event: " +
+                "Slack 이벤트 처리 실패: " +
                     "entrypoint=$entrypoint, type=$eventType, channel=${command.channelId}"
             }
             metricsRecorder.recordHandler(
@@ -237,7 +237,7 @@ class SlackEventProcessor(
         if (command.threadTs != null) {
             if (threadTracker != null && !threadTracker.isTracked(command.channelId, command.threadTs)) {
                 logger.debug {
-                    "Ignoring untracked Slack thread message: " +
+                    "미추적 스레드 메시지 무시: " +
                         "entrypoint=$entrypoint, channel=${command.channelId}, thread=${command.threadTs}"
                 }
                 metricsRecorder.recordDropped(
@@ -265,7 +265,7 @@ class SlackEventProcessor(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to send rate-limit message for channel=${command.channelId}" }
+            logger.warn(e) { "레이트 리밋 메시지 전송 실패: channel=${command.channelId}" }
         }
     }
 
@@ -281,7 +281,7 @@ class SlackEventProcessor(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to send queue-timeout message for channel=${command.channelId}" }
+            logger.warn(e) { "큐 타임아웃 메시지 전송 실패: channel=${command.channelId}" }
         }
     }
 
@@ -295,7 +295,7 @@ class SlackEventProcessor(
     private suspend fun handleProactive(command: SlackEventCommand, entrypoint: String) {
         if (!proactiveSemaphore.tryAcquire()) {
             logger.debug {
-                "Proactive evaluation skipped (concurrency limit): channel=${command.channelId}"
+                "선행적 평가 건너뜀 (동시성 제한): channel=${command.channelId}"
             }
             metricsRecorder.recordDropped(
                 entrypoint = entrypoint,
@@ -315,7 +315,7 @@ class SlackEventProcessor(
             )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Proactive handler error: channel=${command.channelId}" }
+            logger.warn(e) { "선행적 핸들러 오류: channel=${command.channelId}" }
         } finally {
             proactiveSemaphore.release()
         }
@@ -353,7 +353,7 @@ class SlackEventProcessor(
                 )
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.warn(e) { "Failed to handle reaction event: channel=$channelId" }
+                logger.warn(e) { "리액션 이벤트 처리 실패: channel=$channelId" }
             }
         }
     }

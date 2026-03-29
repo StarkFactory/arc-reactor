@@ -49,11 +49,14 @@ class SlackBotResponseTracker(
 
         val overflow = entries.size - maxEntries
         if (overflow <= 0) return
-        entries.entries
+        val victims = entries.entries
             .asSequence()
             .sortedBy { it.value.expiresAt }
             .take(overflow)
-            .forEach { entries.remove(it.key) }
+            .toList()
+        for (victim in victims) {
+            entries.remove(victim.key)
+        }
     }
 
     private fun key(channelId: String, messageTs: String): String = "$channelId:$messageTs"

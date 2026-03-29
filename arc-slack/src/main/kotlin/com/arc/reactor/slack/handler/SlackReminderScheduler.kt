@@ -41,20 +41,20 @@ class SlackReminderScheduler(
             pollIntervalSeconds,
             TimeUnit.SECONDS
         )
-        logger.info { "SlackReminderScheduler started (interval=${pollIntervalSeconds}s)" }
+        logger.info { "리마인더 스케줄러 시작: interval=${pollIntervalSeconds}s" }
     }
 
     internal fun pollAndNotify() {
         val dueReminders = try {
             reminderStore.collectDueReminders()
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to collect due reminders" }
+            logger.warn(e) { "만료 리마인더 수거 실패" }
             return
         }
 
         if (dueReminders.isEmpty()) return
 
-        logger.info { "Delivering ${dueReminders.size} due reminder(s)" }
+        logger.info { "만료 리마인더 ${dueReminders.size}건 전송 시작" }
         for ((userId, reminder) in dueReminders) {
             scope.launch {
                 try {
@@ -63,13 +63,13 @@ class SlackReminderScheduler(
                         text = ":bell: *Reminder #${reminder.id}*\n${reminder.text}"
                     )
                     if (result.ok) {
-                        logger.debug { "Reminder #${reminder.id} delivered to user=$userId" }
+                        logger.debug { "리마인더 전송 완료: #${reminder.id} user=$userId" }
                     } else {
-                        logger.warn { "Failed to deliver reminder #${reminder.id} to user=$userId: ${result.error}" }
+                        logger.warn { "리마인더 전송 실패: #${reminder.id} user=$userId error=${result.error}" }
                     }
                 } catch (e: Exception) {
                     e.throwIfCancellation()
-                    logger.warn(e) { "Error delivering reminder #${reminder.id} to user=$userId" }
+                    logger.warn(e) { "리마인더 전송 중 오류: #${reminder.id} user=$userId" }
                 }
             }
         }
@@ -82,6 +82,6 @@ class SlackReminderScheduler(
     fun shutdown() {
         executor.shutdownNow()
         scope.cancel()
-        logger.info { "SlackReminderScheduler shut down" }
+        logger.info { "리마인더 스케줄러 종료" }
     }
 }

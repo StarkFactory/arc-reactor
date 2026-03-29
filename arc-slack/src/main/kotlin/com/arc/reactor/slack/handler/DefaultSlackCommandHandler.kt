@@ -55,7 +55,7 @@ class DefaultSlackCommandHandler(
             dispatchIntent(command, rawPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to process slash command for channel=${command.channelId}" }
+            logger.error(e) { "슬래시 명령 처리 실패: channel=${command.channelId}" }
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 text = ":x: An internal error occurred. Please try again later."
@@ -95,7 +95,7 @@ class DefaultSlackCommandHandler(
             text = question
         )
         if (!result.ok) {
-            logger.info { "Slash command channel post failed, fallback to response_url: error=${result.error}" }
+            logger.info { "슬래시 명령 채널 게시 실패, response_url로 폴백: error=${result.error}" }
             return null
         }
         return result.ts
@@ -118,7 +118,7 @@ class DefaultSlackCommandHandler(
         )
 
         if (!sendResult.ok) {
-            logger.warn { "Thread reply failed, fallback to response_url: error=${sendResult.error}" }
+            logger.warn { "스레드 답장 실패, response_url로 폴백: error=${sendResult.error}" }
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 text = responseText
@@ -140,7 +140,7 @@ class DefaultSlackCommandHandler(
             text = responseText
         )
         if (!sent) {
-            logger.error { "Failed to send slash response via response_url" }
+            logger.error { "response_url을 통한 슬래시 응답 전송 실패" }
         }
     }
 

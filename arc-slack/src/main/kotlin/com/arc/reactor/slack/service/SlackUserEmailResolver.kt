@@ -70,7 +70,7 @@ class SlackUserEmailResolver(
                 .awaitBody<SlackUsersInfoResponse>()
 
             if (!response.ok) {
-                logger.warn { "Failed to resolve Slack email for userId=$userId error=${response.error}" }
+                logger.warn { "Slack 이메일 조회 실패: userId=$userId error=${response.error}" }
                 return null
             }
 
@@ -79,7 +79,7 @@ class SlackUserEmailResolver(
                 ?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Slack users.info lookup failed for userId=$userId" }
+            logger.warn(e) { "Slack users.info 조회 실패: userId=$userId" }
             null
         }
     }

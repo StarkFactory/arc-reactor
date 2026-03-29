@@ -78,7 +78,7 @@ class InMemoryWriteOperationIdempotencyService(
                 Thread.currentThread().interrupt()
                 operation()
             } catch (e: ExecutionException) {
-                logger.warn(e) { "Idempotent replay failed for tool=$toolName, re-running operation once." }
+                logger.warn(e) { "멱등 재실행 실패, 원본 작업 재시도: tool=$toolName" }
                 operation()
             }
         }
@@ -107,7 +107,9 @@ class InMemoryWriteOperationIdempotencyService(
         val victims = completed.entries
             .sortedBy { it.value.expiresAtMs }
             .take(overflow)
-        victims.forEach { entry -> completed.remove(entry.key, entry.value) }
+        for (entry in victims) {
+            completed.remove(entry.key, entry.value)
+        }
     }
 
     private fun buildCacheKey(toolName: String, explicitIdempotencyKey: String?, keyParts: List<String>): String {

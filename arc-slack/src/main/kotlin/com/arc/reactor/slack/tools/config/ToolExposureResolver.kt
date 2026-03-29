@@ -74,12 +74,12 @@ class ToolExposureResolver(
             val ex = scopeResult.exceptionOrNull()
             if (properties.toolExposure.failOpenOnScopeResolutionError) {
                 logger.warn(ex) {
-                    "Scope-aware tool exposure failed to resolve scopes; fail-open enabled, exposing all tools."
+                    "스코프 조회 실패 — fail-open 활성화, 전체 도구 노출"
                 }
                 return candidates.map { it.toolObject }
             }
             logger.error(ex) {
-                "Scope-aware tool exposure failed to resolve scopes; fail-open disabled, exposing no tools."
+                "스코프 조회 실패 — fail-open 비활성화, 도구 미노출"
             }
             return emptyList()
         }
@@ -88,12 +88,12 @@ class ToolExposureResolver(
         if (grantedScopes.isEmpty()) {
             if (properties.toolExposure.failOpenOnScopeResolutionError) {
                 logger.warn {
-                    "Scope-aware tool exposure resolved empty scope set; fail-open enabled, exposing all tools."
+                    "빈 스코프 집합 조회됨 — fail-open 활성화, 전체 도구 노출"
                 }
                 return candidates.map { it.toolObject }
             }
             logger.warn {
-                "Scope-aware tool exposure resolved empty scope set; fail-open disabled, exposing no tools."
+                "빈 스코프 집합 조회됨 — fail-open 비활성화, 도구 미노출"
             }
             return emptyList()
         }
@@ -107,11 +107,11 @@ class ToolExposureResolver(
         val blocked = candidates.map { it.name }.toSet() - exposed.map { it.name }.toSet()
         if (blocked.isNotEmpty()) {
             logger.info {
-                "Scope-aware tool exposure filtered tools by granted Slack scopes. " +
+                "스코프 기반 도구 필터링: " +
                     "exposed=${exposed.size}/${candidates.size}, blocked=${blocked.sorted()}"
             }
         } else {
-            logger.info { "Scope-aware tool exposure enabled: all ${candidates.size} tools exposed." }
+            logger.info { "스코프 기반 도구 노출: 전체 ${candidates.size}개 도구 노출" }
         }
         return exposed.map { it.toolObject }
     }

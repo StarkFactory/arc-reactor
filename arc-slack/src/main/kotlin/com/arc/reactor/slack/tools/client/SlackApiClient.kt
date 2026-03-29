@@ -70,7 +70,7 @@ class SlackApiClient(
     /** 스레드 풀을 정리하여 리소스 누수를 방지한다. */
     override fun destroy() {
         timeoutExecutor.shutdownNow()
-        logger.info { "SlackApiClient timeoutExecutor shut down" }
+        logger.info { "SlackApiClient 타임아웃 스레드풀 종료" }
     }
 
     /**

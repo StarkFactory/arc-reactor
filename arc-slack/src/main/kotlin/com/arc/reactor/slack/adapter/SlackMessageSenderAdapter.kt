@@ -25,7 +25,7 @@ class SlackMessageSenderAdapter(
             messagingService.sendMessage(channelId, text)
         }
         if (!result.ok) {
-            logger.warn { "Slack API returned error for channel=$channelId: ${result.error}" }
+            logger.warn { "Slack API 오류 응답: channel=$channelId, error=${result.error}" }
         }
     }
 }

@@ -98,11 +98,11 @@ class SlackSocketModeGateway(
         startupJob = null
 
         runCatching { socketModeClient?.disconnect() }
-            .onFailure { logger.warn(it) { "Failed to disconnect Slack Socket Mode client" } }
+            .onFailure { logger.warn(it) { "Socket Mode 클라이언트 연결 해제 실패" } }
         runCatching { socketModeClient?.close() }
-            .onFailure { logger.warn(it) { "Failed to close Slack Socket Mode client" } }
+            .onFailure { logger.warn(it) { "Socket Mode 클라이언트 종료 실패" } }
         runCatching { slack?.close() }
-            .onFailure { logger.warn(it) { "Failed to close Slack client" } }
+            .onFailure { logger.warn(it) { "Slack 클라이언트 종료 실패" } }
 
         socketModeClient = null
         slack = null
@@ -128,7 +128,7 @@ class SlackSocketModeGateway(
             try {
                 connectOnce()
                 running = true
-                logger.info { "Slack Socket Mode gateway connected successfully" }
+                logger.info { "Socket Mode 게이트웨이 연결 성공" }
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 metricsRecorder.recordDropped(
@@ -136,7 +136,7 @@ class SlackSocketModeGateway(
                     reason = "connect_failure"
                 )
                 logger.error(e) {
-                    "Slack Socket Mode connection failed, retrying in ${delayMs}ms"
+                    "Socket Mode 연결 실패, ${delayMs}ms 후 재시도"
                 }
                 delay(delayMs)
                 delayMs = min(delayMs * 2, maxDelayMs)
@@ -171,6 +171,14 @@ class SlackSocketModeGateway(
     }
 
     private fun registerListeners(client: SocketModeClient) {
+        registerEventsApiListener(client)
+        registerSlashCommandListener(client)
+        registerInteractiveListener(client)
+        registerErrorAndCloseListeners(client)
+    }
+
+    /** Events API 엔벌로프 리스너를 등록한다. */
+    private fun registerEventsApiListener(client: SocketModeClient) {
         client.addEventsApiEnvelopeListener { envelope ->
             acknowledgeEnvelope(client, envelope.envelopeId)
             val payload = envelope.payload?.toString()
@@ -184,70 +192,84 @@ class SlackSocketModeGateway(
                     retryReason = envelope.retryReason
                 )
             }.onFailure { e ->
-                logger.error(e) { "Failed to process Socket Mode events_api envelope" }
+                logger.error(e) { "Socket Mode events_api 엔벌로프 처리 실패" }
                 metricsRecorder.recordDropped(
                     entrypoint = "socket_mode_events",
                     reason = "handler_exception"
                 )
             }
         }
+    }
 
+    /** 슬래시 명령 엔벌로프 리스너를 등록한다. */
+    private fun registerSlashCommandListener(client: SocketModeClient) {
         client.addSlashCommandsEnvelopeListener { envelope ->
             acknowledgeEnvelope(client, envelope.envelopeId)
             val payload = envelope.payload?.toString()
             if (payload.isNullOrBlank()) return@addSlashCommandsEnvelopeListener
 
             runCatching {
-                val command = parseSlashCommand(payload)
-                if (command == null) {
-                    metricsRecorder.recordDropped(
-                        entrypoint = "socket_mode_slash_command",
-                        reason = "invalid_payload"
-                    )
-                    notifyResponseUrlIfPresent(
-                        payload = payload,
-                        text = SlackCommandProcessor.INVALID_PAYLOAD_RESPONSE_TEXT
-                    )
-                    return@runCatching
-                }
-
-                val accepted = commandProcessor.submit(
-                    command = command,
-                    entrypoint = "socket_mode_slash_command"
-                )
-                if (!accepted) {
-                    scope.launch {
-                        messagingService.sendResponseUrl(
-                            responseUrl = command.responseUrl,
-                            text = SlackCommandProcessor.BUSY_RESPONSE_TEXT
-                        )
-                    }
-                }
+                handleSlashCommandPayload(payload)
             }.onFailure { e ->
-                logger.error(e) { "Failed to process Socket Mode slash command envelope" }
+                logger.error(e) { "Socket Mode 슬래시 명령 엔벌로프 처리 실패" }
                 metricsRecorder.recordDropped(
                     entrypoint = "socket_mode_slash_command",
                     reason = "handler_exception"
                 )
             }
         }
+    }
 
+    /** 파싱된 슬래시 명령을 프로세서에 제출하고, 거부 시 응답을 전송한다. */
+    private fun handleSlashCommandPayload(payload: String) {
+        val command = parseSlashCommand(payload)
+        if (command == null) {
+            metricsRecorder.recordDropped(
+                entrypoint = "socket_mode_slash_command",
+                reason = "invalid_payload"
+            )
+            notifyResponseUrlIfPresent(
+                payload = payload,
+                text = SlackCommandProcessor.INVALID_PAYLOAD_RESPONSE_TEXT
+            )
+            return
+        }
+
+        val accepted = commandProcessor.submit(
+            command = command,
+            entrypoint = "socket_mode_slash_command"
+        )
+        if (!accepted) {
+            scope.launch {
+                messagingService.sendResponseUrl(
+                    responseUrl = command.responseUrl,
+                    text = SlackCommandProcessor.BUSY_RESPONSE_TEXT
+                )
+            }
+        }
+    }
+
+    /** 인터랙티브 페이로드(미지원) 리스너를 등록한다. */
+    private fun registerInteractiveListener(client: SocketModeClient) {
         client.addInteractiveEnvelopeListener { envelope ->
             acknowledgeEnvelope(client, envelope.envelopeId)
             val payload = envelope.payload?.toString()
             val interactionType = payload?.let { raw ->
                 runCatching { objectMapper.readTree(raw).path("type").asText() }.getOrNull()
             } ?: "interactive"
-            logger.info { "Socket Mode interactive payload ignored: type=$interactionType" }
+            logger.info { "Socket Mode 인터랙티브 페이로드 무시: type=$interactionType" }
             metricsRecorder.recordDropped(
                 entrypoint = "socket_mode_interactive",
                 reason = "unsupported",
                 eventType = interactionType
             )
         }
+    }
 
+    /** WebSocket 에러·종료 리스너를 등록한다. */
+    private fun registerErrorAndCloseListeners(client: SocketModeClient) {
         client.addWebSocketErrorListener { error ->
-            logger.error(error) { "Slack Socket Mode WebSocket error" }
+            logger.error(error) { "Socket Mode WebSocket 에러 발생" }
             metricsRecorder.recordDropped(
                 entrypoint = "socket_mode",
                 reason = "websocket_error"
@@ -255,7 +277,7 @@ class SlackSocketModeGateway(
         }
 
         client.addWebSocketCloseListener { statusCode, reason ->
-            logger.warn { "Slack Socket Mode WebSocket closed: status=$statusCode reason=$reason" }
+            logger.warn { "Socket Mode WebSocket 연결 종료: status=$statusCode reason=$reason" }
             metricsRecorder.recordDropped(
                 entrypoint = "socket_mode",
                 reason = "websocket_closed"
@@ -300,7 +322,7 @@ class SlackSocketModeGateway(
                 AckResponse.builder().envelopeId(envelopeId).build()
             )
         } catch (e: Exception) {
-            logger.error(e) { "Failed to ack Socket Mode envelope: envelopeId=$envelopeId" }
+            logger.error(e) { "Socket Mode 엔벌로프 ACK 실패: envelopeId=$envelopeId" }
             metricsRecorder.recordDropped(
                 entrypoint = "socket_mode",
                 reason = "ack_failure"

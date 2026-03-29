@@ -36,16 +36,16 @@ private val logger = KotlinLogging.logger {}
 @ConditionalOnExpression(
     "\${arc.reactor.slack.enabled:false} and '\${arc.reactor.slack.transport-mode:events_api}' == 'events_api'"
 )
-@Tag(name = "Slack", description = "Slack event handling endpoints")
+@Tag(name = "Slack", description = "Slack 이벤트 웹훅 엔드포인트")
 class SlackEventController(
     private val objectMapper: ObjectMapper,
     private val eventProcessor: SlackEventProcessor
 ) {
     @PostMapping("/events")
-    @Operation(summary = "Handle Slack events (webhook endpoint)")
+    @Operation(summary = "Slack 이벤트 콜백 수신 (URL 검증 포함)")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "Event accepted or URL verification challenge response"),
-        ApiResponse(responseCode = "400", description = "Invalid payload")
+        ApiResponse(responseCode = "200", description = "이벤트 수신 완료 또는 URL 검증 챌린지 응답"),
+        ApiResponse(responseCode = "400", description = "잘못된 페이로드")
     ])
     suspend fun handleEvent(
         @RequestBody payload: String,
@@ -57,7 +57,7 @@ class SlackEventController(
         // URL 검증 챌린지
         if (json.has("challenge")) {
             val challenge = json.path("challenge").asText()
-            logger.info { "Slack URL verification challenge received" }
+            logger.info { "Slack URL 검증 챌린지 수신" }
             return ResponseEntity.ok(SlackChallengeResponse(challenge))
         }
 

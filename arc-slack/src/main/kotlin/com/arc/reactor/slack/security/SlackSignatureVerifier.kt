@@ -33,7 +33,7 @@ class SlackSignatureVerifier(
      */
     fun verify(timestamp: String?, signature: String?, body: String): VerificationResult {
         if (signingSecret.isBlank()) {
-            logger.error { "Slack signing secret is not configured — rejecting request (fail-close)" }
+            logger.error { "Slack signing secret 미설정 — 요청 거부 (fail-close)" }
             return VerificationResult.failure("Signing secret not configured")
         }
         if (timestamp.isNullOrBlank()) {
@@ -60,7 +60,7 @@ class SlackSignatureVerifier(
         return if (timingSafeEquals(expectedSignature, signature)) {
             VerificationResult.success()
         } else {
-            logger.warn { "Slack signature verification failed" }
+            logger.warn { "Slack 서명 검증 실패" }
             VerificationResult.failure("Signature mismatch")
         }
     }

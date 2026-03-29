@@ -44,11 +44,14 @@ class SlackThreadTracker(
 
         val overflow = trackedThreads.size - maxEntries
         if (overflow <= 0) return
-        trackedThreads.entries
+        val victims = trackedThreads.entries
             .asSequence()
             .sortedBy { it.value }
             .take(overflow)
-            .forEach { trackedThreads.remove(it.key, it.value) }
+            .toList()
+        for (victim in victims) {
+            trackedThreads.remove(victim.key, victim.value)
+        }
     }
 
     private fun key(channelId: String, threadTs: String): String = "$channelId:$threadTs"

@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController
 @ConditionalOnExpression(
     "\${arc.reactor.slack.enabled:false} and '\${arc.reactor.slack.transport-mode:events_api}' == 'events_api'"
 )
-@Tag(name = "Slack", description = "Slack command handling endpoints")
+@Tag(name = "Slack", description = "Slack 슬래시 명령 처리 엔드포인트")
 class SlackCommandController(
     private val commandProcessor: SlackCommandProcessor
 ) {
@@ -47,10 +47,10 @@ class SlackCommandController(
     )
 
     @PostMapping("/commands", consumes = [MediaType.APPLICATION_FORM_URLENCODED_VALUE])
-    @Operation(summary = "Handle Slack slash command")
+    @Operation(summary = "Slack 슬래시 명령 수신 및 처리")
     @ApiResponses(value = [
-        ApiResponse(responseCode = "200", description = "Command acknowledged"),
-        ApiResponse(responseCode = "400", description = "Invalid or missing required command fields")
+        ApiResponse(responseCode = "200", description = "명령 수신 확인 완료"),
+        ApiResponse(responseCode = "400", description = "필수 필드 누락 또는 잘못된 페이로드")
     ])
     fun handleSlashCommandEndpoint(
         @ModelAttribute form: SlackSlashCommandForm

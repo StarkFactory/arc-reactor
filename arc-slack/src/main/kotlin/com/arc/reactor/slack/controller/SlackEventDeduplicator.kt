@@ -53,10 +53,12 @@ class SlackEventDeduplicator(
         // 오버플로우 제거 — 가장 오래된 것부터
         if (seenEventIds.size > maxEntries) {
             val overflow = seenEventIds.size - maxEntries
-            seenEventIds.entries
+            val victims = seenEventIds.entries
                 .sortedBy { it.value }
                 .take(overflow)
-                .forEach { seenEventIds.remove(it.key) }
+            for (victim in victims) {
+                seenEventIds.remove(victim.key)
+            }
         }
     }
 }
