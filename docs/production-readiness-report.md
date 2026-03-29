@@ -3137,3 +3137,20 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **R77-107 (31 Round): 24 fixes + 867 tests**
 
 **코드베이스 P0-P2 이슈: 0건 잔여 (전체 모듈 스캔 완료)**
+
+### Round 108 — 2026-03-29T12:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** PLAN_EXECUTE 심층 스캔 — **P1 예산 미적용** + P2 conversationHistory 미사용 + P2 e.message 간접 노출
+**Agent 2:** SimpleReranker (Score/Keyword/Diversity/Jaccard) **22 테스트 추가**
+**Agent 3:** BUILD PASS, 채팅 929ms, 2159 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `test:` | 테스트 | SimpleReranker 22 tests |
+
+**신규 발견:**
+- **P1**: PLAN_EXECUTE 모드에서 `StepBudgetTracker` 미적용 — 예산 제한 우회 가능
+- **P2**: `conversationHistory` 파라미터 미사용 — 멀티턴 컨텍스트 무시
+- **P2**: `generatePlan`/`synthesize` 예외 시 e.message 간접 노출 (errorMessageResolver 경유)
+
+**R77-108 (32 Round): 24 fixes + 889 tests**
