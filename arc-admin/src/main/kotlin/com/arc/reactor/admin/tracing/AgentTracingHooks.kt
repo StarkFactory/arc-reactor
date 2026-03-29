@@ -64,7 +64,7 @@ class AgentTracingHooks(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to start agent span for runId=${context.runId}" }
+            logger.warn(e) { "에이전트 span 시작 실패: runId=${context.runId}" }
         }
         return HookResult.Continue
     }
@@ -76,7 +76,7 @@ class AgentTracingHooks(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to end agent span for runId=${context.runId}" }
+            logger.warn(e) { "에이전트 span 종료 실패: runId=${context.runId}" }
         }
     }
 
@@ -92,7 +92,7 @@ class AgentTracingHooks(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to start tool span for ${context.toolName}" }
+            logger.warn(e) { "도구 span 시작 실패: ${context.toolName}" }
         }
         return HookResult.Continue
     }
@@ -105,7 +105,7 @@ class AgentTracingHooks(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to end tool span for ${context.toolName}" }
+            logger.warn(e) { "도구 span 종료 실패: ${context.toolName}" }
         }
     }
 
