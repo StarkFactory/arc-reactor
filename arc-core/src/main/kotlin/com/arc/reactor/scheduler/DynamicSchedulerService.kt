@@ -138,7 +138,7 @@ class DynamicSchedulerService(
     @EventListener(ApplicationReadyEvent::class)
     fun onApplicationReady() {
         val jobs = store.list().filter { it.enabled }
-        logger.info { "Dynamic Scheduler: loading ${jobs.size} enabled jobs" }
+        logger.info { "동적 스케줄러: 활성화된 작업 ${jobs.size}개 로딩" }
         for (job in jobs) {
             registerJob(job)
         }
@@ -146,7 +146,7 @@ class DynamicSchedulerService(
 
     override fun destroy() {
         val count = scheduledFutures.size
-        logger.info { "Dynamic Scheduler: cancelling $count scheduled jobs" }
+        logger.info { "동적 스케줄러: 예약 작업 ${count}개 취소" }
         scheduledFutures.values.forEach { it.cancel(false) }
         scheduledFutures.clear()
         jobScope.cancel()
@@ -156,7 +156,7 @@ class DynamicSchedulerService(
         validateSchedule(job)
         val saved = store.save(job)
         if (saved.enabled) registerJob(saved)
-        logger.info { "Scheduled job created: ${saved.name} (${saved.cronExpression})" }
+        logger.info { "예약 작업 생성: ${saved.name} (${saved.cronExpression})" }
         return saved
     }
 
@@ -165,14 +165,14 @@ class DynamicSchedulerService(
         val updated = store.update(id, job) ?: return null
         cancelJob(id)
         if (updated.enabled) registerJob(updated)
-        logger.info { "Scheduled job updated: ${updated.name} (${updated.cronExpression})" }
+        logger.info { "예약 작업 갱신: ${updated.name} (${updated.cronExpression})" }
         return updated
     }
 
     fun delete(id: String) {
         cancelJob(id)
         store.delete(id)
-        logger.info { "Scheduled job deleted: $id" }
+        logger.info { "예약 작업 삭제: $id" }
     }
 
     fun trigger(id: String): String {
@@ -207,16 +207,16 @@ class DynamicSchedulerService(
                     ScheduledJobType.MCP_TOOL -> "-> ${job.mcpServerName}/${job.toolName}"
                     ScheduledJobType.AGENT -> "-> agent(personaId=${job.personaId})"
                 }
-                logger.info { "Registered cron job: ${job.name} [${job.cronExpression}] $target" }
+                logger.info { "크론 작업 등록: ${job.name} [${job.cronExpression}] $target" }
             } else {
-                val message = "Failed to register cron job '${job.name}': scheduler returned null future"
+                val message = "크론 작업 '${job.name}' 등록 실패: 스케줄러가 null future 반환"
                 logger.warn { message }
                 markSchedulingFailure(job, message)
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.error(e) { "Failed to register cron job: ${job.name}" }
-            markSchedulingFailure(job, "Failed to register cron job: ${e.message}")
+            logger.error(e) { "크론 작업 등록 실패: ${job.name}" }
+            markSchedulingFailure(job, "크론 작업 등록 실패: ${e.message}")
         }
     }
 
@@ -295,7 +295,7 @@ class DynamicSchedulerService(
     }
 
     private suspend fun runScheduledJob(job: ScheduledJob): String = mutexFor(job.id).withLock {
-        logger.info { "Executing scheduled job: ${job.name} [${job.jobType}]" }
+        logger.info { "예약 작업 실행: ${job.name} [${job.jobType}]" }
         store.updateExecutionResult(job.id, JobExecutionStatus.RUNNING, null)
 
         val startedAt = Instant.now()
@@ -319,12 +319,12 @@ class DynamicSchedulerService(
         store.updateExecutionResult(job.id, JobExecutionStatus.SUCCESS, result)
         val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
         recordExecution(job, JobExecutionStatus.SUCCESS, result, durationMs, false, startedAt)
-        logger.info { "Scheduled job completed: ${job.name}" }
+        logger.info { "예약 작업 완료: ${job.name}" }
         return result
     }
 
     private fun handleJobFailure(job: ScheduledJob, e: Exception, startedAt: Instant): String {
-        val errorMsg = "Job '${job.name}' failed: ${e.javaClass.simpleName}"
+        val errorMsg = "작업 '${job.name}' 실패: ${e.javaClass.simpleName}"
         logger.error(e) { errorMsg }
         store.updateExecutionResult(job.id, JobExecutionStatus.FAILED, errorMsg)
         val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
@@ -333,17 +333,17 @@ class DynamicSchedulerService(
     }
 
     private suspend fun dryRunScheduledJob(job: ScheduledJob): String {
-        logger.info { "Dry-run scheduled job: ${job.name} [${job.jobType}]" }
+        logger.info { "예약 작업 드라이런: ${job.name} [${job.jobType}]" }
         val startedAt = Instant.now()
         return try {
             val result = runJobWithTimeoutAndRetry(job)
             val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
             recordExecution(job, JobExecutionStatus.SUCCESS, result, durationMs, true, startedAt)
-            logger.info { "Dry-run completed: ${job.name}" }
+            logger.info { "드라이런 완료: ${job.name}" }
             result
         } catch (e: Exception) {
             e.throwIfCancellation()
-            val errorMsg = "Job '${job.name}' failed: ${e.javaClass.simpleName}"
+            val errorMsg = "작업 '${job.name}' 실패: ${e.javaClass.simpleName}"
             logger.error(e) { errorMsg }
             val durationMs = Instant.now().toEpochMilli() - startedAt.toEpochMilli()
             recordExecution(job, JobExecutionStatus.FAILED, errorMsg, durationMs, true, startedAt)
@@ -377,7 +377,7 @@ class DynamicSchedulerService(
                 e.throwIfCancellation()
                 lastException = e
                 if (attempt < job.maxRetryCount) {
-                    logger.warn { "Retrying job '${job.name}' attempt $attempt/${job.maxRetryCount}" }
+                    logger.warn { "작업 '${job.name}' 재시도 $attempt/${job.maxRetryCount}" }
                     delay(RETRY_DELAY_MS)
                 }
             }
@@ -593,7 +593,7 @@ class DynamicSchedulerService(
             execStore.save(execution)
             cleanupOldExecutions(execStore, job.id)
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to record execution history for job: ${job.name}" }
+            logger.warn(e) { "실행 이력 기록 실패: ${job.name}" }
         }
     }
 
@@ -622,7 +622,7 @@ class DynamicSchedulerService(
         try {
             execStore.deleteOldestExecutions(jobId, maxPerJob)
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to cleanup old executions for job: $jobId" }
+            logger.warn(e) { "이전 실행 이력 정리 실패: $jobId" }
         }
     }
 
@@ -648,7 +648,7 @@ class DynamicSchedulerService(
         try {
             slackMessageSender.sendMessage(job.slackChannelId, formatSlackMessage(job, result))
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to send Slack message for job: ${job.name}" }
+            logger.warn(e) { "Slack 메시지 전송 실패: ${job.name}" }
         }
     }
 
@@ -665,7 +665,7 @@ class DynamicSchedulerService(
         try {
             teamsMessageSender.sendMessage(job.teamsWebhookUrl, formatTeamsMessage(job, result))
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to send Teams message for job: ${job.name}" }
+            logger.warn(e) { "Teams 메시지 전송 실패: ${job.name}" }
         }
     }
 

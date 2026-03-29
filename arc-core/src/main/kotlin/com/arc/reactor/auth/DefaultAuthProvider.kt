@@ -26,10 +26,10 @@ class DefaultAuthProvider(private val userStore: UserStore) : AuthProvider {
     override fun authenticate(email: String, password: String): User? {
         val user = userStore.findByEmail(email) ?: return null
         return if (passwordEncoder.matches(password, user.passwordHash)) {
-            logger.debug { "Authentication successful for: $email" }
+            logger.debug { "인증 성공: $email" }
             user
         } else {
-            logger.debug { "Authentication failed for: $email" }
+            logger.debug { "인증 실패: $email" }
             null
         }
     }

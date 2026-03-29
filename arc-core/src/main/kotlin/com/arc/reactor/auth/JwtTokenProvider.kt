@@ -92,7 +92,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
             val roleName = claims.get("role", String::class.java) ?: return UserRole.USER
             UserRole.valueOf(roleName)
         } catch (e: Exception) {
-            logger.debug { "JWT role extraction failed: ${e.message}" }
+            logger.debug { "JWT role 추출 실패: ${e.message}" }
             null
         }
     }
@@ -109,7 +109,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
-            logger.debug { "JWT tenant extraction failed: ${e.message}" }
+            logger.debug { "JWT tenantId 추출 실패: ${e.message}" }
             null
         }
     }
@@ -126,7 +126,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
-            logger.debug { "JWT email extraction failed: ${e.message}" }
+            logger.debug { "JWT email 추출 실패: ${e.message}" }
             null
         }
     }
@@ -147,7 +147,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
                 .map { it.trim() }
                 .firstOrNull { it.isNotBlank() }
         } catch (e: Exception) {
-            logger.debug { "JWT accountId extraction failed: ${e.message}" }
+            logger.debug { "JWT accountId 추출 실패: ${e.message}" }
             null
         }
     }
@@ -174,7 +174,7 @@ class JwtTokenProvider(private val authProperties: AuthProperties) {
                 .parseSignedClaims(token)
                 .payload
         } catch (e: Exception) {
-            logger.debug { "JWT parsing failed: ${e.message}" }
+            logger.debug { "JWT 파싱 실패: ${e.message}" }
             null
         }
     }

@@ -44,19 +44,19 @@ class AdminInitializer(
         val password = envReader("ARC_REACTOR_AUTH_ADMIN_PASSWORD")
 
         if (email.isNullOrBlank() || password.isNullOrBlank()) {
-            logger.debug { "Admin env vars not set, skipping admin initialization" }
+            logger.debug { "관리자 환경 변수 미설정, 관리자 초기화 생략" }
             return
         }
 
         // ── 단계 2: 비밀번호 길이 검증 ──
         if (password.length < 8) {
-            logger.warn { "Admin password must be at least 8 characters, skipping admin initialization" }
+            logger.warn { "관리자 비밀번호는 최소 8자 이상이어야 합니다, 관리자 초기화 생략" }
             return
         }
 
         // ── 단계 3: 이미 존재하는지 확인 ──
         if (userStore.existsByEmail(email)) {
-            logger.info { "Admin account already exists: $email" }
+            logger.info { "관리자 계정이 이미 존재합니다: $email" }
             return
         }
 
@@ -66,7 +66,7 @@ class AdminInitializer(
         val passwordHash = when (authProvider) {
             is DefaultAuthProvider -> authProvider.hashPassword(password)
             else -> {
-                logger.warn { "Custom AuthProvider — cannot hash password for admin seed" }
+                logger.warn { "커스텀 AuthProvider — 관리자 시드 비밀번호 해싱 불가" }
                 return
             }
         }
@@ -80,6 +80,6 @@ class AdminInitializer(
             role = UserRole.ADMIN
         )
         userStore.save(admin)
-        logger.info { "Initial ADMIN account created: $email" }
+        logger.info { "초기 ADMIN 계정 생성 완료: $email" }
     }
 }

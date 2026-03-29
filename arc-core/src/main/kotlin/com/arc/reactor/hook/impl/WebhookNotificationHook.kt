@@ -58,7 +58,7 @@ class WebhookNotificationHook(
     override suspend fun afterAgentComplete(context: HookContext, response: AgentResponse) {
         val url = webhookProperties.url
         if (url.isBlank()) {
-            logger.warn { "Webhook URL is blank, skipping notification" }
+            logger.warn { "Webhook URL이 비어 있어 알림 생략" }
             return
         }
 
@@ -73,15 +73,15 @@ class WebhookNotificationHook(
                 .timeout(Duration.ofMillis(webhookProperties.timeoutMs))
                 .onErrorResume { e ->
                     e.throwIfCancellation()
-                    logger.warn { "Webhook POST to $url failed: ${e.message}" }
+                    logger.warn { "Webhook POST 실패: $url — ${e.message}" }
                     Mono.empty()
                 }
                 .awaitSingleOrNull()
 
-            logger.debug { "Webhook notification sent to $url for runId=${context.runId}" }
+            logger.debug { "Webhook 알림 전송 완료: $url, runId=${context.runId}" }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn { "Webhook notification failed for runId=${context.runId}: ${e.message}" }
+            logger.warn { "Webhook 알림 실패: runId=${context.runId}, ${e.message}" }
         }
     }
 

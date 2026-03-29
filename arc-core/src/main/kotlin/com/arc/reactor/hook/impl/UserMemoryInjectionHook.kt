@@ -63,11 +63,11 @@ class UserMemoryInjectionHook(
             val contextPrompt = memoryManager.getContextPrompt(userId)
             if (contextPrompt.isNotBlank()) {
                 context.metadata[USER_MEMORY_CONTEXT_KEY] = contextPrompt
-                logger.debug { "Injected user memory context for userId=$userId" }
+                logger.debug { "사용자 메모리 컨텍스트 주입 완료: userId=$userId" }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "Failed to load user memory for userId=$userId, continuing without context" }
+            logger.warn(e) { "사용자 메모리 로드 실패: userId=$userId, 컨텍스트 없이 계속" }
         }
 
         return HookResult.Continue

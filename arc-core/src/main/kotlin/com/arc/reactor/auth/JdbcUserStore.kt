@@ -53,7 +53,7 @@ class JdbcUserStore(
             user.role.name,
             java.sql.Timestamp.from(user.createdAt)
         )
-        logger.debug { "Saved user: id=${user.id}, email=${user.email}, role=${user.role}" }
+        logger.debug { "사용자 저장 완료: id=${user.id}, email=${user.email}, role=${user.role}" }
         return user
     }
 
@@ -65,7 +65,7 @@ class JdbcUserStore(
             user.role.name,
             user.id
         )
-        logger.debug { "Updated user: id=${user.id}" }
+        logger.debug { "사용자 갱신 완료: id=${user.id}" }
         return user
     }
 

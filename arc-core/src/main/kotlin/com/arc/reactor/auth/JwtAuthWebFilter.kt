@@ -99,7 +99,7 @@ class JwtAuthWebFilter(
         // ── [5] userId를 exchange attribute에 저장 ──
         // 빈 userId(sub claim)는 변조된 토큰 — anonymous 폴백 대신 거부
         if (userId.isBlank()) {
-            logger.warn { "Rejecting token with blank sub claim" }
+            logger.warn { "빈 sub claim 토큰 거부" }
             return unauthorized(exchange)
         }
         exchange.attributes[USER_ID_ATTRIBUTE] = userId
@@ -155,7 +155,7 @@ class JwtAuthWebFilter(
         val resolvedUser = authProvider?.getUserById(userId)
         // authProvider가 있는데 사용자를 못 찾으면 → 삭제된 사용자 → 거부
         if (authProvider != null && resolvedUser == null) {
-            logger.warn { "Rejecting token for missing userId=$userId" }
+            logger.warn { "존재하지 않는 사용자 토큰 거부: userId=$userId" }
             return null
         }
         return resolvedUser?.role ?: tokenRole
@@ -170,14 +170,14 @@ class JwtAuthWebFilter(
         if (tokenId == null) {
             // 폐기 저장소가 있는데 jti가 없으면 → 폐기 불가능한 토큰 → 거부
             if (tokenRevocationStore != null) {
-                logger.warn { "Rejecting token without jti — revocation store is active" }
+                logger.warn { "jti 없는 토큰 거부 — 폐기 저장소 활성 상태" }
                 return true
             }
             return false
         }
         val revoked = tokenRevocationStore?.isRevoked(tokenId) == true
         if (revoked) {
-            logger.warn { "Rejected revoked token jti=$tokenId" }
+            logger.warn { "폐기된 토큰 거부: jti=$tokenId" }
         }
         return revoked
     }
@@ -199,7 +199,7 @@ class JwtAuthWebFilter(
 
     /** 401 Unauthorized 응답을 JSON 본문과 함께 반환한다. */
     private fun unauthorized(exchange: ServerWebExchange): Mono<Void> {
-        logger.debug { "Unauthorized request: ${exchange.request.method} ${exchange.request.uri.path}" }
+        logger.debug { "인증되지 않은 요청: ${exchange.request.method} ${exchange.request.uri.path}" }
         val response = exchange.response
         response.statusCode = HttpStatus.UNAUTHORIZED
         response.headers.contentType = MediaType.APPLICATION_JSON
