@@ -3964,3 +3964,17 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **Guard 갭 문서화:** URL 인코딩, \uNNNN, SYSTEM 대소문자, JSON 키 역전 — 향후 패턴 강화 대상
 
 **R77-155 (79 Round): 64 fixes + 2,308 tests**
+
+### Round 156 — 2026-03-30T15:00+09:00 (3-에이전트 병렬)
+
+**Agent 1 [보안]:** Guard 갭 2건 수정 — ` ```SYSTEM ` 대소문자 (?i) 추가 + `mode.{0,5}developer` 역전 패턴 추가. Hardening 2건 Rejected 전환
+**Agent 2:** TenantSpanProcessorTest 10개 — OTel Context/ThreadLocal 폴백/default/우선순위/다중 테넌트/LifecycleFlags/ContextKey 공유
+**Agent 3:** BUILD/TEST PASS, Guard OK (2ms), RAG grounded+4출처, 단순 채팅 avg 1,169ms. atlassian MCP FAILED (서버 미실행)
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `sec:` | **Guard 갭 수정+TenantSpan** | 2 패턴 강화, Hardening 2건 전환, 10 테스트 |
+
+**Guard 갭 현황:** R129 5건 → R131 4건 수정 → R155 4건 문서화 → **R156 2건 추가 수정 (총 6/9 수정, 잔여 3건 구조적 한계)**
+
+**R77-156 (80 Round): 65 fixes + 2,318 tests**
