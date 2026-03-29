@@ -18,12 +18,12 @@ import org.springframework.jdbc.core.JdbcTemplate
 import javax.sql.DataSource
 
 /**
- * Auto-configuration for per-user long-term memory.
+ * 사용자별 장기 메모리 자동 설정.
  *
- * Registers [InMemoryUserMemoryStore] as the default store, [UserMemoryManager],
- * and (when enabled) [UserMemoryInjectionHook].
+ * 기본 저장소로 [InMemoryUserMemoryStore], [UserMemoryManager],
+ * 그리고 (활성화 시) [UserMemoryInjectionHook]을 등록한다.
  *
- * When `arc.reactor.memory.user.enabled=false` (the default), no beans are registered.
+ * `arc.reactor.memory.user.enabled=false` (기본값)이면 빈이 등록되지 않는다.
  */
 @Configuration
 @ConditionalOnProperty(

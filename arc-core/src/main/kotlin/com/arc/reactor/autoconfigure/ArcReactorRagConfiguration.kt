@@ -46,15 +46,15 @@ private val SIMPLE_FALLBACK_ROUTER = object : QueryRouter {
 }
 
 /**
- * RAG Configuration
+ * RAG 자동 설정
  */
 @Configuration
 @ConditionalOnProperty(prefix = "arc.reactor.rag", name = ["enabled"], havingValue = "true", matchIfMissing = false)
 class RagConfiguration {
 
     /**
-     * Document Retriever
-     * Requires VectorStore.
+     * 문서 검색기
+     * VectorStore가 필요하다.
      */
     private val ragLogger = KotlinLogging.logger("com.arc.reactor.autoconfigure.RagConfiguration")
 
@@ -88,7 +88,7 @@ class RagConfiguration {
     }
 
     /**
-     * Document Reranker (default: simple score-based)
+     * 문서 재랭커 (기본: 단순 점수 기반)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -96,9 +96,9 @@ class RagConfiguration {
 
     /**
      * 쿼리 변환 전략.
-     * - passthrough (default): no rewrite
-     * - hyde: hypothetical document generation for better retrieval
-     * - decomposition: break complex queries into simpler sub-queries
+     * - passthrough (기본값): 변환 없이 그대로 전달
+     * - hyde: 가상 문서 생성으로 검색 품질 향상
+     * - decomposition: 복잡한 쿼리를 단순 하위 쿼리로 분해
      */
     @Bean
     @ConditionalOnMissingBean
@@ -145,7 +145,7 @@ class RagConfiguration {
     }
 
     /**
-     * Contextual Compressor — LLM-based document compression.
+     * 컨텍스트 압축기 — LLM 기반 문서 압축.
      * 압축이 명시적으로 활성화된 경우에만 생성된다.
      */
     @Bean
@@ -180,7 +180,7 @@ class RagConfiguration {
     }
 
     /**
-     * BM25 Scorer — only created when hybrid search is enabled.
+     * BM25 스코어러 — 하이브리드 검색 활성 시에만 생성.
      * 사용자는 커스텀 [Bm25Scorer] 빈으로 재정의할 수 있다.
      */
     @Bean
@@ -196,11 +196,11 @@ class RagConfiguration {
     }
 
     /**
-     * Hybrid RAG Pipeline (BM25 + Vector + RRF).
+     * 하이브리드 RAG 파이프라인 (BM25 + Vector + RRF).
      *
      * @Primary로 등록하여 하이브리드 검색 활성 시 [DefaultRagPipeline]보다 우선한다.
      * arc.reactor.rag.enabled=true와 arc.reactor.rag.hybrid.enabled=true가 모두 설정된 경우에만 생성된다.
-     * [DefaultRagPipeline] is suppressed by @ConditionalOnMissingBean(RagPipeline::class) on the fallback bean.
+     * 폴백 빈의 @ConditionalOnMissingBean(RagPipeline::class)에 의해 [DefaultRagPipeline]이 억제된다.
      */
     @Bean
     @Primary
@@ -234,7 +234,7 @@ class RagConfiguration {
     }
 
     /**
-     * Default RAG Pipeline — used when hybrid search is disabled.
+     * 기본 RAG 파이프라인 — 하이브리드 검색 비활성 시 사용.
      */
     @Bean
     @ConditionalOnMissingBean(RagPipeline::class)
@@ -265,7 +265,7 @@ class RagConfiguration {
     ): Bm25WarmUpRunner = Bm25WarmUpRunner(hybridRagPipeline, vectorStore)
 
     /**
-     * Adaptive Query Router — classifies query complexity before retrieval.
+     * 적응형 쿼리 라우터 — 검색 전 쿼리 복잡도를 분류한다.
      * RAG와 적응형 라우팅이 모두 활성화된 경우에만 생성된다.
      */
     @Bean

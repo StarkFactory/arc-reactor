@@ -158,7 +158,7 @@ class ArcReactorPreflightConfiguration {
     )
 
     /**
-     * Tool Approval Policy — only created when HITL is enabled.
+     * 도구 승인 정책 — HITL 활성 시에만 생성.
      */
     @Bean
     @ConditionalOnMissingBean

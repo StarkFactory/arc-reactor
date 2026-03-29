@@ -39,7 +39,7 @@ import org.springframework.context.annotation.Configuration
 class ArcReactorHookAndMcpConfiguration {
 
     /**
-     * MCP Manager
+     * MCP 매니저
      */
     @Bean
     @ConditionalOnMissingBean
@@ -65,7 +65,7 @@ class ArcReactorHookAndMcpConfiguration {
     }
 
     /**
-     * MCP Startup Initializer
+     * MCP 시작 초기화기
      *
      * 저장소에서 영속된 서버를 복원하고 시작 시 자동 연결한다.
      */
@@ -77,7 +77,7 @@ class ArcReactorHookAndMcpConfiguration {
     ): McpStartupInitializer = McpStartupInitializer(mcpManager, toolSelector)
 
     /**
-     * Hook Executor
+     * 훅 실행기
      */
     @Bean
     @ConditionalOnMissingBean
@@ -96,7 +96,7 @@ class ArcReactorHookAndMcpConfiguration {
     )
 
     /**
-     * Webhook Notification Hook (only when arc.reactor.webhook.enabled=true)
+     * 웹훅 알림 훅 (arc.reactor.webhook.enabled=true일 때만 활성화)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -117,7 +117,7 @@ class ArcReactorHookAndMcpConfiguration {
     }
 
     /**
-     * Write Tool Block Hook (only when arc.reactor.tool-policy.enabled=true)
+     * 쓰기 도구 차단 훅 (arc.reactor.tool-policy.enabled=true일 때만 활성화)
      */
     @Bean
     @ConditionalOnMissingBean(name = ["writeToolBlockHook"])
@@ -129,7 +129,7 @@ class ArcReactorHookAndMcpConfiguration {
         WriteToolBlockHook(toolExecutionPolicyEngine)
 
     /**
-     * RAG ingestion capture hook (Q&A -> candidate queue).
+     * RAG 수집 캡처 훅 (Q&A -> 후보 큐).
      */
     @Bean
     @ConditionalOnMissingBean(name = ["ragIngestionCaptureHook"])
@@ -150,7 +150,7 @@ class ArcReactorHookAndMcpConfiguration {
     )
 
     /**
-     * MCP Health Pinger (only when arc.reactor.mcp.health.enabled=true)
+     * MCP 헬스 핑어 (arc.reactor.mcp.health.enabled=true일 때만 활성화)
      *
      * CONNECTED 상태의 MCP 서버를 주기적으로 점검하여
      * 조용히 끊어진 연결을 사전에 감지한다.
@@ -175,7 +175,7 @@ class ArcReactorHookAndMcpConfiguration {
     }
 
     /**
-     * MCP Tool Availability Checker
+     * MCP 도구 가용성 검사기
      *
      * ReAct 루프 진입 전 도구 가용성을 사전검사한다.
      */

@@ -243,7 +243,7 @@ class JdbcMemoryStore(
     }
 
     /**
-     * Read-only view of a JDBC-backed conversation for a session.
+     * 세션별 JDBC 기반 대화의 읽기 전용 뷰.
      */
     private inner class JdbcConversationMemory(
         private val sessionId: String,

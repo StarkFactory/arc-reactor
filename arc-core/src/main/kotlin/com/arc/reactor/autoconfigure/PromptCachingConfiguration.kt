@@ -12,12 +12,12 @@ import org.springframework.context.annotation.Configuration
 /**
  * Anthropic 프롬프트 캐싱 자동 설정.
  *
- * Registers [AnthropicPromptCachingService] when:
+ * 다음 조건을 충족할 때 [AnthropicPromptCachingService]를 등록한다:
  * - `arc.reactor.llm.prompt-caching.enabled=true`
- * - `spring-ai-anthropic` is on the classpath (`AnthropicChatOptions` class present)
+ * - `spring-ai-anthropic`이 클래스패스에 존재 (`AnthropicChatOptions` 클래스 존재)
  *
  * 조건이 충족되지 않으면 (예: 다른 프로바이더 또는 의존성 누락),
- * no [PromptCachingService] bean is registered, and callers fall back gracefully.
+ * [PromptCachingService] 빈이 등록되지 않으며 호출자는 우아하게 폴백한다.
  */
 @Configuration
 @ConditionalOnProperty(
@@ -30,10 +30,11 @@ import org.springframework.context.annotation.Configuration
 class PromptCachingConfiguration {
 
     /**
-     * Anthropic Prompt Caching Service.
+     * Anthropic 프롬프트 캐싱 서비스.
      *
-     * Applies [org.springframework.ai.anthropic.AnthropicCacheStrategy] to chat requests
-     * directed at the Anthropic provider, and parses cache token metrics from the response.
+     * Anthropic 프로바이더로 향하는 채팅 요청에
+     * [org.springframework.ai.anthropic.AnthropicCacheStrategy]를 적용하고,
+     * 응답에서 캐시 토큰 메트릭을 파싱한다.
      */
     @Bean
     @ConditionalOnMissingBean

@@ -44,7 +44,7 @@ class JwtSecretValidator(secret: String) {
 }
 
 /**
- * Auth Configuration
+ * 인증 자동 설정
  */
 @Configuration
 @ConditionalOnClass(name = ["io.jsonwebtoken.Jwts"])
@@ -159,7 +159,7 @@ private fun parseTokenRevocationStore(environment: Environment): TokenRevocation
 }
 
 /**
- * JDBC Auth Configuration (when JDBC is available and datasource URL is configured)
+ * JDBC 인증 설정 (JDBC 및 DataSource URL이 설정된 경우)
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate", "io.jsonwebtoken.Jwts"])

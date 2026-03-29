@@ -60,11 +60,11 @@ private val logger = KotlinLogging.logger {}
 class ArcReactorCoreBeansConfiguration {
 
     /**
-     * Tool Selector — strategy-based selection.
+     * 도구 선택기 — 전략 기반 선택.
      *
-     * - `all` (default): returns all tools without filtering
-     * - `keyword`: keyword-based category matching
-     * - `semantic`: embedding-based cosine similarity (requires EmbeddingModel)
+     * - `all` (기본값): 필터링 없이 모든 도구를 반환
+     * - `keyword`: 키워드 기반 카테고리 매칭
+     * - `semantic`: 임베딩 기반 코사인 유사도 (EmbeddingModel 필요)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -130,7 +130,7 @@ class ArcReactorCoreBeansConfiguration {
     fun adminAuditStore(): AdminAuditStore = InMemoryAdminAuditStore()
 
     /**
-     * Feedback Metadata Capture Hook (only when feedback feature is enabled)
+     * 피드백 메타데이터 캡처 훅 (arc.reactor.feedback.enabled=true일 때만 활성화)
      *
      * 실행 메타데이터를 캐시하여 피드백 제출 시 runId를 통해
      * query, response, toolsUsed, durationMs를 자동 보강할 수 있다.
@@ -144,7 +144,7 @@ class ArcReactorCoreBeansConfiguration {
     fun feedbackMetadataCaptureHook(): FeedbackMetadataCaptureHook = FeedbackMetadataCaptureHook()
 
     /**
-     * Startup Info Logger (logs provider, URLs, feature flags on startup)
+     * 시작 정보 로거 (프로바이더, URL, 기능 플래그를 시작 시 로깅)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -155,7 +155,7 @@ class ArcReactorCoreBeansConfiguration {
     ): StartupInfoLogger = StartupInfoLogger(environment, chatModelProvider, authProperties)
 
     /**
-     * Tool Routing Config Validator (validates tool-routing.yml on startup)
+     * 도구 라우팅 설정 검증기 (시작 시 tool-routing.yml 유효성 검증)
      *
      * 등록된 도구 목록을 주입받아 preferredTools 크로스체크도 수행한다.
      */
@@ -167,7 +167,7 @@ class ArcReactorCoreBeansConfiguration {
         ToolRoutingValidationInitializer(toolCallbacks)
 
     /**
-     * Error Message Resolver (default: English messages)
+     * 에러 메시지 리졸버 (기본: 영문 메시지)
      */
     @Bean
     @ConditionalOnMissingBean
@@ -201,14 +201,14 @@ class ArcReactorCoreBeansConfiguration {
     fun costCalculator(): CostCalculator = CostCalculator()
 
     /**
-     * Token Estimator (default: character-type-aware heuristic)
+     * 토큰 추정기 (기본: 문자 유형 인식 휴리스틱)
      */
     @Bean
     @ConditionalOnMissingBean
     fun tokenEstimator(): TokenEstimator = DefaultTokenEstimator()
 
     /**
-     * Conversation Manager (manages conversation history lifecycle)
+     * 대화 관리자 (대화 이력 생명주기 관리)
      */
     @Bean
     @ConditionalOnMissingBean

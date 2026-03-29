@@ -51,7 +51,7 @@ class MemorySummaryConfiguration {
 }
 
 /**
- * JDBC-backed summary store (when JDBC is available and summary is enabled).
+ * JDBC 기반 요약 저장소 (JDBC 사용 가능 및 요약 활성화 시).
  */
 @Configuration
 @ConditionalOnClass(name = ["org.springframework.jdbc.core.JdbcTemplate"])
