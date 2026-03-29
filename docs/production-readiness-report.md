@@ -3460,3 +3460,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **발견:** 시맨틱 캐시 완전 작동 확인 (0ms 응답), Guard 인젝션 탐지 정상
 
 **R77-123 (47 Round): 36 fixes + 1,402 tests**
+
+### Round 124 — 2026-03-29T18:50+09:00 (3-에이전트 병렬)
+
+**Agent 1:** McpManager .forEach 2곳→for + duplicateToolWarningKeys CHM→Caffeine(500) + McpReconnectionCoordinator .forEach→for + InMemoryTokenRevocationStore CHM+수동purge→Caffeine(10k, 토큰별 TTL)
+**Agent 2:** AdminCoverageGapTest 25개 — MetricQueryService(10), CostCalculator BigDecimal 정밀도(5), SloService 경계값(5), TenantService slug 검증(5)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,473 응답/257 차단, 단순 채팅 평균 1,269ms
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **forEach+Caffeine+테스트** | .forEach 3곳→for, CHM→Caffeine 2곳, Admin 25 테스트 |
+
+**MCP 정확도:** Jira 도구 선택 OK / Swagger 도구 미호출 (라우팅 실패 지속) / 멀티도구 1개만 선택
+**성능:** 단순 채팅 avg 1,269ms (±175ms), 안정적
+
+**R77-124 (48 Round): 37 fixes + 1,427 tests**
