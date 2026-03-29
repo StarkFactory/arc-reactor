@@ -3430,3 +3430,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **발견:** 시맨틱 캐시 정상 작동 확인 (R120에서 미작동→R121에서 30ms 캐시 히트)
 
 **R77-121 (45 Round): 34 fixes + 1,356 tests**
+
+### Round 122 — 2026-03-29T17:50+09:00 (3-에이전트 병렬)
+
+**Agent 1:** StreamingReActLoopExecutor 93→20줄 리팩터링 (StreamingLoopState + 10 하위 메서드) + GuardPipeline 78→14줄 (StageOutcome sealed interface)
+**Agent 2:** SlackMessagingServiceGapTest 26개 — SSRF 방지(7), RateLimit(2), Retry(5), Metrics(7), Reaction(3), ResponseUrl(2)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,462 응답/274 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **리팩터링+테스트** | StreamingReAct 93→20줄, GuardPipeline 78→14줄, Slack 26 테스트 |
+
+**MCP 정확도:** Bitbucket 도구 OK (bitbucket_list_prs, grounded=true) / 업무 브리핑 OK (work_morning_briefing, Jira/Confluence 인증 오류) / Confluence 도구 미호출 (unverified_sources)
+**발견:** Confluence 도구 라우팅 불안정 (MFS 스페이스 쿼리에 도구 미선택), Atlassian 인증 간헐 실패 지속
+
+**R77-122 (46 Round): 35 fixes + 1,382 tests**
