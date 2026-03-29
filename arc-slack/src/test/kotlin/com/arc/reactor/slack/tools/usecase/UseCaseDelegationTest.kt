@@ -1,5 +1,7 @@
 package com.arc.reactor.slack.tools.usecase
 
+import com.arc.reactor.slack.tools.client.CanvasCreateResult
+import com.arc.reactor.slack.tools.client.CanvasEditResult
 import com.arc.reactor.slack.tools.client.ConversationHistoryResult
 import com.arc.reactor.slack.tools.client.ConversationsListResult
 import com.arc.reactor.slack.tools.client.FindChannelsResult
@@ -187,5 +189,29 @@ class UseCaseDelegationTest {
                 threadTs = "1234.5678"
             )
         }
+    }
+
+    @Test
+    fun `CreateCanvasUseCase은(는) SlackApiClient에 위임한다`() {
+        val useCase = CreateCanvasUseCase(slackClient)
+        val expected = CanvasCreateResult(ok = true, canvasId = "F_CANVAS123")
+        every { slackClient.createCanvas(title = "Sprint Notes", markdown = "# Notes") } returns expected
+
+        val result = useCase.execute("Sprint Notes", "# Notes")
+
+        assertEquals(expected, result) { "CreateCanvasUseCase가 SlackApiClient.createCanvas()에 위임한 결과와 달라야 하지 않는다" }
+        verify(exactly = 1) { slackClient.createCanvas(title = "Sprint Notes", markdown = "# Notes") }
+    }
+
+    @Test
+    fun `AppendCanvasUseCase은(는) SlackApiClient에 위임한다`() {
+        val useCase = AppendCanvasUseCase(slackClient)
+        val expected = CanvasEditResult(ok = true, canvasId = "F_CANVAS123")
+        every { slackClient.appendCanvas(canvasId = "F_CANVAS123", markdown = "## New Section") } returns expected
+
+        val result = useCase.execute("F_CANVAS123", "## New Section")
+
+        assertEquals(expected, result) { "AppendCanvasUseCase가 SlackApiClient.appendCanvas()에 위임한 결과와 달라야 하지 않는다" }
+        verify(exactly = 1) { slackClient.appendCanvas(canvasId = "F_CANVAS123", markdown = "## New Section") }
     }
 }
