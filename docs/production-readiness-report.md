@@ -3241,3 +3241,23 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | `test:` | 테스트 | Idempotency + Delegation 10 tests |
 
 **R77-114 (38 Round): 28 fixes + 1,052 tests**
+
+### Round 115 — 2026-03-29T14:40+09:00 (3-에이전트 병렬) — **리팩터링 + 통합 테스트 첫 실행**
+
+**Agent 1:** **ManualReActLoopExecutor 126줄→20줄 리팩터링** (12 메서드 추출, Hardening PASS)
+**Agent 2:** **Guard 파이프라인 통합 테스트 34개** (실제 구현체 연결, 모킹 없음)
+**Agent 3:** BUILD PASS, 채팅 1453ms, 2180 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | 코드 품질 | execute() 126줄→20줄, 12 메서드 추출 |
+| `test:` | **통합 테스트** | Guard pipeline 34 integration tests |
+
+**R77-115 (39 Round): 29 fixes + 1,086 tests**
+
+**배포 전 필수 5건 → 3건:**
+- ~~Spring AI 1.1.4~~ ✓ (R115 이전 커밋)
+- ~~Netty 4.1.132~~ ✓ (R115 이전 커밋)
+- Output Guard 활성화
+- API 토큰 갱신
+- 서버 재시작
