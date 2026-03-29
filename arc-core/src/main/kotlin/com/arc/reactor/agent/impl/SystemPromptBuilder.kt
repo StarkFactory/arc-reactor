@@ -768,7 +768,7 @@ internal class SystemPromptBuilder(
     /** 작업 항목 컨텍스트 요청: 이슈 키 + 컨텍스트 힌트. */
     private fun looksLikeWorkItemContextPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase()) &&
+        return ISSUE_KEY_REGEX.containsMatchIn(prompt) &&
             matchesHints(prompt, WORK_ITEM_CONTEXT_HINTS)
     }
 
@@ -783,14 +783,14 @@ internal class SystemPromptBuilder(
     /** 이슈 키 + 상태 전이 힌트. */
     private fun looksLikeJiraIssueTransitionPrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase()) &&
+        return ISSUE_KEY_REGEX.containsMatchIn(prompt) &&
             matchesHints(prompt, TRANSITION_HINTS)
     }
 
     /** 이슈 키만 포함된 경우 (힌트 셋 없이 정규식만 검사). */
     private fun looksLikeJiraIssuePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return ISSUE_KEY_REGEX.containsMatchIn(prompt.uppercase())
+        return ISSUE_KEY_REGEX.containsMatchIn(prompt)
     }
 
     /** Jira 프로젝트 요약: Jira + 요약 힌트 + 다른 세부 분류 제외. */

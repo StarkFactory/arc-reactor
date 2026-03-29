@@ -22,7 +22,7 @@ internal object WorkContextPatterns {
      * Jira 스타일 이슈 키를 매칭한다 (예: PAY-123, DEV-1).
      * 이슈 키가 감지되면 이슈 관련 도구(Jira 조회 등)를 우선 선택한다.
      */
-    val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b")
+    val ISSUE_KEY_REGEX = Regex("\\b[A-Z][A-Z0-9_]+-[1-9][0-9]*\\b", RegexOption.IGNORE_CASE)
 
     /**
      * OpenAPI/Swagger 스펙 URL을 매칭한다.

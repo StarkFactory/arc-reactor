@@ -52,10 +52,10 @@ class WorkContextPatternsTest {
         }
 
         @Test
-        fun `소문자 프로젝트 키는 매칭하지 않는다`() {
+        fun `소문자 프로젝트 키도 IGNORE_CASE로 매칭한다`() {
             val result = WorkContextPatterns.ISSUE_KEY_REGEX.containsMatchIn("pay-123")
 
-            result shouldBe false
+            result shouldBe true
         }
 
         @Test
