@@ -3546,3 +3546,19 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **성능:** Bitbucket 4,709ms, RAG 3,130ms, Guard 1ms
 
 **R77-128 (52 Round): 41 fixes + 1,583 tests**
+
+### Round 129 — 2026-03-29T21:30+09:00 (3-에이전트 병렬)
+
+**Agent 1:** arc-admin 전면 개선 — CHM→Caffeine 3곳 (TenantStore, ModelPricingStore, AlertRuleStore), .forEach→for 7곳, 영문→한글 65건 (19파일), e.message→javaClass 2곳
+**Agent 2:** InjectionEvasionHardeningTest 113개 @Tag("hardening") — 13카테고리 (Diacritical, MixedCase, Whitespace, Base64, KoreanParaphrase, Punctuation, SystemDelimiter, SkeletonKey, PrefixInjection, IndirectExtraction, DeveloperImpersonation, AdvancedUnicode, FalsePositivePrevention) + **5개 Guard 우회 갭 문서화**
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,495 응답/261 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **arc-admin 전면+Hardening** | 26 파일 수정, CHM 3곳, .forEach 7곳, 영문 65건, 113 hardening 테스트 |
+
+**MCP 정확도:** Jira 도구 OK (jira_search_issues) / RAG grounded=true, 3출처 / **캐시 3,024ms→0ms**
+**Guard 우회 갭 발견 (5건):** 한국어 의역 변형 2건, 활용형 1건, 탭/다중공백 1건, Base64 디코딩 미지원 1건 → 향후 패턴 강화 대상
+**보안 주의:** T2에서 "시스템 프롬프트 내용" 캐시 히트로 Guard 우회 가능성 발견 — 캐시에 Guard 차단 대상 응답이 저장된 경우 재요청 시 차단 안 됨
+
+**R77-129 (53 Round): 42 fixes + 1,696 tests**
