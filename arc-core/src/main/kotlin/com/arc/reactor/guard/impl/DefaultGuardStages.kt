@@ -238,7 +238,7 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
 
                 // ── 구분자 주입 (입력 전용) ──
                 // 모델 내부 메시지 구분자를 주입하여 시스템 프롬프트처럼 보이게 하는 패턴
-                Regex("```system"),
+                Regex("(?i)```system"),
                 Regex("<\\|endoftext\\|>"),
                 Regex("<\\|user\\|>"),
 
@@ -252,6 +252,8 @@ class DefaultInjectionDetectionStage : InjectionDetectionStage {
                 // ── 권한 상승 ──
                 // 개발자 모드나 시스템 재정의를 시도하는 패턴
                 Regex("(?i)(developer|system)\\s*(mode|override|prompt)"),
+                // 역순: "mode":"developer" 등 JSON 키/값 역전 우회 방지
+                Regex("(?i)mode.{0,5}developer"),
 
                 // ── 안전장치 무력화 ──
                 // 콘텐츠 필터나 보안 정책을 무효화하려는 패턴
