@@ -38,11 +38,12 @@ Agent(subagent_type: "codebase-scanner" 또는 "general-purpose", model: "opus",
   /Users/jinan/ai/arc-reactor 코드베이스를 스캔하여 개선할 수 있는 코드를 찾고 수정하라.
 
   **찾아야 할 것 (우선순위순):**
-  1. **의존성 CVE 패치** (최우선): Spring AI 1.1.3→1.1.4, Netty 4.1.131→4.1.132 업그레이드
-  2. **긴 메서드 리팩터링** (≤20줄): ManualReActLoopExecutor.execute(126줄), SlackMessagingService.callSlackApi(53줄) 등
-  3. **중복 코드 추출**: ManualReActLoopExecutor ↔ StreamingReActLoopExecutor 공유 메서드 5개 → ReActLoopUtils로
-  4. CLAUDE.md 규칙 위반 (!! 사용, .forEach in suspend, catch without throwIfCancellation)
-  5. 코드 품질 (미사용 코드 제거, 120자 초과, 누락된 KDoc)
+  1. **코틀린 안티패턴 제거**: 불필요한 nullable(?), 과도한 let/also 체인, 의미 없는 확장함수, 불명확한 변수/메서드명
+  2. **메서드 추출 리팩터링** (≤20줄): 긴 메서드에서 단일 책임 메서드로 추출. 메서드명은 '무엇을 하는지' 명확히
+  3. **책임 분리**: 하나의 클래스가 여러 역할을 하면 분리. God class/method 해소
+  4. **변수/메서드 네이밍**: 흐름에 맞는 이름. `data`→`parsedResponse`, `result`→`guardVerdict` 등 구체적으로
+  5. **중복 코드 추출**: 동일 로직 3회 이상 반복 → 공통 유틸리티로
+  6. CLAUDE.md 규칙 위반 (!! 사용, .forEach in suspend, catch without throwIfCancellation, 120자 초과)
 
   **수정 규칙:**
   - 발견한 이슈 중 가장 영향력 있는 1개를 실제로 수정
@@ -78,20 +79,41 @@ Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
 ")
 ```
 
-### Agent 3: 성능/기능 검증 에이전트
+### Agent 3: MCP 연동 + 성능 검증 에이전트
 
 ```
 Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
-  Arc Reactor 서버(http://localhost:18081)와 코드베이스를 검증하라. 파일 수정 금지.
+  Arc Reactor 서버(http://localhost:18081) + MCP 서버를 검증하라. 파일 수정 금지.
 
+  **필수 검증:**
   1. 빌드: ./gradlew compileKotlin compileTestKotlin
   2. 테스트: ./gradlew test
   3. Health: curl -s http://localhost:18081/actuator/health
-  4. 성능: 채팅 3회 + Guard 3회 응답 시간 측정
-  5. 라이브 검증: 인증 + 채팅 + 도구 호출 + 스트리밍 중 1개 이상
-  6. Dashboard: 총 응답 수 + 차단 수
 
-  보고: BUILD, TEST, HEALTH, 성능 수치, 라이브 검증 결과
+  **MCP 연동 정확도 검증 (매 Round 1개 이상):**
+  아래에서 라운드마다 다른 시나리오를 선택하여 실제 도구 호출 + 응답 품질을 검증:
+
+  - Jira: 'JAR 프로젝트 이슈 현황 알려줘' → toolsUsed에 jira_* 포함? 응답에 이슈 정보?
+  - Confluence: 'MFS 스페이스 문서 검색해줘' → toolsUsed에 confluence_* 포함?
+  - Bitbucket: 'jarvis 리포 PR 현황' → toolsUsed에 bitbucket_* 포함?
+  - Work briefing: '오늘 업무 브리핑' → toolsUsed에 work_* 포함?
+  - Swagger: 'API 스펙 조회해줘' → swagger 도구 사용?
+  - 멀티 도구: 'JAR 이슈와 관련 Confluence 문서 같이 찾아줘' → 2개 이상 도구 사용?
+  - RAG grounding: 'Guard 파이프라인 설명해줘' → grounded=true?
+  - 캐시 히트: 동일 질문 2회 → 2번째 durationMs=0?
+
+  각 검증에서 기록할 것:
+  - toolsUsed (정확한 도구명)
+  - grounded (true/false)
+  - blockReason (있으면)
+  - durationMs
+  - 응답 품질 (질문에 실제로 답했는지, 도구 결과를 반영했는지)
+
+  **성능:**
+  - 채팅 3회 응답 시간
+  - Dashboard: 총 응답 수 + 차단 수
+
+  보고: BUILD, TEST, HEALTH, MCP 도구 호출 결과, 성능 수치
 ")
 ```
 
