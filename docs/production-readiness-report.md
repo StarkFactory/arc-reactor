@@ -3592,3 +3592,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **참고:** T1은 서버 재시작 후 Guard 패턴이 로드되면 차단될 예정. 현재 LLM 자체 방어로 2중 방어선 유지
 
 **R77-131 (55 Round): 44 fixes + 1,751 tests**
+
+### Round 132 — 2026-03-29T23:00+09:00 (3-에이전트 병렬)
+
+**Agent 1 [보안]:** e.message 노출 최종 제거 5곳 (ToolCallback, ToolResult, LlmJudge, EvaluationPipeline, SlackApiClient) — **프로덕션 코드 !! 0건, e.message HTTP 노출 0건 최종 확인**
+**Agent 2:** AgentFullPipelineIntegrationTest 13개 — NormalFlow(2), GuardBlock(3), ToolFailRecovery(2), OutputGuard(2), BudgetExhausted(1), HookBlocking(2), FullPipeline(1)
+**Agent 3:** **ALL GREEN** — BUILD/TEST/Hardening/Safety PASS, MCP 2/2, Jira 도구 OK, RAG 캐시 OK, Guard 차단 OK
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `sec:` | **최종 보안 정리+통합 테스트** | e.message 5곳 제거, 통합 파이프라인 13 테스트 |
+
+**종합 판정:** BUILD/TEST/Hardening/Safety/Health/MCP/Guard **전항목 PASS**
+**보안 최종 확인:** 프로덕션 !! 0건 / e.message HTTP 노출 0건 / Guard 갭 4건 수정 / 캐시→OutputGuard 우회 수정
+
+**R77-132 (56 Round): 45 fixes + 1,764 tests**
