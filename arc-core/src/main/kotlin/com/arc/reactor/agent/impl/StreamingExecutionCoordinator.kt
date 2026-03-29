@@ -94,6 +94,10 @@ internal class StreamingExecutionCoordinator(
                 val setup = prepareLoopSetup(effectiveCommand, hookContext)
                 val loopResult = runLoop(effectiveCommand, setup, hookContext, toolsUsed, emit)
                 state.streamSuccess = loopResult.success
+                if (!loopResult.success && hookContext.metadata["budgetStatus"] == "EXHAUSTED") {
+                    state.streamErrorCode = AgentErrorCode.BUDGET_EXHAUSTED
+                    state.streamErrorMessage = "토큰 예산이 소진되었습니다"
+                }
                 state.collectedContent.append(loopResult.collectedContent)
                 state.lastIterationContent = StringBuilder(loopResult.lastIterationContent)
             }
