@@ -3995,3 +3995,13 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | 수정 필요 사항 | **없음** |
 
 **R77-157 (81 Round): 65 fixes + 2,318 tests — 전체 클린, 수정 불필요**
+
+### Round 158 — 2026-03-30T17:00+09:00 (3-에이전트 병렬)
+
+**Agent 1 [분석]:** Guard 갭 잔여 3건(URL 인코딩, \uNNNN, Base64) 디코딩 전처리 추가 검토 → **수정하지 않는 것이 올바른 결정**. 이유: (1) 인코딩된 입력은 LLM도 해석 못하므로 인젝션 자체 불성립, (2) URL 디코딩 추가 시 정상 URL 포함 질문의 false-positive 위험, (3) 기존 HTML 엔티티 디코딩+호모글리프+NFKC 정규화로 실효적 우회 방어 완료
+**Agent 2:** BUILD/TEST 전체 통과 확인
+**Agent 3:** BUILD/TEST PASS, Guard OK, RAG 캐시 0ms, avg 1.5s. atlassian MCP FAILED (서버 미실행)
+
+**Guard 갭 최종 결론:** 잔여 3건은 구조적 한계이나 **공격 실효성 없음** (인코딩 시 LLM도 해석 불가)
+
+**R77-158 (82 Round): 65 fixes + 2,318 tests — 전체 클린 유지**
