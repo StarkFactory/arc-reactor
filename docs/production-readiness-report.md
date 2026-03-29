@@ -3949,3 +3949,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | 테스트/프로덕션 비율 | **1.03** (516 test files / 499 prod files) |
 
 **R77-154 (78 Round): 64 fixes + 2,277 tests — 수정 불필요, 전체 클린 상태**
+
+### Round 155 — 2026-03-30T14:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** 보고서 Executive Summary 최종 갱신 (154 Round, 68시간+, 64 fixes, 6,962 tests, Hardening 542)
+**Agent 2:** EncodingFormatInjectionHardeningTest 31개 @Tag("hardening") — 다국어 혼합(6), URL 인코딩(5), 유니코드 이스케이프(5), 마크다운(6), JSON(8). Guard 갭 4건 문서화
+**Agent 3:** BUILD/TEST PASS, Guard OK (1ms), RAG 캐시 1→0ms, 단순 채팅 avg 1,150ms. atlassian MCP FAILED (외부 자격증명)
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `test:` | **인코딩 hardening** | 31 hardening 테스트, 보고서 갱신 |
+
+**Hardening 현황:** 542→573개 (+31)
+**Guard 갭 문서화:** URL 인코딩, \uNNNN, SYSTEM 대소문자, JSON 키 역전 — 향후 패턴 강화 대상
+
+**R77-155 (79 Round): 64 fixes + 2,308 tests**
