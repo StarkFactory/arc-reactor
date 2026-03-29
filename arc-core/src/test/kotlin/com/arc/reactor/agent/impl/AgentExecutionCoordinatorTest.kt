@@ -808,6 +808,110 @@ class AgentExecutionCoordinatorTest {
         )
     }
 
+    @Test
+    fun `cache hit일 때 finalizeExecution을 통해 output guard를 적용해야 한다`() = runTest {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("tool"))
+        coEvery { responseCache.get(expectedKey) } returns CachedResponse(
+            content = "cached-pii-leak",
+            toolsUsed = listOf("tool")
+        )
+
+        var finalizeCalled = false
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ ->
+                AgentResult.success("live")
+            },
+            finalizeExecution = { result, _, _, _, _ ->
+                finalizeCalled = true
+                // Output Guard가 차단한 것을 시뮬레이션
+                AgentResult.failure(
+                    errorMessage = "Output guard rejected",
+                    errorCode = AgentErrorCode.OUTPUT_GUARD_REJECTED
+                )
+            },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command },
+            nowMs = { 1_500L }
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-guard", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertTrue(finalizeCalled) {
+            "캐시 히트 시에도 finalizeExecution(Output Guard 포함)이 호출되어야 한다"
+        }
+        assertFalse(result.success) {
+            "Output Guard가 거부하면 캐시 히트여도 실패 결과를 반환해야 한다"
+        }
+        assertEquals(
+            AgentErrorCode.OUTPUT_GUARD_REJECTED, result.errorCode,
+            "캐시 히트 응답도 Output Guard 거부 코드를 반환해야 한다"
+        )
+    }
+
+    @Test
+    fun `cache hit일 때 cached toolsUsed를 toolsUsed에 반영해야 한다`() = runTest {
+        val responseCache = mockk<ResponseCache>()
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+        val expectedKey = CacheKeyBuilder.buildKey(command, listOf("mcp", "tool"))
+        coEvery { responseCache.get(expectedKey) } returns CachedResponse(
+            content = "cached-content with enough length for caching",
+            toolsUsed = listOf("search", "calculator")
+        )
+
+        var capturedToolsUsed: List<String>? = null
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = metrics,
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { listOf(testTool("mcp")) },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
+            finalizeExecution = { result, _, _, tools, _ ->
+                capturedToolsUsed = tools
+                result
+            },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { command, _ -> command },
+            nowMs = { 1_500L }
+        )
+
+        coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-tools", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        assertEquals(
+            listOf("search", "calculator"), capturedToolsUsed,
+            "캐시된 toolsUsed가 finalizeExecution에 전달되어야 한다"
+        )
+    }
+
     private fun testTool(name: String): ToolCallback = object : ToolCallback {
         override val name: String = name
         override val description: String = "test-$name"

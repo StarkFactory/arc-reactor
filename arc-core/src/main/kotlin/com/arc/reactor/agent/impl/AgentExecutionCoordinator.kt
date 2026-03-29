@@ -113,7 +113,16 @@ internal class AgentExecutionCoordinator(
         val cacheLookup = measureStage("cache_lookup", hookContext, cmd) {
             resolveCache(cmd, startTime)
         }
-        cacheLookup.cachedResult?.let { return it }
+        cacheLookup.cachedResult?.let { cached ->
+            // 캐시 히트 응답도 Output Guard를 통과시켜야 한다.
+            // Guard 규칙이 캐시 저장 이후 추가/변경될 수 있으므로
+            // 캐시 응답이 현재 Guard 정책을 우회하지 않도록 한다.
+            toolsUsed.addAll(cached.toolsUsed)
+            val guarded = measureStage("finalizer", hookContext, cmd) {
+                finalizeExecution(cached, cmd, hookContext, toolsUsed.toList(), startTime)
+            }
+            return withStageTimingsMetadata(guarded, hookContext)
+        }
 
         val (history, ragCtx) = coroutineScope {
             val historyDeferred = async {
