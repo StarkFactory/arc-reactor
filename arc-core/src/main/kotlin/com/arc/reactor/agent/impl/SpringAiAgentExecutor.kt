@@ -577,16 +577,9 @@ class SpringAiAgentExecutor(
         try {
             val maxToolCalls = minOf(command.maxToolCalls, properties.maxToolCalls).coerceAtLeast(0)
             val allowedTools = resolveIntentAllowedTools(command)
-            val forcedToolContext = if (maxToolCalls > 0) {
-                maybeExecuteForcedWorkspaceTool(
-                    command = command,
-                    hookContext = hookContext,
-                    toolsUsed = toolsUsed,
-                    allowedTools = allowedTools
-                )
-            } else {
-                null
-            }
+            val forcedToolContext = executeForcedToolIfNeeded(
+                command, hookContext, toolsUsed, allowedTools, maxToolCalls
+            )
             if (forcedToolContext != null && !forcedToolContext.success) {
                 return AgentResult.failure(
                     errorMessage = forcedToolContext.errorMessage
@@ -595,45 +588,12 @@ class SpringAiAgentExecutor(
                     errorCode = AgentErrorCode.TOOL_ERROR
                 )
             }
-            val userMemoryContext =
-                hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
-            val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
-            val systemPrompt = systemPromptBuilder.build(
-                command.systemPrompt, effectiveRagContext,
-                command.responseFormat,
-                command.responseSchema,
-                command.userPrompt,
-                workspaceToolAlreadyCalled = forcedToolContext != null,
-                userMemoryContext = userMemoryContext
-            )
-            val activeChatClient = resolveChatClient(command)
+            val systemPrompt = buildSystemPromptForExecution(command, hookContext, ragContext, forcedToolContext)
             val effectiveTools = if (forcedToolContext != null) emptyList() else tools
-            return if (command.mode == AgentMode.PLAN_EXECUTE && effectiveTools.isNotEmpty()) {
-                planExecuteStrategy.execute(
-                    command = command,
-                    activeChatClient = activeChatClient,
-                    systemPrompt = systemPrompt,
-                    tools = effectiveTools,
-                    conversationHistory = conversationHistory,
-                    hookContext = hookContext,
-                    toolsUsed = toolsUsed,
-                    maxToolCalls = maxToolCalls,
-                    budgetTracker = createBudgetTracker()
-                )
-            } else {
-                manualReActLoopExecutor.execute(
-                    command = command,
-                    activeChatClient = activeChatClient,
-                    systemPrompt = systemPrompt,
-                    initialTools = effectiveTools,
-                    conversationHistory = conversationHistory,
-                    hookContext = hookContext,
-                    toolsUsed = toolsUsed,
-                    allowedTools = allowedTools,
-                    maxToolCalls = maxToolCalls,
-                    budgetTracker = createBudgetTracker()
-                )
-            }
+            return dispatchToStrategy(
+                command, effectiveTools, conversationHistory, hookContext,
+                toolsUsed, allowedTools, maxToolCalls, systemPrompt
+            )
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "LLM call with tools failed" }
@@ -641,6 +601,83 @@ class SpringAiAgentExecutor(
             return AgentResult.failure(
                 errorMessage = errorMessageResolver.resolve(errorCode, e.message),
                 errorCode = errorCode
+            )
+        }
+    }
+
+    /** maxToolCalls > 0이면 강제 Workspace 도구 실행을 시도한다. */
+    private suspend fun executeForcedToolIfNeeded(
+        command: AgentCommand,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        allowedTools: Set<String>?,
+        maxToolCalls: Int
+    ): ToolCallResult? {
+        if (maxToolCalls <= 0) return null
+        return maybeExecuteForcedWorkspaceTool(
+            command = command,
+            hookContext = hookContext,
+            toolsUsed = toolsUsed,
+            allowedTools = allowedTools
+        )
+    }
+
+    /** 시스템 프롬프트를 조립한다. RAG 컨텍스트, 사용자 메모리, 강제 도구 출력을 통합한다. */
+    private fun buildSystemPromptForExecution(
+        command: AgentCommand,
+        hookContext: HookContext,
+        ragContext: String?,
+        forcedToolContext: ToolCallResult?
+    ): String {
+        val userMemoryContext =
+            hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
+        val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
+        return systemPromptBuilder.build(
+            command.systemPrompt, effectiveRagContext,
+            command.responseFormat,
+            command.responseSchema,
+            command.userPrompt,
+            workspaceToolAlreadyCalled = forcedToolContext != null,
+            userMemoryContext = userMemoryContext
+        )
+    }
+
+    /** 에이전트 모드에 따라 적절한 실행 전략(PLAN_EXECUTE vs ReAct)으로 위임한다. */
+    private suspend fun dispatchToStrategy(
+        command: AgentCommand,
+        effectiveTools: List<Any>,
+        conversationHistory: List<Message>,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        allowedTools: Set<String>?,
+        maxToolCalls: Int,
+        systemPrompt: String
+    ): AgentResult {
+        val activeChatClient = resolveChatClient(command)
+        return if (command.mode == AgentMode.PLAN_EXECUTE && effectiveTools.isNotEmpty()) {
+            planExecuteStrategy.execute(
+                command = command,
+                activeChatClient = activeChatClient,
+                systemPrompt = systemPrompt,
+                tools = effectiveTools,
+                conversationHistory = conversationHistory,
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                maxToolCalls = maxToolCalls,
+                budgetTracker = createBudgetTracker()
+            )
+        } else {
+            manualReActLoopExecutor.execute(
+                command = command,
+                activeChatClient = activeChatClient,
+                systemPrompt = systemPrompt,
+                initialTools = effectiveTools,
+                conversationHistory = conversationHistory,
+                hookContext = hookContext,
+                toolsUsed = toolsUsed,
+                allowedTools = allowedTools,
+                maxToolCalls = maxToolCalls,
+                budgetTracker = createBudgetTracker()
             )
         }
     }

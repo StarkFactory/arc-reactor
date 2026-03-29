@@ -133,49 +133,52 @@ class MetricWriter(
     private fun flush() {
         if (!flushLock.tryLock()) return // 다른 스레드가 이미 flush 중
         try {
-            // ── 이전 실패 배치 재시도 (1회) ──
-            val pending = retryBuffer
-            if (pending != null) {
-                retryBuffer = null
-                try {
-                    store.batchInsert(pending)
-                    healthMonitor.recordWrite(pending.size, 0)
-                    logger.info { "재시도 성공: ${pending.size}건 복구 완료" }
-                } catch (e: Exception) {
-                    healthMonitor.recordWriteError()
-                    logger.error(e) { "재시도 실패: ${pending.size}건 영구 유실" }
-                }
-            }
-
-            val events = ringBuffer.drain(batchSize)
-            if (events.isEmpty()) return
-
-            healthMonitor.updateBufferUsage(ringBuffer.usagePercent())
-
-            val enriched = enrichCosts(events)
-
-            val startMs = System.currentTimeMillis()
-            try {
-                store.batchInsert(enriched)
-            } catch (e: Exception) {
-                healthMonitor.recordWriteError()
-                // DB 실패 시 enriched 이벤트를 retryBuffer에 보관 — 다음 flush에서 1회 재시도
-                retryBuffer = enriched
-                logger.error(e) { "${enriched.size}건 기록 실패 — 재시도 버퍼에 보관" }
-                return
-            }
-            val elapsed = System.currentTimeMillis() - startMs
-
-            healthMonitor.recordWrite(events.size, elapsed)
-
-            if (elapsed > 500) {
-                logger.warn { "메트릭 기록 지연: ${events.size}건 ${elapsed}ms 소요" }
-            }
+            retryPendingBatch()
+            drainAndWrite()
         } catch (e: Exception) {
             healthMonitor.recordWriteError()
             logger.error(e) { "메트릭 flush 중 예상치 못한 오류" }
         } finally {
             flushLock.unlock()
+        }
+    }
+
+    /** 이전 flush에서 실패한 배치를 1회 재시도한다. */
+    private fun retryPendingBatch() {
+        val pending = retryBuffer ?: return
+        retryBuffer = null
+        try {
+            store.batchInsert(pending)
+            healthMonitor.recordWrite(pending.size, 0)
+            logger.info { "재시도 성공: ${pending.size}건 복구 완료" }
+        } catch (e: Exception) {
+            healthMonitor.recordWriteError()
+            logger.error(e) { "재시도 실패: ${pending.size}건 영구 유실" }
+        }
+    }
+
+    /** 링 버퍼에서 이벤트를 drain하여 비용 보강 후 저장소에 기록한다. */
+    private fun drainAndWrite() {
+        val events = ringBuffer.drain(batchSize)
+        if (events.isEmpty()) return
+
+        healthMonitor.updateBufferUsage(ringBuffer.usagePercent())
+        val enriched = enrichCosts(events)
+
+        val startMs = System.currentTimeMillis()
+        try {
+            store.batchInsert(enriched)
+        } catch (e: Exception) {
+            healthMonitor.recordWriteError()
+            retryBuffer = enriched
+            logger.error(e) { "${enriched.size}건 기록 실패 — 재시도 버퍼에 보관" }
+            return
+        }
+        val elapsed = System.currentTimeMillis() - startMs
+
+        healthMonitor.recordWrite(events.size, elapsed)
+        if (elapsed > 500) {
+            logger.warn { "메트릭 기록 지연: ${events.size}건 ${elapsed}ms 소요" }
         }
     }
 }
