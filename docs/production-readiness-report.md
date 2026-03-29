@@ -3866,3 +3866,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **영문 로그 한글화 현황:** agent ✓ guard ✓ cache ✓ auth ✓ scheduler ✓ hook ✓ streaming ✓ rag ✓ tool ✓ — **arc-core 핵심 패키지 완료**
 
 **R77-148 (72 Round): 59 fixes + 2,178 tests**
+
+### Round 149 — 2026-03-30T08:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** resilience+approval+promptlab 3파일 영문 로그 15건→한글
+**Agent 2:** OutputGuardUnicodeBypassHardeningTest 37개 @Tag("hardening") — 전각/키릴 호모글리프, 아랍/데바나가리 스크립트, 구조적 유출, PII, Bidi 제어문자. Output Guard 정규화 부재 갭 3건 문서화
+**Agent 3:** BUILD/TEST PASS, Guard false-positive OK ("잊어버렸을 때" 통과), Guard 차단 OK, 단순 채팅 avg 1.07s
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **한글화+OutputGuard hardening** | 3파일 15건, 37 hardening 테스트 |
+
+**Hardening 현황:** 542개 → 579개 (+37), Safety 60개 — 전량 PASS
+**Guard:** false-positive 검증 OK + 인젝션 차단 OK
+
+**R77-149 (73 Round): 60 fixes + 2,215 tests**
