@@ -3531,3 +3531,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 **발견:** Confluence 도구 선택 실패가 upstream_auth_failed와 연관 가능성 — 도구가 존재하나 LLM이 선택 회피
 
 **R77-127 (51 Round): 40 fixes + 1,549 tests**
+
+### Round 128 — 2026-03-29T21:00+09:00 (3-에이전트 병렬)
+
+**Agent 1:** arc-web 전면 개선 — CHM→Caffeine 2곳 (McpAdminWebClientFactory, PromptLabController), .forEach→for 4곳, 영문→한글 23건+오류응답 2건
+**Agent 2:** MCP/Hook/Memory 34개 — McpToolCallback(13), ConversationManager 세션격리(9), HookExecutor order/fail-open(12)
+**Agent 3:** BUILD/TEST PASS, MCP 2/2, Dashboard 2,491 응답/261 차단
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | **arc-web 전면+테스트** | 26 파일 수정, CHM 2곳, .forEach 4곳, 영문 25건, 34 테스트 |
+
+**MCP 정확도:** Bitbucket OK (bitbucket_list_prs, grounded=true, freshness=live) / RAG grounded=true, Guard 7단계 정확+3출처 / 영문 인젝션 1ms 차단 OK
+**성능:** Bitbucket 4,709ms, RAG 3,130ms, Guard 1ms
+
+**R77-128 (52 Round): 41 fixes + 1,583 tests**
