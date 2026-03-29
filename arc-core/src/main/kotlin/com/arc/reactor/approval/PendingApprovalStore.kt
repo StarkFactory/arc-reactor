@@ -111,7 +111,7 @@ class InMemoryPendingApprovalStore(
         val deferred = CompletableDeferred<ToolApprovalResponse>()
         pending[id] = PendingEntry(request, deferred)
 
-        logger.info { "Approval requested: id=$id, tool=$toolName, user=$userId" }
+        logger.info { "승인 요청: id=$id, tool=$toolName, user=$userId" }
 
         val effectiveTimeout = if (timeoutMs > 0) timeoutMs else defaultTimeoutMs
 
@@ -121,7 +121,7 @@ class InMemoryPendingApprovalStore(
             if (response != null) {
                 response
             } else {
-                logger.warn { "Approval timed out: id=$id, tool=$toolName" }
+                logger.warn { "승인 타임아웃: id=$id, tool=$toolName" }
                 ToolApprovalResponse(approved = false, reason = "Approval timed out after ${effectiveTimeout}ms")
             }
         } finally {
@@ -146,7 +146,7 @@ class InMemoryPendingApprovalStore(
             approved = true,
             modifiedArguments = modifiedArguments
         )
-        logger.info { "Approval granted: id=$approvalId, tool=${entry.request.toolName}" }
+        logger.info { "승인 허가: id=$approvalId, tool=${entry.request.toolName}" }
         // CompletableDeferred를 완료하여 일시 중지된 에이전트 코루틴을 재개
         return entry.deferred.complete(response)
     }
@@ -157,7 +157,7 @@ class InMemoryPendingApprovalStore(
             approved = false,
             reason = reason ?: "Rejected by human"
         )
-        logger.info { "Approval rejected: id=$approvalId, tool=${entry.request.toolName}, reason=$reason" }
+        logger.info { "승인 거부: id=$approvalId, tool=${entry.request.toolName}, reason=$reason" }
         return entry.deferred.complete(response)
     }
 

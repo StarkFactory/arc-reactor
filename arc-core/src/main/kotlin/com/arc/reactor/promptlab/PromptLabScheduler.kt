@@ -34,21 +34,21 @@ class PromptLabScheduler(
     @Scheduled(cron = "\${arc.reactor.prompt-lab.schedule.cron:0 0 2 * * *}")
     fun runScheduled() {
         if (!running.compareAndSet(false, true)) {
-            logger.info { "Prompt Lab optimization already running, skipping" }
+            logger.info { "Prompt Lab 최적화 이미 실행 중, 건너뜀" }
             return
         }
 
         try {
             val since = lastRunTime.get()
             val templateIds = resolveTemplateIds()
-            logger.info { "Scheduled optimization: templates=${templateIds.size}, since=$since" }
+            logger.info { "예약 최적화 시작: templates=${templateIds.size}, since=$since" }
 
             for (templateId in templateIds) {
                 runSingleTemplate(templateId, since)
             }
 
             lastRunTime.set(Instant.now())
-            logger.info { "Scheduled optimization completed" }
+            logger.info { "예약 최적화 완료" }
         } finally {
             running.set(false)
         }
@@ -64,18 +64,18 @@ class PromptLabScheduler(
             }
             if (result != null) {
                 logger.info {
-                    "Auto-optimization for template=$templateId: " +
+                    "자동 최적화 완료: template=$templateId, " +
                         "status=${result.status}"
                 }
             } else {
                 logger.debug {
-                    "No optimization needed for template=$templateId"
+                    "최적화 불필요: template=$templateId"
                 }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) {
-                "Auto-optimization failed for template=$templateId"
+                "자동 최적화 실패: template=$templateId"
             }
         }
     }

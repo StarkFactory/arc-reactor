@@ -51,7 +51,7 @@ class ModelFallbackStrategy(
 
         for (model in fallbackModels) {
             try {
-                logger.info { "Attempting fallback to model: $model" }
+                logger.info { "폴백 모델 시도: $model" }
                 val chatClient = chatModelProvider.getChatClient(model)
                 // Dispatchers.IO로 블로킹 HTTP 호출을 오프로드
                 val response = runInterruptible(Dispatchers.IO) {
@@ -63,20 +63,20 @@ class ModelFallbackStrategy(
                 }
                 val content = response?.results?.firstOrNull()?.output?.text
                 if (!content.isNullOrBlank()) {
-                    logger.info { "Fallback to model '$model' succeeded" }
+                    logger.info { "폴백 모델 '$model' 성공" }
                     agentMetrics.recordFallbackAttempt(model, success = true)
                     return AgentResult.success(content = content)
                 }
-                logger.warn { "Fallback model '$model' returned empty response" }
+                logger.warn { "폴백 모델 '$model' 빈 응답 반환" }
                 agentMetrics.recordFallbackAttempt(model, success = false)
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.warn(e) { "Fallback to model '$model' failed" }
+                logger.warn(e) { "폴백 모델 '$model' 실패" }
                 agentMetrics.recordFallbackAttempt(model, success = false)
             }
         }
 
-        logger.warn { "All fallback models exhausted: $fallbackModels" }
+        logger.warn { "모든 폴백 모델 소진: $fallbackModels" }
         return null
     }
 }
