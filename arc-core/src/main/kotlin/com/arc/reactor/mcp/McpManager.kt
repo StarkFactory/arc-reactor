@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
 
@@ -149,8 +150,10 @@ class DefaultMcpManager(
     internal val statuses = ConcurrentHashMap<String, McpServerStatus>()
     /** 서버별 동시 접근 방지 뮤텍스 */
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
-    /** 중복 도구 경고를 한 번만 출력하기 위한 키 집합 */
-    private val duplicateToolWarningKeys = ConcurrentHashMap.newKeySet<String>()
+    /** 중복 도구 경고를 한 번만 출력하기 위한 키 캐시 (최대 500개, 초과 시 자동 퇴출) */
+    private val duplicateToolWarningKeys = Caffeine.newBuilder()
+        .maximumSize(500)
+        .build<String, Boolean>()
     /** 전체 도구 콜백 스냅샷 캐시 — 무효화 시 null로 설정 */
     @Volatile
     private var allToolCallbacksSnapshot: List<ToolCallback>? = null
@@ -371,7 +374,7 @@ class DefaultMcpManager(
     override fun reapplySecurityPolicy() {
         // 허용 목록에서 제외된 서버를 퇴출한다
         val blocked = servers.keys.filterNot(::allowedBySecurity)
-        blocked.forEach { serverName ->
+        for (serverName in blocked) {
             logger.info { "허용 목록 변경으로 MCP 서버 퇴출: $serverName" }
             disconnectInternal(serverName)
             servers.remove(serverName)
@@ -380,24 +383,24 @@ class DefaultMcpManager(
         }
 
         // 새로 허용된 서버를 스토어에서 로딩한다
-        storeSync.loadAll()
+        val newServers = storeSync.loadAll()
             .filter(::shouldLoadStoredServer)
             .filterNot { servers.containsKey(it.name) }
-            .forEach { server ->
-                logger.info { "새로 허용된 MCP 서버를 런타임에 로딩: ${server.name}" }
-                servers[server.name] = server
-                statuses[server.name] = McpServerStatus.PENDING
-                if (server.autoConnect) {
-                    reconnectScope.launch {
-                        try {
-                            connect(server.name)
-                        } catch (e: Exception) {
-                            e.throwIfCancellation()
-                            logger.warn(e) { "새로 허용된 MCP 서버 '${server.name}' 자동 연결 실패" }
-                        }
+        for (server in newServers) {
+            logger.info { "새로 허용된 MCP 서버를 런타임에 로딩: ${server.name}" }
+            servers[server.name] = server
+            statuses[server.name] = McpServerStatus.PENDING
+            if (server.autoConnect) {
+                reconnectScope.launch {
+                    try {
+                        connect(server.name)
+                    } catch (e: Exception) {
+                        e.throwIfCancellation()
+                        logger.warn(e) { "새로 허용된 MCP 서버 '${server.name}' 자동 연결 실패" }
                     }
                 }
             }
+        }
     }
 
     /** 스토어 서버가 로딩 대상인지 확인한다 */
@@ -430,7 +433,8 @@ class DefaultMcpManager(
             allToolCallbacksSnapshot?.let { return it }
             val snapshot = deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
                 val warningKey = "$toolName|$keptServer|$droppedServer"
-                if (duplicateToolWarningKeys.add(warningKey)) {
+                if (duplicateToolWarningKeys.getIfPresent(warningKey) == null) {
+                    duplicateToolWarningKeys.put(warningKey, true)
                     logger.warn {
                         "MCP 도구 이름 중복 감지: '$toolName'. " +
                             "'$keptServer' 유지, '$droppedServer' 무시."

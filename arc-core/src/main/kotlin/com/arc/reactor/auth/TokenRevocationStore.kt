@@ -1,10 +1,11 @@
 package com.arc.reactor.auth
 
+import com.github.benmanes.caffeine.cache.Caffeine
+import com.github.benmanes.caffeine.cache.Expiry
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.jdbc.core.JdbcTemplate
-import java.time.Instant
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
+import java.time.Instant
 
 /**
  * 폐기된 JWT 토큰 저장소 인터페이스
@@ -37,8 +38,8 @@ interface TokenRevocationStore {
 /**
  * 메모리 기반 폐기 토큰 저장소
  *
- * [ConcurrentHashMap]을 사용하여 스레드 안전하게 폐기된 토큰을 관리한다.
- * 최대 10,000개 엔트리를 유지하며, 초과 시 만료된 엔트리를 정리한다.
+ * Caffeine 캐시를 사용하여 스레드 안전하게 폐기된 토큰을 관리한다.
+ * 최대 10,000개 엔트리를 유지하며, 토큰의 원래 만료 시각에 맞춰 자동 퇴출된다.
  *
  * 서버 재시작 시 폐기 정보가 유실되므로 단일 인스턴스 환경에만 적합하다.
  *
@@ -46,36 +47,50 @@ interface TokenRevocationStore {
  * @see RedisTokenRevocationStore 다중 인스턴스 환경용 Redis 구현체
  */
 class InMemoryTokenRevocationStore : TokenRevocationStore {
-    /** tokenId → 만료 시각 매핑 */
-    private val revoked = ConcurrentHashMap<String, Instant>()
-    private val maxEntries = 10_000
+
+    /**
+     * tokenId → 만료 시각 매핑.
+     * 엔트리별 TTL을 토큰의 원래 만료 시각으로 설정하여 만료 시 자동 퇴출한다.
+     */
+    private val revoked = Caffeine.newBuilder()
+        .maximumSize(MAX_ENTRIES.toLong())
+        .expireAfter(object : Expiry<String, Instant> {
+            override fun expireAfterCreate(key: String, value: Instant, currentTime: Long): Long {
+                val ttl = Duration.between(Instant.now(), value)
+                return if (ttl.isNegative) 0L else ttl.toNanos()
+            }
+
+            override fun expireAfterUpdate(
+                key: String, value: Instant, currentTime: Long, currentDuration: Long
+            ): Long = currentDuration
+
+            override fun expireAfterRead(
+                key: String, value: Instant, currentTime: Long, currentDuration: Long
+            ): Long = currentDuration
+        })
+        .build<String, Instant>()
 
     override fun revoke(tokenId: String, expiresAt: Instant) {
         // 이미 만료된 토큰은 저장할 필요 없음
         if (expiresAt <= Instant.now()) return
-        // 엔트리 수 초과 시 만료된 항목 정리
-        if (revoked.size >= maxEntries) purgeExpired()
-        revoked[tokenId] = expiresAt
+        revoked.put(tokenId, expiresAt)
     }
 
     override fun isRevoked(tokenId: String): Boolean {
-        val expiresAt = revoked[tokenId] ?: return false
-        // 만료 시각이 지났으면 자동 정리 후 false 반환
-        if (expiresAt <= Instant.now()) {
-            revoked.remove(tokenId, expiresAt)
-            return false
-        }
-        return true
+        return revoked.getIfPresent(tokenId) != null
     }
 
     /** 만료된 모든 엔트리를 정리한다 */
     internal fun purgeExpired() {
-        val now = Instant.now()
-        revoked.entries.removeIf { it.value <= now }
+        revoked.cleanUp()
     }
 
     /** 현재 저장된 엔트리 수 (테스트용) */
-    internal fun size(): Int = revoked.size
+    internal fun size(): Int = revoked.estimatedSize().toInt()
+
+    companion object {
+        private const val MAX_ENTRIES = 10_000
+    }
 }
 
 /**

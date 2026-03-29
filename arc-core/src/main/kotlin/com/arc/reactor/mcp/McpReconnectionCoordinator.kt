@@ -57,7 +57,7 @@ internal class McpReconnectionCoordinator(
 
     /** 모든 재연결 Job을 취소한다 */
     fun clearAll() {
-        reconnectionJobs.values.forEach { it.cancel() }
+        for (job in reconnectionJobs.values) { job.cancel() }
         reconnectionJobs.clear()
     }
 
