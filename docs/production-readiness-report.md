@@ -3280,3 +3280,18 @@ GlobalExceptionHandler✓ SsrfUrlValidator✓ HookExecutor✓ SlackApiClient✓ 
 | Guard Pipeline: 34 tests (R115) |
 | **Output Guard Pipeline: 22 tests (R116)** |
 | **합계: 56 통합 테스트** |
+
+### Round 117 — 2026-03-29T15:20+09:00 (3-에이전트 병렬)
+
+**Agent 1:** **ReAct 중복 4메서드 → ReActLoopUtils 추출** (Gotcha #11 해소)
+**Agent 2:** **Caffeine 캐시 통합 테스트 16개** (hit/miss, 필터링, scope 격리, TTL)
+**Agent 3:** BUILD PASS, 채팅 1507ms, 2186 응답
+
+| 커밋 | 유형 | 변경 |
+|------|------|------|
+| `refactor:` | 중복 제거 | 4 메서드 ReActLoopUtils 추출 |
+| `test:` | **통합 테스트** | Caffeine cache 16 integration tests |
+
+**통합 테스트 현황: 72개** (Guard 34 + Output Guard 22 + Cache 16)
+
+**R77-117 (41 Round): 31 fixes + 1,124 tests**
