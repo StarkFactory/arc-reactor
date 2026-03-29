@@ -613,7 +613,11 @@ internal class ExecutionResultFinalizer(
         val tokens = hookContext.metadata["tokensUsed"] as? Int ?: return
         val model = hookContext.metadata["modelUsed"]?.toString()
             ?: hookContext.metadata["model"]?.toString() ?: return
-        val cost = costCalculator.calculateCost(model, tokens, tokens / 3)
+        // 입력/출력 토큰을 별도 추적하지 않으므로 산업 표준 75/25 비율로 분할한다.
+        // (이전 코드: tokens + tokens/3 ≈ 133% 중복계산 버그 수정)
+        val inputTokens = tokens * 3 / 4
+        val outputTokens = tokens - inputTokens
+        val cost = costCalculator.calculateCost(model, inputTokens, outputTokens)
         metadata["costEstimateUsd"] = "%.6f".format(cost.estimatedCostUsd)
         metadata["tokensUsed"] = tokens
         metadata["modelUsed"] = model
