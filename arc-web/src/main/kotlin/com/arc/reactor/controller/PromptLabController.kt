@@ -13,6 +13,7 @@ import com.arc.reactor.promptlab.model.FeedbackAnalysis
 import com.arc.reactor.promptlab.model.TestQuery
 import com.arc.reactor.promptlab.model.TierStats
 import com.arc.reactor.promptlab.model.Trial
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -28,7 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -60,7 +61,10 @@ private val logger = KotlinLogging.logger {}
 @Tag(name = "Prompt Lab", description = "Prompt optimization experiments (ADMIN only)")
 @RestController
 @RequestMapping("/api/prompt-lab")
-@ConditionalOnBean(ExperimentStore::class)
+@ConditionalOnProperty(
+    prefix = "arc.reactor.prompt-lab", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 class PromptLabController(
     private val experimentStore: ExperimentStore,
     private val orchestrator: ExperimentOrchestrator,

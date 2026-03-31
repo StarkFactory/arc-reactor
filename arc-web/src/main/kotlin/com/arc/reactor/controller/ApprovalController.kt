@@ -9,7 +9,7 @@ import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -39,7 +39,6 @@ private val logger = KotlinLogging.logger {}
 @Tag(name = "Approvals", description = "Human-in-the-Loop tool approval endpoints")
 @RestController
 @RequestMapping("/api/approvals")
-@ConditionalOnBean(PendingApprovalStore::class)
 @ConditionalOnProperty(
     prefix = "arc.reactor.approval", name = ["enabled"],
     havingValue = "true", matchIfMissing = false

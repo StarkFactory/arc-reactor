@@ -13,7 +13,8 @@ import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -50,7 +51,10 @@ private val logger = KotlinLogging.logger {}
 @Tag(name = "Feedback", description = "User feedback collection and export")
 @RestController
 @RequestMapping("/api/feedback")
-@ConditionalOnBean(FeedbackStore::class)
+@ConditionalOnProperty(
+    prefix = "arc.reactor.feedback", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 class FeedbackController(
     private val feedbackStore: FeedbackStore,
     private val metadataCaptureHook: FeedbackMetadataCaptureHook
