@@ -800,6 +800,18 @@ _i18n:_
 _Responsive:_
 - [SEVERITY] description
 
+_Slack Integration:_
+- Command test: OK/FAIL/SKIPPED
+- Event test: OK/FAIL/SKIPPED
+- Integrations Slack tab: OK/FAIL
+
+_RAG & Documents:_
+- [SEVERITY] description
+
+_Semantic Cache:_
+- Cache stats: OK/FAIL
+- Cache invalidation: OK/FAIL
+
 _Cross-Stack:_
 - MCP registration: OK/MISSING
 - Swagger preflight: OK/FAIL
@@ -808,6 +820,9 @@ _Cross-Stack:_
 
 _Design Tokens:_
 - [SEVERITY] description
+
+_Performance:_
+- Phase X took Y seconds (note if >60s)
 
 ---
 ```
@@ -820,12 +835,118 @@ Severity:
 
 ---
 
+## Phase 8.5: Slack Integration Test
+
+If Slack is enabled (`ARC_REACTOR_SLACK_ENABLED=true`):
+
+### 8.5.1 Slack Command Test
+
+```bash
+source ~/.arc-reactor-env
+curl -s -X POST http://localhost:18081/api/slack/commands \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "command=%2Fask&text=patrol+health+check&user_id=U_PATROL&channel_id=$SLACK_CHANNEL_ID&response_url=https%3A%2F%2Fhttpbin.org%2Fpost&user_name=patrol-bot" \
+  -w "\n%{http_code}"
+```
+
+Expected: 200 (immediate ACK)
+
+### 8.5.2 Slack Event Test
+
+```bash
+curl -s -X POST http://localhost:18081/api/slack/events \
+  -H "Content-Type: application/json" \
+  -d '{"type":"event_callback","event":{"type":"app_mention","text":"<@BOT> patrol check","user":"U_PATROL","channel":"'$SLACK_CHANNEL_ID'"}}' \
+  -w "\n%{http_code}"
+```
+
+Expected: 200
+
+### 8.5.3 Navigate to Integrations Slack Tab
+
+1. `browser_navigate` → `/integrations`
+2. Click Slack tester tab
+3. Verify command/event test forms are present and functional
+
+---
+
+## Phase 8.6: RAG & Semantic Cache Verification
+
+### 8.6.1 RAG Document Management
+
+1. Navigate to `/documents`
+2. Verify 4 tabs present: Search, Register, Ingestion, Policy
+3. **Search tab**: verify query input, topK slider, similarity threshold slider
+4. **Register tab**: verify single doc form + batch add section
+5. **Ingestion tab**: verify candidate list + approve/reject buttons
+6. **Policy tab**: verify enabled toggle, form inputs, save/reset buttons
+
+### 8.6.2 RAG Backend API
+
+```bash
+curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:18081/api/rag-ingestion/policy | jq '.'
+curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:18081/api/rag-ingestion/candidates | jq 'length'
+curl -sf -X POST http://localhost:18081/api/documents/search \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"test","topK":3}' | jq 'length'
+```
+
+### 8.6.3 Semantic Cache Status
+
+```bash
+# Cache stats in platform health
+curl -sf -H "Authorization: Bearer $TOKEN" http://localhost:18081/api/admin/platform/health | jq '{cacheExactHits, cacheSemanticHits, cacheMisses}'
+
+# Cache invalidation endpoint
+curl -sf -X POST http://localhost:18081/api/admin/platform/cache/invalidate \
+  -H "Authorization: Bearer $TOKEN" | jq '.'
+```
+
+### 8.6.4 Missing Features (TODO — 개발 필요)
+
+이 항목들은 아직 존재하지 않는 기능이다. 개발 완료 후 검증 항목으로 전환:
+- [ ] `/rag-management` 페이지: 벡터 스토어 상태 (문서 수, 인덱스 크기, 임베딩 모델 정보)
+- [ ] `/cache-management` 페이지: 캐시 설정 (TTL, threshold), 통계 (hit rate 추이), 선택적 무효화
+- [ ] Backend: `GET /api/admin/vectorstore/stats` — 벡터 스토어 상태 엔드포인트
+- [ ] Backend: `GET /api/admin/cache/stats` — 캐시 상세 통계 엔드포인트
+- [ ] Backend: `POST /api/admin/cache/invalidate/pattern` — 패턴별 선택적 무효화
+
+---
+
+## Phase 9: Auto-Commit & Push (수정사항이 있을 때만)
+
+패트롤 중 발견한 이슈를 코드로 수정한 경우:
+
+```bash
+cd /Users/jinan/ai/arc-reactor
+CHANGES=$(git diff --stat HEAD)
+UNTRACKED=$(git ls-files --others --exclude-standard | head -5)
+
+if [ -n "$CHANGES" ] || [ -n "$UNTRACKED" ]; then
+  echo "Changes detected — committing..."
+  git add -A
+  git commit -m "fix: admin patrol — 자동 수정 ($(date +%Y-%m-%d_%H:%M))
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
+  git push origin main
+  echo "Committed and pushed."
+else
+  echo "No changes to commit."
+fi
+```
+
+**주의**: .improvements/ 파일(findings 등)은 커밋하지 않는다 (추적 파일).
+
+---
+
 ## RULES
 
-1. **READ-ONLY**: Do NOT modify source code, DB records, or server config
+1. **READ-ONLY 기본**: 소스 코드는 버그 수정 외에 변경 금지
 2. **Do NOT restart servers** — observe and report only
 3. **Max 8 minutes** per patrol run (skip remaining if over time)
 4. **Skip gracefully**: If a step fails, log it and move to next step
 5. **Always write findings**: Even if most checks failed, record what you observed
 6. **No CRUD writes on production data**: Do not create/update/delete personas, templates, jobs, rules, etc. Only verify the UI forms/buttons are present and functional
-7. **Exception**: The metric ingestion test POST in Phase 6.5 is allowed (it's a synthetic test event)
+7. **Exception**: Metric ingestion test POST, Slack test commands are allowed
+8. **버그 수정 시**: 수정 → 컴파일 확인 → Phase 9 자동 커밋/푸시
+9. **느린 작업 기록**: 각 Phase 소요 시간 측정, 5분 초과 시 findings에 기록하여 다음 실행에서 최적화
