@@ -22,7 +22,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import jakarta.validation.Valid
-import javax.sql.DataSource
+
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -57,7 +57,6 @@ private val logger = KotlinLogging.logger {}
     prefix = "arc.reactor.admin", name = ["enabled"],
     havingValue = "true", matchIfMissing = false
 )
-@ConditionalOnBean(DataSource::class)
 @RequestMapping("/api/admin/platform")
 class PlatformAdminController(
     private val tenantStore: TenantStore,

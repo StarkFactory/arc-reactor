@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
@@ -25,7 +25,7 @@ import mu.KotlinLogging
 import java.io.StringWriter
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import javax.sql.DataSource
+
 
 private val logger = KotlinLogging.logger {}
 
@@ -44,7 +44,6 @@ private val logger = KotlinLogging.logger {}
     prefix = "arc.reactor.admin", name = ["enabled"],
     havingValue = "true", matchIfMissing = false
 )
-@ConditionalOnBean(DataSource::class)
 @RequestMapping("/api/admin/tenant")
 class TenantAdminController(
     private val tenantResolver: TenantResolver,

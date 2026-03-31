@@ -194,11 +194,12 @@ class ArcReactorCoreBeansConfiguration {
     fun agentMetrics(): AgentMetrics = NoOpAgentMetrics()
 
     /**
-     * LLM 요청 비용 계산기 — 모델별 토큰 가격 기반 USD 비용 산출.
+     * LLM 요청 비용 계산기 — 모델별 토큰 가격 기반 USD 비용 산출 (실시간 예산 추적용).
+     * bean 이름을 명시하여 arc-admin의 정산용 CostCalculator와 충돌 방지.
      */
-    @Bean
-    @ConditionalOnMissingBean
-    fun costCalculator(): CostCalculator = CostCalculator()
+    @Bean("budgetCostCalculator")
+    @ConditionalOnMissingBean(com.arc.reactor.agent.budget.CostCalculator::class)
+    fun budgetCostCalculator(): CostCalculator = CostCalculator()
 
     /**
      * 토큰 추정기 (기본: 문자 유형 인식 휴리스틱)

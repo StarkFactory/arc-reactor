@@ -47,6 +47,9 @@ private val logger = KotlinLogging.logger {}
     prefix = "arc.reactor.admin", name = ["enabled"],
     havingValue = "true", matchIfMissing = false
 )
+@org.springframework.boot.autoconfigure.AutoConfigureAfter(
+    name = ["org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"]
+)
 @ConditionalOnBean(DataSource::class)
 class AdminJdbcConfiguration {
 
