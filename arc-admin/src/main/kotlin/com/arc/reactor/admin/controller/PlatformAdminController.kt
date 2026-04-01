@@ -13,6 +13,7 @@ import com.arc.reactor.admin.pricing.ModelPricingStore
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.TenantService
 import com.arc.reactor.admin.tenant.TenantStore
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
@@ -23,6 +24,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 
+import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -68,8 +71,12 @@ class PlatformAdminController(
     private val alertEvaluator: AlertEvaluator,
     private val userStore: UserStore,
     private val adminAuditStore: AdminAuditStore,
-    private val responseCache: ResponseCache? = null
+    private val agentProperties: AgentProperties,
+    private val responseCache: ResponseCache? = null,
+    vectorStoreProvider: ObjectProvider<VectorStore>
 ) {
+
+    private val vectorStore: VectorStore? = vectorStoreProvider.ifAvailable
 
     // ── 단계: 플랫폼 헬스 ──
 
@@ -517,6 +524,58 @@ class PlatformAdminController(
         )
         return ResponseEntity.ok(mapOf("status" to "evaluation complete"))
     }
+
+    // ── 단계: 캐시 통계 ──
+
+    /** 응답 캐시의 상세 통계(히트율, 설정 등)를 반환한다. */
+    @Operation(summary = "Get response cache statistics")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Cache statistics"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
+    @GetMapping("/cache/stats")
+    fun cacheStats(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
+        val snapshot = healthMonitor.snapshot()
+        val cacheConfig = agentProperties.cache
+        val exact = snapshot.cacheExactHitsTotal
+        val semantic = snapshot.cacheSemanticHitsTotal
+        val misses = snapshot.cacheMissesTotal
+        val total = exact + semantic + misses
+        return ResponseEntity.ok(
+            CacheStatsResponse(
+                enabled = responseCache != null,
+                semanticEnabled = cacheConfig.semantic.enabled,
+                totalExactHits = exact,
+                totalSemanticHits = semantic,
+                totalMisses = misses,
+                hitRate = if (total > 0) (exact + semantic).toDouble() / total else 0.0,
+                config = CacheConfigResponse(
+                    ttlMinutes = cacheConfig.ttlMinutes,
+                    maxSize = cacheConfig.maxSize,
+                    similarityThreshold = cacheConfig.semantic.similarityThreshold,
+                    maxCandidates = cacheConfig.semantic.maxCandidates,
+                    cacheableTemperature = cacheConfig.cacheableTemperature
+                )
+            )
+        )
+    }
+
+    // ── 단계: 벡터 스토어 통계 ──
+
+    /** 벡터 스토어 가용 여부를 반환한다. */
+    @Operation(summary = "Get vector store statistics")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Vector store statistics"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
+    @GetMapping("/vectorstore/stats")
+    fun vectorStoreStats(exchange: ServerWebExchange): ResponseEntity<Any> {
+        if (!isAnyAdmin(exchange)) return forbiddenResponse()
+        return ResponseEntity.ok(
+            VectorStoreStatsResponse(available = vectorStore != null)
+        )
+    }
 }
 
 /** 테넌트 생성 요청 DTO. */
@@ -573,3 +632,28 @@ private fun parseUserRole(rawRole: String): UserRole? = try {
 } catch (_: IllegalArgumentException) {
     null
 }
+
+/** 응답 캐시 통계 응답 DTO. */
+data class CacheStatsResponse(
+    val enabled: Boolean,
+    val semanticEnabled: Boolean,
+    val totalExactHits: Long,
+    val totalSemanticHits: Long,
+    val totalMisses: Long,
+    val hitRate: Double,
+    val config: CacheConfigResponse
+)
+
+/** 캐시 설정 정보 DTO. */
+data class CacheConfigResponse(
+    val ttlMinutes: Long,
+    val maxSize: Long,
+    val similarityThreshold: Double,
+    val maxCandidates: Int,
+    val cacheableTemperature: Double
+)
+
+/** 벡터 스토어 통계 응답 DTO. */
+data class VectorStoreStatsResponse(
+    val available: Boolean
+)

@@ -49,8 +49,10 @@ dependencies {
     // Spring AI (for observation auto-config detection)
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     compileOnly("org.springframework.ai:spring-ai-model")
+    compileOnly("org.springframework.ai:spring-ai-vector-store")
 
     // Test
+    testCompileOnly("org.springframework.ai:spring-ai-vector-store")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.kotest:kotest-runner-junit5:6.1.7")
     testImplementation("io.kotest:kotest-assertions-core:6.1.7")

@@ -15,6 +15,7 @@ import com.arc.reactor.admin.pricing.ModelPricing
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.tenant.InMemoryTenantStore
 import com.arc.reactor.admin.tenant.TenantService
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.audit.InMemoryAdminAuditStore
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.auth.User
@@ -26,6 +27,8 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.springframework.ai.vectorstore.VectorStore
+import org.springframework.beans.factory.ObjectProvider
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -46,6 +49,10 @@ class PlatformAdminControllerTest {
     private val userStore = mockk<UserStore>()
     private val adminAuditStore = InMemoryAdminAuditStore()
     private val responseCache = mockk<ResponseCache>(relaxed = true)
+    private val agentProperties = AgentProperties()
+    private val emptyVectorStoreProvider = mockk<ObjectProvider<VectorStore>>().also {
+        every { it.ifAvailable } returns null
+    }
 
     private val controller = PlatformAdminController(
         tenantStore,
@@ -57,7 +64,9 @@ class PlatformAdminControllerTest {
         alertEvaluator,
         userStore,
         adminAuditStore,
-        responseCache
+        agentProperties,
+        responseCache,
+        emptyVectorStoreProvider
     )
 
     private val testTenant = Tenant(
@@ -535,7 +544,9 @@ class PlatformAdminControllerTest {
                 alertEvaluator = alertEvaluator,
                 userStore = userStore,
                 adminAuditStore = adminAuditStore,
-                responseCache = null
+                agentProperties = agentProperties,
+                responseCache = null,
+                vectorStoreProvider = emptyVectorStoreProvider
             )
 
             val response = controllerWithoutCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
@@ -560,7 +571,9 @@ class PlatformAdminControllerTest {
                 alertEvaluator = alertEvaluator,
                 userStore = userStore,
                 adminAuditStore = adminAuditStore,
-                responseCache = brokenCache
+                agentProperties = agentProperties,
+                responseCache = brokenCache,
+                vectorStoreProvider = emptyVectorStoreProvider
             )
 
             val response = controllerWithBrokenCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN))
