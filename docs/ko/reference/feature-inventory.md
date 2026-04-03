@@ -1,695 +1,510 @@
-# Arc Reactor 기능 인벤토리 & 데이터 아키텍처
+# Arc Reactor 기능 인벤토리
 
-> 마지막 업데이트: 2026-03-16
-
----
-
-## 1. 전체 기능 매트릭스
-
-### 1.1 백엔드 (arc-reactor)
-
-| 기능 | API 엔드포인트 | 상태 | 설명 |
-|------|---------------|------|------|
-| **일반 채팅** | `POST /api/chat` | 활성 | 전체 응답 한 번에 반환 |
-| **스트리밍 채팅** | `POST /api/chat/stream` | 활성 | SSE 실시간 토큰 스트리밍 |
-| **모델 선택** | `ChatRequest.model` | 활성 | gemini/openai/anthropic/vertex 런타임 전환 |
-| **시스템 프롬프트** | `ChatRequest.systemPrompt` | 활성 | 요청별 커스텀 시스템 프롬프트 |
-| **응답 포맷** | `ChatRequest.responseFormat` | 활성 | TEXT/JSON 모드 |
-| **대화 메모리** | `metadata.sessionId` → MemoryStore | 활성 | 세션별 대화 이력 자동 저장/로드 |
-| **Guard 파이프라인** | 내부 (API 없음) | 활성 | Rate Limit → Input Validation → Injection Detection → Classification → Permission |
-| **Hook 시스템** | 내부 (API 없음) | 활성 | BeforeAgentStart → BeforeToolCall → AfterToolCall → AfterAgentComplete |
-| **도구 실행** | 내부 (API 없음) | 활성 | 로컬 도구 + MCP 도구 자동 발견 |
-| **RAG 파이프라인** | 내부 (API 없음) | 비활성 (설정 가능) | VectorStore 연결 시 자동 활성화. HyDE·대화문맥 쿼리 변환·메타데이터 필터링 지원 |
-| **멀티에이전트** | `POST /api/multi/*` | 예제 (활성화 가능) | Supervisor/Sequential/Parallel 오케스트레이션; @RestController 주석 해제로 활성화 |
-| **세션 목록 조회** | `GET /api/sessions` | 활성 | 세션 요약 목록 (messageCount, lastActivity, preview) |
-| **대화 이력 조회** | `GET /api/sessions/{id}` | 활성 | 특정 세션의 전체 메시지 이력 |
-| **세션 삭제** | `DELETE /api/sessions/{id}` | 활성 | 서버 측 세션 데이터 삭제 |
-| **사용 가능 모델 조회** | `GET /api/models` | 활성 | 등록된 LLM provider 목록 + 기본 모델 |
-| **JWT 인증** | `POST /api/auth/*` | **필수** | 런타임은 `arc.reactor.auth.jwt-secret`을 요구 |
-| **페르소나 관리** | `GET/POST/PUT/DELETE /api/personas` | 활성 | 시스템 프롬프트 템플릿 CRUD |
-| **사용자별 세션 격리** | 내부 (API 없음) | 활성 | JWT에서 추출한 userId 기준으로 세션이 격리됨 (인증 항상 필수) |
-| **응답 캐싱** | 내부 (API 없음) | **opt-in** | 사용자/테넌트/세션 스코프를 반영한 SHA-256 키 + 온도 게이팅 + 선택적 Redis 시맨틱 폴백 |
-| **서킷 브레이커** | 내부 (API 없음) | **opt-in** | Kotlin 네이티브 CB: CLOSED → OPEN → HALF_OPEN 상태 머신 |
-| **우아한 성능 저하** | 내부 (API 없음) | **opt-in** | 기본 모델 실패 시 순차 모델 폴백 |
-| **응답 필터** | 내부 (API 없음) | 활성 | 후처리 파이프라인 (MaxLengthResponseFilter 내장) |
-| **스트리밍 에러 이벤트** | SSE `error` 이벤트 | 활성 | StreamEventMarker를 통한 스트리밍 중 에러 이벤트 |
-| **관측성 메트릭** | 내부 (API 없음) | 활성 | 9개 메트릭 포인트: 실행, 도구, Guard, 캐시, CB, 폴백, 토큰 |
-| **MCP 자동 재연결** | 내부 (API 없음) | 활성 | 지수 백오프 + 지터, 서버별 Mutex |
-| **사용자 메모리** | `GET/PUT/DELETE /api/user-memory/{userId}` | **opt-in** | 사용자별 장기 사실·선호도·최근 주제; 활성화 시 시스템 프롬프트에 자동 주입 |
-| **프로액티브 채널** | `GET/POST/DELETE /api/proactive-channels` | **opt-in** | Slack 프로액티브 모니터링 채널 관리 (관리자); `arc.reactor.slack.enabled=true` 필요 |
-| **MCP Swagger 카탈로그** | `GET/POST/PUT /api/mcp/servers/{name}/swagger/sources` | 활성 | MCP 서버의 Swagger 스펙 소스 라이프사이클 프록시 (목록, 생성, 갱신, 동기화, diff, 게시) (관리자) |
-| **MCP 프리플라이트 검증** | `GET /api/mcp/servers/{name}/preflight` | 활성 | MCP 서버 관리자 준비 상태 확인 프록시 (관리자) |
-| **MCP 접근 정책** | `GET/PUT/DELETE /api/mcp/servers/{name}/access-policy` | 활성 | MCP 서버 접근 정책 관리 프록시 (관리자) |
-| **관리자 기능 목록** | `GET /api/admin/capabilities` | 활성 | 관리자 콘솔용 등록된 API 경로 매니페스트 반환 |
-| **도구 결과 캐싱** | 내부 (API 없음) | **opt-in** | ReAct 루프 내 Caffeine 캐시로 동일 도구명 + 인자 중복 호출 방지 |
-| **인용 자동 포맷** | 내부 (API 없음) | **opt-in** | 검증된 소스가 있을 때 응답에 중복 제거된 출처 인용 추가 |
-| **프롬프트 캐싱 (Anthropic)** | 내부 (API 없음) | **opt-in** | 시스템 프롬프트와 도구 정의에 `cache_control`을 마킹하여 Anthropic 프롬프트 캐싱 지원 |
-| **도구 보강** | 내부 (API 없음) | 활성 (설정 기반) | 지정된 도구의 파라미터에 요청자 정보를 자동 주입 |
-| **웹훅 알림** | 내부 (API 없음) | **opt-in** | 에이전트 실행 결과를 설정된 웹훅 URL로 POST 전송 |
-
-### 1.2 프론트엔드 (arc-reactor-web)
-
-| 기능 | 상태 | 데이터 저장 | 서버 연동 |
-|------|------|------------|----------|
-| **멀티세션 관리** | 구현 완료 | localStorage | sessionId를 metadata로 전송 |
-| **대화 이력** | 구현 완료 | localStorage | 서버에서 로드하지 않음 |
-| **모델 선택** | 구현 완료 | localStorage | `model` 필드로 전송 |
-| **시스템 프롬프트** | 구현 완료 | localStorage | `systemPrompt` 필드로 전송 |
-| **응답 포맷** | 구현 완료 | localStorage | `responseFormat` 필드로 전송 |
-| **다크/라이트 모드** | 구현 완료 | localStorage | 클라이언트 전용 |
-| **마크다운 렌더링** | 구현 완료 | — | — |
-| **코드 구문 강조** | 구현 완료 | — | — |
-| **메시지 복사** | 구현 완료 | — | — |
-| **재시도** | 구현 완료 | — | — |
-| **도구 사용 표시** | 구현 완료 | — | SSE `tool_start`/`tool_end` 이벤트 |
-| **응답 시간 표시** | 구현 완료 | — | 프론트에서 측정 |
-| **사용자 인증** | 구현 완료 | localStorage (token) | 백엔드 인증이 항상 필수이므로 로그인/회원가입 UI 자동 표시 |
-| **페르소나 선택** | 구현 완료 | 설정에 반영 | 페르소나 목록 조회 + 선택 + 인라인 CRUD |
-| **세션 서버 동기화** | 구현 완료 | localStorage + 서버 | GET/DELETE /api/sessions 연동 |
+> 마지막 업데이트: 2026-04-03
+> 기준: 현재 저장소 코드 경로 점검
+> 범위: `arc-reactor` 백엔드/플랫폼 기능 전체
 
 ---
 
-## 2. 데이터 아키텍처
+## 1. 이 문서의 목적
 
-### 2.1 데이터 흐름도
+이 문서는 Arc Reactor를 “기능 설명서”로 읽기 쉽게 다시 묶은 문서다.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                          브라우저                                 │
-│                                                                  │
-│  localStorage                                                    │
-│  ├── arc-reactor-sessions:{userId}  (Session[] — 최대 50개)     │
-│  │   ├── session.id          (UUID)                              │
-│  │   ├── session.title       (첫 메시지 30자)                    │
-│  │   ├── session.messages[]  (전체 대화 이력)                    │
-│  │   └── session.updatedAt   (타임스탬프)                        │
-│  ├── arc-reactor-settings:{userId}  (ChatSettings)               │
-│  │   ├── model, systemPrompt, responseFormat                     │
-│  │   ├── darkMode, showMetadata                                  │
-│  │   └── sidebarOpen                                             │
-│  └── arc-reactor-auth-token  (JWT 토큰, 런타임 인증 필수)        │
-│                                                                  │
-│  POST /api/chat/stream ──────────────────────┐                   │
-│  { message, userId, model, systemPrompt,     │                   │
-│    responseFormat, metadata: { sessionId } }  │                   │
-└───────────────────────────────────────────────┼──────────────────┘
-                                                │
-                                                ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                      백엔드 (Spring Boot)                         │
-│                                                                   │
-│  Guard 파이프라인 ─→ Hook ─→ ConversationManager ─→ ReAct Loop    │
-│                              │                                    │
-│                              ▼                                    │
-│                    ┌─────────────────────┐                        │
-│                    │    MemoryStore      │                        │
-│                    │  (세션별 대화 저장)  │                        │
-│                    └────────┬────────────┘                        │
-│                             │                                     │
-│              ┌──────────────┼──────────────┐                      │
-│              ▼                              ▼                     │
-│   InMemoryMemoryStore              JdbcMemoryStore                │
-│   (Caffeine 캐시)                  (PostgreSQL)                   │
-│   - 최대 1000 세션                 - conversation_messages 테이블  │
-│   - 세션당 50 메시지               - 세션당 100 메시지             │
-│   - 서버 재시작 시 유실            - 영구 저장                     │
-│   - LRU 자동 삭제                  - TTL 기반 정리                 │
-└───────────────────────────────────────────────────────────────────┘
-```
+- 무엇이 사용자 기능인지
+- 무엇이 운영/admin 기능인지
+- 무엇이 Slack/MCP 같은 연동 기능인지
+- 무엇이 기본 활성이고, 무엇이 opt-in인지
+- 비슷해 보여도 실제로는 다른 기능이 무엇인지
 
-### 2.2 데이터 이중 저장 구조
+세부 감사 문서는 아래를 함께 보면 된다.
 
-현재 대화 데이터는 **두 곳에 독립적으로** 저장된다:
-
-| 저장소 | 위치 | 내용 | 영속성 | 용도 |
-|--------|------|------|--------|------|
-| **localStorage** | 브라우저 | 세션 목록 + 전체 메시지 | 브라우저 데이터 삭제 시 유실 | UI 표시, 세션 전환 |
-| **MemoryStore** | 서버 메모리 또는 DB | 세션별 메시지 (role + content) | 설정에 따라 다름 | LLM 대화 컨텍스트 |
-
-**핵심 차이점:**
-- localStorage의 메시지: `id`, `role`, `content`, `toolsUsed`, `error`, `timestamp`, `durationMs` (풍부한 메타데이터)
-- MemoryStore의 메시지: `role`, `content`, `timestamp` (LLM 컨텍스트에 필요한 최소 정보만)
-
-두 저장소는 **동기화되지 않는다.** 각각 독립적으로 저장하고 읽는다.
+- [RAG / Vector 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/rag-vector-audit.md)
+- [Slack 통합 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/slack-integration-audit.md)
+- [MCP 통합 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/mcp-integration-audit.md)
 
 ---
 
-## 3. 세션 아키텍처
+## 2. 한눈에 보는 기능 지도
 
-### 3.1 세션 생명주기
-
-```
-[사용자가 "새 대화" 클릭]
-    │
-    ▼
-브라우저: Session { id: UUID, title: "새 대화", messages: [] }
-    → localStorage에 저장
-    │
-    ▼
-[사용자가 메시지 입력]
-    │
-    ├─→ 브라우저: message를 session.messages[]에 추가 → localStorage 저장
-    │
-    └─→ 서버: POST /api/chat/stream { metadata: { sessionId: UUID } }
-             │
-             ├─→ ConversationManager.loadHistory(sessionId)
-             │     → MemoryStore에서 이전 대화 로드 (있으면)
-             │     → LLM에 컨텍스트로 전달
-             │
-             ├─→ LLM 실행 (이전 대화 컨텍스트 + 현재 메시지)
-             │
-             └─→ ConversationManager.saveStreamingHistory(sessionId, content)
-                   → MemoryStore에 user + assistant 메시지 저장
-```
-
-### 3.2 세션 ID 전달 경로
-
-```
-프론트엔드                          백엔드
-─────────                          ──────
-ChatContext.tsx                     ChatController.kt
-  activeSessionId ─────────────→     request.metadata["sessionId"]
-  (UUID, localStorage)                    │
-                                          ▼
-                                   ConversationManager.kt
-                                     command.metadata["sessionId"]
-                                          │
-                                          ▼
-                                   MemoryStore.getOrCreate(sessionId)
-```
-
-### 3.3 세션 영속성 비교
-
-| 시나리오 | localStorage (브라우저) | InMemoryMemoryStore (서버) | JdbcMemoryStore (DB) |
-|----------|----------------------|--------------------------|---------------------|
-| 페이지 새로고침 | **유지** | **유지** | **유지** |
-| 브라우저 탭 닫기 | **유지** | **유지** | **유지** |
-| 브라우저 데이터 삭제 | **유실** | **유지** | **유지** |
-| 서버 재시작 | **유지** | **유실** | **유지** |
-| Docker 재배포 | **유지** | **유실** | Volume이면 **유지** |
-| 다른 브라우저/기기 | **유실** | **유지** (sessionId 알면) | **유지** (sessionId 알면) |
-
-**배포 상태:**
-- PostgreSQL 미연결 시 → `InMemoryMemoryStore` (서버 재시작 시 유실)
-- PostgreSQL 연결 시 → `JdbcMemoryStore` (영구 저장)
-- 런타임 인증 필수 → `userId`로 세션 자동 격리, localStorage도 userId별 네임스페이스
+| 영역 | 핵심 질문 | 대표 기능 | 기본 성격 |
+|------|-----------|-----------|-----------|
+| 사용자 대화 | 사용자는 무엇을 할 수 있나 | 채팅, 스트리밍, 파일 첨부, 세션 조회/삭제 | 핵심 기능 |
+| 실행 엔진 | 답변은 어떻게 만들어지나 | Guard, Hook, ReAct 루프, 도구 실행, 도구 선택 | 핵심 기능 |
+| 지식/기억 | 과거 대화/문서를 어떻게 쓰나 | 세션 메모리, user memory, RAG, 문서 API | 일부 조건부 |
+| 안전/정책 | 무엇을 막고 통제하나 | approval, tool policy, output guard, MCP security | 일부 조건부 |
+| 품질/비용 | 품질/비용을 어떻게 관리하나 | cache, semantic cache, budget, model routing, prompt lab | 일부 조건부 |
+| 운영/admin | 운영자는 무엇을 할 수 있나 | 감사 로그, 플랫폼 관리, 테넌트 분석, 스케줄러 | 운영 기능 |
+| 외부 연동 | 외부 시스템과 어떻게 붙나 | MCP, Slack, webhook, A2A agent card | 선택적 통합 |
 
 ---
 
-## 4. DB 스키마 (PostgreSQL 연결 시)
+## 3. 역할별 관점
 
-### 4.1 conversation_messages 테이블
+### 3.1 최종 사용자 관점
 
-```sql
--- Flyway V1__create_conversation_messages.sql
-CREATE TABLE conversation_messages (
-    id          BIGSERIAL PRIMARY KEY,
-    session_id  VARCHAR(255)  NOT NULL,    -- 세션 UUID
-    role        VARCHAR(20)   NOT NULL,    -- user, assistant, system, tool
-    content     TEXT          NOT NULL,    -- 메시지 본문
-    timestamp   BIGINT        NOT NULL,    -- epoch millis
-    created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+최종 사용자가 직접 체감하는 기능은 다음이다.
 
--- 인덱스
-CREATE INDEX idx_conversation_messages_session_id
-    ON conversation_messages (session_id);
+- `/api/chat`, `/api/chat/stream`으로 질문하고 답변 받기
+- 파일 첨부가 허용되면 `/api/chat/multipart`로 멀티모달 대화하기
+- `sessionId`를 붙여 이전 대화를 이어가기
+- 내 세션 목록, 세션 상세, 세션 export, 세션 삭제
+- 사용 가능한 모델 목록 조회
+- 인증이 켜진 환경에서는 회원가입, 로그인, 비밀번호 변경, 로그아웃
+- 일부 환경에서는 자기 자신의 `user memory` 조회/수정/삭제
 
-CREATE INDEX idx_conversation_messages_session_timestamp
-    ON conversation_messages (session_id, timestamp);
-```
+### 3.2 운영자 / 관리자 관점
 
-### 4.2 personas 테이블
+운영자는 다음을 다룬다.
 
-```sql
--- Flyway V2__create_personas.sql
-CREATE TABLE IF NOT EXISTS personas (
-    id            VARCHAR(36)   PRIMARY KEY,
-    name          VARCHAR(200)  NOT NULL,
-    system_prompt TEXT          NOT NULL,
-    is_default    BOOLEAN       NOT NULL DEFAULT FALSE,
-    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
+- Prompt Template, Persona, Intent, Prompt Lab
+- approval 대기열, tool policy, output guard rules
+- 문서 업로드, 문서 검색, RAG ingestion 후보 승인/거부
+- MCP 서버 등록/수정/연결/보안 정책/프록시 admin API
+- Slack proactive channel, 감사 로그, capabilities, ops dashboard
+- 스케줄러 작업 생성/수정/실행/드라이런/실행 이력
+- 플랫폼 사용자/역할, 테넌트, 가격 정책, 알림 규칙, 테넌트 분석
 
-### 4.3 users 테이블
+### 3.3 플랫폼 / 통합 관점
 
-```sql
--- Flyway V3__create_users.sql
-CREATE TABLE IF NOT EXISTS users (
-    id            VARCHAR(36)   PRIMARY KEY,
-    email         VARCHAR(255)  NOT NULL UNIQUE,
-    name          VARCHAR(100)  NOT NULL,
-    password_hash VARCHAR(255)  NOT NULL,
-    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+플랫폼 기능은 다음을 제공한다.
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
-```
-
-### 4.4 conversation_messages userId 추가
-
-```sql
--- Flyway V4__add_user_id_to_conversation_messages.sql
-ALTER TABLE conversation_messages
-    ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) NOT NULL DEFAULT 'anonymous';
-
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_user_id
-    ON conversation_messages (user_id);
-CREATE INDEX IF NOT EXISTS idx_conversation_messages_user_session
-    ON conversation_messages (user_id, session_id);
-```
-
-### 4.5 데이터 예시
-
-PostgreSQL 연결 시 저장되는 데이터:
-
-| id | session_id | role | content | timestamp | created_at |
-|----|-----------|------|---------|-----------|------------|
-| 1 | a1b2c3d4-... | user | 안녕하세요 | 1707350400000 | 2026-02-08 12:00:00 |
-| 2 | a1b2c3d4-... | assistant | 안녕하세요! 무엇을 도와드릴까요? | 1707350402300 | 2026-02-08 12:00:02 |
-| 3 | a1b2c3d4-... | user | Python이란 뭐야? | 1707350410000 | 2026-02-08 12:00:10 |
-| 4 | a1b2c3d4-... | assistant | Python은 프로그래밍 언어로... | 1707350413500 | 2026-02-08 12:00:13 |
-
-### 4.3 MemoryStore 제한/정리 정책
-
-| 설정 | InMemory (기본) | JDBC (PostgreSQL) |
-|------|----------------|-------------------|
-| 최대 세션 수 | 1,000 (Caffeine LRU) | 무제한 (디스크) |
-| 세션당 최대 메시지 | 50 | 100 |
-| 초과 시 동작 | FIFO (가장 오래된 메시지 삭제) | FIFO (DELETE + LIMIT) |
-| 세션 만료 | LRU 자동 삭제 | `cleanupExpiredSessions(ttlMs)` 수동 호출 |
-| 토큰 제한 로드 | `getHistoryWithinTokenLimit(maxTokens)` | 동일 |
+- 외부 MCP 서버를 런타임에 붙여 도구 surface를 확장
+- Slack을 사용자 진입 채널로 사용
+- webhook으로 실행 결과를 외부 시스템에 전달
+- A2A agent card로 다른 에이전트가 이 서버 능력을 발견
 
 ---
 
-## 5. 배포 구성별 차이
+## 4. 사용자 기능
 
-### 5.1 arc-reactor-web/docker-compose.yml (현재 사용 중)
+### 4.1 채팅과 응답 형식
 
-```yaml
-services:
-  backend:    # arc-reactor (GEMINI_API_KEY만 설정)
-  web:        # nginx + React 빌드
-# PostgreSQL 없음 → InMemoryMemoryStore
-```
+| 기능 | 설명 | 대표 진입점 | 주의점 |
+|------|------|-------------|--------|
+| 일반 채팅 | 한 번에 최종 답변 반환 | `POST /api/chat` | 가장 기본 엔드포인트 |
+| 스트리밍 채팅 | SSE로 `message/tool_start/tool_end/error/done` 전송 | `POST /api/chat/stream` | 스트림 취소 가능 |
+| 멀티파트 채팅 | 파일과 메시지를 함께 전송 | `POST /api/chat/multipart` | `multimodal.enabled` 필요, 파일 수/크기 제한 있음 |
+| 모델 지정 | 요청별 모델 지정 | `ChatRequest.model` | provider/model 라우팅 대상 |
+| system prompt 지정 | 요청별 system prompt 오버라이드 | `ChatRequest.systemPrompt` | persona/template와 우선순위 조합이 있음 |
+| persona 지정 | 저장된 persona를 system prompt로 사용 | `ChatRequest.personaId` | 운영자가 미리 persona를 만들어야 함 |
+| prompt template 지정 | 활성 버전의 template를 system prompt로 사용 | `ChatRequest.promptTemplateId` | 버전 관리 대상 |
+| 구조화 응답 | JSON/TEXT 등 응답 형식 제어 | `responseFormat`, `responseSchema` | 스키마를 강제하려면 응답 모델 지원 필요 |
 
-- **장점:** 간단, 빠른 시작
-- **단점:** 서버 재시작 시 대화 컨텍스트 유실
+### 4.2 세션과 모델
 
-### 5.2 arc-reactor/docker-compose.yml (PostgreSQL 포함)
+| 기능 | 설명 | 대표 진입점 | 주의점 |
+|------|------|-------------|--------|
+| 세션 기반 문맥 유지 | `sessionId` 기준으로 이전 대화 이어가기 | 요청 metadata | 단기 대화 문맥용 |
+| 세션 목록 조회 | 내 세션 목록 조회 | `GET /api/sessions` | 인증 사용자 기준 |
+| 세션 상세 조회 | 특정 세션 메시지 확인 | `GET /api/sessions/{id}` | 소유권 검사 |
+| 세션 export | JSON 또는 Markdown export | `GET /api/sessions/{id}/export?format=` | 관리자는 모든 세션 접근 가능 |
+| 세션 삭제 | 세션과 요약 데이터 정리 | `DELETE /api/sessions/{id}` | 진행 중 요약 작업도 취소 |
+| 사용 가능 모델 조회 | 현재 노출된 LLM 모델 목록 확인 | `GET /api/models` | 실제 provider 등록 상태 영향 |
 
-```yaml
-services:
-  app:        # arc-reactor (-Pdb=true 빌드, DB 연결 설정 포함)
-  db:         # PostgreSQL 16 Alpine
-# JdbcMemoryStore + JdbcPersonaStore + JdbcUserStore 자동 활성화
-```
+### 4.3 인증
 
-- **장점:** 대화 이력 영구 보존, 서버 재시작 후에도 컨텍스트 유지
-- **단점:** DB 관리 필요
+| 기능 | 설명 | 대표 진입점 | 주의점 |
+|------|------|-------------|--------|
+| 회원가입 | 계정 생성 후 JWT 발급 | `POST /api/auth/register` | self-registration 허용 시에만 |
+| 로그인 | 이메일/비밀번호 인증 후 JWT 발급 | `POST /api/auth/login` | 구성된 인증 제공자에 따라 동작 |
+| 내 정보 조회 | 현재 로그인 사용자 정보 확인 | `GET /api/auth/me` | JWT 필요 |
+| 비밀번호 변경 | 현재 비밀번호 검증 후 변경 | `POST /api/auth/change-password` | 기본 auth provider 기준 |
+| 로그아웃 | 현재 JWT 폐기 | `POST /api/auth/logout` | revocation store 사용 |
 
-### 5.3 기본 배포 (인증은 항상 활성)
+### 4.4 사용자 메모리
 
-```bash
-# Docker 빌드 시 DB 플래그 활성화
-# Dockerfile에서 ARG ENABLE_DB → -Pdb=true
-docker compose up -d
-
-# 환경 변수 예시 (.env)
-GEMINI_API_KEY=your-key
-ARC_REACTOR_AUTH_JWT_SECRET=your-256-bit-secret
-```
-
-현재 기본 런타임에서는 자동으로:
-- 모든 API에 JWT 토큰 필요 (`/api/auth/login` 제외, `/api/auth/register`는 활성화 시에만 공개)
-- 세션이 userId로 격리 (다른 사용자의 세션 접근 불가)
-- conversation_messages에 user_id 컬럼 자동 추가 (Flyway V4)
-
-### 5.4 PostgreSQL 활성화 방법
-
-arc-reactor-web의 docker-compose에 DB 서비스를 추가하거나, 환경 변수 설정:
-
-```bash
-# 방법 1: 외부 PostgreSQL에 연결
-SPRING_DATASOURCE_URL=jdbc:postgresql://host:5432/arcreactor \
-SPRING_DATASOURCE_USERNAME=arc \
-SPRING_DATASOURCE_PASSWORD=arc \
-docker compose up -d
-
-# 방법 2: arc-reactor/docker-compose.yml 사용 (DB 포함)
-cd arc-reactor && docker compose up -d
-```
-
-`JdbcMemoryStore`는 `DataSource` 빈이 존재하면 **자동 활성화**된다 (`@ConditionalOnClass` + `@ConditionalOnBean`).
+| 기능 | 설명 | 대표 진입점 | 주의점 |
+|------|------|-------------|--------|
+| 장기 메모리 조회 | facts/preferences/recentTopics 조회 | `GET /api/user-memory/{userId}` | 기본 노출 아님, 본인만 접근 |
+| fact 수정 | 단일 fact 업데이트 | `PUT /api/user-memory/{userId}/facts` | `UserMemoryManager` 빈 필요 |
+| preference 수정 | 단일 preference 업데이트 | `PUT /api/user-memory/{userId}/preferences` | 자기 메모리만 수정 가능 |
+| 전체 메모리 삭제 | 사용자 장기 메모리 삭제 | `DELETE /api/user-memory/{userId}` | 세션 메모리와 별개 |
 
 ---
 
-## 6. ChatRequest 필드 전체 명세
+## 5. 지식, 기억, 검색
 
-프론트엔드가 백엔드에 보내는 요청:
+### 5.1 세션 메모리 vs 사용자 메모리
 
-```json
-{
-  "message": "사용자 입력 텍스트 (필수, NotBlank)",
-  "model": "gemini | openai | anthropic | vertex | null (서버 기본값)",
-  "systemPrompt": "커스텀 시스템 프롬프트 | null (기본 프롬프트)",
-  "userId": "선택적 클라이언트 힌트 (권한 기준 userId는 서버가 JWT에서 추출)",
-  "metadata": {
-    "sessionId": "UUID (세션 식별자)"
-  },
-  "responseFormat": "TEXT | JSON | null (기본: TEXT)",
-  "responseSchema": "JSON 스키마 문자열 | null"
-}
-```
+- `session memory`
+  - 대화 흐름을 이어가기 위한 단기 문맥
+  - `sessionId` 기준으로 저장
+  - 세션 export / 삭제 대상
+- `user memory`
+  - 사용자별 장기 사실/선호 저장
+  - facts, preferences, recentTopics 구조
+  - 별도 manager/store가 있을 때만 노출
 
-### 각 필드의 역할
+두 기능은 같은 것이 아니다.
 
-| 필드 | 프론트 전송 여부 | 백엔드 사용처 |
-|------|----------------|-------------|
-| `message` | **항상** | LLM에 userPrompt로 전달 |
-| `model` | 설정 시 | `ChatModelProvider`에서 해당 provider의 ChatModel 선택 |
-| `systemPrompt` | 설정 시 | LLM 시스템 프롬프트 (기본: "You are a helpful AI assistant...") |
-| `userId` | 선택 | Guard rate limit 키, 로그 식별자 (권한 기준 userId는 JWT 값 사용) |
-| `metadata.sessionId` | **항상** | `ConversationManager`에서 대화 이력 로드/저장 |
-| `responseFormat` | TEXT 아닐 때 | 응답 형식 (JSON 모드 시 시스템 프롬프트에 JSON 지시 추가) |
-| `responseSchema` | 미사용 | JSON 모드 시 스키마 강제 |
+### 5.2 RAG / 문서 / 벡터
 
----
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| RAG retrieval | 질문 관련 문서를 검색해 프롬프트에 주입 | 내부 | 모든 질문이 RAG를 타는 건 아님 |
+| 문서 업로드 | 텍스트를 청킹 후 벡터 저장소에 적재 | `POST /api/documents` | 관리자 기능 |
+| 문서 일괄 업로드 | 여러 문서를 한 번에 적재 | `POST /api/documents/batch` | 운영 적재용 |
+| 문서 유사도 검색 | 저장소 검색 상태 검증 | `POST /api/documents/search` | 사용자 채팅과는 별도 |
+| 문서 삭제 | 문서/청크 삭제 | `DELETE /api/documents` | 관리자 기능 |
+| 청킹 | 긴 문서를 chunk로 분할 | 내부 | RAG 품질 핵심 |
+| query transform | HyDE / decomposition 류 질의 보강 | 내부 | 조건부 |
+| adaptive query routing | 검색 강도 조절 또는 retrieval 생략 | 내부 | 조건부 |
+| parent document retrieval | 청크 주변 문맥 확장 | 내부 | 조건부 |
+| context compression | 검색 문맥 압축 | 내부 | 조건부 |
+| hybrid retrieval | vector + BM25 혼합 검색 | 내부 | 신규 문서 BM25 증분 반영은 별도 확인 필요 |
 
-## 7. Guard 파이프라인 상세
+### 5.3 Q&A 기반 RAG 적재
 
-요청이 LLM에 도달하기 전에 5단계 검증을 거친다:
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| ingestion policy | 어떤 Q&A를 후보로 저장할지 정책 제어 | `/api/rag-ingestion/policy` | 동적 정책 opt-in |
+| candidate 저장 | 사용자 Q&A를 후보로 보관 | 내부 hook | 기본은 자동 학습 아님 |
+| candidate 승인/거부 | 후보를 검토해 실제 적재 여부 결정 | `/api/rag-ingestion/candidates/*` | 관리자 리뷰 흐름 |
+| 승인 시 벡터화 | 승인된 후보를 문서로 바꿔 `VectorStore.add(...)` | 내부 + 관리자 API | 여기서 실제 vector화 |
 
-```
-요청 → [1. Rate Limit] → [2. Input Validation] → [3. Injection Detection]
-                       → [4. Classification] → [5. Permission] → 허용/거부
-```
+정확한 동작은 [RAG / Vector 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/rag-vector-audit.md) 참고.
 
-| 단계 | 기본 구현 | 기본 설정 | 커스텀 가능 |
-|------|---------|---------|-----------|
-| Rate Limit | `DefaultRateLimitStage` | 분당 20회, 시간당 200회 | application.yml |
-| Input Validation | `DefaultInputValidationStage` | 최대 10,000자 | application.yml |
-| Injection Detection | `DefaultInjectionDetectionStage` | 활성 (regex 기반) | application.yml |
-| Classification | 미구현 (인터페이스만) | — | `@Component`로 추가 |
-| Permission | 미구현 (인터페이스만) | — | `@Component`로 추가 |
+### 5.4 대화 요약
 
----
-
-## 8. Hook 시스템 상세
-
-에이전트 실행 생명주기의 4개 확장 포인트:
-
-```
-[BeforeAgentStart] → [에이전트 루프] → [BeforeToolCall → AfterToolCall]* → [AfterAgentComplete]
-```
-
-| Hook | 시점 | 용도 예시 | 실패 정책 |
-|------|------|---------|----------|
-| `BeforeAgentStartHook` | 실행 시작 전 | 인증, 예산 확인, 메타데이터 보강 | Fail-open (기본) |
-| `BeforeToolCallHook` | 각 도구 호출 전 | 파라미터 검증, 위험 작업 승인 | Fail-open (기본) |
-| `AfterToolCallHook` | 각 도구 호출 후 | 로깅, 메트릭, 알림 | Fail-open (기본) |
-| `AfterAgentCompleteHook` | 실행 완료 후 | 감사 로그, 과금, 정리 | Fail-open (기본) |
-
-`failOnError: true` 설정 시 해당 Hook 에러가 실행을 중단시킨다.
+| 기능 | 설명 | 기본 성격 | 주의점 |
+|------|------|-----------|--------|
+| conversation summary | 긴 대화를 LLM으로 요약 저장 | opt-in | `memory.summary.enabled=true` 필요 |
+| 요약 저장소 | in-memory 또는 JDBC | opt-in | datasource 있으면 JDBC 우선 가능 |
 
 ---
 
-## 9. 설정 가능한 전체 속성 (`arc.reactor.*`)
+## 6. 에이전트 실행 엔진
 
-```yaml
-arc:
-  reactor:
-    max-tool-calls: 10              # ReAct 루프 최대 도구 호출 횟수
-    max-tools-per-request: 30       # 요청당 최대 도구 수
+### 6.1 기본 파이프라인
 
-    llm:
-      default-provider: gemini      # 기본 LLM 프로바이더
-      temperature: 0.1              # 창의성 (0.0~1.0)
-      max-output-tokens: 4096       # 최대 응답 길이
-      max-conversation-turns: 10    # 대화 이력 최대 턴 수
-      max-context-window-tokens: 128000  # 컨텍스트 윈도우 토큰 한도
-      prompt-caching:
-        enabled: false              # Anthropic 프롬프트 캐싱 (opt-in)
-        provider: anthropic
-        cache-system-prompt: true
-        cache-tools: true
-        min-cacheable-tokens: 1024
+Arc Reactor의 기본 실행 구조는 아래 순서다.
 
-    retry:
-      max-attempts: 3               # LLM 재시도 횟수
-      initial-delay-ms: 200         # 초기 지연 (ms)
-      multiplier: 2.0               # 지수 백오프 배수
-      max-delay-ms: 10000           # 최대 지연 (ms)
+1. Guard
+2. Hook before start
+3. ReAct 루프 또는 completion 실행
+4. Tool orchestration
+5. Hook after complete
+6. 최종 응답 반환
 
-    concurrency:
-      max-concurrent-requests: 20   # 최대 동시 요청
-      request-timeout-ms: 30000     # 요청 타임아웃 (30초)
-      tool-call-timeout-ms: 15000   # 도구별 호출 타임아웃 (ms)
+### 6.2 핵심 엔진 기능
 
-    guard:
-      enabled: true                 # Guard 활성화
-      rate-limit-per-minute: 20     # 분당 요청 한도
-      rate-limit-per-hour: 200      # 시간당 요청 한도
-      injection-detection-enabled: true  # 프롬프트 인젝션 탐지
+| 기능 | 설명 | 기본 성격 | 주의점 |
+|------|------|-----------|--------|
+| Guard pipeline | 입력 검증, rate limit, injection 탐지, 정책 검사 | 핵심 | fail-close |
+| Hook system | 실행 전후 확장 포인트 | 핵심 | fail-open |
+| ReAct loop | LLM이 도구를 호출하며 단계적으로 해결 | 핵심 | `maxToolCalls`, timeout 중요 |
+| Tool call orchestration | 로컬 도구/MCP 도구를 공통 방식으로 실행 | 핵심 | metadata, approval, sanitizer 영향 |
+| Tool selection | 사용 후보 도구를 줄여 비용과 노이즈 절감 | 핵심 | 기본 배선은 `AllToolSelector` 또는 `SemanticToolSelector`이며, semantic selector 내부에 fast-path가 있다 |
+| MCP tool availability precheck | 죽은 MCP 도구를 루프 전에 걸러냄 | 보조 기능 | 고스트 도구 호출 방지 |
+| Tool dependency validation | 도구 의존 관계/라우팅 초기 검증 | 운영 보조 | 설정 품질 확보 |
 
-    boundaries:
-      input-min-chars: 1            # 최소 입력 길이 (자)
-      input-max-chars: 10000        # 최대 입력 길이 (자)
+### 6.3 안전/정책 기능
 
-    auth:
-      jwt-secret: ${ARC_REACTOR_AUTH_JWT_SECRET}  # HMAC 서명 시크릿 (필수, 최소 32바이트)
-      jwt-expiration-ms: 86400000    # 토큰 유효기간 (24시간)
-      default-tenant-id: default     # 발급 JWT의 기본 tenant claim
-      self-registration-enabled: false
-      public-paths:                  # 인증 없이 접근 가능한 경로
-        - /api/auth/login
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| Tool approval | 위험 도구 호출을 실행 전 승인/거부 | `/api/approvals*` | approval enabled 필요, 현재 문서상 인자 수정 기능처럼 이해하면 안 됨 |
+| Tool policy | 채널/상황별 write tool 허용/차단 정책 | `/api/tool-policy` | approval과 별도 계층, 동적 policy opt-in |
+| Write tool block hook | 정책상 금지된 write tool 차단 | 내부 hook | fail-open hook이 아니라 정책 엔진 기반 |
+| Output guard | 모델 결과와 경계 재시도 결과에 민감 정보/금칙 패턴 적용 | 내부 + `/api/output-guard/rules*` | 프레임워크 차원 opt-in이지만 이 저장소 기본 설정은 활성 |
+| Dynamic output guard rules | 정규식 규칙 CRUD, audit, simulate | 운영 기능 | dynamic rules opt-in |
+| Tool output sanitizer | 도구 출력 정제 | 내부 | 도구 출력 불신 원칙 |
+| Canary token | 시스템 프롬프트 유출 탐지 | 조건부 | output guard와 결합 시 더 강함 |
 
-    cache:
-      enabled: false                # 응답 캐싱 활성화 (opt-in)
-      max-size: 1000                # 캐시 항목 최대 수
-      ttl-minutes: 60               # 캐시 TTL (분)
-      cacheable-temperature: 0.0    # 온도가 이 값 이하일 때만 캐시
-      semantic:
-        enabled: false              # Redis 시맨틱 캐시 폴백 (opt-in)
-        similarity-threshold: 0.92
-        max-candidates: 50
-        max-entries-per-scope: 1000
-        key-prefix: arc:cache
+Guard와 Hook은 둘 다 확장 포인트처럼 보이지만 역할이 다르다.
 
-    tool-result-cache:
-      enabled: false                # 도구 결과 캐싱 활성화 (opt-in)
-      ttl-seconds: 60               # 캐시 TTL (초)
-      max-size: 200                 # 캐시 항목 최대 수
-
-    citation:
-      enabled: false                # 인용 자동 포맷 활성화 (opt-in)
-      format: markdown              # 인용 형식
-
-    circuit-breaker:
-      enabled: false                # 서킷 브레이커 활성화 (opt-in)
-      failure-threshold: 5          # OPEN 전 실패 횟수
-      reset-timeout-ms: 30000       # OPEN → HALF_OPEN 지연 (ms)
-      half-open-max-calls: 1        # HALF_OPEN 시험 호출 수
-
-    fallback:
-      enabled: false                # 우아한 성능 저하 활성화 (opt-in)
-      models: []                    # 폴백 모델 우선순위 순서
-
-    webhook:
-      enabled: false                # 웹훅 알림 활성화 (opt-in)
-      url: ""                       # POST 대상 URL
-      timeout-ms: 5000              # HTTP 타임아웃 (ms)
-      include-conversation: false   # 페이로드에 전체 대화 포함 여부
-
-    tool-enrichment:
-      requester-aware-tool-names: []  # 요청자 정보를 주입받는 도구 목록
-
-    memory:
-      summary:
-        enabled: false              # 계층적 메모리 요약 (opt-in)
-        trigger-message-count: 20
-        recent-message-count: 10
-        max-narrative-tokens: 500
-      user:
-        enabled: false              # 사용자별 장기 메모리 (opt-in)
-        inject-into-prompt: false   # 시스템 프롬프트에 자동 주입
-        max-prompt-injection-chars: 1000
-        max-recent-topics: 10
-
-    api-version:
-      enabled: true                 # API 버전 계약 필터 활성화
-      current: v1                   # 현재 API 버전
-      supported: v1                 # 지원 버전 목록 (콤마 구분)
-
-    rag:
-      enabled: false                # RAG 파이프라인 활성화
-      similarity-threshold: 0.65    # 유사도 임계값
-      top-k: 5                      # 검색 문서 수
-      rerank-enabled: false         # Re-ranking 활성화
-      max-context-tokens: 4000      # RAG 컨텍스트 최대 토큰
-      retrieval-timeout-ms: 3000    # 검색 타임아웃 (ms)
-      adaptive-routing:
-        enabled: true               # 단순 쿼리 시 RAG 건너뛰기
-      compression:
-        enabled: false              # 문맥 압축 (opt-in)
-
-    scheduler:
-      enabled: false                # 동적 스케줄러 (opt-in)
-      thread-pool-size: 5
-      default-execution-timeout-ms: 300000
-      max-executions-per-job: 100
-```
+- Guard는 fail-close 보안 계층이다.
+- Hook은 확장/관찰 계층이지만, before 계열은 실제로 실행을 거부할 수도 있다.
+- output guard는 citation 부착이나 일부 response filter보다 앞선 단계에서 적용된다.
 
 ---
 
-## 10. 현재 한계점 & 알려진 제약
+## 7. 품질, 비용, 복원력
 
-### 10.1 세션 관리
+### 7.1 캐시와 비용 절감
 
-| 문제 | 영향 | 심각도 |
-|------|------|--------|
-| ~~세션 목록/이력 조회 API 없음~~ | ✅ **해결** — `GET /api/sessions`, `GET /api/sessions/{id}` | — |
-| ~~세션 삭제 API 없음~~ | ✅ **해결** — `DELETE /api/sessions/{id}` | — |
-| ~~userId 하드코딩 (`web-user`)~~ | ✅ **해결** — JWT 인증으로 사용자별 세션 격리 | — |
-| localStorage ↔ MemoryStore 미동기화 | 브라우저 데이터 삭제 시 UI 이력 유실 (서버에는 있을 수 있음) | 낮음 |
+| 기능 | 설명 | 기본 성격 | 주의점 |
+|------|------|-----------|--------|
+| Response cache | 동일 요청 응답 재사용 | opt-in | user/session/tenant/systemPrompt/tool set까지 반영한 키를 사용하고, 저온도 요청만 저장하며, hit 이후에도 finalizer/output guard를 다시 통과 |
+| Semantic response cache | 의미가 비슷한 요청도 재사용 | opt-in | `cache.semantic.enabled`와 Redis/EmbeddingModel 존재 시 시도되며, Redis probe 실패 시 Caffeine으로 폴백, RAG 아님 |
+| Prompt caching | Anthropic prompt caching 적용 | opt-in | Anthropic classpath에서만 의미 있음 |
+| Budget tracking | 요청/월간 비용 추적 | opt-in | 월간 예산 tracker 제공 |
+| Model routing | 비용/품질 기반 동적 모델 라우팅 | opt-in | router bean 교체 가능 |
 
-### 10.2 토큰 효율
+### 7.2 안정성 / 관측 / 하드닝
 
-| 현황 | 영향 | 심각도 |
-|------|------|--------|
-| 기본적으로 Sliding Window만 사용 (최근 10턴) | 요약 없이 오래된 대화 맥락 유실 | 낮음 |
-| ~~Summarization 미구현~~ | **해결** — opt-in 계층적 메모리 요약 (`memory.summary.enabled: true`) | — |
-
-> 상세: [memory-rag.md — 토큰 관리 전략](../architecture/memory-rag.md#토큰-관리-전략--매번-전체-이력을-보내면-낭비-아닌가)
-
-### 10.3 배포
-
-| 문제 | 영향 | 심각도 |
-|------|------|--------|
-| arc-reactor-web docker-compose에 DB 없음 | 서버 재시작 시 대화 컨텍스트 유실 | 높음 |
-| ~~모델 목록 하드코딩~~ | ✅ **해결** — `GET /api/models` 동적 조회 | — |
-
-### 10.4 프레임워크
-
-| 제약 | 이유 | 대안 |
-|------|------|------|
-| MDC + 코루틴 = 로그 상관관계 불안정 | ThreadLocal 기반 MDC, 코루틴은 스레드 전환 | kotlinx-coroutines-slf4j 추가 |
-| `ArcToolCallbackAdapter`의 `runBlocking` | Spring AI 인터페이스가 동기식 | Spring AI 인터페이스 제약 |
-| 도구 성공 판단이 `startsWith("Error:")` | 프레임워크 수준의 한계 | 커스텀 ToolResultParser 구현 |
+| 기능 | 설명 | 기본 성격 | 주의점 |
+|------|------|-----------|--------|
+| Checkpoint | ReAct 중간 상태 저장 | opt-in | 기본은 in-memory |
+| Tool idempotency | 중복 tool call 방지 | opt-in | TTL/maxSize 기반 |
+| Prompt drift | 입력/출력 분포 변화 감지 | opt-in | after-complete hook |
+| Cost anomaly | 비용 이상치 탐지 | opt-in | sliding window 기반 |
+| SLO alert | 지연/오류율 위반 감지 | opt-in | 기본 notifier는 로그 |
+| Circuit breaker / fallback | LLM 호출 실패 시 회로 차단과 단순 모델 폴백 | 일부 기본/조건부 | fallback은 전체 ReAct 재실행이 아니라 plain LLM fallback에 가깝다 |
+| Tracing / metrics | 실행 단계 span과 metric 기록 | 핵심 | 운영 분석 기반 |
+| Runtime preflight | PostgreSQL, auth, health probe 등 시작 전 검증 | 기본 | 잘못된 운영 설정을 시작 시 차단 |
 
 ---
 
-## 11. 자동 구성 빈 목록
+## 8. 운영 / 관리자 기능
 
-모든 빈은 `@ConditionalOnMissingBean`으로 등록되어 사용자가 동일 타입 빈을 등록하면 오버라이드된다.
+### 8.1 운영 표면
 
-| 빈 | 기본 구현 | 조건 | 오버라이드 방법 |
-|----|---------|------|--------------|
-| `ToolSelector` | `AllToolSelector` | 항상 | `@Bean` 등록 |
-| `MemoryStore` | `InMemoryMemoryStore` | DataSource 없을 때 | DataSource 추가 → 자동 전환 |
-| `MemoryStore` | `JdbcMemoryStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |
-| `ConversationManager` | `DefaultConversationManager` | 항상 | `@Bean` 등록 |
-| `TokenEstimator` | `DefaultTokenEstimator` | 항상 | `@Bean` 등록 |
-| `RequestGuard` | Guard 파이프라인 | `guard.enabled: true` | `@Bean` 등록 |
-| `HookExecutor` | `DefaultHookExecutor` | 항상 | `@Component` Hook 추가 |
-| `McpManager` | `DefaultMcpManager` | 항상 | `@Bean` 등록 |
-| `ChatModelProvider` | 자동 발견 | ChatModel 빈 있을 때 | `@Bean` 등록 |
-| `AgentExecutor` | `SpringAiAgentExecutor` | 항상 | `@Bean` 등록 |
-| `AgentMetrics` | `NoOpAgentMetrics` (MeterRegistry 존재 시 `MicrometerAgentMetrics`) | 항상 | `@Bean` 등록 |
-| `ResponseFilterChain` | `ResponseFilterChain` | 항상 | `@Component` ResponseFilter 추가 |
-| `ResponseCache` | `CaffeineResponseCache` (기본), `RedisSemanticResponseCache` (semantic 활성 + 의존성 존재 시 primary) | cache.enabled=true | `@Bean` 등록 |
-| `CircuitBreakerRegistry` | `CircuitBreakerRegistry` | circuit-breaker.enabled=true | `@Bean` 등록 |
-| `FallbackStrategy` | `ModelFallbackStrategy` | fallback.enabled=true | `@Bean` 등록 |
-| `ErrorMessageResolver` | `DefaultErrorMessageResolver` | 항상 | `@Bean` 등록 |
-| `PersonaStore` | `InMemoryPersonaStore` | DataSource 없을 때 | `@Bean` 등록 |
-| `PersonaStore` | `JdbcPersonaStore` | DataSource + JdbcTemplate 있을 때 | `@Bean` 등록 |
-| `PromptTemplateStore` | `InMemoryPromptTemplateStore` | 항상 | `@Bean` 등록 |
-| `AuthProvider` | `DefaultAuthProvider` | 항상 | `@Bean` 등록 |
-| `UserStore` | `InMemoryUserStore` | DataSource 없을 때 | `@Bean` 등록 |
-| `UserStore` | `JdbcUserStore` | DataSource 있을 때 | `@Bean` 등록 |
-| `JwtTokenProvider` | — | 항상 | — |
-| `JwtAuthWebFilter` | — | 항상 | — |
-| `McpServerStore` | `InMemoryMcpServerStore` | 항상 | `@Bean` 등록 |
-| `McpSecurityPolicyStore` | `InMemoryMcpSecurityPolicyStore` | 항상 | `@Bean` 등록 |
-| `AdminAuditStore` | `InMemoryAdminAuditStore` | 항상 | `@Bean` 등록 |
-| `ToolPolicyStore` | `InMemoryToolPolicyStore` | 항상 | `@Bean` 등록 |
-| `ToolExecutionPolicyEngine` | `ToolExecutionPolicyEngine` | 항상 | `@Bean` 등록 |
-| `RagIngestionPolicyStore` | `InMemoryRagIngestionPolicyStore` | 항상 | `@Bean` 등록 |
-| `OutputGuardRuleStore` | `InMemoryOutputGuardRuleStore` | 항상 | `@Bean` 등록 |
-| `OutputGuardRuleAuditStore` | `InMemoryOutputGuardRuleAuditStore` | 항상 | `@Bean` 등록 |
-| `UserMemoryStore` | `InMemoryUserMemoryStore` (DataSource 있을 때 `JdbcUserMemoryStore`) | memory.user.enabled=true | `@Bean` 등록 |
-| `UserMemoryManager` | `UserMemoryManager` | memory.user.enabled=true | `@Bean` 등록 |
-| `ConversationSummaryStore` | `InMemoryConversationSummaryStore` (DataSource 있을 때 `JdbcConversationSummaryStore`) | memory.summary.enabled=true | `@Bean` 등록 |
-| `ConversationSummaryService` | `LlmConversationSummaryService` | memory.summary.enabled=true | `@Bean` 등록 |
-| `PromptCachingService` | `AnthropicPromptCachingService` | llm.prompt-caching.enabled=true + Anthropic 클래스패스 | `@Bean` 등록 |
-| `ToolApprovalPolicy` | `DynamicToolApprovalPolicy` 또는 `AlwaysApprovePolicy` | approval.enabled=true | `@Bean` 등록 |
-| `PendingApprovalStore` | `InMemoryPendingApprovalStore` | approval.enabled=true + DataSource 없을 때 | `@Bean` 등록 |
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| capabilities | 현재 노출된 관리자 API 경로 목록 | `GET /api/admin/capabilities` | raw request mapping dump 성격 |
+| admin audits | 관리자 작업 이력 조회 | `GET /api/admin/audits` | proactive/MCP/security 변경 추적 |
+| ops dashboard | MCP, 스케줄러, 승인, trust, metric 스냅샷 | `GET /api/ops/dashboard` | 운영 요약 |
+| metrics names | 운영 메트릭 이름 목록 | `GET /api/ops/metrics/names` | 대시보드 wiring 보조 |
+
+### 8.2 플랫폼 admin
+
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| platform health | 플랫폼 헬스 대시보드 | `/api/admin/platform/health` | `admin.enabled=true` 필요 |
+| cache stats | 응답 캐시 상태 확인 | `/api/admin/platform/cache/stats` | 품질 자체를 증명하진 않음 |
+| vectorstore stats | vector store 존재 중심 상태 확인 | `/api/admin/platform/vectorstore/stats` | 검색 품질 검증 아님 |
+| 사용자 조회/역할 변경 | 사용자 조회와 role 변경 | `/api/admin/platform/users/*` | 자기 자신 권한 축소 제한 |
+| 테넌트 CRUD | 생성, 조회, suspend, activate | `/api/admin/platform/tenants*` | 플랫폼 운영 기능 |
+| 가격 정책 | 모델별 가격 CRUD | `/api/admin/platform/pricing` | 비용 계산 기반 |
+| alert rules | 규칙 CRUD, evaluate, resolve | `/api/admin/platform/alerts*` | 운영 경보 |
+
+### 8.3 테넌트 admin
+
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| overview | 요청, 성공률, APDEX, SLO, 비용 | `/api/admin/tenant/overview` | admin enabled 필요 |
+| usage | 시계열, 채널 분포, 상위 사용자 | `/api/admin/tenant/usage` | time range 지원 |
+| quality | 지연 백분위, 오류 분포 | `/api/admin/tenant/quality` | |
+| tools | 도구 랭킹, 느린 도구 | `/api/admin/tenant/tools` | |
+| cost | 모델별 비용 | `/api/admin/tenant/cost` | |
+| slo | tenant SLO 상태 | `/api/admin/tenant/slo` | tenant config 영향 |
+| alerts | 활성 알림 목록 | `/api/admin/tenant/alerts` | |
+| quota | 월간 quota vs usage | `/api/admin/tenant/quota` | |
+| CSV export | execution/tool export | `/api/admin/tenant/export/*` | 일부는 full ADMIN 필요 |
+
+### 8.4 메트릭 수집
+
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| MCP health event 수집 | 외부 MCP 상태 이벤트 수집 | `/api/admin/metrics/ingest/mcp-health` | 버퍼 가득 차면 503/drop |
+| tool call event 수집 | 도구 호출 이벤트 수집 | `/api/admin/metrics/ingest/tool-call` | 외부 소스 연계 가능 |
+| eval result event 수집 | 평가 결과 수집 | `/api/admin/metrics/ingest/eval-result` | 분석 데이터로 사용 |
+
+### 8.5 운영 실험 / 개선
+
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| Prompt Template | 버전 관리되는 system prompt | `/api/prompt-templates*` | 버전 activate/archive 흐름 |
+| Persona | 이름 붙은 system prompt 프로필 | `/api/personas*` | template 연결 가능 |
+| Intent | intent 정의와 프로필 관리 | `/api/intents*` | `intent.enabled=true` 필요 |
+| Prompt Lab | prompt 실험 생성, 실행, 취소, 분석, 리포트, activate, 자동 최적화 | `/api/prompt-lab*` | 비동기 실행, 동시성 제한 있음 |
+| Feedback | 사용자 평가 수집, 조회, export, runId 기반 메타데이터 보강 | `/api/feedback*` | `feedback.enabled=true` 필요, Slack reaction 저장과도 연결 가능 |
+
+### 8.6 자동화 / 스케줄러
+
+| 기능 | 설명 | 대표 API | 주의점 |
+|------|------|----------|--------|
+| scheduled MCP tool run | 스케줄에 따라 MCP 도구 실행 | `/api/scheduler/jobs*` | `jobType=MCP_TOOL` |
+| scheduled agent run | 스케줄에 따라 전체 agent 실행 | `/api/scheduler/jobs*` | `jobType=AGENT` |
+| 즉시 실행 | 수동 trigger | `/api/scheduler/jobs/{id}/trigger` | 실행 결과 반환 |
+| dry-run | 부작용 없는 실행 시뮬레이션 | `/api/scheduler/jobs/{id}/dry-run` | 상태 기록/알림 제외 |
+| 실행 이력 조회 | 최근 실행 결과 확인 | `/api/scheduler/jobs/{id}/executions` | 운영 디버깅용 |
+| Slack/Teams sink | 실행 결과를 Slack/Teams로 발송 | job 설정 | 실행 문맥 자체가 Slack/Teams가 되진 않음 |
 
 ---
 
-## 12. Fork 후 커스터마이즈 가이드
+## 9. 외부 연동 기능
 
-arc-reactor를 fork하여 사용할 때 수정이 필요한 부분:
+### 9.1 MCP
 
-### 12.1 필수 설정
+MCP는 Arc Reactor가 외부 툴 서버를 런타임에 붙여 tool surface를 확장하는 기능이다.
 
-```bash
-# .env 파일
-GEMINI_API_KEY=your-key
-ARC_REACTOR_AUTH_JWT_SECRET=replace-with-32-byte-secret
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/arcreactor
-SPRING_DATASOURCE_USERNAME=arc
-SPRING_DATASOURCE_PASSWORD=arc
-```
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| 서버 등록/수정/삭제 | 런타임 MCP 서버 관리 | `/api/mcp/servers*` | `HTTP` transport는 거부, `SSE/STDIO` 중심 |
+| 연결/해제 | connect / disconnect 제어 | `/api/mcp/servers/{name}/*` | 상태는 `PENDING/CONNECTING/CONNECTED/FAILED/DISCONNECTED` |
+| 보안 정책 | allowlist, max output length 관리 | `/api/mcp/security` | 정책 변경 시 manager에 즉시 재적용 |
+| access-policy 프록시 | upstream MCP admin policy 프록시 | `/api/mcp/servers/{name}/access-policy` | upstream admin token/HMAC 필요 |
+| preflight 프록시 | upstream readiness 체크 | `/api/mcp/servers/{name}/preflight` | 자체 health가 아니라 upstream admin API 호출 |
+| swagger catalog 프록시 | Swagger source lifecycle 관리 | `/api/mcp/servers/{name}/swagger/sources*` | upstream이 admin contract를 구현해야 함 |
+| startup restore | 저장된 서버 복원과 auto-connect | 내부 | security allowlist 영향 |
+| auto reconnect | 실패 서버 백오프 재시도 | 내부 | opt-in 성격의 운영 보조 |
+| health pinger | CONNECTED 서버 주기 점검 | 내부 | 도구 없음 상태를 끊김으로 간주 |
 
-### 12.2 도구 추가
+정확한 동작과 제약은 [MCP 통합 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/mcp-integration-audit.md) 참고.
 
-```kotlin
-@Component  // 주석 해제하여 활성화
-class MyCustomTool : LocalTool {
-    @Tool(description = "도구 설명")
-    suspend fun execute(param: String): String {
-        return "결과"
-    }
-}
-```
+### 9.2 Slack
 
-### 12.3 PostgreSQL 연결
+Slack은 이 프로젝트의 가장 중요한 사용자 채널 중 하나다. 상세는 [Slack 통합 감사 문서](/Users/jinan/ai/arc-reactor/docs/ko/reference/slack-integration-audit.md) 참고.
 
-```yaml
-# application.yml 또는 환경 변수
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/arcreactor
-    username: arc
-    password: arc
-  flyway:
-    enabled: true  # 자동 마이그레이션
-```
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| Events API | mention/thread/event 기반 대화 | `POST /api/slack/events` | signature verify, dedup, tracked thread 영향 |
+| Slash commands | 명령 기반 질의 | `POST /api/slack/commands` | 이벤트 경로와 응답 흐름이 다름 |
+| Socket Mode | WebSocket 기반 ingress | 내부 | interactive envelope은 제한적 |
+| proactive channels | 선제 응답 허용 채널 관리 | `/api/proactive-channels*` | in-memory store 기본 |
+| reminder / reaction feedback | 사용자 편의 기능 | 내부 | 일부 경로는 best-effort/in-memory |
+| Slack Tools | 에이전트가 Slack API를 직접 호출 | 로컬 도구 | Slack chat ingress와 별개 opt-in |
 
-### 12.4 Guard 커스터마이즈
+### 9.3 기타 연동
 
-```kotlin
-@Component
-class MyPermissionStage : GuardStage {
-    override val order = 500
-    override suspend fun evaluate(context: GuardContext): GuardResult {
-        // 커스텀 권한 검사
-        return GuardResult.Allowed
-    }
-}
-```
+| 기능 | 설명 | 대표 표면 | 주의점 |
+|------|------|-----------|--------|
+| webhook notification | 실행 결과를 외부 URL로 POST | after-complete hook | opt-in |
+| A2A agent card | `/.well-known/agent-card.json` 노출 | 공개 엔드포인트 | `a2a.enabled=true` 및 provider 필요 |
 
-### 12.5 Hook 추가
+---
 
-```kotlin
-@Component
-class MyAuditHook : AfterAgentCompleteHook {
-    override val order = 200
-    override suspend fun execute(context: HookContext, result: AgentResult) {
-        // 감사 로그, 과금 등
-    }
-}
-```
+## 10. 저장소 / 데이터 관점
+
+| 데이터 | 저장 주체 | 대표 저장소 | 설명 |
+|--------|-----------|-------------|------|
+| 세션 대화 이력 | `ConversationManager` / `MemoryStore` | InMemory 또는 JDBC | `sessionId` 기준 단기 문맥 |
+| 세션 요약 | `ConversationSummaryStore` | InMemory 또는 JDBC | 긴 세션 압축 요약 |
+| 사용자 장기 메모리 | `UserMemoryStore` | 구현체 의존 | facts/preferences/recentTopics |
+| 벡터 문서 | `VectorStore` | PGVector 등 | RAG 문서 저장소 |
+| RAG ingestion 후보 | `RagIngestionCandidateStore` | JDBC 중심 | 승인 전 후보 큐 |
+| 승인 대기 요청 | `PendingApprovalStore` | 메모리 또는 영속 저장소 | HITL 큐 |
+| 피드백 | `FeedbackStore` | 메모리 또는 JDBC | 평가 데이터 |
+| MCP 서버 정의 | `McpServerStore` | 메모리 또는 JDBC | 런타임 서버 설정 |
+| MCP 보안 정책 | `McpSecurityPolicyStore` | 메모리 또는 JDBC | allowlist / output length |
+| Prompt Lab 실험 | `ExperimentStore` | 구현체 의존 | 실험 기록 |
+| 스케줄 이력 | `ScheduledJobExecutionStore` | 구현체 의존 | 예약 작업 실행 결과 |
+
+---
+
+## 11. 대표 활성화 조건
+
+| 기능 | 대표 조건 |
+|------|-----------|
+| RAG | `arc.reactor.rag.enabled=true` + `VectorStore` 빈 |
+| RAG ingestion | `arc.reactor.rag.ingestion.enabled=true` |
+| RAG ingestion 동적 정책 | `arc.reactor.rag.ingestion.dynamic.enabled=true` |
+| Multimodal chat | `arc.reactor.multimodal.enabled=true` |
+| User memory API | `UserMemoryManager` 빈 존재 |
+| Memory summary | `arc.reactor.memory.summary.enabled=true` |
+| Approval | `arc.reactor.approval.enabled=true` |
+| Tool policy 동적 관리 | `arc.reactor.tool-policy.dynamic.enabled=true` |
+| Output guard | `arc.reactor.output-guard.enabled=true` |
+| Feedback | `arc.reactor.feedback.enabled=true` |
+| Prompt Lab | `arc.reactor.prompt-lab.enabled=true` |
+| Intent | `arc.reactor.intent.enabled=true` |
+| Budget | `arc.reactor.budget.enabled=true` |
+| Checkpoint | `arc.reactor.checkpoint.enabled=true` |
+| Model routing | `arc.reactor.model-routing.enabled=true` |
+| Prompt caching | `arc.reactor.llm.prompt-caching.enabled=true` + Anthropic classpath |
+| Semantic cache | `arc.reactor.cache.semantic.enabled=true` + Redis/EmbeddingModel classpath와 빈. Redis probe 실패 시 local cache로 폴백 가능 |
+| Tool idempotency | `arc.reactor.tool-idempotency.enabled=true` |
+| Prompt drift | `arc.reactor.prompt-drift.enabled=true` |
+| Canary token | `arc.reactor.guard.canary-token-enabled=true` |
+| Cost anomaly | `arc.reactor.cost-anomaly.enabled=true` |
+| SLO alert | `arc.reactor.slo.enabled=true` |
+| Multi-agent | `arc.reactor.multi-agent.enabled=true` |
+| Scheduler | `arc.reactor.scheduler.enabled=true` |
+| Slack | `arc.reactor.slack.enabled=true` + 토큰/adapter |
+| Slack Tools | `arc.reactor.slack.tools.enabled=true` |
+| A2A agent card | `arc.reactor.a2a.enabled=true` 계열 설정 |
+| MCP health pinger | `arc.reactor.mcp.health.enabled=true` |
+| Platform admin | `arc.reactor.admin.enabled=true` |
+
+---
+
+## 12. 자주 헷갈리는 점
+
+- `session memory`와 `user memory`는 다르다.
+- `RAG`, `vector`, `embedding`, `semantic cache`, `semantic tool discovery`는 모두 다른 기능이다.
+- 사용자 Q&A는 기본적으로 자동 vector화되지 않는다.
+- `multipart chat`은 파일 첨부 대화이지, 자동 문서 학습이 아니다.
+- `rag.enabled=true`가 곧 모든 요청이 RAG를 탄다는 뜻은 아니다.
+- `tool policy`와 `tool approval`은 같은 기능이 아니다. 정책 차단이 먼저 일어날 수 있고, 승인 기능은 그와 별개다.
+- Slack 채널에서 들어왔다고 해서 Slack API tool이 자동으로 켜지는 것은 아니다.
+- MCP admin 프록시는 Arc Reactor가 upstream 기능을 대신 구현하는 것이 아니라, upstream admin API를 대신 호출해 주는 표면이다.
+- MCP admin proxy URL 검증은 runtime SSE URL 검증보다 좁다. 특히 `adminUrl` 설정 검증 범위는 별도 주의가 필요하다.
+- 동적 MCP security policy는 allowlist와 output length 중심이며, `allowedStdioCommands`까지 완전히 동일한 수준으로 관리하지는 않는다.
+- `/api/admin/platform/vectorstore/stats`는 이름과 달리 검색 품질을 보장하지 않는다.
+- Prompt caching은 범용 기능이 아니라 현재 Anthropic 전용 caching integration이다.
+- 스케줄러의 Slack 전송은 결과 sink일 뿐, 실행 문맥 자체가 Slack 대화가 되는 것은 아니다.
+- `maxToolCalls` 초과는 항상 hard fail이 아니다. 구현은 도구를 비우고 final answer를 유도하는 쪽에 가깝다.
+- assistant/tool 응답은 message-pair 무결성을 전제로 저장된다.
+
+---
+
+## 13. 대표 근거 파일
+
+### 13.1 사용자/API
+
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/ChatController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/MultipartChatController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/SessionController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/AuthController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/UserMemoryController.kt`
+
+### 13.2 지식/기억
+
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorRagConfiguration.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/DocumentController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/RagIngestionCandidateController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/RagIngestionPolicyController.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/UserMemoryConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/MemorySummaryConfiguration.kt`
+
+### 13.3 실행 엔진 / 품질
+
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/AgentExecutionCoordinator.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/StreamingExecutionCoordinator.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/ToolCallOrchestrator.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorPreflightConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorOutputGuardConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/BudgetConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/CheckpointConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ModelRoutingConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorSemanticCacheConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/PromptCachingConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/PromptDriftConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ArcReactorCanaryConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/CostAnomalyConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/SloAlertConfiguration.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/MultiAgentConfiguration.kt`
+
+### 13.4 운영 / admin
+
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/ApprovalController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/ToolPolicyController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/OutputGuardRuleController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/FeedbackController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/PromptTemplateController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/PersonaController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/IntentController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/PromptLabController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/SchedulerController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/OpsDashboardController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/AdminCapabilitiesController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/AdminAuditController.kt`
+- `arc-admin/src/main/kotlin/com/arc/reactor/admin/controller/PlatformAdminController.kt`
+- `arc-admin/src/main/kotlin/com/arc/reactor/admin/controller/TenantAdminController.kt`
+- `arc-admin/src/main/kotlin/com/arc/reactor/admin/controller/MetricIngestionController.kt`
+
+### 13.5 연동 / 확장
+
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/McpServerController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/McpSecurityController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/McpAccessPolicyController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/McpPreflightController.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/McpSwaggerCatalogController.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/mcp/McpManager.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/mcp/McpConnectionSupport.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/mcp/McpReconnectionCoordinator.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/mcp/McpHealthPinger.kt`
+- `arc-web/src/main/kotlin/com/arc/reactor/controller/AgentCardController.kt`
+- `arc-core/src/main/kotlin/com/arc/reactor/hook/impl/WebhookNotificationHook.kt`
+- `arc-slack/src/main/kotlin/com/arc/reactor/slack/gateway/SlackSocketModeGateway.kt`
+
+---
+
+## 14. 문서 유지 원칙
+
+- 기능 이름만 적지 말고 “누가 체감하는지”를 같이 적는다.
+- 기본 활성인지 opt-in인지 반드시 적는다.
+- API 표면과 내부 기능을 섞지 말고 구분한다.
+- RAG / vector / embedding / semantic cache / semantic tool selection은 항상 분리 설명한다.
+- Slack / MCP처럼 표면이 넓은 기능은 중앙 문서에서 요약하고, 별도 감사 문서로 상세를 분리한다.

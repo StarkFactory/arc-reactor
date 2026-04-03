@@ -4,6 +4,9 @@ API/기능 단위 기술 레퍼런스 문서 모음입니다.
 
 - [API 모델](api-models.md)
 - [기능 인벤토리](feature-inventory.md)
+- [RAG / Vector 감사 문서](rag-vector-audit.md)
+- [Slack 통합 감사 문서](slack-integration-audit.md)
+- [MCP 통합 감사 문서](mcp-integration-audit.md)
 - [메트릭](metrics.md)
 - [도구 가이드](tools.md)
 - [멀티모달](multimodal.md)
