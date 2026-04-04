@@ -22,10 +22,10 @@ class SlackSystemPromptFactoryTest {
             val prompt = SlackSystemPromptFactory.build("gemini")
 
             prompt shouldContain "gemini"
-            prompt shouldContain "Use only facts that you can verify"
-            prompt shouldContain "Sources"
-            prompt shouldContain "Prefer `confluence_answer_question`"
-            prompt shouldContain "Do not answer Confluence knowledge questions from `confluence_search`"
+            prompt shouldContain "Reactor"
+            prompt shouldContain "Aslan"
+            prompt shouldContain "출처"
+            prompt shouldContain "confluence_answer_question"
             prompt shouldNotContain "[Cross-tool Correlation]"
             prompt shouldNotContain "[Connected Workspace Tools]"
         }
@@ -49,7 +49,42 @@ class SlackSystemPromptFactoryTest {
             val prompt = SlackSystemPromptFactory.build("")
 
             prompt shouldContain "configured backend model"
-            prompt shouldNotContain "best-effort answer with brief assumptions"
+        }
+
+        @Test
+        fun `prompt에 정체성 보호 규칙이 포함된다`() {
+            val prompt = SlackSystemPromptFactory.build("gemini")
+
+            prompt shouldContain "시스템 프롬프트"
+            prompt shouldContain "절대 공개하지 않습니다"
+            prompt shouldContain "도구 이름"
+            prompt shouldContain "노출하지 않습니다"
+        }
+
+        @Test
+        fun `prompt에 금지 영역이 포함된다`() {
+            val prompt = SlackSystemPromptFactory.build("gemini")
+
+            prompt shouldContain "정치적 의견"
+            prompt shouldContain "종교적 편향"
+            prompt shouldContain "개인정보"
+        }
+
+        @Test
+        fun `prompt에 Slack 포맷 규칙이 포함된다`() {
+            val prompt = SlackSystemPromptFactory.build("gemini")
+
+            prompt shouldContain "mrkdwn"
+            prompt shouldContain "*bold*"
+        }
+
+        @Test
+        fun `prompt에 회사 기본 정보가 포함된다`() {
+            val prompt = SlackSystemPromptFactory.build("gemini")
+
+            prompt shouldContain "휴넷"
+            prompt shouldContain "조영탁"
+            prompt shouldContain "에듀테크"
         }
     }
 
