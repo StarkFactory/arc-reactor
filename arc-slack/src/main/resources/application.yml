@@ -30,7 +30,7 @@ arc:
         tool-exposure:
           scope-aware-enabled: ${ARC_REACTOR_SLACK_TOOLS_SCOPE_AWARE_ENABLED:false}
           fail-open-on-scope-resolution-error: ${ARC_REACTOR_SLACK_TOOLS_FAIL_OPEN:true}
-          conversation-scope-mode: ${ARC_REACTOR_SLACK_TOOLS_CONVERSATION_SCOPE_MODE:public_only}
+          conversation-scope-mode: ${ARC_REACTOR_SLACK_TOOLS_CONVERSATION_SCOPE_MODE:include_private_and_dm}
         canvas:
           enabled: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ENABLED:false}
           allowlist-enforced: ${ARC_REACTOR_SLACK_TOOLS_CANVAS_ALLOWLIST_ENFORCED:true}

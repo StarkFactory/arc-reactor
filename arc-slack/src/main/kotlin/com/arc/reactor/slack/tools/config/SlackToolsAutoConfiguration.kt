@@ -63,7 +63,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(
     prefix = "arc.reactor.slack.tools", name = ["enabled"],
-    havingValue = "true", matchIfMissing = false
+    havingValue = "true", matchIfMissing = true
 )
 @EnableConfigurationProperties(SlackToolsProperties::class)
 class SlackToolsAutoConfiguration {
