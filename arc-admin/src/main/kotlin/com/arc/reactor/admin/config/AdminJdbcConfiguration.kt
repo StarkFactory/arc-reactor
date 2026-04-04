@@ -16,6 +16,7 @@ import com.arc.reactor.admin.collection.MetricWriter
 import com.arc.reactor.admin.collection.PipelineHealthMonitor
 import com.arc.reactor.admin.pricing.JdbcModelPricingStore
 import com.arc.reactor.admin.pricing.ModelPricingStore
+import com.arc.reactor.admin.query.AdminSessionQueryService
 import com.arc.reactor.admin.query.DashboardService
 import com.arc.reactor.admin.query.ExportService
 import com.arc.reactor.admin.query.MetricQueryService
@@ -98,6 +99,11 @@ class AdminJdbcConfiguration {
     }
 
     // ── 단계: 쿼리 + SLO + 알림 ──
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun adminSessionQueryService(jdbcTemplate: JdbcTemplate): AdminSessionQueryService =
+        AdminSessionQueryService(jdbcTemplate)
 
     @Bean
     @ConditionalOnMissingBean
