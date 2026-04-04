@@ -45,7 +45,7 @@ __pycache__/
 application-local.yml
 application-local.properties
 .env
-.env.local
+.env.*
 
 
 # Test outputs

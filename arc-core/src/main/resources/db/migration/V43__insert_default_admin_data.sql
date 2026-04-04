@@ -19,12 +19,12 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. 기본 모델 가격표 (주요 LLM 모델)
-INSERT INTO model_pricing (id, provider, model, input_token_price, output_token_price, cached_input_price, effective_from, created_at)
+INSERT INTO model_pricing (id, provider, model, prompt_price_per_1k, completion_price_per_1k, cached_input_price_per_1k, effective_from)
 VALUES
-    ('price-gemini-flash',    'gemini', 'gemini-2.5-flash',       0.15, 0.60, 0.0375, '2025-01-01', NOW()),
-    ('price-gemini-pro',      'gemini', 'gemini-2.5-pro',         1.25, 10.00, 0.3125, '2025-01-01', NOW()),
-    ('price-gpt4o',           'openai', 'gpt-4o',                 2.50, 10.00, 1.25,   '2025-01-01', NOW()),
-    ('price-gpt4o-mini',      'openai', 'gpt-4o-mini',            0.15, 0.60, 0.075,   '2025-01-01', NOW()),
-    ('price-claude-sonnet',   'anthropic', 'claude-sonnet-4-6',   3.00, 15.00, 1.50,   '2025-01-01', NOW()),
-    ('price-claude-haiku',    'anthropic', 'claude-haiku-4-5',    0.80, 4.00, 0.40,    '2025-01-01', NOW())
+    ('price-gemini-flash',    'gemini', 'gemini-2.5-flash',       0.15, 0.60, 0.0375, '2025-01-01'),
+    ('price-gemini-pro',      'gemini', 'gemini-2.5-pro',         1.25, 10.00, 0.3125, '2025-01-01'),
+    ('price-gpt4o',           'openai', 'gpt-4o',                 2.50, 10.00, 1.25,   '2025-01-01'),
+    ('price-gpt4o-mini',      'openai', 'gpt-4o-mini',            0.15, 0.60, 0.075,   '2025-01-01'),
+    ('price-claude-sonnet',   'anthropic', 'claude-sonnet-4-6',   3.00, 15.00, 1.50,   '2025-01-01'),
+    ('price-claude-haiku',    'anthropic', 'claude-haiku-4-5',    0.80, 4.00, 0.40,    '2025-01-01')
 ON CONFLICT (id) DO NOTHING;

@@ -365,9 +365,13 @@ class DefaultConversationManager(
      * 세션에 이미 소유자가 있고, 요청자의 userId와 다르면 로그 경고 후 빈 이력을 반환하도록
      * 빈 리스트를 반환한다. 소유자가 없거나 일치하면 통과.
      * memoryStore가 없으면 검증 불가이므로 통과.
+     *
+     * Slack 채널 스레드 세션(`slack-` prefix)은 여러 사용자가 같은 스레드에서
+     * 대화할 수 있으므로 소유권 검증을 생략한다.
      */
     private suspend fun verifySessionOwnership(sessionId: String, userId: String?) {
         if (userId == null) return
+        if (sessionId.startsWith("slack-")) return
         val store = memoryStore ?: return
         val owner = try {
             withContext(Dispatchers.IO) {

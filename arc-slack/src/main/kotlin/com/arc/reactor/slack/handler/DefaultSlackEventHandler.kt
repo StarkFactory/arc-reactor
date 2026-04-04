@@ -152,6 +152,11 @@ class DefaultSlackEventHandler(
             val sessionId = "slack-$channelId-$threadTs"
             val command = buildAgentCommand(sessionId, channelId, userId, userPrompt)
             val result = agentExecutor.execute(command)
+            val content = result.content.orEmpty().trim()
+            if (content == NO_RESPONSE_MARKER) {
+                logger.debug { "응답 생략 (NO_RESPONSE): channel=$channelId, thread=$threadTs" }
+                return
+            }
             sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
