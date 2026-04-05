@@ -8,6 +8,7 @@ import com.arc.reactor.feedback.FeedbackRating
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.memory.UserMemoryManager
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.session.SlackBotResponseTracker
@@ -43,7 +44,8 @@ class DefaultSlackEventHandler(
     private val mcpManager: McpManager? = null,
     private val feedbackStore: FeedbackStore? = null,
     private val botResponseTracker: SlackBotResponseTracker? = null,
-    private val userMemoryManager: UserMemoryManager? = null
+    private val userMemoryManager: UserMemoryManager? = null,
+    private val personaStore: PersonaStore? = null
 ) : SlackEventHandler {
 
     override suspend fun handleAppMention(command: SlackEventCommand) {
@@ -180,8 +182,9 @@ class DefaultSlackEventHandler(
         val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
         val userContext = SlackHandlerSupport.resolveUserContext(userId, userMemoryManager)
 
+        val personaPrompt = personaStore?.getDefault()?.systemPrompt
         val systemPrompt = buildString {
-            append(SlackSystemPromptFactory.build(defaultProvider, toolSummary))
+            append(SlackSystemPromptFactory.build(personaPrompt, defaultProvider, toolSummary))
             if (userContext.isNotBlank()) {
                 append("\n\n")
                 append(userContext)

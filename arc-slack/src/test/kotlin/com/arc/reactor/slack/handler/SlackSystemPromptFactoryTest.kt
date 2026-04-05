@@ -21,11 +21,10 @@ class SlackSystemPromptFactoryTest {
         fun `without tool summary produces base prompt only를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini")
 
-            prompt shouldContain "gemini"
-            prompt shouldContain "Reactor"
-            prompt shouldContain "Aslan"
+            prompt shouldContain "환각 방지"
             prompt shouldContain "출처"
             prompt shouldContain "confluence_answer_question"
+            prompt shouldContain "mrkdwn"
             prompt shouldNotContain "교차 도구 연계"
             prompt shouldNotContain "[Connected Workspace Tools]"
         }
@@ -48,7 +47,7 @@ class SlackSystemPromptFactoryTest {
         fun `build uses fallback when provider은(는) blank이다`() {
             val prompt = SlackSystemPromptFactory.build("")
 
-            prompt shouldContain "configured backend model"
+            prompt shouldContain "환각 방지"
         }
 
         @Test
@@ -79,12 +78,13 @@ class SlackSystemPromptFactoryTest {
         }
 
         @Test
-        fun `prompt에 회사 기본 정보가 포함된다`() {
-            val prompt = SlackSystemPromptFactory.build("gemini")
+        fun `personaPrompt가 제공되면 시스템 프롬프트에 포함된다`() {
+            val personaPrompt = "당신은 Reactor입니다. 휴넷 AI 어시스턴트."
+            val prompt = SlackSystemPromptFactory.build(personaPrompt = personaPrompt, defaultProvider = "gemini")
 
+            prompt shouldContain "Reactor"
             prompt shouldContain "휴넷"
-            prompt shouldContain "조영탁"
-            prompt shouldContain "에듀테크"
+            prompt shouldContain "환각 방지"
         }
     }
 

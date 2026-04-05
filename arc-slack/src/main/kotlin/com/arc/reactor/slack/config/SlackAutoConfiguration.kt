@@ -28,6 +28,7 @@ import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.service.SlackUserEmailResolver
+import com.arc.reactor.persona.PersonaStore
 import com.arc.reactor.slack.service.SlackUserNameResolver
 import com.arc.reactor.scheduler.SlackMessageSender
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -200,7 +201,8 @@ class SlackAutoConfiguration {
         mcpManager: ObjectProvider<McpManager>,
         feedbackStore: ObjectProvider<FeedbackStore>,
         botResponseTracker: ObjectProvider<SlackBotResponseTracker>,
-        userMemoryManager: ObjectProvider<UserMemoryManager>
+        userMemoryManager: ObjectProvider<UserMemoryManager>,
+        personaStore: ObjectProvider<PersonaStore>
     ): SlackEventHandler = DefaultSlackEventHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
@@ -211,7 +213,8 @@ class SlackAutoConfiguration {
         mcpManager = mcpManager.ifAvailable,
         feedbackStore = feedbackStore.ifAvailable,
         botResponseTracker = botResponseTracker.ifAvailable,
-        userMemoryManager = userMemoryManager.ifAvailable
+        userMemoryManager = userMemoryManager.ifAvailable,
+        personaStore = personaStore.ifAvailable
     )
 
     @Bean
