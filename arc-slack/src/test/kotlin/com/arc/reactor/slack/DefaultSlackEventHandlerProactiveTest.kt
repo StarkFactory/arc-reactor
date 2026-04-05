@@ -231,7 +231,7 @@ class DefaultSlackEventHandlerProactiveTest {
                 SlackEventCommand("app_mention", "U1", "C1", "<@BOT> status?", "1.0", null)
             )
 
-            commandSlot.captured.systemPrompt shouldContain "[Cross-tool Correlation]"
+            commandSlot.captured.systemPrompt shouldContain "교차 도구 연계"
             commandSlot.captured.systemPrompt shouldContain "atlassian: jira_search, confluence_search"
         }
 
@@ -245,7 +245,7 @@ class DefaultSlackEventHandlerProactiveTest {
                 SlackEventCommand("app_mention", "U1", "C1", "<@BOT> hello", "1.0", null)
             )
 
-            commandSlot.captured.systemPrompt shouldNotContain "[Cross-tool Correlation]"
+            commandSlot.captured.systemPrompt shouldNotContain "교차 도구 연계"
         }
 
         @Test
@@ -259,7 +259,7 @@ class DefaultSlackEventHandlerProactiveTest {
                 SlackEventCommand("app_mention", "U1", "C1", "<@BOT> hello", "1.0", null)
             )
 
-            commandSlot.captured.systemPrompt shouldNotContain "[Cross-tool Correlation]"
+            commandSlot.captured.systemPrompt shouldNotContain "교차 도구 연계"
         }
     }
 }

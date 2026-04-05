@@ -26,7 +26,7 @@ class SlackSystemPromptFactoryTest {
             prompt shouldContain "Aslan"
             prompt shouldContain "출처"
             prompt shouldContain "confluence_answer_question"
-            prompt shouldNotContain "[Cross-tool Correlation]"
+            prompt shouldNotContain "교차 도구 연계"
             prompt shouldNotContain "[Connected Workspace Tools]"
         }
 
@@ -34,14 +34,14 @@ class SlackSystemPromptFactoryTest {
         fun `with null tool summary omits cross-tool section를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = null)
 
-            prompt shouldNotContain "[Cross-tool Correlation]"
+            prompt shouldNotContain "교차 도구 연계"
         }
 
         @Test
         fun `with blank tool summary omits cross-tool section를 빌드한다`() {
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = "  ")
 
-            prompt shouldNotContain "[Cross-tool Correlation]"
+            prompt shouldNotContain "교차 도구 연계"
         }
 
         @Test
@@ -96,9 +96,9 @@ class SlackSystemPromptFactoryTest {
             val summary = "[Connected Workspace Tools]\n- atlassian: jira_search, confluence_search"
             val prompt = SlackSystemPromptFactory.build("gemini", connectedToolSummary = summary)
 
-            prompt shouldContain "[Cross-tool Correlation]"
+            prompt shouldContain "교차 도구 연계"
             prompt shouldContain "atlassian: jira_search, confluence_search"
-            prompt shouldContain "actively query ALL relevant tools"
+            prompt shouldContain "종합적인 답변"
         }
     }
 
@@ -118,7 +118,7 @@ class SlackSystemPromptFactoryTest {
             val summary = "[Connected Workspace Tools]\n- atlassian: jira_search"
             val prompt = SlackSystemPromptFactory.buildProactive("gemini", summary)
 
-            prompt shouldContain "[Cross-tool Correlation]"
+            prompt shouldContain "교차 도구 연계"
             prompt shouldContain "[Proactive Assistance Mode]"
             prompt shouldContain "atlassian: jira_search"
         }

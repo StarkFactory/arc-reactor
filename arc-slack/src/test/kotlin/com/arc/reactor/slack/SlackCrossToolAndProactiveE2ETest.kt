@@ -130,7 +130,7 @@ class SlackCrossToolAndProactiveE2ETest {
         // 크로스 도구 프롬프트가 주입되었는지 확인
         coVerify(timeout = 3_000) {
             agentExecutor.execute(match { cmd ->
-                cmd.systemPrompt.contains("[Cross-tool Correlation]") &&
+                cmd.systemPrompt.contains("교차 도구 연계") &&
                     cmd.systemPrompt.contains("atlassian: jira_search, jira_get_issue, confluence_search") &&
                     cmd.systemPrompt.contains("github: list_pull_requests, get_commit")
             })
@@ -145,7 +145,7 @@ class SlackCrossToolAndProactiveE2ETest {
             )
         }
 
-        commandSlot.captured.systemPrompt shouldContain "actively query ALL relevant tools"
+        commandSlot.captured.systemPrompt shouldContain "종합적인 답변"
         commandSlot.captured.metadata["sessionId"] shouldBe "slack-C100-2000.0001"
     }
 
@@ -176,7 +176,7 @@ class SlackCrossToolAndProactiveE2ETest {
         buildPipeline().handleEvent(payload)
 
         coVerify(timeout = 3_000) { agentExecutor.execute(any<AgentCommand>()) }
-        commandSlot.captured.systemPrompt shouldNotContain "[Cross-tool Correlation]"
+        commandSlot.captured.systemPrompt shouldNotContain "교차 도구 연계"
     }
 
     // =========================================================================
@@ -345,7 +345,7 @@ class SlackCrossToolAndProactiveE2ETest {
 
         // 멘션은 프로액티브가 아닌 일반 프롬프트를 사용
         commandSlot.captured.systemPrompt shouldNotContain "[Proactive Assistance Mode]"
-        commandSlot.captured.systemPrompt shouldContain "[Cross-tool Correlation]"
+        commandSlot.captured.systemPrompt shouldContain "교차 도구 연계"
         commandSlot.captured.metadata["entrypoint"] shouldBe null
     }
 }
