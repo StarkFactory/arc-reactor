@@ -230,7 +230,7 @@ class SlackCrossToolAndProactiveE2ETest {
         }
 
         // 프로액티브 프롬프트가 사용되었는지 확인
-        commandSlot.captured.systemPrompt shouldContain "[Proactive Assistance Mode]"
+        commandSlot.captured.systemPrompt shouldContain "선행적 지원 모드"
         commandSlot.captured.systemPrompt shouldContain "[NO_RESPONSE]"
         commandSlot.captured.metadata["entrypoint"] shouldBe "proactive"
         commandSlot.captured.metadata["sessionId"] shouldBe "slack-proactive-C_WATCH-4000.0001"
@@ -344,7 +344,7 @@ class SlackCrossToolAndProactiveE2ETest {
         coVerify(timeout = 3_000) { agentExecutor.execute(any<AgentCommand>()) }
 
         // 멘션은 프로액티브가 아닌 일반 프롬프트를 사용
-        commandSlot.captured.systemPrompt shouldNotContain "[Proactive Assistance Mode]"
+        commandSlot.captured.systemPrompt shouldNotContain "선행적 지원 모드"
         commandSlot.captured.systemPrompt shouldContain "교차 도구 연계"
         commandSlot.captured.metadata["entrypoint"] shouldBe null
     }

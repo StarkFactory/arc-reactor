@@ -109,7 +109,7 @@ class SlackSystemPromptFactoryTest {
         fun `buildProactive은(는) includes proactive assistance section`() {
             val prompt = SlackSystemPromptFactory.buildProactive("gemini", null)
 
-            prompt shouldContain "[Proactive Assistance Mode]"
+            prompt shouldContain "선행적 지원 모드"
             prompt shouldContain "[NO_RESPONSE]"
         }
 
@@ -119,7 +119,7 @@ class SlackSystemPromptFactoryTest {
             val prompt = SlackSystemPromptFactory.buildProactive("gemini", summary)
 
             prompt shouldContain "교차 도구 연계"
-            prompt shouldContain "[Proactive Assistance Mode]"
+            prompt shouldContain "선행적 지원 모드"
             prompt shouldContain "atlassian: jira_search"
         }
     }

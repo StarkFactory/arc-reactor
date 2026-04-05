@@ -185,7 +185,7 @@ class DefaultSlackEventHandlerProactiveTest {
 
             handler().handleChannelMessage(channelMessage())
 
-            commandSlot.captured.systemPrompt shouldContain "[Proactive Assistance Mode]"
+            commandSlot.captured.systemPrompt shouldContain "선행적 지원 모드"
             commandSlot.captured.systemPrompt shouldContain "[NO_RESPONSE]"
         }
 
