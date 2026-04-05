@@ -454,6 +454,7 @@ ${intent.text}
         )
     }
 
+    // TODO: ScheduledJobStore.listByTag(tag) 추가 시 전체 스캔 제거
     private fun getUserLoopJobs(store: ScheduledJobStore, userId: String): List<ScheduledJob> {
         return store.list().filter { job ->
             job.tags.contains(USER_LOOP_TAG) && job.tags.contains(userId)
