@@ -29,6 +29,8 @@ import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.service.SlackUserEmailResolver
 import com.arc.reactor.persona.PersonaStore
+import com.arc.reactor.scheduler.ScheduledJobStore
+import com.arc.reactor.scheduler.DynamicSchedulerService
 import com.arc.reactor.slack.service.SlackUserNameResolver
 import com.arc.reactor.scheduler.SlackMessageSender
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -228,7 +230,9 @@ class SlackAutoConfiguration {
         reminderStore: ObjectProvider<SlackReminderStore>,
         userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
         mcpManager: ObjectProvider<McpManager>,
-        userMemoryManager: ObjectProvider<UserMemoryManager>
+        userMemoryManager: ObjectProvider<UserMemoryManager>,
+        scheduledJobStore: ObjectProvider<ScheduledJobStore>,
+        dynamicSchedulerService: ObjectProvider<DynamicSchedulerService>
     ): SlackCommandHandler = DefaultSlackCommandHandler(
         agentExecutor = agentExecutor,
         messagingService = messagingService,
@@ -237,7 +241,9 @@ class SlackAutoConfiguration {
         reminderStore = reminderStore.ifAvailable,
         userEmailResolver = userEmailResolver.ifAvailable,
         mcpManager = mcpManager.ifAvailable,
-        userMemoryManager = userMemoryManager.ifAvailable
+        userMemoryManager = userMemoryManager.ifAvailable,
+        scheduledJobStore = scheduledJobStore.ifAvailable,
+        dynamicSchedulerService = dynamicSchedulerService.ifAvailable
     )
 
     @Bean

@@ -26,6 +26,12 @@ internal sealed interface SlackSlashIntent {
     data object ReminderClear : SlackSlashIntent
 
     data object Help : SlackSlashIntent
+
+    /** 주기적 스케줄 생성. interval: "30m", "9am", "daily" 등. prompt: 실행할 질의. */
+    data class LoopCreate(val interval: String, val prompt: String) : SlackSlashIntent
+    data object LoopList : SlackSlashIntent
+    data class LoopStop(val id: Int) : SlackSlashIntent
+    data object LoopClear : SlackSlashIntent
 }
 
 /**
@@ -40,6 +46,8 @@ internal object SlackSlashIntentParser {
     private val myWorkRegex = Regex("^(my-work|mywork|내업무)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
     private val remindRegex = Regex("^(remind|리마인드)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
     private val doneRegex = Regex("^(done|완료)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
+    private val loopRegex = Regex("^(loop|루프|반복)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
+    private val loopStopRegex = Regex("^(stop|중지|삭제)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
 
     fun parse(rawText: String): SlackSlashIntent {
         val prompt = rawText.trim()
@@ -47,6 +55,7 @@ internal object SlackSlashIntentParser {
         parseBrief(prompt)?.let { return it }
         parseMyWork(prompt)?.let { return it }
         parseReminder(prompt)?.let { return it }
+        parseLoop(prompt)?.let { return it }
         return SlackSlashIntent.Agent(prompt = prompt, mode = SlackSlashIntent.Agent.Mode.GENERAL)
     }
 
@@ -77,6 +86,29 @@ internal object SlackSlashIntentParser {
             return SlackSlashIntent.ReminderDone(id)
         }
         return SlackSlashIntent.ReminderAdd(argument)
+    }
+
+    private fun parseLoop(prompt: String): SlackSlashIntent? {
+        val match = loopRegex.matchEntire(prompt) ?: return null
+        val argument = match.groupValues.getOrNull(2).orEmpty().trim()
+        if (argument.isBlank() || argument.equals("list", ignoreCase = true) || argument == "목록") {
+            return SlackSlashIntent.LoopList
+        }
+        if (argument.equals("clear", ignoreCase = true) || argument == "전체삭제") {
+            return SlackSlashIntent.LoopClear
+        }
+        val stopMatch = loopStopRegex.matchEntire(argument)
+        if (stopMatch != null) {
+            val id = stopMatch.groupValues[2].toIntOrNull() ?: return SlackSlashIntent.LoopList
+            return SlackSlashIntent.LoopStop(id)
+        }
+        // "loop INTERVAL PROMPT" 파싱
+        val parts = argument.split("\\s+".toRegex(), limit = 2)
+        if (parts.size < 2) return null
+        val interval = parts[0]
+        val loopPrompt = parts[1]
+        if (LoopIntervalParser.toCron(interval) == null) return null
+        return SlackSlashIntent.LoopCreate(interval = interval, prompt = loopPrompt)
     }
 
     private fun buildBriefPrompt(focus: String): String {
