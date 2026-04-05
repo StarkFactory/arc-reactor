@@ -28,6 +28,7 @@ import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.adapter.SlackMessageSenderAdapter
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.service.SlackUserEmailResolver
+import com.arc.reactor.slack.service.SlackUserNameResolver
 import com.arc.reactor.scheduler.SlackMessageSender
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
@@ -183,6 +184,11 @@ class SlackAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    fun slackUserNameResolver(properties: SlackProperties): SlackUserNameResolver =
+        SlackUserNameResolver(botToken = properties.botToken)
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnBean(AgentExecutor::class)
     fun slackEventHandler(
         agentExecutor: AgentExecutor,
@@ -190,6 +196,7 @@ class SlackAutoConfiguration {
         agentProperties: ObjectProvider<AgentProperties>,
         threadTracker: ObjectProvider<SlackThreadTracker>,
         userEmailResolver: ObjectProvider<SlackUserEmailResolver>,
+        userNameResolver: ObjectProvider<SlackUserNameResolver>,
         mcpManager: ObjectProvider<McpManager>,
         feedbackStore: ObjectProvider<FeedbackStore>,
         botResponseTracker: ObjectProvider<SlackBotResponseTracker>,
@@ -200,6 +207,7 @@ class SlackAutoConfiguration {
         defaultProvider = agentProperties.ifAvailable?.llm?.defaultProvider ?: "configured backend model",
         threadTracker = threadTracker.ifAvailable,
         userEmailResolver = userEmailResolver.ifAvailable,
+        userNameResolver = userNameResolver.ifAvailable,
         mcpManager = mcpManager.ifAvailable,
         feedbackStore = feedbackStore.ifAvailable,
         botResponseTracker = botResponseTracker.ifAvailable,

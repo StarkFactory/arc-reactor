@@ -14,6 +14,7 @@ import com.arc.reactor.slack.session.SlackBotResponseTracker
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.arc.reactor.slack.service.SlackUserEmailResolver
+import com.arc.reactor.slack.service.SlackUserNameResolver
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -38,6 +39,7 @@ class DefaultSlackEventHandler(
     private val defaultProvider: String = "configured backend model",
     private val threadTracker: SlackThreadTracker? = null,
     private val userEmailResolver: SlackUserEmailResolver? = null,
+    private val userNameResolver: SlackUserNameResolver? = null,
     private val mcpManager: McpManager? = null,
     private val feedbackStore: FeedbackStore? = null,
     private val botResponseTracker: SlackBotResponseTracker? = null,
@@ -150,7 +152,9 @@ class DefaultSlackEventHandler(
     ) {
         try {
             val sessionId = "slack-$channelId-$threadTs"
-            val command = buildAgentCommand(sessionId, channelId, userId, userPrompt)
+            val displayName = userNameResolver?.resolveName(userId)
+            val prefixedPrompt = if (displayName != null) "[$displayName] $userPrompt" else userPrompt
+            val command = buildAgentCommand(sessionId, channelId, userId, prefixedPrompt)
             val result = agentExecutor.execute(command)
             val content = result.content.orEmpty().trim()
             if (content == NO_RESPONSE_MARKER) {
