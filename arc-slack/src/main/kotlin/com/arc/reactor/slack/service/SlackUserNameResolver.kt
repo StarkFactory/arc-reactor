@@ -2,17 +2,18 @@ package com.arc.reactor.slack.service
 
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.awaitBody
-import java.util.concurrent.ConcurrentHashMap
+import java.time.Duration
 
 private val logger = KotlinLogging.logger {}
 
 /**
- * Slack users.info API를 통해 사용자 표시 이름을 조회하고 인메모리 캐싱한다.
+ * Slack users.info API를 통해 사용자 표시 이름을 조회하고 Caffeine 캐시로 관리한다.
  *
  * 멀티유저 스레드에서 발화자를 구분하기 위해 사용한다.
  * 조회 실패 시 userId를 그대로 반환하여 항상 non-null을 보장한다.
@@ -28,7 +29,11 @@ class SlackUserNameResolver(
         .build()
 ) {
 
-    private val cache = ConcurrentHashMap<String, CachedName>()
+    private val cache = Caffeine.newBuilder()
+        .maximumSize(cacheMaxEntries.toLong())
+        .expireAfterWrite(Duration.ofSeconds(cacheTtlSeconds))
+        .build<String, String>()
+
     private val cacheMutex = Mutex()
 
     /**
@@ -39,19 +44,12 @@ class SlackUserNameResolver(
         val normalizedUserId = userId.trim()
         if (normalizedUserId.isBlank()) return userId
 
-        val now = System.currentTimeMillis()
-        cache[normalizedUserId]
-            ?.takeIf { it.expiresAtMs > now }
-            ?.let { return it.displayName }
+        cache.getIfPresent(normalizedUserId)?.let { return it }
 
         return cacheMutex.withLock {
-            val currentTime = System.currentTimeMillis()
-            cache[normalizedUserId]
-                ?.takeIf { it.expiresAtMs > currentTime }
-                ?.let { return@withLock it.displayName }
-
+            cache.getIfPresent(normalizedUserId)?.let { return@withLock it }
             val resolved = fetchDisplayName(normalizedUserId) ?: normalizedUserId
-            putCache(normalizedUserId, resolved, currentTime)
+            cache.put(normalizedUserId, resolved)
             resolved
         }
     }
@@ -70,31 +68,15 @@ class SlackUserNameResolver(
             }
 
             val profile = response.user?.profile
-            val name = profile?.displayName?.trim()?.takeIf { it.isNotBlank() }
+            profile?.displayName?.trim()?.takeIf { it.isNotBlank() }
                 ?: response.user?.realName?.trim()?.takeIf { it.isNotBlank() }
                 ?: response.user?.name?.trim()?.takeIf { it.isNotBlank() }
-            name
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.debug(e) { "사용자 이름 조회 예외: userId=$userId" }
             null
         }
     }
-
-    private fun putCache(userId: String, displayName: String, nowMs: Long) {
-        if (cache.size >= cacheMaxEntries) {
-            val expiredKey = cache.entries.firstOrNull { it.value.expiresAtMs <= nowMs }?.key
-            if (expiredKey != null) cache.remove(expiredKey)
-            else cache.keys.firstOrNull()?.let { cache.remove(it) }
-        }
-        val ttlMs = cacheTtlSeconds.coerceAtLeast(1L) * 1_000L
-        cache[userId] = CachedName(displayName = displayName, expiresAtMs = nowMs + ttlMs)
-    }
-
-    private data class CachedName(
-        val displayName: String,
-        val expiresAtMs: Long
-    )
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class SlackUserInfoResponse(

@@ -13,6 +13,7 @@ dependencyManagement {
 dependencies {
     // Arc Reactor Core
     implementation(project(":arc-core"))
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.3")
 
     // Spring Boot Core + observability
     implementation("org.springframework.boot:spring-boot-starter")

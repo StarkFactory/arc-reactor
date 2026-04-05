@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.multibot.SlackBotInstance
 import com.arc.reactor.multibot.SlackBotInstanceStore
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -32,6 +33,7 @@ import java.util.UUID
 @Tag(name = "Slack Bots", description = "멀티 Slack 봇 인스턴스 관리")
 @RestController
 @RequestMapping("/api/admin/slack-bots")
+@ConditionalOnBean(SlackBotInstanceStore::class)
 class SlackBotController(
     private val store: SlackBotInstanceStore
 ) {
@@ -107,8 +109,8 @@ class SlackBotController(
     private fun SlackBotInstance.toResponse() = SlackBotResponse(
         id = id,
         name = name,
-        botTokenMasked = botToken.take(15) + "...",
-        appTokenMasked = appToken.take(15) + "...",
+        botTokenMasked = botToken.take(6) + "***",
+        appTokenMasked = appToken.take(6) + "***",
         personaId = personaId,
         defaultChannel = defaultChannel,
         enabled = enabled,
