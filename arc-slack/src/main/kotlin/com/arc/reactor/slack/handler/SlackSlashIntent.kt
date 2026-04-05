@@ -32,6 +32,21 @@ internal sealed interface SlackSlashIntent {
     data object LoopList : SlackSlashIntent
     data class LoopStop(val id: Int) : SlackSlashIntent
     data object LoopClear : SlackSlashIntent
+
+    /** 사내 문서/이슈 통합 검색 */
+    data class Search(val query: String) : SlackSlashIntent
+
+    /** 사람/조직 찾기 */
+    data class Who(val query: String) : SlackSlashIntent
+
+    /** 사내 정책/규정 질문 (Confluence 우선 검색) */
+    data class Ask(val question: String) : SlackSlashIntent
+
+    /** 텍스트 요약 */
+    data class Summarize(val text: String) : SlackSlashIntent
+
+    /** 번역 */
+    data class Translate(val text: String) : SlackSlashIntent
 }
 
 /**
@@ -48,6 +63,11 @@ internal object SlackSlashIntentParser {
     private val doneRegex = Regex("^(done|완료)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
     private val loopRegex = Regex("^(loop|루프|반복)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
     private val loopStopRegex = Regex("^(stop|중지|삭제)\\s+(\\d+)$", RegexOption.IGNORE_CASE)
+    private val searchRegex = Regex("^(search|검색|찾기)\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val whoRegex = Regex("^(who|누구|사람|담당자)\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val askRegex = Regex("^(ask|질문|정책|규정)\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val summarizeRegex = Regex("^(summarize|요약|정리)(?:\\s+(.*))?$", RegexOption.IGNORE_CASE)
+    private val translateRegex = Regex("^(translate|번역)\\s+(.+)$", RegexOption.IGNORE_CASE)
 
     fun parse(rawText: String): SlackSlashIntent {
         val prompt = rawText.trim()
@@ -56,6 +76,11 @@ internal object SlackSlashIntentParser {
         parseMyWork(prompt)?.let { return it }
         parseReminder(prompt)?.let { return it }
         parseLoop(prompt)?.let { return it }
+        parseSearch(prompt)?.let { return it }
+        parseWho(prompt)?.let { return it }
+        parseAsk(prompt)?.let { return it }
+        parseSummarize(prompt)?.let { return it }
+        parseTranslate(prompt)?.let { return it }
         return SlackSlashIntent.Agent(prompt = prompt, mode = SlackSlashIntent.Agent.Mode.GENERAL)
     }
 
@@ -109,6 +134,40 @@ internal object SlackSlashIntentParser {
         val loopPrompt = parts[1]
         if (LoopIntervalParser.toCron(interval) == null) return null
         return SlackSlashIntent.LoopCreate(interval = interval, prompt = loopPrompt)
+    }
+
+    private fun parseSearch(prompt: String): SlackSlashIntent? {
+        val match = searchRegex.matchEntire(prompt) ?: return null
+        val query = match.groupValues[2].trim()
+        if (query.isBlank()) return null
+        return SlackSlashIntent.Search(query)
+    }
+
+    private fun parseWho(prompt: String): SlackSlashIntent? {
+        val match = whoRegex.matchEntire(prompt) ?: return null
+        val query = match.groupValues[2].trim()
+        if (query.isBlank()) return null
+        return SlackSlashIntent.Who(query)
+    }
+
+    private fun parseAsk(prompt: String): SlackSlashIntent? {
+        val match = askRegex.matchEntire(prompt) ?: return null
+        val question = match.groupValues[2].trim()
+        if (question.isBlank()) return null
+        return SlackSlashIntent.Ask(question)
+    }
+
+    private fun parseSummarize(prompt: String): SlackSlashIntent? {
+        val match = summarizeRegex.matchEntire(prompt) ?: return null
+        val text = match.groupValues.getOrNull(2).orEmpty().trim()
+        return SlackSlashIntent.Summarize(text)
+    }
+
+    private fun parseTranslate(prompt: String): SlackSlashIntent? {
+        val match = translateRegex.matchEntire(prompt) ?: return null
+        val text = match.groupValues[2].trim()
+        if (text.isBlank()) return null
+        return SlackSlashIntent.Translate(text)
     }
 
     private fun buildBriefPrompt(focus: String): String {

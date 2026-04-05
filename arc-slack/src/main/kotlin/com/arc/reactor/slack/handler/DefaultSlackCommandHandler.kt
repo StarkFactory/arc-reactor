@@ -82,9 +82,75 @@ class DefaultSlackCommandHandler(
             SlackSlashIntent.LoopList -> handleLoopList(command)
             is SlackSlashIntent.LoopStop -> handleLoopStop(command, intent)
             SlackSlashIntent.LoopClear -> handleLoopClear(command)
+            is SlackSlashIntent.Search -> handleAgentIntent(command, toSearchAgent(intent), rawPrompt)
+            is SlackSlashIntent.Who -> handleAgentIntent(command, toWhoAgent(intent), rawPrompt)
+            is SlackSlashIntent.Ask -> handleAgentIntent(command, toAskAgent(intent), rawPrompt)
+            is SlackSlashIntent.Summarize -> handleAgentIntent(command, toSummarizeAgent(intent), rawPrompt)
+            is SlackSlashIntent.Translate -> handleAgentIntent(command, toTranslateAgent(intent), rawPrompt)
             is SlackSlashIntent.Agent -> handleAgentIntent(command, intent, rawPrompt)
         }
     }
+
+    private fun toSearchAgent(intent: SlackSlashIntent.Search) = SlackSlashIntent.Agent(
+        prompt = """사내 문서와 이슈를 통합 검색해 주세요.
+검색어: ${intent.query}
+
+검색 범위: Confluence 문서, Jira 이슈, Bitbucket 코드를 모두 확인합니다.
+결과를 중요도 순으로 정리하고, 각 결과에 링크를 포함해 주세요.""",
+        mode = SlackSlashIntent.Agent.Mode.GENERAL
+    )
+
+    private fun toWhoAgent(intent: SlackSlashIntent.Who) = SlackSlashIntent.Agent(
+        prompt = """다음 사람/역할/조직에 대해 찾아주세요: ${intent.query}
+
+가능한 정보를 모두 제공해 주세요:
+- 소속 팀/부서
+- 역할/직책
+- 관련 프로젝트나 업무
+- Slack에서 찾을 수 있다면 멘션 정보""",
+        mode = SlackSlashIntent.Agent.Mode.GENERAL
+    )
+
+    private fun toAskAgent(intent: SlackSlashIntent.Ask) = SlackSlashIntent.Agent(
+        prompt = """사내 정책/규정에 대한 질문입니다. Confluence 문서를 우선 검색하여 답변해 주세요.
+
+질문: ${intent.question}
+
+반드시 Confluence에서 관련 문서를 먼저 찾아보고, 문서 기반으로 답변합니다.
+문서를 찾지 못했으면 솔직히 알려주고 관련 부서를 안내합니다.""",
+        mode = SlackSlashIntent.Agent.Mode.GENERAL
+    )
+
+    private fun toSummarizeAgent(intent: SlackSlashIntent.Summarize) = SlackSlashIntent.Agent(
+        prompt = if (intent.text.isNotBlank()) {
+            """다음 내용을 한국어로 간결하게 요약해 주세요:
+
+${intent.text}
+
+요약 형식:
+- 핵심 포인트 3~5개를 불릿으로
+- 주요 결정사항이 있으면 별도로 표시
+- 후속 조치가 필요하면 명시"""
+        } else {
+            """이 대화/스레드의 내용을 한국어로 간결하게 요약해 주세요.
+
+요약 형식:
+- 핵심 포인트 3~5개를 불릿으로
+- 주요 결정사항이 있으면 별도로 표시
+- 후속 조치가 필요하면 명시"""
+        },
+        mode = SlackSlashIntent.Agent.Mode.GENERAL
+    )
+
+    private fun toTranslateAgent(intent: SlackSlashIntent.Translate) = SlackSlashIntent.Agent(
+        prompt = """다음 텍스트를 번역해 주세요. 원문이 한국어면 영어로, 영어면 한국어로 번역합니다. 다른 언어면 한국어로 번역합니다.
+
+원문:
+${intent.text}
+
+번역 시 비즈니스 톤을 유지하고, 전문 용어는 원어를 괄호에 병기합니다.""",
+        mode = SlackSlashIntent.Agent.Mode.GENERAL
+    )
 
     private suspend fun handleAgentIntent(
         command: SlackSlashCommand,
@@ -422,22 +488,28 @@ class DefaultSlackCommandHandler(
 `/jarvis <질문>` — AI 에이전트에게 질문
 `/jarvis help` — 도움말
 
-*업무 브리핑*
-`/jarvis brief [주제]` — 일일 브리핑 (3개 우선순위 + 리스크 체크)
-`/jarvis my-work [범위]` — 업무 현황 요약 (진행 중 / 대기 / 다음)
+*검색 & 질문*
+`/jarvis search <검색어>` — 사내 문서/이슈 통합 검색
+`/jarvis ask <질문>` — 사내 정책/규정 질문 (Confluence 우선)
+`/jarvis who <이름>` — 사람/조직/담당자 찾기
 
-*주기적 스케줄 (Loop)*
-`/jarvis loop <간격> <내용>` — 주기적 브리핑 등록 (최대 ${MAX_LOOPS_PER_USER}개)
+*업무 브리핑*
+`/jarvis brief [주제]` — 일일 브리핑 (우선순위 + 리스크)
+`/jarvis my-work [범위]` — 업무 현황 (진행 중 / 대기 / 다음)
+
+*유틸리티*
+`/jarvis summarize [텍스트]` — 요약 (텍스트 또는 현재 대화)
+`/jarvis translate <텍스트>` — 번역 (한↔영 자동 감지)
+
+*주기적 스케줄*
+`/jarvis loop <간격> <내용>` — 주기적 브리핑 (최대 ${MAX_LOOPS_PER_USER}개)
 `/jarvis loop list` — 내 스케줄 목록
-`/jarvis loop stop <번호>` — 스케줄 삭제
-`/jarvis loop clear` — 전체 삭제
-_간격 예시: 30m, 1h, 9am, 14:30, daily, weekly, weekday_
+`/jarvis loop stop <번호>` — 삭제 · `loop clear` — 전체 삭제
+_간격: 30m, 1h, 9am, 14:30, daily, weekly, weekday, 매일, 평일_
 
 *리마인더*
-`/jarvis remind <내용>` — 리마인더 저장 (`at HH:mm` 추가 시 DM 알림)
-`/jarvis remind list` — 목록 보기
-`/jarvis remind done <번호>` — 완료 처리
-`/jarvis remind clear` — 전체 삭제
+`/jarvis remind <내용>` — 리마인더 (`at HH:mm` 시 DM 알림)
+`/jarvis remind list` — 목록 · `done <번호>` — 완료 · `clear` — 전체 삭제
 
 *팁*
 • 채널에서 @봇 멘션으로 스레드 대화 가능
