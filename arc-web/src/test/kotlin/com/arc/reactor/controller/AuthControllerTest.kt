@@ -45,7 +45,7 @@ class AuthControllerTest {
         jwtTokenProvider = mockk()
         tokenRevocationStore = mockk(relaxed = true)
         authProperties = AuthProperties(selfRegistrationEnabled = true)
-        controller = AuthController(authProvider, userStore, jwtTokenProvider, authProperties, tokenRevocationStore)
+        controller = AuthController(authProvider, userStore, jwtTokenProvider, authProperties, tokenRevocationStore, null)
     }
 
     @Nested
@@ -123,7 +123,8 @@ class AuthControllerTest {
                 userStore = userStore,
                 jwtTokenProvider = jwtTokenProvider,
                 authProperties = AuthProperties(selfRegistrationEnabled = false),
-                tokenRevocationStore = tokenRevocationStore
+                tokenRevocationStore = tokenRevocationStore,
+                iamTokenExchangeService = null
             )
             val request = RegisterRequest(
                 email = "blocked@test.com",
@@ -148,7 +149,8 @@ class AuthControllerTest {
                 userStore = userStore,
                 jwtTokenProvider = jwtTokenProvider,
                 authProperties = AuthProperties(selfRegistrationEnabled = true),
-                tokenRevocationStore = tokenRevocationStore
+                tokenRevocationStore = tokenRevocationStore,
+                iamTokenExchangeService = null
             )
             every { userStore.existsByEmail("custom@test.com") } returns false
 

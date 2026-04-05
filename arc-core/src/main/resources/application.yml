@@ -112,6 +112,12 @@ arc:
       token-revocation-store: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_STORE:memory}
       token-revocation-redis-key-prefix: ${ARC_REACTOR_AUTH_TOKEN_REVOCATION_REDIS_KEY_PREFIX:arc:auth:revoked}
       public-actuator-health: ${ARC_REACTOR_AUTH_PUBLIC_ACTUATOR_HEALTH:true}
+      iam:
+        enabled: ${ARC_REACTOR_AUTH_IAM_ENABLED:false}
+        base-url: ${ARC_REACTOR_AUTH_IAM_BASE_URL:http://localhost:9090}
+        issuer: ${ARC_REACTOR_AUTH_IAM_ISSUER:aslan-iam}
+        auto-create-user: ${ARC_REACTOR_AUTH_IAM_AUTO_CREATE_USER:true}
+        default-role: ${ARC_REACTOR_AUTH_IAM_DEFAULT_ROLE:USER}
 
     tool-enrichment:
       requester-aware-tool-names:

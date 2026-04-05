@@ -2,6 +2,7 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.AuthProperties
+import com.arc.reactor.auth.IamTokenExchangeService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -50,7 +51,8 @@ class AuthController(
     private val userStore: UserStore,
     private val jwtTokenProvider: JwtTokenProvider,
     private val authProperties: AuthProperties,
-    private val tokenRevocationStore: TokenRevocationStore
+    private val tokenRevocationStore: TokenRevocationStore,
+    private val iamTokenExchangeService: IamTokenExchangeService?
 ) {
 
     /** 새 사용자 계정을 등록하고 JWT를 발급한다. */
@@ -206,6 +208,30 @@ class AuthController(
         }
         return ResponseEntity.ok(mapOf("message" to "Logged out"))
     }
+
+    /** aslan-iam RS256 토큰을 arc-reactor HS256 토큰으로 교환한다. */
+    @Operation(summary = "IAM 토큰을 arc-reactor 토큰으로 교환")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Token exchanged, arc-reactor JWT returned"),
+        ApiResponse(responseCode = "400", description = "Missing or invalid IAM token"),
+        ApiResponse(responseCode = "404", description = "IAM token exchange not enabled"),
+        ApiResponse(responseCode = "401", description = "IAM token verification failed")
+    ])
+    @PostMapping("/exchange")
+    fun exchange(@Valid @RequestBody request: TokenExchangeRequest): ResponseEntity<AuthResponse> {
+        if (iamTokenExchangeService == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                AuthResponse(token = "", user = null, error = "IAM token exchange is not enabled")
+            )
+        }
+
+        val result = iamTokenExchangeService.exchange(request.token)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                AuthResponse(token = "", user = null, error = "IAM token verification failed")
+            )
+
+        return ResponseEntity.ok(AuthResponse(token = result.token, user = result.user.toResponse()))
+    }
 }
 
 // --- 요청 DTO ---
@@ -229,6 +255,11 @@ data class LoginRequest(
 
     @field:NotBlank(message = "Password must not be blank")
     val password: String
+)
+
+data class TokenExchangeRequest(
+    @field:NotBlank(message = "IAM token must not be blank")
+    val token: String
 )
 
 data class ChangePasswordRequest(

@@ -5,6 +5,8 @@ import com.arc.reactor.auth.AuthProperties
 import com.arc.reactor.auth.AuthProvider
 import com.arc.reactor.auth.AuthRateLimitFilter
 import com.arc.reactor.auth.DefaultAuthProvider
+import com.arc.reactor.auth.IamProperties
+import com.arc.reactor.auth.IamTokenExchangeService
 import com.arc.reactor.auth.InMemoryUserStore
 import com.arc.reactor.auth.JdbcUserStore
 import com.arc.reactor.auth.JwtAuthWebFilter
@@ -59,12 +61,18 @@ class AuthConfiguration {
             Boolean::class.java,
             false
         )
+        val iamEnabled = environment.getProperty(
+            "arc.reactor.auth.iam.enabled", Boolean::class.java, false
+        )
         val defaultPublicPaths = mutableListOf(
             "/api/auth/login",
             "/v3/api-docs", "/swagger-ui", "/webjars"
         )
         if (selfRegistrationEnabled) {
             defaultPublicPaths.add("/api/auth/register")
+        }
+        if (iamEnabled) {
+            defaultPublicPaths.add("/api/auth/exchange")
         }
 
         // Convenience option: make health endpoint publicly accessible without requiring users to
@@ -145,6 +153,39 @@ class AuthConfiguration {
             maxAttemptsPerMinute = authProperties.loginRateLimitPerMinute,
             trustForwardedHeaders = authProperties.trustForwardedHeaders
         )
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun iamProperties(environment: Environment): IamProperties {
+        val enabled = environment.getProperty(
+            "arc.reactor.auth.iam.enabled", Boolean::class.java, false
+        )
+        return IamProperties(
+            enabled = enabled,
+            baseUrl = environment.getProperty("arc.reactor.auth.iam.base-url", ""),
+            issuer = environment.getProperty("arc.reactor.auth.iam.issuer", "aslan-iam"),
+            autoCreateUser = environment.getProperty(
+                "arc.reactor.auth.iam.auto-create-user", Boolean::class.java, true
+            ),
+            defaultRole = environment.getProperty("arc.reactor.auth.iam.default-role", "USER")
+                .let { com.arc.reactor.auth.UserRole.valueOf(it) }
+        )
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun iamTokenExchangeService(
+        iamProperties: IamProperties,
+        userStore: UserStore,
+        jwtTokenProvider: JwtTokenProvider
+    ): IamTokenExchangeService? {
+        if (!iamProperties.enabled || iamProperties.baseUrl.isBlank()) {
+            return null
+        }
+        return IamTokenExchangeService(iamProperties, userStore, jwtTokenProvider).also {
+            it.prefetchPublicKey()
+        }
+    }
 }
 
 private fun parseTokenRevocationStore(environment: Environment): TokenRevocationStoreType {

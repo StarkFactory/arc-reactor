@@ -56,7 +56,8 @@ class WebCoverageGapTest {
             userStore = userStore,
             jwtTokenProvider = jwtTokenProvider,
             authProperties = AuthProperties(selfRegistrationEnabled = true),
-            tokenRevocationStore = tokenRevocationStore
+            tokenRevocationStore = tokenRevocationStore,
+            iamTokenExchangeService = null
         )
     }
 
@@ -182,7 +183,8 @@ class WebCoverageGapTest {
                 userStore = userStore,
                 jwtTokenProvider = jwtTokenProvider,
                 authProperties = AuthProperties(selfRegistrationEnabled = true),
-                tokenRevocationStore = tokenRevocationStore
+                tokenRevocationStore = tokenRevocationStore,
+                iamTokenExchangeService = null
             )
 
             every { customAuthProvider.getUserById("user-42") } returns existingUser
