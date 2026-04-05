@@ -59,3 +59,5 @@ artifacts/
 *.pem
 *.key
 .kotlin/
+.playwright-mcp/
+*.png
