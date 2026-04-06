@@ -67,6 +67,10 @@ class AgentSpecController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val mode = request.mode ?: "REACT"
+        if (mode !in VALID_MODES) {
+            return badRequestResponse("유효하지 않은 모드: $mode (허용: ${VALID_MODES.joinToString()})")
+        }
         if (store.list().any { it.name == request.name }) {
             return conflictResponse("이름 '${request.name}'은 이미 사용 중입니다")
         }
@@ -77,7 +81,7 @@ class AgentSpecController(
             toolNames = request.toolNames.orEmpty(),
             keywords = request.keywords.orEmpty(),
             systemPrompt = request.systemPrompt,
-            mode = request.mode ?: "REACT",
+            mode = mode,
             enabled = request.enabled ?: true
         )
         val saved = store.save(record)
@@ -98,6 +102,9 @@ class AgentSpecController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        if (request.mode != null && request.mode !in VALID_MODES) {
+            return badRequestResponse("유효하지 않은 모드: ${request.mode} (허용: ${VALID_MODES.joinToString()})")
+        }
         val existing = store.get(id)
             ?: return notFoundResponse("에이전트 스펙을 찾을 수 없습니다: $id")
         val updated = existing.copy(
@@ -135,6 +142,10 @@ class AgentSpecController(
             actor = currentActor(exchange), resourceType = "agent_spec", resourceId = id
         )
         return ResponseEntity.noContent().build()
+    }
+
+    companion object {
+        private val VALID_MODES = setOf("REACT", "STANDARD", "PLAN_EXECUTE")
     }
 
     private fun AgentSpecRecord.toResponse() = AgentSpecResponse(
