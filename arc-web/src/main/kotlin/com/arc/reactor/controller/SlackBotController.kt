@@ -33,7 +33,6 @@ import java.util.UUID
 @Tag(name = "Slack Bots", description = "멀티 Slack 봇 인스턴스 관리")
 @RestController
 @RequestMapping("/api/admin/slack-bots")
-@ConditionalOnBean(SlackBotInstanceStore::class)
 class SlackBotController(
     private val store: SlackBotInstanceStore
 ) {
