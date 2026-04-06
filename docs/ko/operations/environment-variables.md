@@ -37,6 +37,19 @@
 
 **판별법**: 토큰이 `ATATT3xFfGF0`으로 시작 → Granular → Gateway 필수.
 
+### Granular 토큰 API 호출 규칙
+
+Granular(Scoped) 토큰은 **API Gateway URL + Basic Auth** 조합만 정상 동작합니다.
+
+| URL | 인증 | 결과 |
+|-----|------|------|
+| `api.atlassian.com/ex/{product}/{cloudId}/...` | Basic Auth (`email:token`) | 정상 |
+| `api.atlassian.com/ex/{product}/{cloudId}/...` | Bearer 토큰 | Anonymous 처리 (공개 데이터만) |
+| `{site}.atlassian.net/...` | Basic Auth 또는 Bearer | 401 |
+
+Bearer로 호출하면 200이 오지만 사용자 미식별 → 빈 배열이 주요 증상입니다.
+상세 설정은 `atlassian-mcp-server/docs/ATLASSIAN_TOKEN_SETUP.md` 참조.
+
 ## LLM 설정
 
 | 변수 | 용도 | 기본값 |
