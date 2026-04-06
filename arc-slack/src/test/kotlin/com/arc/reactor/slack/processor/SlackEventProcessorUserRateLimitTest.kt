@@ -104,7 +104,7 @@ class SlackEventProcessorUserRateLimitTest {
             coVerify(timeout = 3000) {
                 messagingService.sendMessage(
                     channelId = "C456",
-                    text = match { it.contains("Too many requests") },
+                    text = match { it.contains(":no_entry:") },
                     threadTs = any()
                 )
             }

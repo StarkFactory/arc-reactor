@@ -272,7 +272,7 @@ class SlackCommandProcessorTest {
             coVerify(timeout = 3000) {
                 messagingService.sendResponseUrl(
                     responseUrl = any(),
-                    text = match { it.contains("busy", ignoreCase = true) },
+                    text = match { it.contains(":hourglass:") },
                     any()
                 )
             }

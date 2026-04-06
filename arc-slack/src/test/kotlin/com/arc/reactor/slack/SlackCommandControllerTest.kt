@@ -114,7 +114,7 @@ class SlackCommandControllerTest {
         )
 
         second.statusCode shouldBe HttpStatus.OK
-        second.body?.text.orEmpty().lowercase().contains("busy") shouldBe true
+        second.body?.text.orEmpty().contains(":hourglass:") shouldBe true
     }
 
     @Test
@@ -164,7 +164,7 @@ class SlackCommandControllerTest {
         coVerify(timeout = 3000) {
             timeoutMessagingService.sendResponseUrl(
                 any(),
-                match { it.contains("busy", ignoreCase = true) },
+                match { it.contains(":hourglass:") },
                 any()
             )
         }

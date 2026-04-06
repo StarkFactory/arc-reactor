@@ -544,7 +544,7 @@ class SlackSocketModeGatewayTest {
             coVerify(timeout = 2000) {
                 messagingService.sendResponseUrl(
                     responseUrl = "https://hooks.slack.com/commands/test",
-                    text = match { it.contains("busy", ignoreCase = true) },
+                    text = match { it.contains(":hourglass:") },
                     any()
                 )
             }

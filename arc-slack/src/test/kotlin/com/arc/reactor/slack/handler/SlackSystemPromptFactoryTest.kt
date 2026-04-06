@@ -98,7 +98,7 @@ class SlackSystemPromptFactoryTest {
 
             prompt shouldContain "교차 도구 연계"
             prompt shouldContain "atlassian: jira_search, confluence_search"
-            prompt shouldContain "종합적인 답변"
+            prompt shouldContain "종합 답변"
         }
     }
 

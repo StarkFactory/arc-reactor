@@ -451,8 +451,8 @@ class SlackEventProcessor(
     }
 
     companion object {
-        const val BUSY_RESPONSE_TEXT = ":hourglass: The system is busy right now. Please try again in a moment."
-        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: Too many requests. Please wait a moment before trying again."
+        const val BUSY_RESPONSE_TEXT = ":hourglass: 현재 요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: 요청이 너무 빈번합니다. 잠시 후 다시 시도해 주세요."
 
         /** Agents & AI Apps 사이드 패널 추천 프롬프트 */
         val ASSISTANT_SUGGESTED_PROMPTS = listOf(

@@ -135,9 +135,9 @@ class SlackCommandProcessor(
     }
 
     companion object {
-        const val PROCESSING_RESPONSE_TEXT = ":hourglass_flowing_sand: Processing..."
-        const val BUSY_RESPONSE_TEXT = ":hourglass: The system is busy. Please try again shortly."
-        const val INVALID_PAYLOAD_RESPONSE_TEXT = ":warning: Invalid slash command payload."
-        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: Too many requests. Please wait a moment before trying again."
+        const val PROCESSING_RESPONSE_TEXT = ":hourglass_flowing_sand: 처리 중..."
+        const val BUSY_RESPONSE_TEXT = ":hourglass: 현재 요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+        const val INVALID_PAYLOAD_RESPONSE_TEXT = ":warning: 잘못된 명령어 요청입니다."
+        const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: 요청이 너무 빈번합니다. 잠시 후 다시 시도해 주세요."
     }
 }

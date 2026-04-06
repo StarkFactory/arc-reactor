@@ -118,7 +118,7 @@ class SlackCommandProcessorRateLimitTest {
             coVerify(timeout = 3000) {
                 messagingService.sendResponseUrl(
                     responseUrl = "https://hooks.slack.com/u1",
-                    text = match { it.contains("Too many requests", ignoreCase = true) },
+                    text = match { it.contains(":no_entry:") },
                     any()
                 )
             }

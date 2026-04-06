@@ -517,7 +517,7 @@ class SlackEventProcessorTest {
             coVerify(timeout = 3000) {
                 messagingService.sendMessage(
                     channelId = "C456",
-                    text = match { it.contains("busy", ignoreCase = true) },
+                    text = match { it.contains(":hourglass:") },
                     threadTs = any()
                 )
             }

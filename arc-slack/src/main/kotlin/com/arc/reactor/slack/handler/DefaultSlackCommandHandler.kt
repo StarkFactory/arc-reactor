@@ -65,7 +65,7 @@ class DefaultSlackCommandHandler(
             logger.error(e) { "슬래시 명령 처리 실패: channel=${command.channelId}" }
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
-                text = ":x: An internal error occurred. Please try again later."
+                text = ":x: 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
             )
         }
     }

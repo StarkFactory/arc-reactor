@@ -145,7 +145,7 @@ class SlackCrossToolAndProactiveE2ETest {
             )
         }
 
-        commandSlot.captured.systemPrompt shouldContain "종합적인 답변"
+        commandSlot.captured.systemPrompt shouldContain "종합 답변"
         commandSlot.captured.metadata["sessionId"] shouldBe "slack-C100-2000.0001"
     }
 

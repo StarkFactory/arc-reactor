@@ -256,7 +256,7 @@ class DefaultSlackEventHandler(
         try {
             messagingService.sendMessage(
                 channelId = channelId,
-                text = ":x: An internal error occurred. Please try again later.",
+                text = ":x: 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
                 threadTs = threadTs
             )
         } catch (sendError: Exception) {
