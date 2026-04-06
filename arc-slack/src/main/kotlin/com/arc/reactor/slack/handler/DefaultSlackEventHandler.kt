@@ -152,31 +152,33 @@ class DefaultSlackEventHandler(
         userId: String,
         userPrompt: String
     ) {
+        val sessionId = "slack-$channelId-$threadTs"
         try {
-            // Agents & AI Apps DM 채널에서 타이핑 상태 표시
             setAssistantStatusSafely(channelId, threadTs, "생각하고 있어요...")
-
-            val sessionId = "slack-$channelId-$threadTs"
-            val displayName = userNameResolver?.resolveName(userId)
-            val prefixedPrompt = if (displayName != null) "[$displayName] $userPrompt" else userPrompt
-            val command = buildAgentCommand(sessionId, channelId, userId, prefixedPrompt)
-            val result = agentExecutor.execute(command)
-            val content = result.content.orEmpty().trim()
-
-            // 상태 초기화
+            val result = executeAgent(sessionId, channelId, userId, userPrompt)
             setAssistantStatusSafely(channelId, threadTs, "")
-
-            if (content == NO_RESPONSE_MARKER) {
-                logger.debug { "응답 생략 (NO_RESPONSE): channel=$channelId, thread=$threadTs" }
-                return
-            }
+            val content = result.content.orEmpty().trim()
+            if (content == NO_RESPONSE_MARKER) return
             sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
             setAssistantStatusSafely(channelId, threadTs, "")
-            logger.error(e) { "Slack 이벤트 처리 실패: channel=$channelId, thread=$threadTs" }
+            logger.error(e) { "Slack 이벤트 처리 실패: channel=$channelId" }
             sendErrorFallback(channelId, threadTs)
         }
+    }
+
+    /** 사용자 이름을 해석하고 에이전트를 실행한다. */
+    private suspend fun executeAgent(
+        sessionId: String,
+        channelId: String,
+        userId: String,
+        userPrompt: String
+    ): AgentResult {
+        val displayName = userNameResolver?.resolveName(userId)
+        val prefixed = if (displayName != null) "[$displayName] $userPrompt" else userPrompt
+        val command = buildAgentCommand(sessionId, channelId, userId, prefixed)
+        return agentExecutor.execute(command)
     }
 
     /**
