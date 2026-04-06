@@ -53,7 +53,7 @@ private val logger = KotlinLogging.logger {}
 @RequestMapping("/api/feedback")
 @ConditionalOnProperty(
     prefix = "arc.reactor.feedback", name = ["enabled"],
-    havingValue = "true", matchIfMissing = false
+    havingValue = "true", matchIfMissing = true
 )
 class FeedbackController(
     private val feedbackStore: FeedbackStore,
