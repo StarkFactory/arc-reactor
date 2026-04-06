@@ -2,6 +2,8 @@ package com.arc.reactor.controller
 
 import com.arc.reactor.agent.multiagent.AgentSpecRecord
 import com.arc.reactor.agent.multiagent.AgentSpecStore
+import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.recordAdminAudit
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -32,7 +34,8 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/admin/agent-specs")
 class AgentSpecController(
-    private val store: AgentSpecStore
+    private val store: AgentSpecStore,
+    private val adminAuditStore: AdminAuditStore
 ) {
 
     /** 전체 에이전트 스펙 목록을 조회한다. */
@@ -78,6 +81,11 @@ class AgentSpecController(
             enabled = request.enabled ?: true
         )
         val saved = store.save(record)
+        recordAdminAudit(
+            store = adminAuditStore, category = "agent_spec", action = "CREATE",
+            actor = currentActor(exchange), resourceType = "agent_spec",
+            resourceId = saved.id, detail = "name=${saved.name}, mode=${saved.mode}"
+        )
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
@@ -103,6 +111,11 @@ class AgentSpecController(
             updatedAt = Instant.now()
         )
         val saved = store.save(updated)
+        recordAdminAudit(
+            store = adminAuditStore, category = "agent_spec", action = "UPDATE",
+            actor = currentActor(exchange), resourceType = "agent_spec",
+            resourceId = saved.id, detail = "name=${saved.name}"
+        )
         return ResponseEntity.ok(saved.toResponse())
     }
 
@@ -117,6 +130,10 @@ class AgentSpecController(
         store.get(id)
             ?: return notFoundResponse("에이전트 스펙을 찾을 수 없습니다: $id")
         store.delete(id)
+        recordAdminAudit(
+            store = adminAuditStore, category = "agent_spec", action = "DELETE",
+            actor = currentActor(exchange), resourceType = "agent_spec", resourceId = id
+        )
         return ResponseEntity.noContent().build()
     }
 
