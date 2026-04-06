@@ -21,6 +21,7 @@ object SlackSystemPromptFactory {
      * Admin이 변경할 수 없는 안전/포맷/정확성 규칙.
      */
     private val SYSTEM_SECTIONS = listOf(
+        "rules",
         "accuracy",
         "tools",
         "format-slack",
