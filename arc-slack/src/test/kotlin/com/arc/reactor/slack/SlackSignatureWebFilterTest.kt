@@ -124,7 +124,7 @@ class SlackSignatureWebFilterTest {
         @Test
         fun `slash command payload with valid signature를 허용한다`() {
             val body =
-                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                "command=%2Freactor&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
                     "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
             val timestamp = currentTimestamp()
@@ -273,7 +273,7 @@ class SlackSignatureWebFilterTest {
         @Test
         fun `replays은(는) form body and exposes parameters for downstream binding`() {
             val body =
-                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                "command=%2Freactor&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
                     "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
             val timestamp = currentTimestamp()
@@ -300,7 +300,7 @@ class SlackSignatureWebFilterTest {
             StepVerifier.create(filter.filter(exchange, chain))
                 .verifyComplete()
 
-            capturedCommand.get() shouldBe "/jarvis"
+            capturedCommand.get() shouldBe "/reactor"
             capturedResponseUrl.get() shouldBe "https://example.com/response"
             exchange.response.statusCode shouldBe null
         }
@@ -308,7 +308,7 @@ class SlackSignatureWebFilterTest {
         @Test
         fun `provides은(는) required form fields for downstream slash command validation`() {
             val body =
-                "command=%2Fjarvis&text=hello+there&user_id=U123" +
+                "command=%2Freactor&text=hello+there&user_id=U123" +
                     "&user_name=alice&channel_id=C456&channel_name=general" +
                     "&response_url=https%3A%2F%2Fexample.com%2Fresponse"
             val timestamp = currentTimestamp()

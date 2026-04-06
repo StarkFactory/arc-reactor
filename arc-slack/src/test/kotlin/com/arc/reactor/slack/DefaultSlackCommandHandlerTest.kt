@@ -41,7 +41,7 @@ class DefaultSlackCommandHandlerTest {
         userId: String = "U456",
         responseUrl: String = "https://hooks.slack.com/commands/test"
     ) = SlackSlashCommand(
-        command = "/jarvis",
+        command = "/reactor",
         text = text,
         userId = userId,
         userName = "alice",

@@ -170,7 +170,7 @@ class SlackUserJourneyScenarioTest {
         coEvery { messagingService.sendResponseUrl(any(), any(), any()) } returns true
 
         val ack = controller.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "summarize this with sensitive input",
             userId = "U123",
             userName = "alice",

@@ -34,7 +34,7 @@ class SlackCommandControllerTest {
     @Test
     fun `slash command에 대해 200 immediately를 반환한다`() = runTest {
         val response = controller.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "hello",
             userId = "U123",
             userName = "alice",
@@ -53,7 +53,7 @@ class SlackCommandControllerTest {
         coEvery { commandHandler.handleSlashCommand(any()) } returns Unit
 
         controller.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "today tasks",
             userId = "U123",
             userName = "alice",
@@ -65,7 +65,7 @@ class SlackCommandControllerTest {
 
         coVerify(timeout = 2000) {
             commandHandler.handleSlashCommand(match<SlackSlashCommand> {
-                it.command == "/jarvis" &&
+                it.command == "/reactor" &&
                     it.text == "today tasks" &&
                     it.userId == "U123" &&
                     it.channelId == "C456"
@@ -92,7 +92,7 @@ class SlackCommandControllerTest {
         coEvery { slowHandler.handleSlashCommand(any()) } coAnswers { delay(300) }
 
         failFastController.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "first",
             userId = "U1",
             userName = "alice",
@@ -103,7 +103,7 @@ class SlackCommandControllerTest {
         )
 
         val second = failFastController.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "second",
             userId = "U2",
             userName = "bob",
@@ -140,7 +140,7 @@ class SlackCommandControllerTest {
         coEvery { timeoutMessagingService.sendResponseUrl(any(), any(), any()) } returns true
 
         timeoutController.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "first",
             userId = "U1",
             userName = "alice",
@@ -151,7 +151,7 @@ class SlackCommandControllerTest {
         )
         delay(30)
         timeoutController.handleSlashCommand(
-            command = "/jarvis",
+            command = "/reactor",
             text = "second",
             userId = "U2",
             userName = "bob",
