@@ -106,6 +106,11 @@ class SlackEventProcessor(
             handleReactionEvent(event, entrypoint)
             return
         }
+        // Agents & AI Apps 이벤트 처리
+        if (eventType == "assistant_thread_started") {
+            handleAssistantThreadStarted(event, entrypoint)
+            return
+        }
         val command = validateAndFilterEvent(event, eventType, entrypoint) ?: return
 
         if (!acquireProcessingPermitOrReject(command, eventType, entrypoint)) return
@@ -354,6 +359,48 @@ class SlackEventProcessor(
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.warn(e) { "리액션 이벤트 처리 실패: channel=$channelId" }
+            }
+        }
+    }
+
+    /**
+     * Agents & AI Apps의 assistant_thread_started 이벤트 처리.
+     *
+     * 사용자가 사이드바에서 봇을 클릭하여 새 대화를 시작하면 발생.
+     * 스레드를 추적 대상에 등록하고, 환영 메시지로 응답한다.
+     */
+    private fun handleAssistantThreadStarted(event: JsonNode, entrypoint: String) {
+        val thread = event.path("assistant_thread")
+        val channelId = thread.path("channel_id").asText()
+        val threadTs = thread.path("thread_ts").asText()
+        val userId = thread.path("user_id").asText()
+
+        if (channelId.isBlank() || threadTs.isBlank() || userId.isBlank()) {
+            logger.debug { "assistant_thread_started 필수 필드 누락 — 무시" }
+            return
+        }
+
+        logger.info { "Agents & AI Apps 스레드 시작: channel=$channelId, thread=$threadTs, user=$userId" }
+
+        // 스레드 추적 등록 — 이후 message.im 이벤트가 이 스레드에서 처리됨
+        threadTracker?.track(channelId, threadTs)
+
+        scope.launch {
+            try {
+                messagingService.sendMessage(
+                    channelId = channelId,
+                    text = "안녕하세요! Reactor입니다. 무엇을 도와드릴까요? :wave:",
+                    threadTs = threadTs
+                )
+                metricsRecorder.recordHandler(
+                    entrypoint = entrypoint,
+                    eventType = "assistant_thread_started",
+                    success = true,
+                    durationMs = 0
+                )
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                logger.warn(e) { "assistant_thread_started 환영 메시지 전송 실패: channel=$channelId" }
             }
         }
     }
