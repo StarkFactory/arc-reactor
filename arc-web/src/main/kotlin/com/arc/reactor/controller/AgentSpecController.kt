@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -32,7 +31,6 @@ import java.util.UUID
 @Tag(name = "Agent Specs", description = "멀티에이전트 스펙 관리")
 @RestController
 @RequestMapping("/api/admin/agent-specs")
-@ConditionalOnBean(AgentSpecStore::class)
 class AgentSpecController(
     private val store: AgentSpecStore
 ) {
