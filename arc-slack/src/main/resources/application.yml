@@ -23,7 +23,7 @@ arc:
       event-dedup-enabled: ${ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED:true}
       event-dedup-ttl-seconds: ${ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS:600}
       event-dedup-max-entries: ${ARC_REACTOR_SLACK_EVENT_DEDUP_MAX_ENTRIES:10000}
-      process-direct-messages-without-thread: ${ARC_REACTOR_SLACK_PROCESS_DM_WITHOUT_THREAD:false}
+      process-direct-messages-without-thread: ${ARC_REACTOR_SLACK_PROCESS_DM_WITHOUT_THREAD:true}
       tools:
         enabled: ${ARC_REACTOR_SLACK_TOOLS_ENABLED:true}
         bot-token: ${SLACK_BOT_TOKEN:}
