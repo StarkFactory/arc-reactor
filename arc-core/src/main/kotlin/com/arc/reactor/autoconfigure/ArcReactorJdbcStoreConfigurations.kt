@@ -9,6 +9,7 @@ import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.feedback.JdbcFeedbackStore
 import com.arc.reactor.multibot.JdbcSlackBotInstanceStore
 import com.arc.reactor.multibot.SlackBotInstanceStore
+import com.arc.reactor.settings.RuntimeSettingsService
 import com.arc.reactor.promptlab.ExperimentStore
 import com.arc.reactor.promptlab.JdbcExperimentStore
 import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleAuditStore
@@ -243,4 +244,10 @@ class JdbcRagIngestionPolicyStoreConfiguration {
     fun jdbcSlackBotInstanceStore(
         jdbcTemplate: JdbcTemplate
     ): SlackBotInstanceStore = JdbcSlackBotInstanceStore(jdbcTemplate)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun runtimeSettingsService(
+        jdbcTemplate: JdbcTemplate
+    ): RuntimeSettingsService = RuntimeSettingsService(jdbcTemplate)
 }
