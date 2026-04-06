@@ -4,6 +4,7 @@ import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.slack.model.SlackApiResult
 import com.arc.reactor.slack.metrics.NoOpSlackMetricsRecorder
 import com.arc.reactor.slack.metrics.SlackMetricsRecorder
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import mu.KotlinLogging
@@ -11,7 +12,6 @@ import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.reactive.function.client.awaitBody
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 private val logger = KotlinLogging.logger {}
@@ -45,8 +45,10 @@ class SlackMessagingService(
     private val responseWebClient: WebClient = WebClient.builder().build(),
     private val allowedResponseHosts: Set<String> = DEFAULT_ALLOWED_RESPONSE_HOSTS
 ) {
-    /** 채널별 마지막 요청 시각 (최대 1000 항목, 초과 시 오래된 항목 제거) */
-    private val lastRequestTimeByChannel = ConcurrentHashMap<String, AtomicLong>()
+    /** 채널별 마지막 요청 시각 (Caffeine 캐시, 최대 1000 항목) */
+    private val lastRequestTimeByChannel = Caffeine.newBuilder()
+        .maximumSize(MAX_RATE_LIMIT_ENTRIES.toLong())
+        .build<String, AtomicLong>()
 
     /**
      * Slack 채널에 메시지를 전송한다.
@@ -237,13 +239,7 @@ class SlackMessagingService(
     }
 
     private suspend fun enforceRateLimit(channelId: String) {
-        if (lastRequestTimeByChannel.size > MAX_RATE_LIMIT_ENTRIES) {
-            val keysToRemove = lastRequestTimeByChannel.keys.take(lastRequestTimeByChannel.size / 4)
-            for (key in keysToRemove) {
-                lastRequestTimeByChannel.remove(key)
-            }
-        }
-        val lastTime = lastRequestTimeByChannel.computeIfAbsent(channelId) { AtomicLong(0L) }
+        val lastTime = lastRequestTimeByChannel.get(channelId) { AtomicLong(0L) }
         val now = System.currentTimeMillis()
         val elapsed = now - lastTime.get()
         if (elapsed < RATE_LIMIT_DELAY_MS) {
