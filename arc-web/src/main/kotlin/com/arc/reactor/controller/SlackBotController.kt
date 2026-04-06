@@ -61,6 +61,11 @@ class SlackBotController(
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val existing = store.list().find { it.name == request.name }
+        if (existing != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse(error = "이름 '${request.name}'은 이미 사용 중입니다", timestamp = java.time.Instant.now().toString()))
+        }
         val instance = SlackBotInstance(
             id = UUID.randomUUID().toString(),
             name = request.name,
