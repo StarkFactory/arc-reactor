@@ -200,8 +200,8 @@ class SlackMessagingService(
             ?.times(1000)
             ?: retryDefaultDelayMs.coerceAtLeast(1L)
         logger.warn {
-            "Slack API rate-limited for method=$method, " +
-                "retrying in ${retryAfterMillis}ms (attempt=$attempt/$maxAttempts)"
+            "Slack API 속도 제한: method=$method, " +
+                "${retryAfterMillis}ms 후 재시도 (attempt=$attempt/$maxAttempts)"
         }
         delay(retryAfterMillis)
     }
@@ -222,7 +222,8 @@ class SlackMessagingService(
         if (!e.statusCode.is5xxServerError || attempt >= maxAttempts) throw e
         val backoffMillis = retryDefaultDelayMs.coerceAtLeast(1L) * attempt
         logger.warn {
-            "Slack API 5xx for method=$method, retrying in ${backoffMillis}ms (attempt=$attempt/$maxAttempts)"
+            "Slack API 서버 오류(5xx): method=$method, " +
+                "${backoffMillis}ms 후 재시도 (attempt=$attempt/$maxAttempts)"
         }
         delay(backoffMillis)
     }

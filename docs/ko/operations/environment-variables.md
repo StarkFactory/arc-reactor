@@ -45,15 +45,56 @@
 | `SPRING_AI_GOOGLE_GENAI_EMBEDDING_API_KEY` | Embedding API 키 | |
 | `SPRING_AI_GOOGLE_GENAI_CHAT_OPTIONS_MODEL` | 기본 모델 | `gemini-2.5-flash` |
 
+## 인증
+
+| 변수 | 용도 | 기본값 |
+|------|------|--------|
+| `ARC_REACTOR_AUTH_JWT_SECRET` | JWT 서명 키 (32바이트 이상) | |
+| `ARC_REACTOR_AUTH_ADMIN_EMAIL` | 초기 ADMIN 계정 이메일 | |
+| `ARC_REACTOR_AUTH_ADMIN_PASSWORD` | 초기 ADMIN 비밀번호 (8자 이상) | |
+| `ARC_REACTOR_AUTH_ADMIN_NAME` | ADMIN 표시 이름 | `Admin` |
+| `ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED` | 자체 가입 허용 | `false` |
+| `ARC_REACTOR_AUTH_IAM_ENABLED` | aslan-iam 연동 | `false` |
+| `ARC_REACTOR_AUTH_IAM_ISSUER` | IAM 발급자 URL | |
+| `ARC_REACTOR_AUTH_IAM_PUBLIC_KEY_URL` | IAM JWKS URL | |
+
 ## 기능 토글
 
 | 변수 | 용도 | 기본값 |
 |------|------|--------|
 | `ARC_REACTOR_SLACK_TOOLS_ENABLED` | Slack 도구 (find_user 등) | `true` |
 | `ARC_REACTOR_MCP_ALLOW_PRIVATE_ADDRESSES` | localhost MCP 허용 | `false` |
-| `ARC_REACTOR_AUTH_SELF_REGISTRATION_ENABLED` | 자체 가입 허용 | `false` |
 | `ARC_REACTOR_SLACK_MULTI_BOT_ENABLED` | 멀티 봇 모드 | `false` |
+| `ARC_REACTOR_AGENT_MULTI_AGENT_ENABLED` | 멀티에이전트 오케스트레이션 | `false` |
 | `ARC_REACTOR_MAX_TOOLS_PER_REQUEST` | 요청당 최대 도구 수 | `30` |
+| `ARC_REACTOR_SLACK_PROCESS_DM_WITHOUT_THREAD` | 스레드 없는 DM 처리 | `true` |
+
+## Slack 고급 설정
+
+| 변수 | 용도 | 기본값 |
+|------|------|--------|
+| `ARC_REACTOR_SLACK_TRANSPORT_MODE` | 전송 방식 | `socket_mode` |
+| `ARC_REACTOR_SLACK_SOCKET_BACKEND` | WebSocket 백엔드 | `java_websocket` |
+| `ARC_REACTOR_SLACK_API_MAX_RETRIES` | API 재시도 횟수 | `2` |
+| `ARC_REACTOR_SLACK_API_RETRY_DEFAULT_DELAY_MS` | 재시도 기본 대기 | `1000` |
+| `ARC_REACTOR_SLACK_FAIL_FAST_ON_SATURATION` | 포화 시 즉시 거부 | `true` |
+| `ARC_REACTOR_SLACK_NOTIFY_ON_DROP` | 드롭 시 사용자 알림 | `false` |
+| `ARC_REACTOR_SLACK_EVENT_DEDUP_ENABLED` | 이벤트 중복 방지 | `true` |
+| `ARC_REACTOR_SLACK_EVENT_DEDUP_TTL_SECONDS` | 중복 판단 TTL | `600` |
+| `ARC_REACTOR_SLACK_USER_EMAIL_RESOLUTION_ENABLED` | 사용자 이메일 조회 | `true` |
+| `ARC_REACTOR_SLACK_USER_EMAIL_CACHE_TTL_SECONDS` | 이메일 캐시 TTL | `3600` |
+
+## 런타임 설정 (DB 오버라이드)
+
+RuntimeSettingsService를 통해 DB에서 환경변수를 오버라이드할 수 있다.
+
+| 우선순위 | 소스 | 설명 |
+|---------|------|------|
+| 1 (최고) | Redis 캐시 | 30초 TTL |
+| 2 | DB `runtime_settings` | Admin API로 관리 |
+| 3 (최저) | 환경변수 | `.env` 파일 |
+
+Admin API: `GET/PUT/DELETE /api/admin/settings/{key}`
 
 ## 파일 구조
 
