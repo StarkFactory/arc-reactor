@@ -190,6 +190,60 @@ class FeedbackController(
         return ResponseEntity.noContent().build()
     }
 
+    /** 피드백 통계를 조회한다. 관리자 권한 필요. */
+    @Operation(summary = "피드백 통계 조회 (관리자)")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "Feedback statistics"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
+    ])
+    @GetMapping("/stats")
+    fun feedbackStats(
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val fromInstant = from?.let { parseInstant("from", it) }
+        val toInstant = to?.let { parseInstant("to", it) }
+
+        val allFeedback = feedbackStore.list(from = fromInstant, to = toInstant)
+        val positive = allFeedback.count { it.rating == FeedbackRating.THUMBS_UP }
+        val negative = allFeedback.count { it.rating == FeedbackRating.THUMBS_DOWN }
+        val total = allFeedback.size
+
+        val byDay = allFeedback.groupBy {
+            it.timestamp.atZone(java.time.ZoneId.of("Asia/Seoul")).toLocalDate().toString()
+        }.map { (date, items) ->
+            mapOf(
+                "date" to date,
+                "positive" to items.count { it.rating == FeedbackRating.THUMBS_UP },
+                "negative" to items.count { it.rating == FeedbackRating.THUMBS_DOWN },
+                "total" to items.size
+            )
+        }.sortedBy { it["date"] as String }
+
+        val topNegativeTools = allFeedback
+            .filter { it.rating == FeedbackRating.THUMBS_DOWN }
+            .flatMap { it.toolsUsed.orEmpty() }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .take(5)
+            .map { mapOf("tool" to it.key, "count" to it.value) }
+
+        return ResponseEntity.ok(mapOf(
+            "total" to total,
+            "positive" to positive,
+            "negative" to negative,
+            "positiveRate" to if (total > 0) positive.toDouble() / total else 0.0,
+            "period" to mapOf("from" to (from ?: "all"), "to" to (to ?: "now")),
+            "byDay" to byDay,
+            "topNegativeTools" to topNegativeTools
+        ))
+    }
+
     private fun parseRating(raw: String): FeedbackRating {
         return try {
             FeedbackRating.valueOf(raw.trim().uppercase())
