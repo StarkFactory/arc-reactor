@@ -1,7 +1,7 @@
 package com.arc.reactor.settings
 
-import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.Duration
 import java.time.Instant
@@ -11,18 +11,18 @@ private val logger = KotlinLogging.logger {}
 /**
  * 런타임 설정 — Admin이 DB로 기능 토글/파라미터를 실시간 변경할 수 있다.
  *
- * Caffeine 캐시(30초 TTL)로 DB 부하를 최소화한다.
+ * Redis 캐시(30초 TTL)로 DB 부하를 최소화한다.
+ * Redis 장애 시 DB 직접 조회로 폴백한다.
  * DB에 값이 없으면 기존 환경변수/기본값이 그대로 사용된다 (하위 호환).
+ *
+ * Redis 키 패턴: arc:settings:{key}
  */
 class RuntimeSettingsService(
     private val jdbc: JdbcTemplate,
+    private val redisTemplate: StringRedisTemplate? = null,
     private val cacheTtlSeconds: Long = 30
 ) {
-
-    private val cache = Caffeine.newBuilder()
-        .maximumSize(500)
-        .expireAfterWrite(Duration.ofSeconds(cacheTtlSeconds))
-        .build<String, String?>()
+    private val cacheTtl = Duration.ofSeconds(cacheTtlSeconds)
 
     /** 문자열 설정을 가져온다. DB에 없으면 default 반환. */
     fun getString(key: String, default: String): String {
@@ -48,8 +48,10 @@ class RuntimeSettingsService(
     }
 
     /** 설정을 저장/갱신한다. */
-    fun set(key: String, value: String, type: String = "STRING", category: String = "general",
-            description: String? = null, updatedBy: String? = null) {
+    fun set(
+        key: String, value: String, type: String = "STRING", category: String = "general",
+        description: String? = null, updatedBy: String? = null
+    ) {
         jdbc.update(
             """INSERT INTO runtime_settings (key, value, type, category, description, updated_by, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -63,14 +65,14 @@ class RuntimeSettingsService(
             key, value, type, category, description, updatedBy,
             java.sql.Timestamp.from(Instant.now())
         )
-        cache.invalidate(key)
+        invalidateCache(key)
         logger.info { "런타임 설정 변경: key=$key, value=$value, by=$updatedBy" }
     }
 
     /** 설정을 삭제한다 (기본값으로 리셋). */
     fun delete(key: String) {
         jdbc.update("DELETE FROM runtime_settings WHERE key = ?", key)
-        cache.invalidate(key)
+        invalidateCache(key)
     }
 
     /** 전체 설정 목록을 조회한다. */
@@ -90,23 +92,71 @@ class RuntimeSettingsService(
         }
     }
 
-    /** 캐시를 무효화한다. */
+    /** 캐시를 전체 무효화한다. */
     fun refreshCache() {
-        cache.invalidateAll()
-        logger.info { "런타임 설정 캐시 전체 무효화" }
+        try {
+            val redis = redisTemplate ?: return
+            redis.scan(org.springframework.data.redis.core.ScanOptions.scanOptions()
+                .match("$KEY_PREFIX*").build()).use { cursor ->
+                val keys = cursor.asSequence().toList()
+                if (keys.isNotEmpty()) redis.delete(keys)
+            }
+            logger.info { "런타임 설정 Redis 캐시 전체 무효화" }
+        } catch (e: Exception) {
+            logger.warn(e) { "Redis 캐시 무효화 실패 — 무시" }
+        }
     }
 
     private fun getFromCache(key: String): String? {
-        return cache.get(key) { k ->
-            try {
-                jdbc.queryForObject(
-                    "SELECT value FROM runtime_settings WHERE key = ?",
-                    String::class.java, k
-                )
-            } catch (_: Exception) {
-                null
+        // 1. Redis 캐시 조회
+        try {
+            val redis = redisTemplate
+            if (redis != null) {
+                val redisKey = "$KEY_PREFIX$key"
+                val cached = redis.opsForValue().get(redisKey)
+                if (cached != null) return if (cached == NULL_MARKER) null else cached
             }
+        } catch (e: Exception) {
+            logger.debug { "Redis 조회 실패, DB 폴백: key=$key" }
         }
+
+        // 2. DB 조회
+        val dbValue = try {
+            jdbc.queryForObject(
+                "SELECT value FROM runtime_settings WHERE key = ?",
+                String::class.java, key
+            )
+        } catch (_: Exception) {
+            null
+        }
+
+        // 3. Redis에 캐시 (null도 캐시하여 DB 히트 방지)
+        try {
+            redisTemplate?.opsForValue()?.set(
+                "$KEY_PREFIX$key",
+                dbValue ?: NULL_MARKER,
+                cacheTtl
+            )
+        } catch (e: Exception) {
+            logger.debug { "Redis 캐시 저장 실패: key=$key" }
+        }
+
+        return dbValue
+    }
+
+    private fun invalidateCache(key: String) {
+        try {
+            redisTemplate?.delete("$KEY_PREFIX$key")
+        } catch (e: Exception) {
+            logger.debug { "Redis 캐시 무효화 실패: key=$key" }
+        }
+    }
+
+    companion object {
+        /** Redis 키 접두사 (규격: arc:{domain}:{purpose}) */
+        private const val KEY_PREFIX = "arc:settings:"
+        /** null 값 캐시 마커 (DB에 키가 없음을 캐시) */
+        private const val NULL_MARKER = "__NULL__"
     }
 }
 

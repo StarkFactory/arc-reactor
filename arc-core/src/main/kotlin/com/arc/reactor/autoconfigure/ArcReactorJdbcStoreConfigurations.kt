@@ -10,6 +10,7 @@ import com.arc.reactor.feedback.JdbcFeedbackStore
 import com.arc.reactor.multibot.JdbcSlackBotInstanceStore
 import com.arc.reactor.multibot.SlackBotInstanceStore
 import com.arc.reactor.settings.RuntimeSettingsService
+import org.springframework.beans.factory.ObjectProvider
 import com.arc.reactor.promptlab.ExperimentStore
 import com.arc.reactor.promptlab.JdbcExperimentStore
 import com.arc.reactor.guard.output.policy.JdbcOutputGuardRuleAuditStore
@@ -248,6 +249,10 @@ class JdbcRagIngestionPolicyStoreConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun runtimeSettingsService(
-        jdbcTemplate: JdbcTemplate
-    ): RuntimeSettingsService = RuntimeSettingsService(jdbcTemplate)
+        jdbcTemplate: JdbcTemplate,
+        redisTemplate: ObjectProvider<org.springframework.data.redis.core.StringRedisTemplate>
+    ): RuntimeSettingsService = RuntimeSettingsService(
+        jdbc = jdbcTemplate,
+        redisTemplate = redisTemplate.ifAvailable
+    )
 }
