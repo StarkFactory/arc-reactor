@@ -36,7 +36,7 @@ Arc Reactor의 Slack 연동은 단순 알림 봇이 아니라, Slack을 `주 사
 | 봇을 채널에서 멘션한다 | 질문으로 인식하고 스레드에서 답변 | 가장 기본 진입 경로 |
 | 봇이 연 스레드에 후속 답장을 단다 | 같은 세션으로 이어서 처리 | thread tracking 기반 |
 | DM으로 메시지를 보낸다 | 설정에 따라 처리 가능 | `processDirectMessagesWithoutThread` 영향 |
-| `/jarvis ...` 같은 슬래시 명령을 사용한다 | 비동기 처리 후 스레드 또는 `response_url`로 응답 | help/remind/brief/my-work 포함 |
+| `/reactor ...` 같은 슬래시 명령을 사용한다 | 비동기 처리 후 스레드 또는 `response_url`로 응답 | help/remind/brief/my-work 포함 |
 | 프로액티브 채널에 일반 메시지를 쓴다 | 봇이 관련 있다고 판단할 때만 개입 | 아니면 침묵 |
 | 봇 답변에 `:+1:` / `:-1:` 반응을 단다 | 피드백으로 저장 가능 | reaction feedback 기능 |
 
@@ -158,11 +158,11 @@ DM은 별도 옵션의 영향을 받는다.
 
 - `remind add`라는 별도 서브커맨드는 없다.
 - `remind` 뒤에 `list`/`clear`/`done <id>`가 아니면 전부 reminder text로 간주한다.
-- bare `/jarvis remind`는 추가가 아니라 목록 조회다.
+- bare `/reactor remind`는 추가가 아니라 목록 조회다.
 
 #### 슬래시 명령의 실제 처리 방식
 
-- 사용자가 `/jarvis 질문`을 호출한다.
+- 사용자가 `/reactor 질문`을 호출한다.
 - Arc Reactor는 채널에 “사용자 질문” 메시지를 먼저 올려 스레드를 만든다.
 - 그 스레드에 에이전트 답변을 단다.
 - 채널 게시가 실패하면 `response_url`로 폴백한다.

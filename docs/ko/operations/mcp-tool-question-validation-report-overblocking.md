@@ -218,11 +218,11 @@
 | bitbucket-read-054 | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘. |
 | bitbucket-read-055 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
 | bitbucket-read-056 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
-| bitbucket-read-057 | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘. |
-| bitbucket-read-058 | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
-| bitbucket-read-059 | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘. |
-| bitbucket-read-060 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
-| bitbucket-read-061 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
+| bitbucket-read-057 | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/reactor 저장소의 브랜치 목록을 출처와 함께 보여줘. |
+| bitbucket-read-058 | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/reactor 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
+| bitbucket-read-059 | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/reactor 저장소의 stale PR을 출처와 함께 점검해줘. |
+| bitbucket-read-060 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/reactor 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
+| bitbucket-read-061 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/reactor 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
 | bitbucket-read-062 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | Bitbucket에서 내가 검토해야 할 PR이 있는지 출처와 함께 알려줘. |
 | bitbucket-read-063 | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | Bitbucket에서 최근 코드 리뷰 리스크를 출처와 함께 요약해줘. |
 | work-summary-064 | work-summary | answer | good | Y | 2 | work_morning_briefing | DEV 프로젝트 기준으로 오늘 아침 업무 브리핑을 출처와 함께 만들어줘. |

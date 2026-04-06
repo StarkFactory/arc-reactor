@@ -54,7 +54,7 @@ class DefaultSlackCommandHandler(
         if (rawPrompt.isBlank()) {
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
-                text = "Please enter a question. Example: /jarvis What are my tasks today?"
+                text = "Please enter a question. Example: /reactor What are my tasks today?"
             )
             return
         }
@@ -293,7 +293,7 @@ ${intent.text}
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 responseType = "ephemeral",
-                text = "No saved reminders. Try: /jarvis remind Follow up with design review at 3pm"
+                text = "No saved reminders. Try: /reactor remind Follow up with design review at 3pm"
             )
             return
         }
@@ -310,7 +310,7 @@ ${intent.text}
         val text = if (reminder != null) {
             "Completed reminder #${reminder.id}: ${reminder.text}"
         } else {
-            "Reminder #${intent.id} was not found. Use /jarvis remind list."
+            "Reminder #${intent.id} was not found. Use /reactor remind list."
         }
         messagingService.sendResponseUrl(
             responseUrl = command.responseUrl,
@@ -366,7 +366,7 @@ ${intent.text}
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 responseType = "ephemeral",
-                text = ":x: 최대 ${MAX_LOOPS_PER_USER}개까지 등록할 수 있습니다. `/jarvis loop list`로 확인 후 삭제해 주세요."
+                text = ":x: 최대 ${MAX_LOOPS_PER_USER}개까지 등록할 수 있습니다. `/reactor loop list`로 확인 후 삭제해 주세요."
             )
             return
         }
@@ -403,7 +403,7 @@ ${intent.text}
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 responseType = "ephemeral",
-                text = "등록된 스케줄이 없습니다. 예: `/jarvis loop 9am 내 이슈 요약해줘`"
+                text = "등록된 스케줄이 없습니다. 예: `/reactor loop 9am 내 이슈 요약해줘`"
             )
             return
         }
@@ -427,7 +427,7 @@ ${intent.text}
             messagingService.sendResponseUrl(
                 responseUrl = command.responseUrl,
                 responseType = "ephemeral",
-                text = ":x: ${intent.id}번 스케줄을 찾을 수 없습니다. `/jarvis loop list`로 확인해 주세요."
+                text = ":x: ${intent.id}번 스케줄을 찾을 수 없습니다. `/reactor loop list`로 확인해 주세요."
             )
             return
         }
@@ -486,31 +486,31 @@ ${intent.text}
         const val HELP_TEXT = """*Reactor 명령어* :robot_face:
 
 *일반*
-`/jarvis <질문>` — AI 에이전트에게 질문
-`/jarvis help` — 도움말
+`/reactor <질문>` — AI 에이전트에게 질문
+`/reactor help` — 도움말
 
 *검색 & 질문*
-`/jarvis search <검색어>` — 사내 문서/이슈 통합 검색
-`/jarvis ask <질문>` — 사내 정책/규정 질문 (Confluence 우선)
-`/jarvis who <이름>` — 사람/조직/담당자 찾기
+`/reactor search <검색어>` — 사내 문서/이슈 통합 검색
+`/reactor ask <질문>` — 사내 정책/규정 질문 (Confluence 우선)
+`/reactor who <이름>` — 사람/조직/담당자 찾기
 
 *업무 브리핑*
-`/jarvis brief [주제]` — 일일 브리핑 (우선순위 + 리스크)
-`/jarvis my-work [범위]` — 업무 현황 (진행 중 / 대기 / 다음)
+`/reactor brief [주제]` — 일일 브리핑 (우선순위 + 리스크)
+`/reactor my-work [범위]` — 업무 현황 (진행 중 / 대기 / 다음)
 
 *유틸리티*
-`/jarvis summarize [텍스트]` — 요약 (텍스트 또는 현재 대화)
-`/jarvis translate <텍스트>` — 번역 (한↔영 자동 감지)
+`/reactor summarize [텍스트]` — 요약 (텍스트 또는 현재 대화)
+`/reactor translate <텍스트>` — 번역 (한↔영 자동 감지)
 
 *주기적 스케줄*
-`/jarvis loop <간격> <내용>` — 주기적 브리핑 (최대 ${MAX_LOOPS_PER_USER}개)
-`/jarvis loop list` — 내 스케줄 목록
-`/jarvis loop stop <번호>` — 삭제 · `loop clear` — 전체 삭제
+`/reactor loop <간격> <내용>` — 주기적 브리핑 (최대 ${MAX_LOOPS_PER_USER}개)
+`/reactor loop list` — 내 스케줄 목록
+`/reactor loop stop <번호>` — 삭제 · `loop clear` — 전체 삭제
 _간격: 30m, 1h, 9am, 14:30, daily, weekly, weekday, 매일, 평일_
 
 *리마인더*
-`/jarvis remind <내용>` — 리마인더 (`at HH:mm` 시 DM 알림)
-`/jarvis remind list` — 목록 · `done <번호>` — 완료 · `clear` — 전체 삭제
+`/reactor remind <내용>` — 리마인더 (`at HH:mm` 시 DM 알림)
+`/reactor remind list` — 목록 · `done <번호>` — 완료 · `clear` — 전체 삭제
 
 *팁*
 • 채널에서 @봇 멘션으로 스레드 대화 가능

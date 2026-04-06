@@ -60,7 +60,7 @@ Arc Reactor와 연결할 Slack 앱을 만드는 과정.
 ## 6. Slash Command 등록 (선택)
 
 왼쪽 메뉴 → **Slash Commands** → **Create New Command**
-- Command: `/jarvis`
+- Command: `/reactor`
 - Short Description: `Reactor AI 업무 어시스턴트`
 - Usage Hint: `[질문 또는 명령어]`
 - **Save**

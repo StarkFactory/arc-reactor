@@ -20,7 +20,7 @@ data class SlackReminder(
 /**
  * 사용자별 인메모리 리마인더 저장소.
  *
- * 슬래시 명령(`/jarvis remind`)으로 등록된 리마인더를 관리한다.
+ * 슬래시 명령(`/reactor remind`)으로 등록된 리마인더를 관리한다.
  * 시간 표현("at HH:mm" 또는 "N시 M분")을 자동 파싱하여 [SlackReminder.dueAt]을 설정하며,
  * [SlackReminderScheduler]가 주기적으로 만료된 리마인더를 수거한다.
  *

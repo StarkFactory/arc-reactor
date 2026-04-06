@@ -89,10 +89,10 @@
 ### bitbucket-read
 
 - 접근 가능한 Bitbucket 저장소 목록을 출처와 함께 보여줘.
-- jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘.
-- jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘.
-- jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘.
-- jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘.
+- jarvis-project/reactor 저장소의 브랜치 목록을 출처와 함께 보여줘.
+- jarvis-project/reactor 저장소의 열린 PR 목록을 출처와 함께 보여줘.
+- jarvis-project/reactor 저장소의 stale PR을 출처와 함께 점검해줘.
+- jarvis-project/reactor 저장소의 리뷰 대기열을 출처와 함께 정리해줘.
 
 ### confluence-knowledge
 
@@ -163,11 +163,11 @@
 
 ### repository-operational
 
-- jarvis-project/jarvis 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘.
-- jarvis-project/jarvis 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘.
-- jarvis-project/jarvis 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘.
-- jarvis-project/jarvis 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘.
-- jarvis-project/jarvis 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘.
+- jarvis-project/reactor 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘.
+- jarvis-project/reactor 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘.
+- jarvis-project/reactor 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘.
+- jarvis-project/reactor 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘.
+- jarvis-project/reactor 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘.
 
 ### swagger
 
@@ -285,9 +285,9 @@
 
 ### repository-operational
 
-- `blocked`: jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
-- `policy_blocked`: jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
-- `blocked`: jarvis-project/jarvis 저장소에서 팀원별 PR 상태를 간단히 보여줘.
+- `blocked`: jarvis-project/reactor 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
+- `policy_blocked`: jarvis-project/reactor 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
+- `blocked`: jarvis-project/reactor 저장소에서 팀원별 PR 상태를 간단히 보여줘.
 - `blocked`: jarvis-project/dev 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘.
 - `policy_blocked`: jarvis-project/dev 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘.
 
@@ -394,11 +394,11 @@
 | confluence-knowledge-046 | core-runtime | confluence-knowledge | answer | good | Y | 1 | confluence_search_by_text | DEV 스페이스에서 'ops' 관련 Confluence 페이지를 찾아 출처와 함께 정리해줘. |
 | confluence-knowledge-047 | core-runtime | confluence-knowledge | answer | good | Y | 1 | confluence_search_by_text | Confluence에서 'ops' 키워드로 검색하고 어떤 문서가 있는지 링크와 함께 알려줘. |
 | bitbucket-read-048 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_repositories | 접근 가능한 Bitbucket 저장소 목록을 출처와 함께 보여줘. |
-| bitbucket-read-049 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 목록을 출처와 함께 보여줘. |
-| bitbucket-read-050 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
-| bitbucket-read-051 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소의 stale PR을 출처와 함께 점검해줘. |
-| bitbucket-read-052 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
-| bitbucket-read-053 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
+| bitbucket-read-049 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/reactor 저장소의 브랜치 목록을 출처와 함께 보여줘. |
+| bitbucket-read-050 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/reactor 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
+| bitbucket-read-051 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/reactor 저장소의 stale PR을 출처와 함께 점검해줘. |
+| bitbucket-read-052 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/reactor 저장소의 리뷰 대기열을 출처와 함께 정리해줘. |
+| bitbucket-read-053 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/reactor 저장소의 리뷰 SLA 경고를 출처와 함께 보여줘. |
 | bitbucket-read-054 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소의 브랜치 목록을 출처와 함께 보여줘. |
 | bitbucket-read-055 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소의 열린 PR 목록을 출처와 함께 보여줘. |
 | bitbucket-read-056 | core-runtime | bitbucket-read | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소의 stale PR을 출처와 함께 점검해줘. |
@@ -624,12 +624,12 @@
 | project-operational-276 | employee-value | project-operational | answer | good | Y | 3 | jira_search_issues | OPS 프로젝트에서 지금 안 읽으면 안 되는 high priority 이슈를 출처와 함께 알려줘. |
 | project-operational-277 | employee-value | project-operational | answer | good | Y | 6 | jira_search_issues | OPS 프로젝트에서 담당자가 없는 이슈가 있으면 출처와 함께 알려줘. |
 | project-operational-278 | employee-value | project-operational | answer | good | Y | 11 | jira_search_issues | OPS 프로젝트에서 최근에 상태가 많이 바뀐 이슈를 출처와 함께 정리해줘. |
-| repository-operational-279 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
-| repository-operational-280 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
-| repository-operational-281 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/jarvis 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
-| repository-operational-282 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
-| repository-operational-283 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
-| repository-operational-284 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/jarvis 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
+| repository-operational-279 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/reactor 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
+| repository-operational-280 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/reactor 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
+| repository-operational-281 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/reactor 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
+| repository-operational-282 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/reactor 저장소의 브랜치 현황을 한 줄씩 요약해줘. 출처를 붙여줘. |
+| repository-operational-283 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/reactor 저장소에서 머지 안 된 오래된 작업이 있는지 출처와 함께 알려줘. |
+| repository-operational-284 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/reactor 저장소에서 지금 리뷰가 필요한 변경을 한 줄씩 보여줘. |
 | repository-operational-285 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/dev 저장소에서 오래된 PR이 있으면 출처와 함께 알려줘. |
 | repository-operational-286 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_queue | jarvis-project/dev 저장소의 리뷰 대기열만 간단히 정리해줘. 출처를 붙여줘. |
 | repository-operational-287 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_review_sla_alerts | jarvis-project/dev 저장소에서 지금 위험한 리뷰 SLA 경고가 있는지 알려줘. |
@@ -747,13 +747,13 @@
 | team-status-399 | employee-value | team-status | answer | failed | N | 0 | - | OPS 장애 대비 |
 | team-status-400 | employee-value | team-status | answer | failed | N | 0 | - | OPS 이번 주 blocker |
 | team-status-401 | employee-value | team-status | answer | failed | N | 0 | - | OPS 우선순위 이슈 |
-| repository-operational-402 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/jarvis 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
-| repository-operational-403 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/jarvis 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
-| repository-operational-404 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
-| repository-operational-405 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/jarvis 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
-| repository-operational-406 | employee-value | repository-operational | answer | policy_blocked | N | 0 | jira_due_soon_issues | jarvis-project/jarvis 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
-| repository-operational-407 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/jarvis 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
-| repository-operational-408 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/jarvis 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
+| repository-operational-402 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/reactor 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
+| repository-operational-403 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/reactor 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
+| repository-operational-404 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/reactor 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
+| repository-operational-405 | employee-value | repository-operational | answer | good | Y | 1 | jira_search_issues | jarvis-project/reactor 저장소 PR 승인 대기 사유를 jira 이슈 맥락까지 묶어서 보여줘. |
+| repository-operational-406 | employee-value | repository-operational | answer | policy_blocked | N | 0 | jira_due_soon_issues | jarvis-project/reactor 저장소에서 마감이 임박한 코드 리뷰 항목을 알려줘. |
+| repository-operational-407 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_stale_prs | jarvis-project/reactor 저장소에서 작업 중인 PR이 너무 오래된 게 있나 확인해줘. |
+| repository-operational-408 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/reactor 저장소에서 팀원별 PR 상태를 간단히 보여줘. |
 | repository-operational-409 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_prs | jarvis-project/dev 저장소에서 지금 열린 PR을 검토 우선순위로 보여줘. |
 | repository-operational-410 | employee-value | repository-operational | answer | good | Y | 2 | bitbucket_list_branches | jarvis-project/dev 저장소 브랜치에서 오래 머문 변경이 있으면 알려줘. |
 | repository-operational-411 | employee-value | repository-operational | answer | blocked | N | 0 | - | jarvis-project/dev 저장소에서 리뷰어가 응답 안 한 PR을 찾아줘. |
