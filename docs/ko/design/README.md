@@ -9,6 +9,8 @@
 | [runtime-settings.md](runtime-settings.md) | ✅ 구현 완료 | 런타임 설정 — Redis + DB + Admin API |
 | [openclaw-comparison.md](openclaw-comparison.md) | 📋 분석 완료 | OpenClaw vs Arc Reactor 비교 |
 | [feedback-dashboard.md](feedback-dashboard.md) | 📋 설계 완료 | 피드백 대시보드 — 수동 반영 워크플로 |
+| [authentication-architecture.md](authentication-architecture.md) | ✅ 구현 완료 | aslan-iam 중앙 인증 + 토큰 교환 패턴 |
+| [multi-agent-orchestration.md](multi-agent-orchestration.md) | 📋 설계 완료 | 멀티에이전트 오케스트레이션 — 서브에이전트 양산 |
 
 ## 구현 우선순위
 
