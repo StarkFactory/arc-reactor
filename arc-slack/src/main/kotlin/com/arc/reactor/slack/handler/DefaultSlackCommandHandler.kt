@@ -343,56 +343,54 @@ ${intent.text}
         val store = scheduledJobStore ?: return sendLoopUnavailable(command)
         val scheduler = dynamicSchedulerService ?: return sendLoopUnavailable(command)
 
-        if (!LoopIntervalParser.isValidMinInterval(intent.interval)) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = ":x: 최소 간격은 30분입니다."
-            )
-            return
-        }
-        val cronExpression = LoopIntervalParser.toCron(intent.interval)
-        if (cronExpression == null) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = ":x: 인터벌 형식을 인식할 수 없습니다. 예: `30m`, `9am`, `daily`, `weekly`"
-            )
-            return
-        }
-
+        val cronExpression = validateLoopInterval(command, intent.interval) ?: return
         val userJobs = getUserLoopJobs(store, command.userId)
         if (userJobs.size >= MAX_LOOPS_PER_USER) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = ":x: 최대 ${MAX_LOOPS_PER_USER}개까지 등록할 수 있습니다. `/reactor loop list`로 확인 후 삭제해 주세요."
-            )
-            return
+            return sendEphemeral(command, ":x: 최대 ${MAX_LOOPS_PER_USER}개까지 등록 가능. `/reactor loop list`로 확인 후 삭제해 주세요.")
         }
 
-        val job = ScheduledJob(
-            id = UUID.randomUUID().toString(),
-            name = "user-loop-${command.userId}-${System.currentTimeMillis()}",
-            description = intent.prompt,
-            cronExpression = cronExpression,
-            jobType = ScheduledJobType.AGENT,
-            agentPrompt = intent.prompt,
-            slackChannelId = command.userId,
-            tags = setOf(USER_LOOP_TAG, command.userId),
-            enabled = true
-        )
+        val job = buildLoopJob(command.userId, intent.prompt, cronExpression)
         scheduler.create(job)
 
         val desc = LoopIntervalParser.toDescription(intent.interval)
-        val count = userJobs.size + 1
+        sendEphemeral(command,
+            ":white_check_mark: 스케줄 등록 완료 (${userJobs.size + 1}/$MAX_LOOPS_PER_USER)\n" +
+                ":alarm_clock: $desc\n:memo: ${intent.prompt}\n:postbox: 전달: DM"
+        )
+    }
+
+    /** 루프 인터벌을 검증하고 cron 표현식을 반환한다. 실패 시 ephemeral 응답 후 null. */
+    private suspend fun validateLoopInterval(command: SlackSlashCommand, interval: String): String? {
+        if (!LoopIntervalParser.isValidMinInterval(interval)) {
+            sendEphemeral(command, ":x: 최소 간격은 30분입니다.")
+            return null
+        }
+        val cron = LoopIntervalParser.toCron(interval)
+        if (cron == null) {
+            sendEphemeral(command, ":x: 인터벌 형식 인식 불가. 예: `30m`, `9am`, `daily`, `weekly`")
+        }
+        return cron
+    }
+
+    /** 루프용 ScheduledJob을 생성한다. */
+    private fun buildLoopJob(userId: String, prompt: String, cronExpression: String) = ScheduledJob(
+        id = UUID.randomUUID().toString(),
+        name = "user-loop-$userId-${System.currentTimeMillis()}",
+        description = prompt,
+        cronExpression = cronExpression,
+        jobType = ScheduledJobType.AGENT,
+        agentPrompt = prompt,
+        slackChannelId = userId,
+        tags = setOf(USER_LOOP_TAG, userId),
+        enabled = true
+    )
+
+    /** ephemeral 응답을 보내는 헬퍼. */
+    private suspend fun sendEphemeral(command: SlackSlashCommand, text: String) {
         messagingService.sendResponseUrl(
             responseUrl = command.responseUrl,
             responseType = "ephemeral",
-            text = ":white_check_mark: 스케줄 등록 완료 ($count/$MAX_LOOPS_PER_USER)\n" +
-                ":alarm_clock: $desc\n" +
-                ":memo: ${intent.prompt}\n" +
-                ":postbox: 전달: DM"
+            text = text
         )
     }
 
