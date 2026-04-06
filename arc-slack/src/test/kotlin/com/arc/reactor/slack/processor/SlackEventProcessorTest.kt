@@ -680,4 +680,92 @@ class SlackEventProcessorTest {
             processedSecond.get() shouldBe 1
         }
     }
+
+    @Nested
+    inner class AssistantThreadEvents {
+
+        @Test
+        fun `assistant_thread_started는 스레드를 추적하고 추천 프롬프트를 설정한다`() = runTest {
+            val tracker = mockk<SlackThreadTracker>(relaxed = true)
+            val processor = buildProcessor(defaultProperties(), threadTracker = tracker)
+
+            val payload = objectMapper.readTree("""
+            {
+                "event_id": "evt-ast-1",
+                "event": {
+                    "type": "assistant_thread_started",
+                    "assistant_thread": {
+                        "channel_id": "D999",
+                        "thread_ts": "1234.5678",
+                        "user_id": "U456"
+                    }
+                }
+            }
+            """)
+            processor.submitEventCallback(payload, "test")
+
+            AsyncTestSupport.settleBackground()
+
+            verify { tracker.track("D999", "1234.5678") }
+            coVerify(timeout = 3000) {
+                messagingService.setAssistantSuggestedPrompts(
+                    channelId = "D999",
+                    threadTs = "1234.5678",
+                    prompts = any()
+                )
+            }
+        }
+
+        @Test
+        fun `assistant_thread_context_changed는 메트릭을 기록한다`() {
+            val processor = buildProcessor(defaultProperties())
+
+            val payload = objectMapper.readTree("""
+            {
+                "event_id": "evt-ctx-1",
+                "event": {
+                    "type": "assistant_thread_context_changed",
+                    "assistant_thread": {
+                        "user_id": "U456",
+                        "context": { "channel_id": "C789", "team_id": "T1" }
+                    },
+                    "channel_id": "D999"
+                }
+            }
+            """)
+            processor.submitEventCallback(payload, "test")
+
+            verify {
+                metricsRecorder.recordHandler(
+                    entrypoint = "test",
+                    eventType = "assistant_thread_context_changed",
+                    success = true,
+                    durationMs = 0
+                )
+            }
+        }
+
+        @Test
+        fun `assistant_thread_started 필수 필드 누락 시 무시한다`() {
+            val tracker = mockk<SlackThreadTracker>(relaxed = true)
+            val processor = buildProcessor(defaultProperties(), threadTracker = tracker)
+
+            val payload = objectMapper.readTree("""
+            {
+                "event_id": "evt-ast-2",
+                "event": {
+                    "type": "assistant_thread_started",
+                    "assistant_thread": {
+                        "channel_id": "",
+                        "thread_ts": "",
+                        "user_id": ""
+                    }
+                }
+            }
+            """)
+            processor.submitEventCallback(payload, "test")
+
+            verify(exactly = 0) { tracker.track(any(), any()) }
+        }
+    }
 }

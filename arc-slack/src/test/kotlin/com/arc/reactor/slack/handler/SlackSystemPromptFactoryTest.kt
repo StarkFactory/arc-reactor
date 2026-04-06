@@ -86,6 +86,35 @@ class SlackSystemPromptFactoryTest {
             prompt shouldContain "휴넷"
             prompt shouldContain "환각 방지"
         }
+
+        @Test
+        fun `personaPrompt가 null이면 identity_md 폴백을 사용한다`() {
+            val prompt = SlackSystemPromptFactory.build(personaPrompt = null, defaultProvider = "gemini")
+
+            prompt shouldContain "Reactor" // identity.md에서 로드
+            prompt shouldContain "Aslan"   // identity.md 제작팀
+            prompt shouldContain "환각 방지" // 고정 규칙도 포함
+        }
+
+        @Test
+        fun `personaPrompt가 blank이면 identity_md 폴백을 사용한다`() {
+            val prompt = SlackSystemPromptFactory.build(personaPrompt = "  ", defaultProvider = "gemini")
+
+            prompt shouldContain "Reactor"
+            prompt shouldContain "Aslan"
+        }
+
+        @Test
+        fun `personaPrompt가 있으면 identity_md 폴백을 사용하지 않는다`() {
+            val prompt = SlackSystemPromptFactory.build(
+                personaPrompt = "커스텀 페르소나입니다.",
+                defaultProvider = "gemini"
+            )
+
+            prompt shouldContain "커스텀 페르소나"
+            // identity.md의 고유 문구가 없어야 함
+            prompt shouldNotContain "창조주"
+        }
     }
 
     @Nested
