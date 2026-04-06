@@ -139,7 +139,7 @@ class ArcReactorCoreBeansConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
         prefix = "arc.reactor.feedback", name = ["enabled"],
-        havingValue = "true", matchIfMissing = false
+        havingValue = "true", matchIfMissing = true
     )
     fun feedbackMetadataCaptureHook(): FeedbackMetadataCaptureHook = FeedbackMetadataCaptureHook()
 
