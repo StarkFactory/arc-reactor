@@ -153,12 +153,19 @@ class DefaultSlackEventHandler(
         userPrompt: String
     ) {
         try {
+            // Agents & AI Apps DM 채널에서 타이핑 상태 표시
+            setAssistantStatusSafely(channelId, threadTs, "생각하고 있어요...")
+
             val sessionId = "slack-$channelId-$threadTs"
             val displayName = userNameResolver?.resolveName(userId)
             val prefixedPrompt = if (displayName != null) "[$displayName] $userPrompt" else userPrompt
             val command = buildAgentCommand(sessionId, channelId, userId, prefixedPrompt)
             val result = agentExecutor.execute(command)
             val content = result.content.orEmpty().trim()
+
+            // 상태 초기화
+            setAssistantStatusSafely(channelId, threadTs, "")
+
             if (content == NO_RESPONSE_MARKER) {
                 logger.debug { "응답 생략 (NO_RESPONSE): channel=$channelId, thread=$threadTs" }
                 return
@@ -166,8 +173,26 @@ class DefaultSlackEventHandler(
             sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            setAssistantStatusSafely(channelId, threadTs, "")
             logger.error(e) { "Slack 이벤트 처리 실패: channel=$channelId, thread=$threadTs" }
             sendErrorFallback(channelId, threadTs)
+        }
+    }
+
+    /**
+     * Agents & AI Apps 스레드 상태를 설정한다.
+     * 비DM 채널이나 API 실패 시 조용히 무시한다.
+     */
+    private suspend fun setAssistantStatusSafely(
+        channelId: String,
+        threadTs: String,
+        status: String
+    ) {
+        try {
+            messagingService.setAssistantThreadStatus(channelId, threadTs, status)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            // Agents & AI Apps가 아닌 일반 채널이면 실패 정상 — 무시
         }
     }
 

@@ -252,6 +252,84 @@ class SlackMessagingService(
         lastTime.set(System.currentTimeMillis())
     }
 
+    /**
+     * Agents & AI Apps 스레드에 타이핑 상태를 표시한다.
+     *
+     * @param channelId 대화 채널 ID (DM 채널)
+     * @param threadTs 스레드 타임스탬프
+     * @param status 상태 메시지 (빈 문자열이면 상태 제거)
+     */
+    suspend fun setAssistantThreadStatus(
+        channelId: String,
+        threadTs: String,
+        status: String = ""
+    ): SlackApiResult {
+        val body = buildMap<String, Any> {
+            put("channel_id", channelId)
+            put("thread_ts", threadTs)
+            put("status", status)
+        }
+        return try {
+            callSlackApi("assistant.threads.setStatus", body)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "assistant.threads.setStatus 실패: channel=$channelId" }
+            SlackApiResult(ok = false, error = "assistant.threads.setStatus 실패")
+        }
+    }
+
+    /**
+     * Agents & AI Apps 스레드에 추천 프롬프트를 설정한다.
+     *
+     * @param channelId 대화 채널 ID (DM 채널)
+     * @param threadTs 스레드 타임스탬프
+     * @param prompts 추천 프롬프트 목록 (title + message 쌍)
+     */
+    suspend fun setAssistantSuggestedPrompts(
+        channelId: String,
+        threadTs: String,
+        prompts: List<Map<String, String>>
+    ): SlackApiResult {
+        val body = buildMap<String, Any> {
+            put("channel_id", channelId)
+            put("thread_ts", threadTs)
+            put("prompts", prompts)
+        }
+        return try {
+            callSlackApi("assistant.threads.setSuggestedPrompts", body)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "assistant.threads.setSuggestedPrompts 실패: channel=$channelId" }
+            SlackApiResult(ok = false, error = "assistant.threads.setSuggestedPrompts 실패")
+        }
+    }
+
+    /**
+     * Agents & AI Apps 스레드 제목을 설정한다.
+     *
+     * @param channelId 대화 채널 ID (DM 채널)
+     * @param threadTs 스레드 타임스탬프
+     * @param title 스레드 제목
+     */
+    suspend fun setAssistantThreadTitle(
+        channelId: String,
+        threadTs: String,
+        title: String
+    ): SlackApiResult {
+        val body = buildMap<String, Any> {
+            put("channel_id", channelId)
+            put("thread_ts", threadTs)
+            put("title", title)
+        }
+        return try {
+            callSlackApi("assistant.threads.setTitle", body)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "assistant.threads.setTitle 실패: channel=$channelId" }
+            SlackApiResult(ok = false, error = "assistant.threads.setTitle 실패")
+        }
+    }
+
     /** response_url이 허용된 호스트인지 확인한다 (SSRF 방지). */
     private fun isAllowedResponseUrl(url: String): Boolean {
         val uri = try {

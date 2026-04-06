@@ -111,6 +111,10 @@ class SlackEventProcessor(
             handleAssistantThreadStarted(event, entrypoint)
             return
         }
+        if (eventType == "assistant_thread_context_changed") {
+            handleAssistantThreadContextChanged(event, entrypoint)
+            return
+        }
         val command = validateAndFilterEvent(event, eventType, entrypoint) ?: return
 
         if (!acquireProcessingPermitOrReject(command, eventType, entrypoint)) return
@@ -367,7 +371,7 @@ class SlackEventProcessor(
      * Agents & AI Apps의 assistant_thread_started 이벤트 처리.
      *
      * 사용자가 사이드바에서 봇을 클릭하여 새 대화를 시작하면 발생.
-     * 스레드를 추적 대상에 등록하고, 환영 메시지로 응답한다.
+     * 스레드를 추적 대상에 등록하고, 추천 프롬프트 + 환영 메시지로 응답한다.
      */
     private fun handleAssistantThreadStarted(event: JsonNode, entrypoint: String) {
         val thread = event.path("assistant_thread")
@@ -382,15 +386,21 @@ class SlackEventProcessor(
 
         logger.info { "Agents & AI Apps 스레드 시작: channel=$channelId, thread=$threadTs, user=$userId" }
 
-        // 스레드 추적 등록 — 이후 message.im 이벤트가 이 스레드에서 처리됨
         threadTracker?.track(channelId, threadTs)
 
         scope.launch {
             try {
-                messagingService.sendMessage(
+                // 추천 프롬프트 설정
+                messagingService.setAssistantSuggestedPrompts(
                     channelId = channelId,
-                    text = "안녕하세요! Reactor입니다. 무엇을 도와드릴까요? :wave:",
-                    threadTs = threadTs
+                    threadTs = threadTs,
+                    prompts = ASSISTANT_SUGGESTED_PROMPTS
+                )
+                // 스레드 제목 설정
+                messagingService.setAssistantThreadTitle(
+                    channelId = channelId,
+                    threadTs = threadTs,
+                    title = "Reactor 대화"
                 )
                 metricsRecorder.recordHandler(
                     entrypoint = entrypoint,
@@ -400,9 +410,40 @@ class SlackEventProcessor(
                 )
             } catch (e: Exception) {
                 e.throwIfCancellation()
-                logger.warn(e) { "assistant_thread_started 환영 메시지 전송 실패: channel=$channelId" }
+                logger.warn(e) { "assistant_thread_started 초기화 실패: channel=$channelId" }
             }
         }
+    }
+
+    /**
+     * Agents & AI Apps의 assistant_thread_context_changed 이벤트 처리.
+     *
+     * 사용자가 사이드 패널에서 다른 채널로 전환하면 발생.
+     * 새 채널 컨텍스트를 로깅하여 후속 메시지에서 활용할 수 있도록 한다.
+     */
+    private fun handleAssistantThreadContextChanged(event: JsonNode, entrypoint: String) {
+        val thread = event.path("assistant_thread")
+        val context = thread.path("context")
+        val contextChannelId = context.path("channel_id").asText()
+        val threadChannelId = event.path("channel_id").asText()
+        val userId = thread.path("user_id").asText()
+
+        if (threadChannelId.isBlank()) {
+            logger.debug { "assistant_thread_context_changed 필수 필드 누락 — 무시" }
+            return
+        }
+
+        logger.info {
+            "Agents & AI Apps 컨텍스트 전환: " +
+                "threadChannel=$threadChannelId, contextChannel=$contextChannelId, user=$userId"
+        }
+
+        metricsRecorder.recordHandler(
+            entrypoint = entrypoint,
+            eventType = "assistant_thread_context_changed",
+            success = true,
+            durationMs = 0
+        )
     }
 
     override fun destroy() {
@@ -412,5 +453,13 @@ class SlackEventProcessor(
     companion object {
         const val BUSY_RESPONSE_TEXT = ":hourglass: The system is busy right now. Please try again in a moment."
         const val RATE_LIMITED_RESPONSE_TEXT = ":no_entry: Too many requests. Please wait a moment before trying again."
+
+        /** Agents & AI Apps 사이드 패널 추천 프롬프트 */
+        val ASSISTANT_SUGGESTED_PROMPTS = listOf(
+            mapOf("title" to "업무 질문", "message" to "오늘 해야 할 일이 뭐야?"),
+            mapOf("title" to "Jira 이슈 조회", "message" to "나한테 할당된 Jira 이슈 알려줘"),
+            mapOf("title" to "회의록 요약", "message" to "최근 회의록 요약해줘"),
+            mapOf("title" to "도움말", "message" to "어떤 기능을 사용할 수 있어?")
+        )
     }
 }
