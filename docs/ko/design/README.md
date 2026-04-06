@@ -18,9 +18,13 @@
 2. ~~멀티 봇 Phase 1-2 (DB + Admin API)~~ ✅
 3. ~~런타임 설정 서비스~~ ✅
 4. ~~기업용 명령어 5종~~ ✅
-5. 멀티 봇 Phase 3 (멀티 WebSocket)
-6. 피드백 통계 API 구현
-7. 유저별 사용량 대시보드
+5. ~~멀티에이전트 Phase 1 (AgentSpec DB + Admin API + Reactor Universe UI)~~ ✅
+6. ~~Agents & AI Apps (assistant_thread_started, 추천 프롬프트, 타이핑 표시)~~ ✅
+7. ~~인증 아키텍처 (aslan-iam 토큰 교환)~~ ✅
+8. 멀티에이전트 Phase 2 (오케스트레이션 엔진 — 순차/병렬/토론/체인)
+9. 멀티 봇 Phase 3 (멀티 WebSocket)
+10. 피드백 통계 차트 시각화
+11. 유저별 사용량 대시보드
 
 ## 운영/가이드 문서
 

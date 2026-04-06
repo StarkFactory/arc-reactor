@@ -187,4 +187,71 @@ class SlackMessagingServiceTest {
             body.path("text").asText() shouldBe "Done"
         }
     }
+
+    @Nested
+    inner class AssistantThreadStatus {
+
+        @Test
+        fun `상태를 성공적으로 설정한다`() = runTest {
+            mockServer.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"ok":true}"""))
+
+            val result = service.setAssistantThreadStatus("D123", "1234.5678", "생각하고 있어요...")
+            result.ok shouldBe true
+
+            val request = mockServer.takeRequest()
+            request.path shouldBe "/assistant.threads.setStatus"
+            val body = objectMapper.readTree(request.body.readUtf8())
+            body.path("channel_id").asText() shouldBe "D123"
+            body.path("thread_ts").asText() shouldBe "1234.5678"
+            body.path("status").asText() shouldBe "생각하고 있어요..."
+        }
+
+        @Test
+        fun `API 실패 시 ok=false를 반환한다`() = runTest {
+            // maxApiRetries=2 → 3번 실패해야 최종 실패
+            repeat(3) { mockServer.enqueue(MockResponse().setResponseCode(500)) }
+
+            val result = service.setAssistantThreadStatus("D123", "1234.5678", "test")
+            result.ok shouldBe false
+        }
+    }
+
+    @Nested
+    inner class AssistantSuggestedPrompts {
+
+        @Test
+        fun `추천 프롬프트를 성공적으로 설정한다`() = runTest {
+            mockServer.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"ok":true}"""))
+
+            val prompts = listOf(
+                mapOf("title" to "업무 질문", "message" to "오늘 할 일 알려줘"),
+                mapOf("title" to "Jira 조회", "message" to "내 이슈 보여줘")
+            )
+            val result = service.setAssistantSuggestedPrompts("D123", "1234.5678", prompts)
+            result.ok shouldBe true
+
+            val request = mockServer.takeRequest()
+            request.path shouldBe "/assistant.threads.setSuggestedPrompts"
+            val body = objectMapper.readTree(request.body.readUtf8())
+            body.path("prompts").size() shouldBe 2
+            body.path("prompts")[0].path("title").asText() shouldBe "업무 질문"
+        }
+    }
+
+    @Nested
+    inner class AssistantThreadTitle {
+
+        @Test
+        fun `스레드 제목을 성공적으로 설정한다`() = runTest {
+            mockServer.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"ok":true}"""))
+
+            val result = service.setAssistantThreadTitle("D123", "1234.5678", "Reactor 대화")
+            result.ok shouldBe true
+
+            val request = mockServer.takeRequest()
+            request.path shouldBe "/assistant.threads.setTitle"
+            val body = objectMapper.readTree(request.body.readUtf8())
+            body.path("title").asText() shouldBe "Reactor 대화"
+        }
+    }
 }
