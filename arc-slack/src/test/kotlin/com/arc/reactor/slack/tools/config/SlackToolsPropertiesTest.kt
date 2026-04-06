@@ -60,22 +60,18 @@ class SlackToolsPropertiesTest {
     inner class `botToken 검증` {
 
         @Test
-        fun `botToken이 비어있으면 IllegalArgumentException이 발생한다`() {
+        fun `botToken이 비어있으면 예외 없이 조기 반환한다`() {
             val props = validProperties().copy(botToken = "")
-
-            val ex = assertThrows(IllegalArgumentException::class.java) { props.validate() }
-            assertTrue(ex.message?.contains("SLACK_BOT_TOKEN") == true) {
-                "예외 메시지에 SLACK_BOT_TOKEN 안내가 포함되어야 한다. actual: ${ex.message}"
+            assertDoesNotThrow({ props.validate() }) {
+                "botToken이 비어있으면 경고만 출력하고 예외 없이 반환해야 한다"
             }
         }
 
         @Test
-        fun `botToken이 공백만 있으면 IllegalArgumentException이 발생한다`() {
+        fun `botToken이 공백만 있으면 예외 없이 조기 반환한다`() {
             val props = validProperties().copy(botToken = "   ")
-
-            val ex = assertThrows(IllegalArgumentException::class.java) { props.validate() }
-            assertTrue(ex.message?.contains("SLACK_BOT_TOKEN") == true) {
-                "공백 전용 botToken도 유효하지 않은 것으로 처리되어야 한다. actual: ${ex.message}"
+            assertDoesNotThrow({ props.validate() }) {
+                "공백 전용 botToken도 경고만 출력하고 예외 없이 반환해야 한다"
             }
         }
 

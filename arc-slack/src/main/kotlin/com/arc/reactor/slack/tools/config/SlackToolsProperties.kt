@@ -23,8 +23,9 @@ data class SlackToolsProperties(
     @PostConstruct
     fun validate() {
         if (!enabled) return
-        require(botToken.isNotBlank()) {
-            "SLACK_BOT_TOKEN is required. Set arc.reactor.slack.tools.bot-token."
+        if (botToken.isBlank()) {
+            println("⚠️ [SlackToolsProperties] SLACK_BOT_TOKEN이 비어있습니다. Slack 도구(find_user, find_channel 등)가 비활성화됩니다.")
+            return
         }
         require(writeIdempotency.ttlSeconds > 0) {
             "arc.reactor.slack.tools.write-idempotency.ttl-seconds must be greater than 0."
