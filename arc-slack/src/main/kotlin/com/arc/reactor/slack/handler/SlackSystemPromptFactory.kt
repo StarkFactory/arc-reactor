@@ -28,10 +28,13 @@ object SlackSystemPromptFactory {
         "safety"
     )
 
+    /** DB 페르소나 미설정 시 폴백으로 사용할 기본 정체성 섹션 */
+    private const val IDENTITY_SECTION = "identity"
+
     /** 캐시된 시스템 규칙 섹션 (앱 기동 시 1회 로드) */
     private val sectionCache: Map<String, String> by lazy {
         val loaded = mutableMapOf<String, String>()
-        val allSections = SYSTEM_SECTIONS + listOf("cross-tool", "proactive")
+        val allSections = SYSTEM_SECTIONS + listOf("cross-tool", "proactive", IDENTITY_SECTION)
         for (name in allSections) {
             val content = loadSection(name)
             if (content != null) {
@@ -58,11 +61,17 @@ object SlackSystemPromptFactory {
     ): String {
         val provider = defaultProvider.ifBlank { "configured backend model" }
         return buildString {
-            // 1. DB 페르소나 프롬프트 (Admin 관리 영역)
+            // 1. DB 페르소나 프롬프트 (Admin 관리 영역), 없으면 identity.md 폴백
             val persona = personaPrompt?.replace("{{provider}}", provider)
             if (!persona.isNullOrBlank()) {
                 append(persona)
                 append("\n\n")
+            } else {
+                val identity = sectionCache[IDENTITY_SECTION]
+                if (identity != null) {
+                    append(identity.replace("{{provider}}", provider))
+                    append("\n\n")
+                }
             }
 
             // 2. 시스템 고정 규칙 (개발팀 관리 영역)

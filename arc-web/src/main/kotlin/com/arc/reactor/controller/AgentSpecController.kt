@@ -41,9 +41,13 @@ class AgentSpecController(
     /** 전체 에이전트 스펙 목록을 조회한다. */
     @Operation(summary = "전체 에이전트 스펙 목록 조회")
     @GetMapping
-    fun list(exchange: ServerWebExchange): ResponseEntity<Any> {
+    fun list(
+        @org.springframework.web.bind.annotation.RequestParam(required = false) enabled: Boolean?,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(store.list().map { it.toResponse() })
+        val records = if (enabled == true) store.listEnabled() else store.list()
+        return ResponseEntity.ok(records.map { it.toResponse() })
     }
 
     /** ID로 에이전트 스펙을 조회한다. */
