@@ -4,10 +4,12 @@ import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.multiagent.AgentMessageBus
 import com.arc.reactor.agent.multiagent.AgentRegistry
+import com.arc.reactor.agent.multiagent.AgentSpecStore
 import com.arc.reactor.agent.multiagent.DefaultAgentRegistry
 import com.arc.reactor.agent.multiagent.DefaultSharedAgentContext
 import com.arc.reactor.agent.multiagent.DefaultSupervisorAgent
 import com.arc.reactor.agent.multiagent.InMemoryAgentMessageBus
+import com.arc.reactor.agent.multiagent.PersistentAgentRegistry
 import com.arc.reactor.agent.multiagent.SharedAgentContext
 import com.arc.reactor.agent.multiagent.SupervisorAgent
 import org.springframework.beans.factory.ObjectProvider
@@ -37,9 +39,15 @@ import org.springframework.context.annotation.Configuration
 )
 class MultiAgentConfiguration {
 
+    /** DB 저장소가 있으면 영속 레지스트리, 없으면 인메모리 레지스트리를 사용한다. */
     @Bean
     @ConditionalOnMissingBean
-    fun agentRegistry(): AgentRegistry = DefaultAgentRegistry()
+    fun agentRegistry(
+        storeProvider: ObjectProvider<AgentSpecStore>
+    ): AgentRegistry {
+        val store = storeProvider.ifAvailable
+        return if (store != null) PersistentAgentRegistry(store) else DefaultAgentRegistry()
+    }
 
     @Bean
     @ConditionalOnMissingBean

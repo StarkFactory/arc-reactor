@@ -7,6 +7,8 @@ import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.JdbcAdminAuditStore
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.feedback.JdbcFeedbackStore
+import com.arc.reactor.agent.multiagent.AgentSpecStore
+import com.arc.reactor.agent.multiagent.JdbcAgentSpecStore
 import com.arc.reactor.multibot.JdbcSlackBotInstanceStore
 import com.arc.reactor.multibot.SlackBotInstanceStore
 import com.arc.reactor.settings.RuntimeSettingsService
@@ -245,6 +247,13 @@ class JdbcRagIngestionPolicyStoreConfiguration {
     fun jdbcSlackBotInstanceStore(
         jdbcTemplate: JdbcTemplate
     ): SlackBotInstanceStore = JdbcSlackBotInstanceStore(jdbcTemplate)
+
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(name = ["jdbcAgentSpecStore"])
+    fun jdbcAgentSpecStore(
+        jdbcTemplate: JdbcTemplate
+    ): AgentSpecStore = JdbcAgentSpecStore(jdbcTemplate)
 
     @Bean
     @ConditionalOnMissingBean
