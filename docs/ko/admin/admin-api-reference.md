@@ -2,6 +2,8 @@
 
 모든 API는 `Authorization: Bearer <token>` 헤더 필수. ADMIN 역할 이상만 접근 가능.
 
+**필수 환경변수**: arc-admin 모듈의 API(Trace, ToolCall, TokenCost, Slack Activity, Eval, Usage, Latency, Conversation Analytics)는 `ARC_REACTOR_ADMIN_ENABLED=true` 필요. arc-web 모듈의 API(InputGuard, Retention, Models, RBAC, AgentSpec, AuditExport)는 항상 활성화.
+
 ---
 
 ## 1. Execution Trace (`/api/admin/traces`)
