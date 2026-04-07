@@ -1,6 +1,5 @@
 package com.arc.reactor.admin.controller
 
-import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.ResponseEntity
@@ -14,14 +13,15 @@ import org.springframework.web.server.ServerWebExchange
 /**
  * RAG 문서 분석 API.
  *
- * 문서별 검색 빈도, 후보 문서 상태 통계, stale 문서 탐지를 제공한다.
+ * 후보 문서 상태 통계, 채널별 추이를 제공한다.
+ * rag_ingestion_candidates 테이블에 tenant_id가 없으므로 단일 테넌트 전제.
+ * 멀티 테넌트 지원 시 마이그레이션으로 tenant_id 추가 필요.
  */
 @Tag(name = "RAG Analytics", description = "RAG 문서 분석 (ADMIN)")
 @RestController
 @RequestMapping("/api/admin/rag-analytics")
 class RagAnalyticsController(
-    private val jdbc: JdbcTemplate,
-    private val tenantResolver: TenantResolver
+    private val jdbc: JdbcTemplate
 ) {
 
     /** 후보 문서 상태별 통계. */

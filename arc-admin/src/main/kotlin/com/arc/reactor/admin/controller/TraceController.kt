@@ -3,6 +3,7 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,7 +17,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * Execution Trace API.
+ * 실행 트레이스 API.
  *
  * 요청의 Guard→LLM→Tool→OutputGuard 실행 흐름을 타임라인으로 조회한다.
  * metric_spans + metric_tool_calls 테이블에서 데이터를 조합한다.
