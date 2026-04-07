@@ -72,51 +72,37 @@ class DefaultSlackEventHandler(
     override suspend fun handleChannelMessage(command: SlackEventCommand): Boolean {
         val text = command.text.trim()
         if (text.isBlank()) return false
-
-        val threadTs = command.ts
         try {
-            val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
-            val userContext = SlackHandlerSupport.resolveUserContext(command.userId, userMemoryManager)
-            val basePrompt = SlackSystemPromptFactory.buildProactive(
-                defaultProvider, toolSummary
-            )
-            val systemPrompt = if (userContext.isNotBlank()) "$basePrompt\n\n$userContext" else basePrompt
-            val sessionId = "slack-proactive-${command.channelId}-$threadTs"
-            val metadata = buildMetadata(sessionId, command.channelId, command.userId)
-            metadata["entrypoint"] = "proactive"
-
-            val result = agentExecutor.execute(
-                AgentCommand(
-                    systemPrompt = systemPrompt,
-                    userPrompt = text,
-                    userId = command.userId,
-                    metadata = metadata
-                )
-            )
-
+            val result = executeProactiveAgent(command, text)
             val content = result.content?.trim().orEmpty()
-            if (!result.success || content == NO_RESPONSE_MARKER || content.isBlank()) {
-                logger.debug { "선행적 에이전트 응답 거부: channel=${command.channelId}" }
-                return false
-            }
-
-            val sendResult = messagingService.sendMessage(
-                channelId = command.channelId,
-                text = content,
-                threadTs = threadTs
-            )
-            if (sendResult.ok) {
-                threadTracker?.track(command.channelId, threadTs)
-            }
-            return sendResult.ok
+            if (!result.success || content == NO_RESPONSE_MARKER || content.isBlank()) return false
+            return sendProactiveResponse(command.channelId, command.ts, content)
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) {
-                "선행적 처리 실패: channel=${command.channelId}, " +
-                    "user=${command.userId}, text=${command.text.take(50)}"
-            }
+            logger.warn(e) { "선행적 처리 실패: channel=${command.channelId}" }
             return false
         }
+    }
+
+    /** 선행적 모드용 에이전트를 실행한다. */
+    private suspend fun executeProactiveAgent(command: SlackEventCommand, text: String): AgentResult {
+        val toolSummary = SlackHandlerSupport.buildToolSummary(mcpManager)
+        val userContext = SlackHandlerSupport.resolveUserContext(command.userId, userMemoryManager)
+        val basePrompt = SlackSystemPromptFactory.buildProactive(defaultProvider, toolSummary)
+        val systemPrompt = if (userContext.isNotBlank()) "$basePrompt\n\n$userContext" else basePrompt
+        val sessionId = "slack-proactive-${command.channelId}-${command.ts}"
+        val metadata = buildMetadata(sessionId, command.channelId, command.userId)
+        metadata["entrypoint"] = "proactive"
+        return agentExecutor.execute(
+            AgentCommand(systemPrompt = systemPrompt, userPrompt = text, userId = command.userId, metadata = metadata)
+        )
+    }
+
+    /** 선행적 응답을 전송하고 스레드를 추적한다. */
+    private suspend fun sendProactiveResponse(channelId: String, threadTs: String, content: String): Boolean {
+        val sendResult = messagingService.sendMessage(channelId = channelId, text = content, threadTs = threadTs)
+        if (sendResult.ok) threadTracker?.track(channelId, threadTs)
+        return sendResult.ok
     }
 
     override suspend fun handleReaction(

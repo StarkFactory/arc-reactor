@@ -61,35 +61,9 @@ object SlackSystemPromptFactory {
     ): String {
         val provider = defaultProvider.ifBlank { "configured backend model" }
         return buildString {
-            // 1. DB 페르소나 프롬프트 (Admin 관리 영역), 없으면 identity.md 폴백
-            val persona = personaPrompt?.replace("{{provider}}", provider)
-            if (!persona.isNullOrBlank()) {
-                append(persona)
-                append("\n\n")
-            } else {
-                val identity = sectionCache[IDENTITY_SECTION]
-                if (identity != null) {
-                    append(identity.replace("{{provider}}", provider))
-                    append("\n\n")
-                }
-            }
-
-            // 2. 시스템 고정 규칙 (개발팀 관리 영역)
-            for (section in SYSTEM_SECTIONS) {
-                val content = sectionCache[section] ?: continue
-                append(content.replace("{{provider}}", provider))
-                append("\n\n")
-            }
-
-            // 3. 교차 도구 연계 (MCP 서버 연결 시만)
-            if (!connectedToolSummary.isNullOrBlank()) {
-                val crossTool = sectionCache["cross-tool"]
-                if (crossTool != null) {
-                    append(crossTool)
-                    append("\n\n")
-                    append(connectedToolSummary)
-                }
-            }
+            appendIdentitySection(this, personaPrompt, provider)
+            appendSystemSections(this, provider)
+            appendCrossToolSection(this, connectedToolSummary)
         }.trimEnd()
     }
 
@@ -123,6 +97,32 @@ object SlackSystemPromptFactory {
                 append("- $server: ${tools.joinToString(", ")}\n")
             }
         }.trimEnd()
+    }
+
+    /** DB 페르소나 또는 identity.md 폴백을 추가한다. */
+    private fun appendIdentitySection(sb: StringBuilder, personaPrompt: String?, provider: String) {
+        val persona = personaPrompt?.replace("{{provider}}", provider)
+        if (!persona.isNullOrBlank()) {
+            sb.append(persona).append("\n\n")
+        } else {
+            val identity = sectionCache[IDENTITY_SECTION]
+            if (identity != null) sb.append(identity.replace("{{provider}}", provider)).append("\n\n")
+        }
+    }
+
+    /** 시스템 고정 규칙 섹션들을 추가한다. */
+    private fun appendSystemSections(sb: StringBuilder, provider: String) {
+        for (section in SYSTEM_SECTIONS) {
+            val content = sectionCache[section] ?: continue
+            sb.append(content.replace("{{provider}}", provider)).append("\n\n")
+        }
+    }
+
+    /** MCP 서버 연결 시 교차 도구 연계 섹션을 추가한다. */
+    private fun appendCrossToolSection(sb: StringBuilder, toolSummary: String?) {
+        if (toolSummary.isNullOrBlank()) return
+        val crossTool = sectionCache["cross-tool"] ?: return
+        sb.append(crossTool).append("\n\n").append(toolSummary)
     }
 
     private fun loadSection(name: String): String? {
