@@ -120,7 +120,11 @@ class MetricCollectionHook(
     }
 
     private fun publishSessionEvent(context: HookContext, response: AgentResponse) {
-        val sessionId = sanitizedSessionId(context) ?: return
+        val sessionId = sanitizedSessionId(context)
+        if (sessionId == null) {
+            logger.debug { "세션 이벤트 생략: storeSessionIdentifiers=$storeSessionIdentifiers, sessionId=${context.metadata["sessionId"]}" }
+            return
+        }
         val tenantId = context.metadata["tenantId"]?.toString() ?: "default"
         val sessionEvent = SessionEvent(
             tenantId = tenantId,

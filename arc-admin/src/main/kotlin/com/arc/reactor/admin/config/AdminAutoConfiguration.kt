@@ -107,12 +107,15 @@ class AdminAutoConfiguration {
         ringBuffer: MetricRingBuffer,
         healthMonitor: PipelineHealthMonitor,
         properties: AdminProperties
-    ): MetricCollectionHook = MetricCollectionHook(
-        ringBuffer = ringBuffer,
-        healthMonitor = healthMonitor,
-        storeUserIdentifiers = properties.privacy.storeUserIdentifiers,
-        storeSessionIdentifiers = properties.privacy.storeSessionIdentifiers
-    )
+    ): MetricCollectionHook {
+        logger.info { "MetricCollectionHook 생성: storeSession=${properties.privacy.storeSessionIdentifiers}, storeUser=${properties.privacy.storeUserIdentifiers}" }
+        return MetricCollectionHook(
+            ringBuffer = ringBuffer,
+            healthMonitor = healthMonitor,
+            storeUserIdentifiers = properties.privacy.storeUserIdentifiers,
+            storeSessionIdentifiers = properties.privacy.storeSessionIdentifiers
+        )
+    }
 
     @Bean
     @ConditionalOnMissingBean
