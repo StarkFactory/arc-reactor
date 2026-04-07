@@ -166,6 +166,17 @@ routes:
       - body
       - read
       - 읽
+      - 뭐야
+      - 뭐지
+      - 뭔가
+      - 뭔가요
+      - 뭐예요
+      - 뭘까
+      - 뭐에요
+      - 무엇인가
+      - 무엇인가요
+      - 대해
+      - 관해
     excludeRoutes:
       - confluence_discovery
     promptInstruction: >-
@@ -176,6 +187,33 @@ routes:
       - confluence_get_page_content
       - confluence_get_page
     priority: 10
+
+  - id: unknown_term_lookup
+    category: confluence
+    keywords:
+      - 뭐야
+      - 뭐지
+      - 뭔가요
+      - 뭐예요
+      - 뭘까
+      - 무엇인가
+      - 이 뭐야
+      - 가 뭐야
+      - 에 대해
+      - 이란
+      - 이란 게
+      - 솔루션
+      - 시스템
+      - 플랫폼
+      - 서비스
+    promptInstruction: >-
+      The user is asking about an unknown term, solution, service, or system.
+      This may be an internal company term. You MUST call `confluence_answer_question` first
+      to search the company knowledge base. Never answer "I don't know" without searching first.
+    preferredTools:
+      - confluence_answer_question
+      - confluence_search_by_text
+    priority: 3
 
   # ── Work 도구 ──
 
@@ -668,6 +706,11 @@ routes:
       - todo
       - 업무
       - 작업
+      - 장애
+      - 오류
+      - 버그
+      - bug
+      - error
     promptInstruction: >-
       For this request, you MUST call one or more Jira tools before answering.
       Prefer `jira_search_issues` for project-scoped status questions.
