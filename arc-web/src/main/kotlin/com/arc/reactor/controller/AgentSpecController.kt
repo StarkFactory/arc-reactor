@@ -72,28 +72,12 @@ class AgentSpecController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val mode = request.mode ?: "REACT"
-        if (mode !in VALID_MODES) {
-            return badRequestResponse("유효하지 않은 모드: $mode (허용: ${VALID_MODES.joinToString()})")
-        }
+        if (mode !in VALID_MODES) return badRequestResponse("유효하지 않은 모드: $mode")
         if (store.list().any { it.name == request.name }) {
             return conflictResponse("이름 '${request.name}'은 이미 사용 중입니다")
         }
-        val record = AgentSpecRecord(
-            id = UUID.randomUUID().toString(),
-            name = request.name,
-            description = request.description.orEmpty(),
-            toolNames = request.toolNames.orEmpty(),
-            keywords = request.keywords.orEmpty(),
-            systemPrompt = request.systemPrompt,
-            mode = mode,
-            enabled = request.enabled ?: true
-        )
-        val saved = store.save(record)
-        recordAdminAudit(
-            store = adminAuditStore, category = "agent_spec", action = "CREATE",
-            actor = currentActor(exchange), resourceType = "agent_spec",
-            resourceId = saved.id, detail = "name=${saved.name}, mode=${saved.mode}"
-        )
+        val saved = store.save(buildRecordFromRequest(request, mode))
+        auditAgentSpec("CREATE", saved, exchange)
         return ResponseEntity.status(HttpStatus.CREATED).body(saved.toResponse())
     }
 
@@ -107,26 +91,12 @@ class AgentSpecController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         if (request.mode != null && request.mode !in VALID_MODES) {
-            return badRequestResponse("유효하지 않은 모드: ${request.mode} (허용: ${VALID_MODES.joinToString()})")
+            return badRequestResponse("유효하지 않은 모드: ${request.mode}")
         }
         val existing = store.get(id)
             ?: return notFoundResponse("에이전트 스펙을 찾을 수 없습니다: $id")
-        val updated = existing.copy(
-            name = request.name ?: existing.name,
-            description = request.description ?: existing.description,
-            toolNames = request.toolNames ?: existing.toolNames,
-            keywords = request.keywords ?: existing.keywords,
-            systemPrompt = request.systemPrompt ?: existing.systemPrompt,
-            mode = request.mode ?: existing.mode,
-            enabled = request.enabled ?: existing.enabled,
-            updatedAt = Instant.now()
-        )
-        val saved = store.save(updated)
-        recordAdminAudit(
-            store = adminAuditStore, category = "agent_spec", action = "UPDATE",
-            actor = currentActor(exchange), resourceType = "agent_spec",
-            resourceId = saved.id, detail = "name=${saved.name}"
-        )
+        val saved = store.save(applyUpdate(existing, request))
+        auditAgentSpec("UPDATE", saved, exchange)
         return ResponseEntity.ok(saved.toResponse())
     }
 
@@ -146,6 +116,36 @@ class AgentSpecController(
             actor = currentActor(exchange), resourceType = "agent_spec", resourceId = id
         )
         return ResponseEntity.noContent().build()
+    }
+
+    private fun buildRecordFromRequest(request: CreateAgentSpecRequest, mode: String) = AgentSpecRecord(
+        id = UUID.randomUUID().toString(),
+        name = request.name,
+        description = request.description.orEmpty(),
+        toolNames = request.toolNames.orEmpty(),
+        keywords = request.keywords.orEmpty(),
+        systemPrompt = request.systemPrompt,
+        mode = mode,
+        enabled = request.enabled ?: true
+    )
+
+    private fun applyUpdate(existing: AgentSpecRecord, request: UpdateAgentSpecRequest) = existing.copy(
+        name = request.name ?: existing.name,
+        description = request.description ?: existing.description,
+        toolNames = request.toolNames ?: existing.toolNames,
+        keywords = request.keywords ?: existing.keywords,
+        systemPrompt = request.systemPrompt ?: existing.systemPrompt,
+        mode = request.mode ?: existing.mode,
+        enabled = request.enabled ?: existing.enabled,
+        updatedAt = Instant.now()
+    )
+
+    private fun auditAgentSpec(action: String, record: AgentSpecRecord, exchange: ServerWebExchange) {
+        recordAdminAudit(
+            store = adminAuditStore, category = "agent_spec", action = action,
+            actor = currentActor(exchange), resourceType = "agent_spec",
+            resourceId = record.id, detail = "name=${record.name}"
+        )
     }
 
     companion object {
