@@ -374,13 +374,22 @@ class SpringAiAgentExecutor(
         try {
             // ── 단계 3: 동시성 세마포어 획득 + 타임아웃 내 실행 ──
             val queueStart = System.nanoTime()
-            val result = concurrencySemaphore.withPermit {
+            var result = concurrencySemaphore.withPermit {
                 val queueWaitMs = (System.nanoTime() - queueStart) / 1_000_000
                 hookContext.metadata["queueWaitMs"] = queueWaitMs
                 recordStageTiming(hookContext, "queue_wait", queueWaitMs)
                 agentMetrics.recordStageLatency("queue_wait", queueWaitMs, command.metadata)
                 executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
+                }
+            }
+            // 빈 응답 자동 재시도 (1회) — Gemini 간헐적 빈 응답 대응
+            if (result.success && result.content.isNullOrBlank()) {
+                logger.info { "빈 응답 감지, 1회 재시도 (runId=${hookContext.runId})" }
+                result = concurrencySemaphore.withPermit {
+                    executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
+                        agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
+                    }
                 }
             }
             if (!result.success) {
