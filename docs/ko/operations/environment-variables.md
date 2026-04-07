@@ -34,8 +34,11 @@
 | `JIRA_USE_API_GATEWAY` | Granular 토큰 시 필수 | `true` |
 | `CONFLUENCE_USE_API_GATEWAY` | Granular 토큰 시 필수 | `true` |
 | `CONFLUENCE_ALLOWED_SPACE_KEYS` | 허용 스페이스 (콤마 구분) | `AHA,ENG` |
+| `CONFLUENCE_EXCLUDE_PERSONAL_SPACES` | 개인 스페이스 차단 | `true` (기본) |
 
 **판별법**: 토큰이 `ATATT3xFfGF0`으로 시작 → Granular → Gateway 필수.
+
+**개인 스페이스 차단**: 관리자 계정 사용 시 개인 메모/평가 초안 등 민감 데이터가 노출될 수 있으므로 `CONFLUENCE_EXCLUDE_PERSONAL_SPACES=true`(기본값)로 personal 스페이스를 자동 차단합니다.
 
 ### Granular 토큰 API 호출 규칙
 
