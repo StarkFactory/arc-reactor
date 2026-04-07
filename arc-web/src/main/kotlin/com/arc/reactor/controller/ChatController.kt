@@ -283,6 +283,7 @@ class ChatController(
         val merged = buildMap {
             putAll(base)
             if (!containsKey("channel")) put("channel", "web")
+            if (!containsKey("sessionId")) put("sessionId", "web-${java.util.UUID.randomUUID()}")
             putAll(resolveRequesterIdentity(base, exchange))
             put("tenantId", TenantContextResolver.resolveTenantId(exchange))
         }

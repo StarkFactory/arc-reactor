@@ -114,10 +114,10 @@ class ChatControllerTest {
             assertEquals("gpt-4o", captured.model) { "model should be forwarded" }
             assertEquals("custom prompt", captured.systemPrompt) { "custom systemPrompt should be used" }
             assertEquals("anonymous", captured.userId) { "userId should be 'anonymous' without JWT auth" }
-            assertEquals(
-                mapOf("key" to "value", "channel" to "web", "tenantId" to "default"),
-                captured.metadata
-            ) { "metadata should be forwarded with tenantId" }
+            assertEquals("value", captured.metadata["key"]) { "커스텀 메타데이터 전달" }
+            assertEquals("web", captured.metadata["channel"]) { "channel=web 포함" }
+            assertEquals("default", captured.metadata["tenantId"]) { "tenantId 포함" }
+            assertTrue(captured.metadata.containsKey("sessionId")) { "sessionId 자동 생성" }
             assertEquals(ResponseFormat.JSON, captured.responseFormat) { "responseFormat should be forwarded" }
             assertEquals("""{"type":"object"}""", captured.responseSchema) { "responseSchema should be forwarded" }
         }
@@ -178,9 +178,10 @@ class ChatControllerTest {
 
             controller.chat(ChatRequest(message = "hello"), exchange)
 
-            assertEquals(mapOf("channel" to "web", "tenantId" to "default"), commandSlot.captured.metadata) {
-                "Default metadata should contain channel=web and tenantId=default"
-            }
+            val meta = commandSlot.captured.metadata
+            assertEquals("web", meta["channel"]) { "channel=web 포함" }
+            assertEquals("default", meta["tenantId"]) { "tenantId=default 포함" }
+            assertTrue(meta.containsKey("sessionId")) { "sessionId 자동 생성" }
         }
 
         @Test
@@ -539,9 +540,9 @@ class ChatControllerTest {
             assertEquals(ResponseFormat.TEXT, captured.responseFormat) {
                 "Default response format should be TEXT"
             }
-            assertEquals(mapOf("channel" to "web", "tenantId" to "default"), captured.metadata) {
-                "Default metadata should contain channel=web"
-            }
+            assertEquals("web", captured.metadata["channel"]) { "channel=web 포함" }
+            assertEquals("default", captured.metadata["tenantId"]) { "tenantId 포함" }
+            assertTrue(captured.metadata.containsKey("sessionId")) { "sessionId 자동 생성" }
         }
     }
 
