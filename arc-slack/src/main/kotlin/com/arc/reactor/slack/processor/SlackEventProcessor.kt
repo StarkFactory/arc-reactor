@@ -9,6 +9,7 @@ import com.arc.reactor.slack.model.SlackEventCommand
 import com.arc.reactor.slack.proactive.ProactiveChannelStore
 import com.arc.reactor.slack.resilience.SlackUserRateLimiter
 import com.arc.reactor.slack.session.SlackBotResponseTracker
+import com.arc.reactor.slack.session.TrackedBotResponse
 import com.arc.reactor.slack.session.SlackThreadTracker
 import com.arc.reactor.slack.service.SlackMessagingService
 import com.fasterxml.jackson.databind.JsonNode
@@ -116,9 +117,7 @@ class SlackEventProcessor(
             return
         }
         val command = validateAndFilterEvent(event, eventType, entrypoint) ?: return
-
         if (!acquireProcessingPermitOrReject(command, eventType, entrypoint)) return
-
         scope.launch {
             if (!acquireQueuedPermitOrDrop(command, eventType, entrypoint)) return@launch
             executeWithMetrics(command, eventType, entrypoint)
@@ -339,31 +338,25 @@ class SlackEventProcessor(
         val reaction = event.path("reaction").asText()
         val channelId = item.path("channel").asText()
         val messageTs = item.path("ts").asText()
-
         if (userId.isBlank() || reaction.isBlank() || channelId.isBlank() || messageTs.isBlank()) return
 
         val tracked = tracker.lookup(channelId, messageTs) ?: return
+        scope.launch { dispatchReaction(userId, channelId, messageTs, reaction, tracked, entrypoint) }
+    }
 
-        scope.launch {
-            try {
-                eventHandler.handleReaction(
-                    userId = userId,
-                    channelId = channelId,
-                    messageTs = messageTs,
-                    reaction = reaction,
-                    sessionId = tracked.sessionId,
-                    userPrompt = tracked.userPrompt
-                )
-                metricsRecorder.recordHandler(
-                    entrypoint = entrypoint,
-                    eventType = "reaction_feedback",
-                    success = true,
-                    durationMs = 0
-                )
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.warn(e) { "리액션 이벤트 처리 실패: channel=$channelId" }
-            }
+    /** 리액션 피드백을 핸들러에 전달하고 메트릭을 기록한다. */
+    private suspend fun dispatchReaction(
+        userId: String, channelId: String, messageTs: String,
+        reaction: String, tracked: TrackedBotResponse, entrypoint: String
+    ) {
+        try {
+            eventHandler.handleReaction(userId, channelId, messageTs, reaction, tracked.sessionId, tracked.userPrompt)
+            metricsRecorder.recordHandler(
+                entrypoint = entrypoint, eventType = "reaction_feedback", success = true, durationMs = 0
+            )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "리액션 이벤트 처리 실패: channel=$channelId" }
         }
     }
 
@@ -383,35 +376,23 @@ class SlackEventProcessor(
             logger.debug { "assistant_thread_started 필수 필드 누락 — 무시" }
             return
         }
-
         logger.info { "Agents & AI Apps 스레드 시작: channel=$channelId, thread=$threadTs, user=$userId" }
-
         threadTracker?.track(channelId, threadTs)
+        scope.launch { initializeAssistantThread(channelId, threadTs, entrypoint) }
+    }
 
-        scope.launch {
-            try {
-                // 추천 프롬프트 설정
-                messagingService.setAssistantSuggestedPrompts(
-                    channelId = channelId,
-                    threadTs = threadTs,
-                    prompts = ASSISTANT_SUGGESTED_PROMPTS
-                )
-                // 스레드 제목 설정
-                messagingService.setAssistantThreadTitle(
-                    channelId = channelId,
-                    threadTs = threadTs,
-                    title = "Reactor 대화"
-                )
-                metricsRecorder.recordHandler(
-                    entrypoint = entrypoint,
-                    eventType = "assistant_thread_started",
-                    success = true,
-                    durationMs = 0
-                )
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.warn(e) { "assistant_thread_started 초기화 실패: channel=$channelId" }
-            }
+    /** 새 assistant 스레드에 추천 프롬프트와 제목을 설정한다. */
+    private suspend fun initializeAssistantThread(channelId: String, threadTs: String, entrypoint: String) {
+        try {
+            messagingService.setAssistantSuggestedPrompts(channelId, threadTs, ASSISTANT_SUGGESTED_PROMPTS)
+            messagingService.setAssistantThreadTitle(channelId, threadTs, "Reactor 대화")
+            metricsRecorder.recordHandler(
+                entrypoint = entrypoint, eventType = "assistant_thread_started",
+                success = true, durationMs = 0
+            )
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "assistant_thread_started 초기화 실패: channel=$channelId" }
         }
     }
 
