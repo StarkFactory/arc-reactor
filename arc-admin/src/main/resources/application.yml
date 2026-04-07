@@ -3,5 +3,9 @@
 arc:
   reactor:
     admin:
+      enabled: ${ARC_REACTOR_ADMIN_ENABLED:false}
+      privacy:
+        store-session-identifiers: ${ARC_REACTOR_ADMIN_PRIVACY_STORE_SESSION_IDENTIFIERS:false}
+        store-user-identifiers: ${ARC_REACTOR_ADMIN_PRIVACY_STORE_USER_IDENTIFIERS:false}
       tracing:
         sampling-rate: ${ARC_REACTOR_TRACING_SAMPLING_RATE:1.0}
