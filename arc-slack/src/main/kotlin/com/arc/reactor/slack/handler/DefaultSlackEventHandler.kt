@@ -61,7 +61,7 @@ class DefaultSlackEventHandler(
     }
 
     override suspend fun handleMessage(command: SlackEventCommand) {
-        val text = command.text.trim()
+        val text = command.text.replace(MENTION_REGEX, "").trim()
         if (text.isBlank()) return
 
         val threadTs = command.threadTs ?: command.ts
