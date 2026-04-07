@@ -148,6 +148,41 @@
 
 ---
 
+---
+
+## 9. 사용자 사용량/비용 상세 (`/api/admin/users/usage`)
+
+### GET `/api/admin/users/usage/top?days=30&limit=20`
+상위 사용자 (요청 수 기준).
+
+### GET `/api/admin/users/usage/cost?days=30&limit=20`
+사용자별 토큰/비용 상세.
+
+**응답**: `[{ user_id, session_count, total_tokens, total_cost_usd, avg_latency_ms, last_activity }]`
+
+### GET `/api/admin/users/usage/daily?days=30`
+일별 전체 사용량 추이.
+
+**응답**: `[{ day, session_count, total_tokens, total_cost_usd, unique_users }]`
+
+---
+
+## 10. Input Guard 설정 변경 (`/api/input-guard`)
+
+### GET `/api/input-guard/pipeline`
+파이프라인 단계 목록 (runtimeOverride 포함).
+
+### PUT `/api/input-guard/settings`
+Guard 단계 설정 변경 (RuntimeSettings 기반).
+
+**요청**: `{ "settings": { "guard.stage.injection-detection.enabled": "false" } }`
+
+**응답**: `{ "updated": 1, "note": "일부 변경은 서버 재시작 후 적용됩니다" }`
+
+변경은 감사 로그에 기록됨. `guard.` 접두사가 아닌 키는 무시됨.
+
+---
+
 ## 기존 API (이번 세션에서 구현)
 
 | API | 엔드포인트 | 설명 |
