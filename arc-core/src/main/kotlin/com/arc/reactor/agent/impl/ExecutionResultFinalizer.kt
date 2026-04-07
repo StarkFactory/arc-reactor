@@ -433,8 +433,9 @@ internal class ExecutionResultFinalizer(
     }
 
     private fun outputGuardFailure(reason: String, startTime: Long): AgentResult {
+        logger.warn { "출력 Guard 거부: $reason" }
         return AgentResult.failure(
-            errorMessage = reason,
+            errorMessage = "응답이 내부 정책에 의해 차단되었습니다.",
             errorCode = AgentErrorCode.OUTPUT_GUARD_REJECTED,
             durationMs = nowMs() - startTime
         ).also { agentMetrics.recordExecution(it) }

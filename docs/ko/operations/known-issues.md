@@ -33,3 +33,9 @@
 ### 멀티에이전트 Phase 1 한계
 - AgentSpec CRUD + Reactor Universe UI만 구현
 - 실제 오케스트레이션 실행 (에이전트 간 위임/협업)은 Phase 2에서 구현 예정
+
+### 멀티 봇 토큰 DB 저장 (V46)
+- `slack_bot_instances` 테이블에 `bot_token`/`app_token`이 평문 저장됨
+- 기존 정책은 "Slack 토큰은 환경변수로만 관리"였으나 멀티 봇 지원으로 DB 저장 불가피
+- **대응 필요**: 애플리케이션 레벨 암호화(AES-256-GCM) 적용 또는 Vault 연동
+- **우선순위**: 높음 (프로덕션 배포 전 반드시 해결)
