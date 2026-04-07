@@ -279,30 +279,18 @@ ${intent.text}
         val timeInfo = if (reminder.dueAt != null) {
             " :bell: I'll DM you at <!date^${reminder.dueAt.epochSecond}^{time}|${reminder.dueAt}>."
         } else ""
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = "Saved reminder #${reminder.id}: ${reminder.text}$timeInfo"
-        )
+        sendEphemeral(command, "Saved reminder #${reminder.id}: ${reminder.text}$timeInfo")
     }
 
     private suspend fun handleReminderList(command: SlackSlashCommand) {
         val store = reminderStore ?: return sendReminderUnavailable(command)
         val reminders = store.list(command.userId)
         if (reminders.isEmpty()) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = "No saved reminders. Try: /reactor remind Follow up with design review at 3pm"
-            )
+            sendEphemeral(command, "No saved reminders. Try: /reactor remind Follow up with design review at 3pm")
             return
         }
         val body = reminders.joinToString(separator = "\n") { "- #${it.id} ${it.text}" }
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = "Your reminders:\n$body"
-        )
+        sendEphemeral(command, "Your reminders:\n$body")
     }
     private suspend fun handleReminderDone(command: SlackSlashCommand, intent: SlackSlashIntent.ReminderDone) {
         val store = reminderStore ?: return sendReminderUnavailable(command)
@@ -312,29 +300,17 @@ ${intent.text}
         } else {
             "Reminder #${intent.id} was not found. Use /reactor remind list."
         }
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = text
-        )
+        sendEphemeral(command, text)
     }
 
     private suspend fun handleReminderClear(command: SlackSlashCommand) {
         val store = reminderStore ?: return sendReminderUnavailable(command)
         val removed = store.clear(command.userId)
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = "Cleared $removed reminder(s)."
-        )
+        sendEphemeral(command, "Cleared $removed reminder(s).")
     }
 
     private suspend fun handleHelp(command: SlackSlashCommand) {
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = HELP_TEXT
-        )
+        sendEphemeral(command, HELP_TEXT)
     }
 
     // ── Loop 핸들러 ──
@@ -398,22 +374,13 @@ ${intent.text}
         val store = scheduledJobStore ?: return sendLoopUnavailable(command)
         val jobs = getUserLoopJobs(store, command.userId)
         if (jobs.isEmpty()) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = "등록된 스케줄이 없습니다. 예: `/reactor loop 9am 내 이슈 요약해줘`"
-            )
-            return
+            return sendEphemeral(command, "등록된 스케줄이 없습니다. 예: `/reactor loop 9am 내 이슈 요약해줘`")
         }
         val list = jobs.mapIndexed { idx, job ->
             val status = if (job.enabled) ":alarm_clock:" else ":no_entry_sign:"
             "$status ${idx + 1}. ${job.description ?: job.agentPrompt ?: "?"}"
         }.joinToString("\n")
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = ":clipboard: 내 스케줄 (${jobs.size}/$MAX_LOOPS_PER_USER)\n$list"
-        )
+        sendEphemeral(command, ":clipboard: 내 스케줄 (${jobs.size}/$MAX_LOOPS_PER_USER)\n$list")
     }
 
     private suspend fun handleLoopStop(command: SlackSlashCommand, intent: SlackSlashIntent.LoopStop) {
@@ -422,20 +389,11 @@ ${intent.text}
         val jobs = getUserLoopJobs(store, command.userId)
         val idx = intent.id - 1
         if (idx !in jobs.indices) {
-            messagingService.sendResponseUrl(
-                responseUrl = command.responseUrl,
-                responseType = "ephemeral",
-                text = ":x: ${intent.id}번 스케줄을 찾을 수 없습니다. `/reactor loop list`로 확인해 주세요."
-            )
-            return
+            return sendEphemeral(command, ":x: ${intent.id}번 스케줄을 찾을 수 없습니다. `/reactor loop list`로 확인해 주세요.")
         }
         val job = jobs[idx]
         scheduler?.delete(job.id) ?: store.delete(job.id)
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = ":white_check_mark: ${intent.id}번 스케줄 삭제 완료 (${jobs.size - 1}/$MAX_LOOPS_PER_USER)"
-        )
+        sendEphemeral(command, ":white_check_mark: ${intent.id}번 스케줄 삭제 완료 (${jobs.size - 1}/$MAX_LOOPS_PER_USER)")
     }
 
     private suspend fun handleLoopClear(command: SlackSlashCommand) {
@@ -445,11 +403,7 @@ ${intent.text}
         for (job in jobs) {
             scheduler?.delete(job.id) ?: store.delete(job.id)
         }
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = ":white_check_mark: ${jobs.size}개 스케줄 전체 삭제 완료."
-        )
+        sendEphemeral(command, ":white_check_mark: ${jobs.size}개 스케줄 전체 삭제 완료.")
     }
 
     /** 사용자 소유 루프 작업을 조회한다. 태그 기반 전체 스캔 — 건수가 적어 성능 이슈 없음. */
@@ -460,21 +414,13 @@ ${intent.text}
     }
 
     private suspend fun sendLoopUnavailable(command: SlackSlashCommand) {
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = "스케줄 기능을 사용할 수 없습니다. 시스템 관리자에게 문의해 주세요."
-        )
+        sendEphemeral(command, "스케줄 기능을 사용할 수 없습니다. 시스템 관리자에게 문의해 주세요.")
     }
 
     // ── Reminder 핸들러 ──
 
     private suspend fun sendReminderUnavailable(command: SlackSlashCommand) {
-        messagingService.sendResponseUrl(
-            responseUrl = command.responseUrl,
-            responseType = "ephemeral",
-            text = "Reminder feature is temporarily unavailable. Please try again later."
-        )
+        sendEphemeral(command, "리마인더 기능을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.")
     }
 
     companion object {

@@ -297,7 +297,7 @@ class DefaultSlackCommandHandlerTest {
             coVerify(exactly = 1) {
                 messagingService.sendResponseUrl(
                     "https://hooks.slack.com/commands/test",
-                    match { it.contains("temporarily unavailable") },
+                    match { it.contains("리마인더") },
                     "ephemeral"
                 )
             }
