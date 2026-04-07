@@ -2,13 +2,9 @@
 
 ## 활성 이슈
 
-### 1. Web Chat API에서 metric_sessions 미수집
-- **증상**: `/api/chat`으로 대화 시 `metric_sessions` 테이블에 데이터가 쌓이지 않음
-- **원인**: `ChatController`가 `sessionId`를 `AgentCommand.metadata`에 주입하지 않음
-- **영향**: Usage, Slack Activity, Conversation Analytics API가 Web chat 데이터를 포함하지 않음
-- **Slack 경로**: 정상 (DefaultSlackEventHandler.buildMetadata에서 sessionId 주입)
-- **해결 방안**: ChatController에서 `metadata["sessionId"]`를 설정하도록 수정 필요
-- **우선순위**: 중간 (Slack이 주요 채널이므로 실사용에 큰 영향 없음)
+### ~~1. Web Chat API에서 metric_sessions 미수집~~ ✅ 해결됨
+- **수정**: ChatController.resolveMetadata에서 sessionId 미존재 시 `web-{UUID}` 자동 생성
+- **커밋**: `0a055aa9`
 
 ### 2. Flyway V28 checksum 불일치
 - **증상**: 서버 시작 시 Flyway validation 실패
