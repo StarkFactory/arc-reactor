@@ -129,10 +129,12 @@ class ResponseCacheIntegrationTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
-            // 첫 번째 호출은 빈 응답, 두 번째 호출은 유효한 응답 반환
-            val emptyCallSpec = fixture.mockFinalResponse("")
+            // 첫 번째 호출은 빈 응답 (재시도도 빈 응답), 세 번째 호출은 유효한 응답 반환.
+            // 빈 응답 자동 재시도(1회)가 두 번째 빈 응답을 소비하므로 3개 필요.
+            val emptyCallSpec1 = fixture.mockFinalResponse("")
+            val emptyCallSpec2 = fixture.mockFinalResponse("")
             val validCallSpec = fixture.mockFinalResponse("Valid answer")
-            every { fixture.requestSpec.call() } returnsMany listOf(emptyCallSpec, validCallSpec)
+            every { fixture.requestSpec.call() } returnsMany listOf(emptyCallSpec1, emptyCallSpec2, validCallSpec)
 
             val cache = CaffeineResponseCache()
             val executor = SpringAiAgentExecutor(
@@ -157,8 +159,8 @@ class ResponseCacheIntegrationTest {
             val result2 = executor.execute(command)
             assertEquals("Valid answer", result2.content) { "Second call should get valid response, not cached empty" }
 
-            // LLM이 두 번 호출되었는지 확인 (빈 응답은 캐시되지 않음)
-            verify(exactly = 2) { fixture.requestSpec.call() }
+            // LLM이 세 번 호출되었는지 확인 (빈 응답 2회 + 유효 응답 1회, 빈 응답은 캐시되지 않음)
+            verify(exactly = 3) { fixture.requestSpec.call() }
         }
     }
 

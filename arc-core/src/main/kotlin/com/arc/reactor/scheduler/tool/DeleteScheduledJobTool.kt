@@ -14,7 +14,7 @@ private val logger = KotlinLogging.logger {}
  * @param schedulerService 스케줄러 서비스
  * @see DynamicSchedulerService 스케줄러 서비스
  */
-class DeleteScheduledJobTool(
+open class DeleteScheduledJobTool(
     private val schedulerService: DynamicSchedulerService
 ) : LocalTool {
 

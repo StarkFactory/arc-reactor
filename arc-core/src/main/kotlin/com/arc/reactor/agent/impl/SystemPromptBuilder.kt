@@ -190,6 +190,7 @@ internal class SystemPromptBuilder(
         if (workspaceRelated) {
             appendWorkspaceGroundingRules(workspaceToolAlreadyCalled)
             appendFewShotReadOnlyExamples()
+            appendResponseQualityInstruction()
             appendCompoundQuestionHint(workspaceToolAlreadyCalled)
             appendReadOnlyPolicy()
             appendToolErrorRetryHint()
@@ -236,7 +237,15 @@ internal class SystemPromptBuilder(
     private fun StringBuilder.appendGeneralGroundingRule() {
         append("\n\n[Grounding Rules]\n")
         append("Answer directly from your knowledge. No tools needed.\n")
-        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.")
+        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n\n")
+        append("[Response Style]\n")
+        append("You are a friendly, warm colleague — not a stiff robot.\n")
+        append("- 농담, 유머, 가벼운 잡담, 게임(끝말잇기, 스무고개, 퀴즈 등)에 즐겁게 응하세요.\n")
+        append("- 간단한 질문은 1-2줄로. 복잡한 질문은 구조화하여 상세히.\n")
+        append("- 프로그래밍/기술 질문에는 코드 예제를 포함하세요.\n")
+        append("- 답변 끝에 자연스러운 후속 질문이나 관련 팁을 추가하세요.\n")
+        append("- 모르는 것은 솔직히 '잘 모르겠어요'라고 하세요.\n")
+        append("- 친근하되 정확하게. 이모지는 적절히 사용.\n")
     }
 
     /** 워크스페이스 Grounding 규칙 (사실 기반 응답, 도구 호출 강제). */
@@ -270,6 +279,8 @@ internal class SystemPromptBuilder(
             append("Answer directly from the retrieved tool results.\n")
             append("Do not emit planning syntax such as ")
             append("```tool_code``` or raw tool JSON.\n")
+            append("Respond in a friendly, conversational Korean tone — ")
+            append("like explaining to a colleague, not writing a report.\n")
         } else {
             append("Your FIRST action for work-related queries must be a ")
             append("tool call, not prose or a clarifying question.\n")
@@ -339,7 +350,20 @@ internal class SystemPromptBuilder(
         append("User: '이번 주 완료된 이슈' → call jira_search_issues → if JQL error → simplify query (use 'resolved >= -7d' instead of startOfWeek()) and retry → show results\n")
         append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
         append("IMPORTANT: All workspace tools listed in your tool list ARE available. NEVER say '도구를 찾을 수 없습니다'.\n")
-        append("If you are unsure, just call jira_search_issues — it is ALWAYS available and works for any Jira query.\n")
+        append("If you are unsure, just call jira_search_issues — it is ALWAYS available and works for any Jira query.\n\n")
+        append("[Good Response Example]\n")
+        append("User: 'JAR 프로젝트 이슈 현황 알려줘'\n")
+        append("→ call jira_search_issues(project=JAR)\n")
+        append("→ GOOD response:\n")
+        append("  'JAR 프로젝트에 현재 진행 중인 이슈가 8건 있어요.\n\n")
+        append("  | 이슈 | 상태 | 담당자 | 우선순위 |\n")
+        append("  |------|------|--------|----------|\n")
+        append("  | JAR-45 | 진행 중 | 김OO | 높음 |\n")
+        append("  ...\n\n")
+        append("  📌 높음 우선순위 이슈가 3건으로, 이번 스프린트 내 완료가 필요해 보여요.\n\n")
+        append("  특정 이슈의 상세 내용을 확인해 드릴까요?'\n\n")
+        append("→ BAD response: 'JAR 프로젝트에서 이슈를 조회했습니다: JAR-45, JAR-46...'\n")
+        append("  (단순 나열, 인사이트 없음, 후속 질문 없음)\n")
     }
 
     /**
@@ -355,6 +379,30 @@ internal class SystemPromptBuilder(
     }
 
     /**
+     * 응답 품질 규칙 — 구조화, 인사이트, 후속 질문 안내.
+     * 도구 결과를 단순 나열하지 않고 분석/요약/제안을 추가하도록 지시한다.
+     */
+    private fun StringBuilder.appendResponseQualityInstruction() {
+        append("\n[Response Quality — 반드시 따르세요]\n")
+        append("도구 결과를 단순 복붙하지 마세요. 아래 구조로 답변하세요:\n\n")
+        append("1. **핵심 요약** (첫 1-2문장): 질문에 대한 직접 답변.\n")
+        append("   예: '현재 JAR 프로젝트에 진행 중 이슈 12건, 블로커 2건입니다.'\n")
+        append("2. **상세 내용** (본문): 데이터를 구조화하여 제시.\n")
+        append("   - 3개 이상 항목 → 표 또는 번호 목록\n")
+        append("   - 이슈 → 상태/담당자/마감일 포함\n")
+        append("   - 문서 → 제목/요약/링크 포함\n")
+        append("3. **인사이트** (분석): 데이터에서 읽히는 패턴이나 주의사항.\n")
+        append("   예: '블로커 2건이 3일 이상 정체 중입니다. ")
+        append("우선 확인이 필요해 보여요.'\n")
+        append("4. **후속 제안** (마지막): 사용자가 더 탐색할 수 있는 질문 1-2개.\n")
+        append("   예: '각 블로커의 상세 내용을 확인해 드릴까요?'\n\n")
+        append("도구에서 에러가 발생하면 기술적 세부사항 없이 ")
+        append("'현재 조회에 문제가 있습니다. 잠시 후 다시 시도해 주세요'로 안내.\n")
+        append("친근하고 자연스러운 톤을 유지하세요. ")
+        append("딱딱한 보고서가 아닌, 동료에게 설명하듯 답변하세요.\n")
+    }
+
+    /**
      * 복합 질문 처리 힌트 — 하나의 메시지에 여러 주제가 포함된 경우
      * 각 하위 질문에 대해 별도 도구를 호출하도록 안내한다.
      */
@@ -362,17 +410,26 @@ internal class SystemPromptBuilder(
         workspaceToolAlreadyCalled: Boolean
     ) {
         if (workspaceToolAlreadyCalled) return
-        append("\n[Compound Questions]\n")
+        append("\n[Compound Questions — CRITICAL]\n")
         append("When the user asks about MULTIPLE topics in one message ")
-        append("(indicators: 와/과, 그리고, 동시에, 함께, 또한, ")
+        append("(indicators: 와/과, 그리고, 동시에, 함께, 또한, 같이, -고, ")
         append("multiple question marks, comma-separated requests):\n")
         append("1. Identify each sub-question separately\n")
-        append("2. Call the appropriate tool for EACH sub-question\n")
+        append("2. Call the appropriate tool for EACH sub-question — ")
+        append("you MUST call multiple tools, not just one\n")
         append("3. Combine all results into one comprehensive response\n")
         append("4. Do NOT stop after answering only the first part\n")
-        append("Example: 'JAR-36 이슈 상태와 온보딩 가이드 문서를 찾아줘'\n")
-        append("→ call jira_get_issue(JAR-36) AND ")
+        append("5. Do NOT use work_morning_briefing as a shortcut ")
+        append("for compound questions — call specific tools instead\n")
+        append("Examples:\n")
+        append("  'JAR-36 이슈 상태와 온보딩 가이드 문서 찾아줘'\n")
+        append("  → call jira_get_issue(JAR-36) AND ")
         append("confluence_search_by_text(온보딩 가이드)\n")
+        append("  'Confluence 문서 찾아주고 스웨거에서 API 스펙도 확인해줘'\n")
+        append("  → call confluence_search_by_text AND swagger tool\n")
+        append("  '이슈와 관련 문서 같이 찾아줘'\n")
+        append("  → call jira_search_issues AND ")
+        append("confluence_search_by_text\n")
     }
 
     /** 변경(mutation) 요청 감지 시 거부 지시를 추가한다. */
@@ -893,13 +950,16 @@ internal class SystemPromptBuilder(
             "jira", "지라", "이슈", "issues", "프로젝트", "project", "jql", "ticket", "티켓",
             "blocker", "마감", "due", "transition", "전이",
             "백로그", "backlog", "스프린트", "sprint", "회고", "retrospective", "retro",
-            "칸반", "kanban", "할 일", "todo", "업무", "작업"
+            "칸반", "kanban", "할 일", "todo", "업무", "작업",
+            "장애", "오류", "버그", "bug", "error", "이슈 트래커", "이슈트래커"
         )
         private val BITBUCKET_HINTS = setOf(
-            "bitbucket", "repository", "repo", "pull request", "pr", "branch", "브랜치", "저장소", "리뷰", "sla"
+            "bitbucket", "repository", "repo", "pull request", "pr", "branch", "브랜치", "저장소", "리뷰", "sla",
+            "빗버킷", "풀 리퀘스트", "풀리퀘스트", "코드 리뷰", "머지", "merge"
         )
         private val SWAGGER_HINTS = setOf(
-            "swagger", "openapi", "spec", "schema", "endpoint", "api spec", "스펙", "엔드포인트", "스키마"
+            "swagger", "openapi", "spec", "schema", "endpoint", "api spec", "스펙", "엔드포인트", "스키마",
+            "스웨거", "api 문서", "api 스펙", "api spec"
         )
         private val OPENAPI_URL_REGEX = WorkContextPatterns.OPENAPI_URL_REGEX
         private val PROJECT_LIST_HINTS = setOf("project list", "projects", "프로젝트 목록", "프로젝트 리스트")

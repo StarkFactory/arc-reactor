@@ -1,5 +1,6 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.config.ToolRoute
 import com.arc.reactor.agent.config.ToolRouteMatchEngine
 import com.arc.reactor.agent.config.ToolRoutingConfig
 import com.arc.reactor.agent.model.AgentCommand
@@ -35,12 +36,28 @@ internal object RagRelevanceClassifier {
         val prompt = command.userPrompt
         if (prompt.isBlank()) return false
 
-        // 워크스페이스 도구 라우트가 매칭되면 RAG 생략 — 도구가 직접 데이터를 가져온다.
-        if (matchesWorkspaceToolRoute(prompt)) return false
-
-        // 지식 쿼리 키워드가 있을 때만 RAG 실행.
         val lowerPrompt = prompt.lowercase()
-        return RAG_TRIGGER_KEYWORDS.any { lowerPrompt.contains(it) }
+        val hasRagKeyword = RAG_TRIGGER_KEYWORDS.any { lowerPrompt.contains(it) }
+
+        // 워크스페이스 도구 라우트 매칭 확인 — 모든 매칭 라우트를 수집한다.
+        val matchedRoutes = findAllWorkspaceRouteMatches(prompt)
+
+        if (matchedRoutes.isNotEmpty()) {
+            // 구체적 라우트(requiredKeywords 보유)가 하나라도 매칭되면 도구 우선 → RAG 생략.
+            // "refund policy에 대해 알려줘" → unknown_term_lookup(포괄) + confluence_answer(구체적) 동시 매칭 → RAG 생략.
+            val hasSpecificMatch = matchedRoutes.any { it.requiredKeywords.isNotEmpty() }
+            if (hasSpecificMatch) return false
+
+            // 포괄 라우트(requiredKeywords 없음)만 매칭되면 RAG 키워드 우선.
+            // "장애 대응 런북 확인해줘" → jira_generic(포괄) 매칭이지만 "런북" RAG 키워드 → RAG 실행.
+            if (hasRagKeyword) return true
+
+            // RAG 키워드 없이 포괄 라우트 매칭 → 도구 우선.
+            return false
+        }
+
+        // 도구 라우트 미매칭 → RAG 키워드가 있으면 RAG 실행.
+        return hasRagKeyword
     }
 
     /** 메타데이터에 명시적 RAG 필터가 포함되어 있는지 확인한다. */
@@ -50,20 +67,17 @@ internal object RagRelevanceClassifier {
     }
 
     /**
-     * 프롬프트가 워크스페이스 도구 라우트와 매칭되는지 확인한다.
-     * 매칭되면 도구가 직접 데이터를 조회하므로 RAG가 불필요하다.
+     * 프롬프트가 워크스페이스 도구 라우트와 매칭되는 모든 라우트를 반환한다.
+     * 구체적 라우트(requiredKeywords 보유)와 포괄 라우트를 구분하여
+     * RAG 실행 여부를 정확하게 판단하기 위함이다.
      */
-    private fun matchesWorkspaceToolRoute(prompt: String): Boolean {
+    private fun findAllWorkspaceRouteMatches(prompt: String): List<ToolRoute> {
         val config = ToolRoutingConfig.loadFromClasspath()
+        val result = mutableListOf<ToolRoute>()
         for (category in WORKSPACE_CATEGORIES) {
-            if (ToolRouteMatchEngine.findFirstMatch(
-                    category, prompt, config
-                ) != null
-            ) {
-                return true
-            }
+            result.addAll(ToolRouteMatchEngine.findAllMatches(category, prompt, config))
         }
-        return false
+        return result
     }
 
     /** 도구 라우팅이 처리하는 워크스페이스 카테고리. RAG보다 우선한다. */

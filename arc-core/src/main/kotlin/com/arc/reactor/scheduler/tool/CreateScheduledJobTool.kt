@@ -24,7 +24,7 @@ private val logger = KotlinLogging.logger {}
  * @param defaultTimezone 기본 시간대 (사용자 미지정 시)
  * @see DynamicSchedulerService 스케줄러 서비스
  */
-class CreateScheduledJobTool(
+open class CreateScheduledJobTool(
     private val schedulerService: DynamicSchedulerService,
     private val defaultTimezone: String
 ) : LocalTool {

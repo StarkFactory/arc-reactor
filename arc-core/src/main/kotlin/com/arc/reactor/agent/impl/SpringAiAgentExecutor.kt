@@ -387,6 +387,8 @@ class SpringAiAgentExecutor(
             val isEmptyResponse = !result.success && result.content?.contains("응답을 생성하지 못했습니다") == true
             if (isEmptyResponse) {
                 logger.info { "빈 응답 감지, 1회 재시도 (runId=${hookContext.runId})" }
+                // 이전 실행에서 설정된 blockReason을 정리하여 재시도 오염을 방지한다.
+                hookContext.metadata.remove("blockReason")
                 result = concurrencySemaphore.withPermit {
                     executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
                         agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)

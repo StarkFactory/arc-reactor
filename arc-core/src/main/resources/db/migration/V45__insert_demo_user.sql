@@ -6,13 +6,14 @@
 -- Email: demo@arc-reactor.io / Password: demo1234
 
 INSERT INTO users (id, email, name, password_hash, role, tenant_id, created_at)
-VALUES (
+SELECT
     '00000000-0000-0000-0000-000000000099',
     'demo@arc-reactor.io',
     'Demo User',
     '$2b$12$Tv1l/fjW966rKg7bd0zahe2sxJIpByGpBhy6.haKINdyNVsGQ1URi',
     'USER',
-    'default',
+    t.id,
     NOW()
-)
+FROM tenants t
+WHERE t.slug = 'default'
 ON CONFLICT (email) DO NOTHING;

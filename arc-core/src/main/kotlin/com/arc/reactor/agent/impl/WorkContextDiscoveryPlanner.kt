@@ -25,7 +25,23 @@ internal object WorkContextDiscoveryPlanner {
         "문서 검색해줘", "페이지 검색해줘",
         "confluence 검색", "컨플루언스 검색",
         "스페이스에서 검색", "스페이스에서 찾아",
-        "confluence에서 문서", "컨플루언스에서 문서"
+        "confluence에서 문서", "컨플루언스에서 문서",
+        "위키에서 찾아", "위키에서 검색", "위키 검색", "위키 찾아",
+        "위키에서 문서", "위키 문서"
+    )
+
+    /**
+     * Confluence 컨텍스트 힌트 — 쿼리가 Confluence/wiki 관련임을 나타내는 키워드.
+     * 단독 "문서 검색" 같은 짧은 쿼리가 Confluence로 라우팅되려면
+     * 이 힌트 중 하나와 [confluenceActionHints] 중 하나가 모두 매칭되어야 한다.
+     */
+    private val confluenceContextHints = setOf(
+        "confluence", "컨플루언스", "wiki", "위키", "문서", "페이지", "page"
+    )
+
+    /** Confluence 액션 힌트 — 검색/조회 의도를 나타내는 키워드. */
+    private val confluenceActionHints = setOf(
+        "검색", "찾아", "조회", "search", "find", "보여줘", "보여"
     )
     private val bitbucketRepositoryListHints = setOf(
         "저장소 목록", "repository list", "list repositories", "repo 목록",
@@ -41,6 +57,12 @@ internal object WorkContextDiscoveryPlanner {
         "endpoint", "엔드포인트", "schema", "스키마", "인증", "auth",
         "에러 응답", "error response", "파라미터", "parameter", "로드된 스펙",
         "load", "로드한 뒤"
+    )
+
+    /** Swagger 일반 액션 힌트 — 조회/확인 의도를 나타내는 짧은 쿼리용 폴백. */
+    private val swaggerActionHints = setOf(
+        "조회", "확인", "보여", "알려", "검색", "찾아",
+        "show", "check", "search", "find", "look"
     )
     private val reviewQueueHints = setOf(
         "review queue", "리뷰 대기열", "review sla", "리뷰 sla",
@@ -70,17 +92,14 @@ internal object WorkContextDiscoveryPlanner {
             )
         }
         if (n.matchesAnyHint(confluenceSearchHints)) {
-            val keyword =
-                WorkContextEntityExtractor.extractQuotedKeyword(prompt)
-                    ?: WorkContextEntityExtractor
-                        .extractSearchKeyword(prompt)
-            return ForcedToolCallPlan(
-                "confluence_search_by_text",
-                buildMap {
-                    keyword?.let { put("keyword", it) }
-                    put("limit", 10)
-                }
-            )
+            return buildConfluenceSearchPlan(prompt)
+        }
+        // 짧은 쿼리 폴백: "컨플루언스 문서 검색", "위키에서 문서 찾아줘" 등
+        // Confluence 컨텍스트 + 액션 힌트가 모두 있으면 검색으로 강제
+        if (n.matchesAnyHint(confluenceContextHints) &&
+            n.matchesAnyHint(confluenceActionHints)
+        ) {
+            return buildConfluenceSearchPlan(prompt)
         }
         if (n.matchesAnyHint(bitbucketRepositoryListHints)) {
             return ForcedToolCallPlan(
@@ -93,6 +112,23 @@ internal object WorkContextDiscoveryPlanner {
         return null
     }
 
+    /** Confluence 검색 계획을 빌드한다 — 키워드 추출 포함. */
+    private fun buildConfluenceSearchPlan(
+        prompt: String
+    ): ForcedToolCallPlan {
+        val keyword =
+            WorkContextEntityExtractor.extractQuotedKeyword(prompt)
+                ?: WorkContextEntityExtractor
+                    .extractSearchKeyword(prompt)
+        return ForcedToolCallPlan(
+            "confluence_search_by_text",
+            buildMap {
+                keyword?.let { put("keyword", it) }
+                put("limit", 10)
+            }
+        )
+    }
+
     // ── Swagger/OpenAPI 계획 ──
 
     /** Swagger/OpenAPI 도구 계획 — 요약, 검증, 목록, 잘못된 엔드포인트. */
@@ -102,8 +138,9 @@ internal object WorkContextDiscoveryPlanner {
     ): ForcedToolCallPlan? {
         val n = ctx.normalized
         val isSwaggerContext = n.contains("swagger") ||
-            n.contains("openapi") ||
-            n.contains("spec") || n.contains("스펙")
+            n.contains("openapi") || n.contains("스웨거") ||
+            n.contains("spec") || n.contains("스펙") ||
+            n.contains("api 문서") || n.contains("api 스펙")
 
         if (isSwaggerContext &&
             n.matchesAnyHint(WorkContextPatterns.VALIDATE_HINTS)
@@ -139,6 +176,11 @@ internal object WorkContextDiscoveryPlanner {
         if (isSwaggerContext &&
             n.matchesAnyHint(WorkContextPatterns.WRONG_ENDPOINT_HINTS)
         ) {
+            return ForcedToolCallPlan("spec_list", emptyMap())
+        }
+        // 짧은 쿼리 폴백: "API 스펙 조회해줘", "스웨거 확인" 등
+        // Swagger 컨텍스트 + 일반 액션 힌트가 있으면 spec_list → spec_summary 체인
+        if (isSwaggerContext && n.matchesAnyHint(swaggerActionHints)) {
             return ForcedToolCallPlan("spec_list", emptyMap())
         }
         return null

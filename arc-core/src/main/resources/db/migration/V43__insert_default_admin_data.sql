@@ -16,7 +16,7 @@ VALUES (
     1, 0.995, 10000,
     NOW(), NOW()
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- 2. 기본 모델 가격표 (주요 LLM 모델)
 INSERT INTO model_pricing (id, provider, model, prompt_price_per_1k, completion_price_per_1k, cached_input_price_per_1k, effective_from)

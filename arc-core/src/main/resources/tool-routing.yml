@@ -626,6 +626,9 @@ routes:
       - 내 이슈
       - 내가 담당
       - 내 오픈
+      - 내 할당
+      - 나한테 할당
+      - 내가 할당
     promptInstruction: >-
       For this request, you MUST call `jira_my_open_issues` before answering.
     preferredTools:
@@ -711,6 +714,8 @@ routes:
       - 버그
       - bug
       - error
+      - 이슈 트래커
+      - 이슈트래커
     promptInstruction: >-
       For this request, you MUST call one or more Jira tools before answering.
       Prefer `jira_search_issues` for project-scoped status questions.
@@ -865,6 +870,12 @@ routes:
       - 저장소
       - 리뷰
       - sla
+      - 빗버킷
+      - 풀 리퀘스트
+      - 풀리퀘스트
+      - 코드 리뷰
+      - 머지
+      - merge
     promptInstruction: >-
       For this request, you MUST call `bitbucket_list_prs` or `bitbucket_get_pr` before answering.
       Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call.
@@ -1065,6 +1076,9 @@ routes:
       - 스펙
       - 엔드포인트
       - 스키마
+      - 스웨거
+      - api 문서
+      - api 스펙
     promptInstruction: >-
       For this request, you MUST call a Swagger/OpenAPI tool before answering.
     preferredTools:
