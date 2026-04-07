@@ -272,3 +272,25 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - Gemini Flash는 "무엇을 검색할지" 목적어가 없으면 도구 호출을 건너뜀
   - tool-routing 키워드 매칭은 정상이지만 LLM 단에서 호출 결정을 안 함
   - 권장 개선: (1) tool_config ANY 모드 (2) 짧은 쿼리 감지 시 명확화 요청 프롬프트 (3) 시스템 프롬프트에 "검색 대상 불명확해도 기본 검색 실행" 지시 추가
+
+### Round 4 (2026-04-08 종합 재검증)
+- 시나리오: [A1, A2, A4, B1, C1, C2, D2, D6, FUN1, FUN2] — 전체 카테고리
+- 도구 정확도: 9/10 (90%) — B1만 WARN (confluence만 호출, jira 미호출)
+- 응답 품질 평균: 3.3/5 (역대 최고)
+- 서버: UP | MCP: CONNECTED
+- **수정 효과 확인**:
+  - A4 "API 스펙 조회": R2-3 FAIL → **R4 PASS** (spec_list 호출 성공)
+  - D2 "컨플루언스 문서 검색": R2-3 FAIL → **R4 PASS** (confluence_search_by_text 호출)
+  - D6 "위키에서 문서 찾아줘": R2-3 FAIL → **R4 PASS** (confluence_search_by_text 호출)
+  - 짧은 쿼리 문제 → WorkContextDiscoveryPlanner 보강으로 해결됨
+- 부분 회귀:
+  - B1 "이슈와 관련 문서 같이 찾아줘": R2 PASS → R4 WARN (confluence만, jira 미호출. 명확화 요청으로 우회)
+- 기타 결과:
+  - A1/A2: 도구 선택 정확하나 API 오류로 결과 미반환 (인프라 이슈)
+  - C1/C2/FUN1/FUN2: 모두 PASS, 친근한 톤 + 구조화 우수
+  - grounded=true 비율 0/10 (도구 API 오류로 grounding 불가)
+- 추세: 도구 정확도 80% → 50% → 75% → **90%** | 품질 2.8 → 2.0 → 2.9 → **3.3**
+- 빌드: PASS | 테스트: 2건 실패 (R3: 5건 → R4: 2건, 60% 감소)
+  - ScenarioAssumptionValidationTest: 출력 가드 메시지 변경 미반영
+  - SystemPromptBuilderTest: compound question hint 기대값 불일치
+- 잔여 개선: (1) 다중 도구 호출 일관성 (2) 도구 API 실패 시 에러 안내 개선 (3) grounding 비율 향상
