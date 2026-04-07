@@ -138,7 +138,9 @@ class DefaultSlackEventHandler(
         userId: String,
         userPrompt: String
     ) {
-        val sessionId = "slack-$channelId-$threadTs"
+        // DM(D로 시작)에서 스레드 없이 대화 시 채널 기반 세션으로 맥락 유지
+        val sessionKey = if (channelId.startsWith("D")) "dm" else threadTs
+        val sessionId = "slack-$channelId-$sessionKey"
         try {
             setAssistantStatusSafely(channelId, threadTs, "생각하고 있어요...")
             val result = executeAgent(sessionId, channelId, userId, userPrompt)
