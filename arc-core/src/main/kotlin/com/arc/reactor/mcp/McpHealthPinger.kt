@@ -36,6 +36,18 @@ class McpHealthPinger(
     private var pingJob: Job? = null
 
     /**
+     * 서버별 마지막 재연결 시도 시각 (에포크 밀리초).
+     *
+     * WHY: Health Pinger가 60초마다 ensureConnected()를 호출하면
+     * 매번 새 HttpClient가 생성되어 TCP TIME_WAIT 소켓이 누적된다.
+     * 최소 5분 간격으로 재연결 시도를 제한하여 소켓 고갈을 방지한다.
+     */
+    private val lastReconnectAttempt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /** 재연결 시도 최소 간격 (밀리초) — 기본 5분 */
+    private val reconnectCooldownMs: Long = 300_000L
+
+    /**
      * 헬스체크 루프를 시작한다.
      *
      * 이미 실행 중이면 중복 시작하지 않는다.
@@ -83,6 +95,31 @@ class McpHealthPinger(
     }
 
     /**
+     * 쿨다운을 적용하여 재연결을 시도한다.
+     *
+     * 마지막 재연결 시도로부터 [reconnectCooldownMs] 이내이면 건너뛴다.
+     * 소켓 고갈 방지를 위해 빈번한 재연결 시도를 억제한다.
+     */
+    private suspend fun attemptReconnectWithCooldown(serverName: String) {
+        val now = System.currentTimeMillis()
+        val lastAttempt = lastReconnectAttempt[serverName] ?: 0L
+        if (now - lastAttempt < reconnectCooldownMs) {
+            logger.debug {
+                "MCP '$serverName' 재연결 쿨다운 중 " +
+                    "(${(reconnectCooldownMs - (now - lastAttempt)) / 1000}초 후 재시도 가능)"
+            }
+            return
+        }
+        lastReconnectAttempt[serverName] = now
+        try {
+            mcpManager.ensureConnected(serverName)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "MCP 서버 '$serverName' 재연결 실패" }
+        }
+    }
+
+    /**
      * 모든 CONNECTED 서버에 대해 헬스체크를 수행한다.
      *
      * 서버 상태가 CONNECTED이지만 도구 콜백이 비어있으면 연결이 끊어진 것으로 간주하고
@@ -100,21 +137,14 @@ class McpHealthPinger(
                     logger.warn {
                         "MCP 서버 '${server.name}'가 CONNECTED이나 도구 없음 — 재연결 시도"
                     }
-                    mcpManager.ensureConnected(server.name)
+                    attemptReconnectWithCooldown(server.name)
                 }
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.warn(e) {
                     "MCP 서버 '${server.name}' 헬스체크 중 오류 — 재연결 시도"
                 }
-                try {
-                    mcpManager.ensureConnected(server.name)
-                } catch (reconnectEx: Exception) {
-                    reconnectEx.throwIfCancellation()
-                    logger.error(reconnectEx) {
-                        "MCP 서버 '${server.name}' 재연결 실패"
-                    }
-                }
+                attemptReconnectWithCooldown(server.name)
             }
         }
     }

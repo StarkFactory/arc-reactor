@@ -105,6 +105,17 @@ internal class McpConnectionSupport(
 
         internal const val METRIC_CONNECTION_ATTEMPTS = "arc.mcp.connection.attempts"
         internal const val METRIC_CONNECTION_LATENCY = "arc.mcp.connection.latency"
+
+        /**
+         * SSE 연결용 공유 HttpClient.Builder.
+         *
+         * WHY: 매 연결 시도마다 새 HttpClient를 생성하면 TCP 소켓이 누적되어
+         * TIME_WAIT 소켓 고갈(15,000+)이 발생한다. 공유 빌더를 사용하여
+         * 커넥션 풀을 재사용하고 소켓 누적을 방지한다.
+         */
+        private val SHARED_HTTP_CLIENT_BUILDER: java.net.http.HttpClient.Builder =
+            java.net.http.HttpClient.newBuilder()
+                .version(java.net.http.HttpClient.Version.HTTP_1_1)
     }
 
     /**
@@ -326,7 +337,10 @@ internal class McpConnectionSupport(
         var client: McpSyncClient? = null
         return try {
             transport = HttpClientSseClientTransport.builder(parsed.toString())
-                .customizeClient { it.connectTimeout(Duration.ofMillis(connectionTimeoutMs)) }
+                .clientBuilder(
+                    SHARED_HTTP_CLIENT_BUILDER
+                        .connectTimeout(Duration.ofMillis(connectionTimeoutMs))
+                )
                 .build()
 
             client = McpClient.sync(transport)
