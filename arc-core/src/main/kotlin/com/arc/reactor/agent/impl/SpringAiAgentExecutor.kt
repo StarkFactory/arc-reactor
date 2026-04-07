@@ -384,7 +384,8 @@ class SpringAiAgentExecutor(
                 }
             }
             // 빈 응답 자동 재시도 (1회) — Gemini 간헐적 빈 응답 대응
-            if (result.success && result.content.isNullOrBlank()) {
+            val isEmptyResponse = !result.success && result.content?.contains("응답을 생성하지 못했습니다") == true
+            if (isEmptyResponse) {
                 logger.info { "빈 응답 감지, 1회 재시도 (runId=${hookContext.runId})" }
                 result = concurrencySemaphore.withPermit {
                     executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
