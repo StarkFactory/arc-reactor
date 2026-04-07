@@ -42,7 +42,7 @@
 | 3 | 토큰/비용 분석 | `/api/admin/token-cost` | arc-admin | ✅ |
 | 4 | 사용자 사용량 | `/api/admin/users/usage` | arc-admin | ✅ |
 | 5 | Slack 활동 | `/api/admin/slack-activity` | arc-admin | ✅ |
-| 6 | Input Guard | `/api/input-guard` | arc-web | ✅ |
+| 6 | Input Guard | `/api/admin/input-guard` | arc-web | ✅ |
 | 7 | Eval 대시보드 | `/api/admin/evals` | arc-admin | ✅ |
 | 8 | 모델 레지스트리 | `/api/admin/models` | arc-web | ✅ |
 | 9 | 레이턴시 | `/api/admin/metrics/latency` | arc-admin | ✅ |

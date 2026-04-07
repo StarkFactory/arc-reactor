@@ -24,7 +24,7 @@ import org.springframework.web.server.ServerWebExchange
  */
 @Tag(name = "Input Guard", description = "Input Guard 파이프라인 조회 (ADMIN)")
 @RestController
-@RequestMapping("/api/input-guard")
+@RequestMapping("/api/admin/input-guard")
 class InputGuardController(
     private val stagesProvider: ObjectProvider<List<GuardStage>>,
     private val settingsProvider: ObjectProvider<RuntimeSettingsService>,

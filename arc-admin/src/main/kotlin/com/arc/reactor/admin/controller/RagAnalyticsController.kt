@@ -2,6 +2,7 @@ package com.arc.reactor.admin.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.web.bind.annotation.GetMapping
@@ -19,6 +20,10 @@ import org.springframework.web.server.ServerWebExchange
  */
 @Tag(name = "RAG Analytics", description = "RAG 문서 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/rag-analytics")
 class RagAnalyticsController(
     private val jdbc: JdbcTemplate

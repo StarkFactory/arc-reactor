@@ -169,12 +169,12 @@
 
 ---
 
-## 10. Input Guard 설정 변경 (`/api/input-guard`)
+## 10. Input Guard 설정 변경 (`/api/admin/input-guard`)
 
-### GET `/api/input-guard/pipeline`
+### GET `/api/admin/input-guard/pipeline`
 파이프라인 단계 목록 (runtimeOverride 포함).
 
-### PUT `/api/input-guard/settings`
+### PUT `/api/admin/input-guard/settings`
 Guard 단계 설정 변경 (RuntimeSettings 기반).
 
 **요청**: `{ "settings": { "guard.stage.injection-detection.enabled": "false" } }`
@@ -192,7 +192,7 @@ Guard 단계 설정 변경 (RuntimeSettings 기반).
 | 사용자 사용량 | `GET /api/admin/users/usage/top` | 상위 사용자 토큰 소비 |
 | 레이턴시 | `GET /api/admin/metrics/latency/summary` | P50/P95/P99 |
 | 레이턴시 시계열 | `GET /api/admin/metrics/latency/timeseries` | 시간대별 추이 |
-| Input Guard | `GET /api/input-guard/pipeline` | 7단계 파이프라인 목록 |
+| Input Guard | `GET /api/admin/input-guard/pipeline` | 7단계 파이프라인 목록 |
 | 모델 레지스트리 | `GET /api/admin/models` | 모델 목록 + 가격표 |
 | RBAC | `GET /api/admin/rbac/roles` | 4역할 × 20권한 |
 | RBAC 변경 | `PUT /api/admin/rbac/users/{id}/role` | 사용자 역할 변경 |
