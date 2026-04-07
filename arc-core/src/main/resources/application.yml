@@ -53,7 +53,7 @@ spring:
 arc:
   reactor:
     max-tool-calls: 10
-    max-tools-per-request: 30
+    max-tools-per-request: ${ARC_REACTOR_MAX_TOOLS_PER_REQUEST:60}
 
     tool-selection:
       strategy: ${ARC_REACTOR_TOOL_SELECTION_STRATEGY:semantic}
