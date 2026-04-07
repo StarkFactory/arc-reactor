@@ -1,6 +1,7 @@
 package com.arc.reactor.controller
 
 import com.arc.reactor.audit.AdminAuditStore
+import com.arc.reactor.audit.recordAdminAudit
 import com.arc.reactor.auth.AdminAuthorizationSupport.maskedAdminAccountRef
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -8,12 +9,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * 관리자 감사 로그 컨트롤러.
@@ -64,6 +70,61 @@ class AdminAuditController(
             )
         }
         return ResponseEntity.ok(rows.paginate(offset, clampedPageLimit))
+    }
+
+    /** 감사 로그를 CSV로 내보낸다 (감사팀/규제기관 제출용). */
+    @Operation(summary = "감사 로그 CSV 내보내기 (관리자)")
+    @GetMapping("/export")
+    fun exportCsv(
+        @RequestParam(required = false) category: String?,
+        @RequestParam(required = false) action: String?,
+        @RequestParam(defaultValue = "5000") @Min(1) @Max(50000) limit: Int?,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+
+        val rows = store.list(limit = limit ?: 5000, category = category, action = action)
+        val csv = buildCsvContent(rows)
+
+        recordAdminAudit(
+            store = store, category = "audit", action = "EXPORT",
+            actor = currentActor(exchange), detail = "rows=${rows.size}"
+        )
+
+        val filename = "audit-export-${CSV_DATE_FORMAT.format(Instant.now())}.csv"
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$filename\"")
+            .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+            .body(csv)
+    }
+
+    private fun buildCsvContent(rows: List<com.arc.reactor.audit.AdminAuditLog>): String {
+        return buildString {
+            append("id,timestamp,category,action,actor,resource_type,resource_id,detail\n")
+            for (row in rows) {
+                append(csvEscape(row.id)).append(',')
+                append(CSV_TS_FORMAT.format(row.createdAt)).append(',')
+                append(csvEscape(row.category)).append(',')
+                append(csvEscape(row.action)).append(',')
+                append(csvEscape(maskedAdminAccountRef(row.actor))).append(',')
+                append(csvEscape(row.resourceType.orEmpty())).append(',')
+                append(csvEscape(row.resourceId.orEmpty())).append(',')
+                append(csvEscape(row.detail.orEmpty())).append('\n')
+            }
+        }
+    }
+
+    companion object {
+        private val KST = ZoneId.of("Asia/Seoul")
+        private val CSV_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmm").withZone(KST)
+        private val CSV_TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(KST)
+
+        /** CSV 필드 이스케이프: 콤마/줄바꿈/따옴표 포함 시 따옴표로 감싼다. */
+        private fun csvEscape(value: String): String {
+            return if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+                "\"${value.replace("\"", "\"\"")}\""
+            } else value
+        }
     }
 }
 
