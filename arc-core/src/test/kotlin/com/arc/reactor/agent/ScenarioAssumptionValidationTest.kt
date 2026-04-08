@@ -153,7 +153,9 @@ class ScenarioAssumptionValidationTest {
 
         result.assertFailure()
         result.assertErrorCode(AgentErrorCode.OUTPUT_GUARD_REJECTED)
-        assertEquals("PII detected", result.errorMessage)
+        assertEquals("응답이 내부 정책에 의해 차단되었습니다.", result.errorMessage) {
+            "출력 Guard 거부 시 내부 사유 대신 일반 메시지가 반환되어야 한다"
+        }
     }
 
     @Test
