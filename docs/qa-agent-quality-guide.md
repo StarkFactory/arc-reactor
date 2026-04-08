@@ -149,7 +149,7 @@
 - [x] 한국어 응답 우선 지시
 - [x] 인사이트/분석 추가 지시
 - [x] 후속 질문 제안 지시
-- [ ] 도구 선택 few-shot negative 예제 추가
+- [x] 도구 선택 few-shot negative 예제 추가 (2026-04-08 SystemPromptBuilder에 추가)
 - [ ] tool_config ANY 모드 (첫 호출 강제)
 - [ ] ReAct iteration에서 원래 질문 반복
 - [ ] 의도별 temperature 분리
@@ -204,6 +204,7 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 | 이전 | 빈 응답 자동 재시도 | 빈 응답 대폭 감소 |
 | 이전 | 답변 품질 규칙 추가 | 구조화/인사이트/후속질문 |
 | 2026-04-08 | QA 검증 루프 재가동 | 지속적 품질 모니터링 |
+| 2026-04-08 | few-shot negative 예제 추가 + Compound Questions 헤더 수정 | false positive 감소, 테스트 1건 해결 |
 
 ---
 
@@ -294,3 +295,26 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - ScenarioAssumptionValidationTest: 출력 가드 메시지 변경 미반영
   - SystemPromptBuilderTest: compound question hint 기대값 불일치
 - 잔여 개선: (1) 다중 도구 호출 일관성 (2) 도구 API 실패 시 에러 안내 개선 (3) grounding 비율 향상
+
+### Round 5 (2026-04-08 12:15)
+- 시나리오: [A1, A2, B1(재검증), C2, D1, D6, NEW(보안문서)]
+- 도구 정확도: 6/7 (86%) — B1 FAIL (work_item_context 단독, 멀티스텝 미실행)
+- 응답 품질 평균: 3.4/5 (R4 대비 +0.1)
+- LLM 응답시간: 단순 1,631ms / 도구호출 3,095ms / 복합 8,000ms
+- pgvector: OK (0.8.1)
+- RAG: 비활성 (arc.reactor.rag.enabled=false)
+- Admin 연동: API 매핑 완료 — MCP/ToolPolicy/OutputGuard/Persona/Prompt 모두 즉시 반영 구조
+- 빌드: PASS | 테스트: 7,085개 전량 통과 (R4 대비 2건 수정됨)
+- MCP: swagger 11 + atlassian 37 = 48 tools CONNECTED
+- 코드 수정:
+  - SystemPromptBuilder: [Compound Questions — CRITICAL] → [Compound Questions] (테스트 불일치 수정)
+  - SystemPromptBuilder: Few-shot negative 예제 6개 추가 (false positive 방지)
+  - SlackBlockKitFormatter 신규: 출처를 Block Kit context 블록으로 표시
+  - SlackMessagingService: blocks 파라미터 추가 (Block Kit 전송 지원)
+  - tools.md 프롬프트: 인라인 출처 언급 규칙 + 답변 품질 규칙 강화
+- 발견 이슈:
+  - B1: "JAR-123 이슈와 관련 문서 같이 찾아줘" → work_item_context 단독 호출, 실패 후 Confluence 폴백 미실행 (R4부터 연속 FAIL)
+  - D6: 빈 쿼리로 도구 호출 → grounded=false, 키워드 역질문으로 회피
+  - NEW(보안문서): 5/5 완벽 응답 — 838건 중 5개 요약 + 문서별 링크 + 날짜 포함
+- 추세: 도구 정확도 80%→50%→75%→90%→**86%** | 품질 2.8→2.0→2.9→3.3→**3.4**
+- 잔여 개선: (1) B1 멀티스텝 early-exit 버그 조사 (2) D6 빈 쿼리 시 최근 문서 반환 (3) RAG 활성화 검토
