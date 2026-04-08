@@ -165,6 +165,18 @@ arc:
         enabled: ${ARC_REACTOR_RAG_COMPRESSION_ENABLED:false}
         min-content-length: ${ARC_REACTOR_RAG_COMPRESSION_MIN_CONTENT_LENGTH:200}
 
+    cache:
+      enabled: ${ARC_REACTOR_CACHE_ENABLED:true}
+      ttl-minutes: ${ARC_REACTOR_CACHE_TTL_MINUTES:60}
+      max-size: ${ARC_REACTOR_CACHE_MAX_SIZE:1000}
+      cacheable-temperature: ${ARC_REACTOR_CACHE_TEMPERATURE:0.5}
+      semantic:
+        enabled: ${ARC_REACTOR_CACHE_SEMANTIC_ENABLED:true}
+        similarity-threshold: ${ARC_REACTOR_CACHE_SEMANTIC_THRESHOLD:0.92}
+        max-candidates: ${ARC_REACTOR_CACHE_SEMANTIC_MAX_CANDIDATES:50}
+        max-entries-per-scope: ${ARC_REACTOR_CACHE_SEMANTIC_MAX_ENTRIES:1000}
+        key-prefix: ${ARC_REACTOR_CACHE_SEMANTIC_KEY_PREFIX:arc:cache}
+
     response-cache:
       enabled: ${ARC_REACTOR_RESPONSE_CACHE_ENABLED:true}
       ttl-seconds: ${ARC_REACTOR_RESPONSE_CACHE_TTL_SECONDS:300}
