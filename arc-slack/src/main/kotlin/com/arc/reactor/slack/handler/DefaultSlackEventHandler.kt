@@ -223,10 +223,12 @@ class DefaultSlackEventHandler(
         userPrompt: String
     ) {
         val responseText = SlackResponseTextFormatter.fromResult(result, userPrompt)
+        val blocks = SlackBlockKitFormatter.buildBlocks(result, userPrompt)
         val sendResult = messagingService.sendMessage(
             channelId = channelId,
             text = responseText,
-            threadTs = threadTs
+            threadTs = threadTs,
+            blocks = blocks
         )
         if (sendResult.ok && sendResult.ts != null) {
             botResponseTracker?.track(channelId, sendResult.ts, sessionId, userPrompt)

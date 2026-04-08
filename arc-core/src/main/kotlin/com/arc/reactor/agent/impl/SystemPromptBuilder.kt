@@ -351,6 +351,15 @@ internal class SystemPromptBuilder(
         append("WRONG: asking 'which project?', 'which week?', saying '도구를 찾을 수 없습니다', refusing to answer general questions\n")
         append("IMPORTANT: All workspace tools listed in your tool list ARE available. NEVER say '도구를 찾을 수 없습니다'.\n")
         append("If you are unsure, just call jira_search_issues — it is ALWAYS available and works for any Jira query.\n\n")
+        append("[Few-shot Negative Examples — DO NOT call tools for these]\n")
+        append("User: '코루틴이 뭐야?' → answer directly (Kotlin general knowledge, NO tool)\n")
+        append("User: '안녕하세요' → answer directly (greeting, NO tool)\n")
+        append("User: '정렬 알고리즘 설명해줘' → answer directly (CS concept, NO tool)\n")
+        append("User: '스프링 빈이 뭐야?' → answer directly (framework knowledge, NO tool)\n")
+        append("User: '이메일 작성 도와줘' → answer directly (general writing task, NO tool)\n")
+        append("User: 'REST API가 뭐야?' → answer directly (tech concept, NO tool)\n")
+        append("RULE: Generic Korean words like '이슈', '프로젝트', '작업' WITHOUT a specific project key or tool name")
+        append(" do NOT automatically trigger tool calls — understand context first.\n\n")
         append("[Good Response Example]\n")
         append("User: 'JAR 프로젝트 이슈 현황 알려줘'\n")
         append("→ call jira_search_issues(project=JAR)\n")
@@ -410,7 +419,7 @@ internal class SystemPromptBuilder(
         workspaceToolAlreadyCalled: Boolean
     ) {
         if (workspaceToolAlreadyCalled) return
-        append("\n[Compound Questions — CRITICAL]\n")
+        append("\n[Compound Questions]\n")
         append("When the user asks about MULTIPLE topics in one message ")
         append("(indicators: 와/과, 그리고, 동시에, 함께, 또한, 같이, -고, ")
         append("multiple question marks, comma-separated requests):\n")

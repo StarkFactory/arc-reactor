@@ -61,7 +61,8 @@ class SlackMessagingService(
     suspend fun sendMessage(
         channelId: String,
         text: String,
-        threadTs: String? = null
+        threadTs: String? = null,
+        blocks: List<Map<String, Any>>? = null
     ): SlackApiResult {
         enforceRateLimit(channelId)
 
@@ -69,6 +70,7 @@ class SlackMessagingService(
             put("channel", channelId)
             put("text", text)
             if (threadTs != null) put("thread_ts", threadTs)
+            if (!blocks.isNullOrEmpty()) put("blocks", blocks)
         }
 
         return try {

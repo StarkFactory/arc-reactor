@@ -187,11 +187,13 @@ ${intent.text}
         val sessionId = "slack-${command.channelId}-$threadTs"
         val result = executeAgent(command, intent, sessionId)
         val responseText = SlackResponseTextFormatter.fromResult(result, originalPrompt)
+        val blocks = SlackBlockKitFormatter.buildBlocks(result, originalPrompt)
 
         val sendResult = messagingService.sendMessage(
             channelId = command.channelId,
             text = responseText,
-            threadTs = threadTs
+            threadTs = threadTs,
+            blocks = blocks
         )
 
         if (!sendResult.ok) {
