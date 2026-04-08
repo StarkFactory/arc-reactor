@@ -848,6 +848,14 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - 추세: 4.8→**4.7** | 도구 100%
 - **R36~R41 평균: 4.72/5 — 4.7+ 안정 확정**
 
+### Round 43 (2026-04-09 — 10점 기준 첫 라운드)
+- **10점 기준 전환** + Phase 1 전체 반영 (시맨틱 캐시, CircuitBreaker, Jira description/comments, issuelinks/subtasks, Confluence children, PR diff, tool-routing 보강)
+- 도구 정확도: 7/10 (70%) — S2/S3/S4 이슈 키 직접 지정 시 도구 미호출
+- 응답 품질 평균: 6.8/10
+- **발견된 심각 이슈**: 이슈 키(BB30-12 등) 직접 지정 시 forcedTool(work_item_context)이 실행 → description 미포함 결과 → LLM 추가 도구 호출 안 함 → VerifiedSources 차단
+- temperature 0.1→1.0 복원: 0.1에서는 Gemini가 도구 호출 자체를 안 함
+- **다음 조치**: work_item_context에서 description 포함하도록 수정, 또는 forcedTool 실행 시에도 jira_get_issue 추가 호출 유도
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
