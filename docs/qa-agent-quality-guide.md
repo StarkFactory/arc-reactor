@@ -384,3 +384,26 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - tool-policy: arc.reactor.tool-policy.dynamic.enabled 키 미존재
 - 추세: 도구 80%→50%→75%→90%→86%→86%→**86%** | 품질 2.8→2.0→2.9→3.3→3.4→3.7→**3.7**
 - 잔여 개선: (1) B1 tool_config 강제 병렬 호출 (2) D6 atlassian-mcp 서버 재시작 (3) output-guard/tool-policy 설정 활성화
+
+### Round 8 (2026-04-08 14:00)
+- 시나리오: [B1(재검증), B1b(순서명시), D6(재검증), A3, A4, C2, D3, NEW3(업무브리핑)]
+- 도구 정확도: 6/8 (75%) — B1+B1b FAIL (6연속, confluence만 호출)
+- 응답 품질 평균: 3.1/5 (R7 대비 -0.6, B1 2건 포함)
+- LLM 응답시간: 단순 2,050ms / 도구호출 2,182ms / 복합 6,830ms
+- pgvector: OK (0.8.1) | RAG: 비활성
+- Admin 연동: 8/8 API PASS (100%) — R7(80%) → R8(100%)
+- 빌드: PASS | 테스트: 전량 통과
+- MCP: swagger 11 + atlassian 37 = 48 tools CONNECTED
+- **핵심 발견 — AllToolSelector 사용 중**:
+  - EmbeddingModel 빈 없어서 SemanticToolSelector → AllToolSelector 폴백
+  - 48개 도구 전부를 LLM에 전달 → LLM 자체가 도구 선택
+  - SemanticToolSelector의 compound 로직은 아예 실행 안 됨
+  - B1은 순수 Gemini 2.5 Flash의 tool calling 판단 문제
+- B1 6연속 FAIL 상세:
+  - "이슈 먼저, 그 다음 컨플루언스" 순서 명시 → 효과 없음 (B1b도 FAIL)
+  - 명시적 번호 지정 시 Jira 데이터 환각 발생 (도구 호출 없이 가짜 이슈 출력)
+  - 프롬프트/tool-routing/코드 모두 시도했으나 LLM이 confluence만 선택
+- D6: CQL 폴백 코드 구현 완료되었으나 LLM이 빈 keyword를 전달하지 않음
+- 성공 사례: A4(swagger) 4/5, C2(코루틴) 4/5, NEW3(브리핑) 5/5 완벽
+- 추세: 도구 80%→50%→75%→90%→86%→86%→86%→**75%** | 품질 2.8→2.0→2.9→3.3→3.4→3.7→3.7→**3.1**
+- 다음 단계: (1) DB 페르소나 system_prompt에 복합 도구 호출 규칙 직접 추가 (2) EmbeddingModel 활성화 검토 (3) D6 빈 keyword 강제 전달

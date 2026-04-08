@@ -190,6 +190,10 @@ class SemanticToolSelector(
             return preferredReadOnlyMutationEvidenceTools(prompt, availableByName)
         }
 
+        // 복합 의도 감지: 2개 이상 카테고리 매칭 시 도구 합산
+        val compound = resolveCompoundMatchingRoutes(prompt, availableByName, DETERMINISTIC_CATEGORIES)
+        if (compound != null) return compound
+
         return resolveFirstMatchingRoute(prompt, availableByName, DETERMINISTIC_CATEGORIES)
     }
 
@@ -206,10 +210,51 @@ class SemanticToolSelector(
             return preferredReadOnlyMutationEvidenceTools(prompt, availableByName)
         }
 
+        // 복합 의도 감지: overlay에서도 다중 카테고리 도구 합산
+        val compound = resolveCompoundMatchingRoutes(prompt, availableByName, DETERMINISTIC_CATEGORIES)
+        if (compound != null) return compound
+
         resolveFirstMatchingRoute(prompt, availableByName, NON_CONFLUENCE_CATEGORIES)
             ?.let { return it }
 
         return applyConfluenceRouting(prompt, selected, availableByName)
+    }
+
+    // ── 복합 의도 라우팅 (멀티 카테고리 도구 합산) ──
+
+    /**
+     * 2개 이상 카테고리에서 라우트가 매칭되고 복합 접속 패턴이 감지되면
+     * 각 카테고리의 preferredTools를 합산하여 반환한다.
+     * 단일 카테고리만 매칭되면 null 반환 (기존 로직으로 폴백).
+     */
+    private fun resolveCompoundMatchingRoutes(
+        prompt: String,
+        availableByName: Map<String, ToolCallback>,
+        categories: List<String>
+    ): List<ToolCallback>? {
+        if (!COMPOUND_PATTERN.containsMatchIn(prompt)) return null
+
+        val accumulated = LinkedHashMap<String, ToolCallback>()
+        var matchedCategories = 0
+
+        for (category in categories) {
+            val match = ToolRouteMatchEngine.findFirstMatch(
+                category, prompt, routingConfig
+            ) ?: continue
+            if (match.preferredTools.isEmpty()) continue
+            val resolved = match.preferredTools.mapNotNull(availableByName::get)
+            if (resolved.isNotEmpty()) {
+                matchedCategories++
+                for (tool in resolved) {
+                    accumulated.putIfAbsent(tool.name, tool)
+                }
+            }
+        }
+
+        // 2개 이상 카테고리 매칭 시에만 합산 반환
+        if (matchedCategories < 2) return null
+        logger.debug { "복합 의도 도구 합산: ${matchedCategories}개 카테고리, 도구=${accumulated.keys}" }
+        return accumulated.values.take(maxResults).toList()
     }
 
     // ── 설정 기반 라우트 매칭 ──
@@ -383,6 +428,12 @@ class SemanticToolSelector(
 
         private val LOW_LEVEL_CONFLUENCE_TOOLS = setOf(
             "confluence_search", "confluence_search_by_text"
+        )
+
+        /** 복합 의도 감지 패턴: "같이", "함께", "이랑", "도 찾아", "연결" 등 */
+        private val COMPOUND_PATTERN = Regex(
+            "같이|함께|이랑|도\\s*찾아|도\\s*검색|도\\s*보여|도\\s*알려|연결해|and also|as well",
+            RegexOption.IGNORE_CASE
         )
 
         /** 결정적 fast-path에서 확인할 카테고리 (시맨틱 선택 전). */
