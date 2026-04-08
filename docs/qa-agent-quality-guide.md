@@ -360,3 +360,27 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - 미구현: Output Guard Rules, Scheduler Jobs, Tool Policy API
 - 추세: 도구 정확도 80%→50%→75%→90%→86%→**86%** | 품질 2.8→2.0→2.9→3.3→3.4→**3.7**
 - 잔여 개선: (1) B1 프롬프트 수정 효과 R7 재검증 (2) D6 빈 쿼리 CQL 폴백 (3) Admin API 경로 정리
+
+### Round 7 (2026-04-08 13:15)
+- 시나리오: [B1(재검증), D6(재검증), A1, A2, B2, C1, D5]
+- 도구 정확도: 6/7 (86%) — B1 FAIL (4연속, confluence만 호출 jira 미호출)
+- 응답 품질 평균: 3.7/5 (R6과 동일)
+- LLM 응답시간: 단순 1,514ms / 도구호출 2,181ms / 복합 7,700ms
+- pgvector: OK (0.8.1)
+- RAG: 비활성 (ingestion 0건)
+- Admin 연동: 8/10 API PASS (80%) — output-guard-rules, tool-policy 설정 비활성화
+- 빌드: PASS | 테스트: 7,085개 전량 통과
+- MCP: swagger 11 + atlassian 37 = 48 tools CONNECTED
+- 코드 수정:
+  - atlassian-mcp-server ConfluenceSearchTool: 빈 키워드 CQL 폴백 구현 (D6 대응)
+- 수정 효과:
+  - D6: R5 FAIL → R6 도구선택 PASS(실행실패) → R7 도구선택 PASS(빈키워드 폴백 적용 예정, 서버 재시작 필요)
+  - B1: R6 프롬프트 수정 적용 후에도 4연속 FAIL — confluence 우선 호출, jira 건너뜀
+  - B2(스프린트+PR): jira+bitbucket+work_item_context 멀티스텝 PASS — 복합 요청 성공 사례
+  - Admin: R6(50%) → R7(80%) — 올바른 경로로 재검증, 2건은 설정 조건부 비활성화 확인
+- 발견 이슈:
+  - B1 근본 원인: LLM이 "이슈 목록이랑" 패턴에서 jira를 선행 도구로 인식 못함 — 프롬프트 레벨이 아닌 tool_config ANY 또는 강제 병렬 호출 메커니즘 필요
+  - output-guard-rules: ConditionalOnProperty 설정 조건 미충족
+  - tool-policy: arc.reactor.tool-policy.dynamic.enabled 키 미존재
+- 추세: 도구 80%→50%→75%→90%→86%→86%→**86%** | 품질 2.8→2.0→2.9→3.3→3.4→3.7→**3.7**
+- 잔여 개선: (1) B1 tool_config 강제 병렬 호출 (2) D6 atlassian-mcp 서버 재시작 (3) output-guard/tool-policy 설정 활성화
