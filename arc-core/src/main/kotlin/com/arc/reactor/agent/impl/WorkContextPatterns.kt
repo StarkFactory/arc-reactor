@@ -64,7 +64,10 @@ internal object WorkContextPatterns {
 
     val WORK_ITEM_CONTEXT_HINTS = setOf(
         "전체 맥락", "맥락", "context", "관련 문서", "관련 pr", "열린 pr",
-        "오픈 pr", "다음 액션", "next action"
+        "오픈 pr", "다음 액션", "next action",
+        "상세", "설명", "본문", "description", "보여줘", "알려줘",
+        "댓글", "코멘트", "comment", "하위 이슈", "서브태스크", "subtask",
+        "블로킹", "블록", "blocking", "blocked", "연결된 이슈", "issuelink"
     )
 
     val WORK_SERVICE_CONTEXT_HINTS = setOf(
