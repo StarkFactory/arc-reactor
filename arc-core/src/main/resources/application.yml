@@ -92,13 +92,14 @@ arc:
     llm:
       default-provider: gemini
       default-model: ${ARC_REACTOR_LLM_DEFAULT_MODEL:gemini-2.5-flash}
-      temperature: ${ARC_REACTOR_LLM_TEMPERATURE:1.0}  # Gemini 2.5+는 1.0 권장 (0.1에서 빈 응답/루핑 발생)
+      temperature: ${ARC_REACTOR_LLM_TEMPERATURE:0.1}  # Phase1 최적화: 사실 기반 정확도 우선 (Gemini 2.5+에서 빈 응답 발생 시 ARC_REACTOR_LLM_TEMPERATURE=1.0 으로 복원)
+      top-p: ${ARC_REACTOR_LLM_TOP_P:0.95}
       max-output-tokens: 4096
       google-search-retrieval-enabled: ${ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED:false}
 
     concurrency:
-      max-concurrent-requests: 20
-      request-timeout-ms: 30000
+      max-concurrent-requests: 50
+      request-timeout-ms: 45000
       tool-call-timeout-ms: 15000
 
     guard:
@@ -164,10 +165,20 @@ arc:
         enabled: ${ARC_REACTOR_RAG_COMPRESSION_ENABLED:false}
         min-content-length: ${ARC_REACTOR_RAG_COMPRESSION_MIN_CONTENT_LENGTH:200}
 
+    response-cache:
+      enabled: ${ARC_REACTOR_RESPONSE_CACHE_ENABLED:true}
+      ttl-seconds: ${ARC_REACTOR_RESPONSE_CACHE_TTL_SECONDS:300}
+      max-size: ${ARC_REACTOR_RESPONSE_CACHE_MAX_SIZE:500}
+
     tool-result-cache:
       enabled: ${ARC_REACTOR_TOOL_RESULT_CACHE_ENABLED:true}
       ttl-seconds: ${ARC_REACTOR_TOOL_RESULT_CACHE_TTL_SECONDS:60}
       max-size: ${ARC_REACTOR_TOOL_RESULT_CACHE_MAX_SIZE:200}
+
+    circuit-breaker:
+      enabled: ${ARC_REACTOR_CIRCUIT_BREAKER_ENABLED:true}
+      failure-threshold: ${ARC_REACTOR_CIRCUIT_BREAKER_FAILURE_THRESHOLD:5}
+      reset-timeout-ms: ${ARC_REACTOR_CIRCUIT_BREAKER_RESET_TIMEOUT_MS:30000}
 
     citation:
       enabled: ${ARC_REACTOR_CITATION_ENABLED:false}
@@ -207,6 +218,10 @@ arc:
       security:
         allowed-server-names: ${ARC_REACTOR_MCP_ALLOWED_SERVER_NAMES:atlassian,swagger}
       allow-private-addresses: ${ARC_REACTOR_MCP_ALLOW_PRIVATE_ADDRESSES:false}
+      health:
+        enabled: ${ARC_REACTOR_MCP_HEALTH_ENABLED:true}
+        check-interval-ms: ${ARC_REACTOR_MCP_HEALTH_CHECK_INTERVAL_MS:30000}
+        cooldown-ms: ${ARC_REACTOR_MCP_HEALTH_COOLDOWN_MS:5000}
 
     # slack 설정은 arc-slack/src/main/resources/application.yml로 이동
 
