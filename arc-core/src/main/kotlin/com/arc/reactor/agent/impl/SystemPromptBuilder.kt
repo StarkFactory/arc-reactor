@@ -320,6 +320,13 @@ internal class SystemPromptBuilder(
         append("(startOfWeek, startOfMonth, endOfWeek, endOfMonth), ")
         append("use simple date comparisons like 'created >= -7d' instead.\n")
         append("You have up to 10 tool calls per request — use retries wisely.\n")
+        append("IMPORTANT — Multi-tool queries: ")
+        append("If the user asked about MULTIPLE topics and ONE tool fails, ")
+        append("do NOT stop. Continue calling the remaining tools for the other parts.\n")
+        append("Example: User asks 'JAR-123 이슈와 관련 문서 같이 찾아줘'\n")
+        append("→ work_item_context fails → still call confluence_search_by_text for the document part\n")
+        append("→ Report partial results: show what succeeded, note what failed.\n")
+        append("NEVER give up on an entire compound request because one tool returned an error.\n")
     }
 
     /** Confluence 도구 우선순위 힌트 — 워크스페이스 쿼리에서만 포함한다. */

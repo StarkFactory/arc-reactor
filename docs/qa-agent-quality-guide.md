@@ -153,6 +153,8 @@
 - [ ] tool_config ANY 모드 (첫 호출 강제)
 - [ ] ReAct iteration에서 원래 질문 반복
 - [ ] 의도별 temperature 분리
+- [x] 멀티스텝 도구 실패 시 나머지 도구 계속 실행 지시 (2026-04-08 SystemPromptBuilder에 추가)
+- [x] 빈 쿼리에서 기본값으로 도구 호출 지시 (2026-04-08 tools.md에 추가)
 
 ---
 
@@ -205,6 +207,8 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 | 이전 | 답변 품질 규칙 추가 | 구조화/인사이트/후속질문 |
 | 2026-04-08 | QA 검증 루프 재가동 | 지속적 품질 모니터링 |
 | 2026-04-08 | few-shot negative 예제 추가 + Compound Questions 헤더 수정 | false positive 감소, 테스트 1건 해결 |
+| 2026-04-08 | [Tool Error Retry] 멀티스텝 early-exit 방지 지시 추가 | B1: 첫 도구 실패 후 나머지 도구 계속 호출 유도 |
+| 2026-04-08 | tools.md 불명확 쿼리 처리 섹션 추가 | D6: 빈 쿼리에서 역질문 대신 기본값으로 도구 호출 |
 
 ---
 
@@ -296,6 +300,19 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - SystemPromptBuilderTest: compound question hint 기대값 불일치
 - 잔여 개선: (1) 다중 도구 호출 일관성 (2) 도구 API 실패 시 에러 안내 개선 (3) grounding 비율 향상
 
+### Round 6 (2026-04-08 코드 분석)
+- 분석 대상: B1 멀티스텝 early-exit 버그, D6 빈 쿼리 역질문 회피
+- 빌드: PASS (compileKotlin + compileTestKotlin, 0 warnings)
+- 수정 파일:
+  - `arc-core/…/SystemPromptBuilder.kt` L312-323: `[Tool Error Retry]` 섹션에 멀티스텝 지속 실행 지시 6줄 추가
+  - `arc-slack/src/main/resources/prompts/tools.md` L43-50: `불명확한 쿼리 처리` 섹션 신규 추가
+- 근본 원인 분석:
+  - B1: `TOOL_ERROR_RETRY_HINT`는 "같은 도구 재시도"만 지시 → 복합 쿼리에서 첫 도구 실패 시 나머지 도구 미호출. `appendToolErrorRetryHint()`에 "compound query에서 한 도구 실패 시 나머지 도구는 계속 호출" 명시 추가
+  - D6: tools.md에 불명확 쿼리 대응 규칙 없음 → LLM이 역질문으로 회피. "기본값으로 도구 호출 후 결과 제시" 지시 추가
+- 기대 효과:
+  - B1: R5 FAIL → R7에서 PASS 예상 (confluence 폴백 호출 유도)
+  - D6: 역질문 대신 `confluence_search_by_text` 빈 키워드 호출 → 최근 문서 반환
+
 ### Round 5 (2026-04-08 12:15)
 - 시나리오: [A1, A2, B1(재검증), C2, D1, D6, NEW(보안문서)]
 - 도구 정확도: 6/7 (86%) — B1 FAIL (work_item_context 단독, 멀티스텝 미실행)
@@ -318,3 +335,28 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - NEW(보안문서): 5/5 완벽 응답 — 838건 중 5개 요약 + 문서별 링크 + 날짜 포함
 - 추세: 도구 정확도 80%→50%→75%→90%→**86%** | 품질 2.8→2.0→2.9→3.3→**3.4**
 - 잔여 개선: (1) B1 멀티스텝 early-exit 버그 조사 (2) D6 빈 쿼리 시 최근 문서 반환 (3) RAG 활성화 검토
+
+### Round 6 (2026-04-08 12:45)
+- 시나리오: [B1(재검증), D6(재검증), A5, B3, C3, D4, NEW2(DI플랫폼)]
+- 도구 정확도: 6/7 (86%) — B1 FAIL (confluence만 호출, jira 미호출, 3연속 FAIL)
+- 응답 품질 평균: 3.7/5 (R5 대비 +0.3)
+- LLM 응답시간: 단순 1,414ms / 도구호출 3,098ms / 복합 7,531ms
+- pgvector: OK (0.8.1)
+- RAG: 비활성 (ingestion 0건)
+- Admin 연동: 5/10 API PASS (50%) — 경로 불일치 2건, 미구현 3건. 설정 반영 PASS
+- 빌드: PASS | 테스트: 7,085개 전량 통과
+- MCP: swagger 11 + atlassian 37 = 48 tools CONNECTED
+- 코드 수정:
+  - SystemPromptBuilder: 도구 실패 시 "나머지 도구는 계속 호출" 지시 추가 (B1 대응)
+  - tools.md: "불명확한 쿼리 처리" 섹션 추가 — 역질문 금지, 기본값으로 도구 호출 (D6 대응)
+- 발견 이슈:
+  - B1: 3연속 FAIL — confluence_search_by_text만 호출, jira 미호출. grounded=false. 프롬프트 수정 적용 전 테스트라 R7에서 재검증
+  - D6: 도구 선택 PASS로 개선(R5 FAIL→R6 PASS), 그러나 빈 키워드로 실행 실패. CQL 직접 실행 또는 기본 키워드 폴백 필요
+  - A5(업무브리핑): 5/5 완벽 응답 — 날짜 인식, 구조화, 후속 제안 모두 포함
+  - B3(API+Jira): 4/5 — swagger + jira 두 도구 정확 호출, 멀티스텝 성공 사례
+  - Block Kit 출처: 6/7 응답에 "출처" 섹션 포함 확인 (신규 적용 성공)
+- Admin API 실패 상세:
+  - 경로 불일치: /api/admin/personas(→/api/personas), /api/admin/model-pricing(→/api/admin/platform/pricing)
+  - 미구현: Output Guard Rules, Scheduler Jobs, Tool Policy API
+- 추세: 도구 정확도 80%→50%→75%→90%→86%→**86%** | 품질 2.8→2.0→2.9→3.3→3.4→**3.7**
+- 잔여 개선: (1) B1 프롬프트 수정 효과 R7 재검증 (2) D6 빈 쿼리 CQL 폴백 (3) Admin API 경로 정리
