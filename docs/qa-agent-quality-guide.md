@@ -601,3 +601,17 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
   - S7: "[김서영] BB30 현황" → 도구 미호출, "찾아볼게요" 선언만
 - Confluence 실패 분석: atlassian-mcp 로그에서 CQL은 정상 실행됨. 문제는 LLM↔도구 결과 전달 과정
 - 추세: 도구 100%^6→**90%** | 품질 3.5→**3.1** | Confluence 제외: **4.0**
+
+### Round 22 (2026-04-08 21:00) — forcedTool 버그 수정 + Confluence 복구!
+- 시나리오: 전체 10개 (Jira 3 + Confluence 3 + Work 1 + Swagger 1 + 캐주얼 1 + 일반 1)
+- **도구 정확도: 10/10 (100%)**
+- **응답 품질 평균: 4.3/5** — 역대 최고! 5점 3건, 4점 7건, 3점 이하 0건!
+- **grounded=true: 8/10 (80%)** — 역대 최고!
+- **Confluence 완전 복구**: S2(온보딩) grounded=True, S8(배포 프로세스) grounded=True — R13~R21 연속 실패 해결!
+- 근본 원인 수정:
+  - SpringAiAgentExecutor: `effectiveTools = if (forcedToolContext != null) emptyList() else tools` → `effectiveTools = tools`
+  - forcedTool 실행 후에도 도구 목록 유지 → LLM이 추가 도구 호출 가능
+- 5점 사례: 브리핑(표+기한지남), 보안 정책(287건 요약+링크), BB30 백로그(표+인사이트)
+- 전 시나리오 4점 이상 — 3점 이하 0건 (처음!)
+- 추세: 도구 100% | 품질 3.1→**4.3** (+1.2!) | grounded 60%→**80%**
+- **결론: forcedTool 버그 수정으로 Confluence 완전 복구. 전체 품질 4.3/5 달성. 4.5 목표 근접!**

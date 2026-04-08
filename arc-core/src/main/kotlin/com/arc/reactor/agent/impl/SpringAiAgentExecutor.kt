@@ -601,7 +601,9 @@ class SpringAiAgentExecutor(
                 )
             }
             val systemPrompt = buildSystemPromptForExecution(command, hookContext, ragContext, forcedToolContext)
-            val effectiveTools = if (forcedToolContext != null) emptyList() else tools
+            // 강제 도구 실행 후에도 도구 목록을 유지하여 LLM이 추가 도구 호출 가능하게 함
+            // (기존: forcedToolContext != null → emptyList → LLM이 텍스트로만 응답하는 버그)
+            val effectiveTools = tools
             return dispatchToStrategy(
                 command, effectiveTools, conversationHistory, hookContext,
                 toolsUsed, allowedTools, maxToolCalls, systemPrompt
