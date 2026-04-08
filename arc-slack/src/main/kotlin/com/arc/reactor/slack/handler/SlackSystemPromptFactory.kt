@@ -25,6 +25,7 @@ object SlackSystemPromptFactory {
         "accuracy",
         "tools",
         "format-slack",
+        "exemplars",
         "safety"
     )
 
