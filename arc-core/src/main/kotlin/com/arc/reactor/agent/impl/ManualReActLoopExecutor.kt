@@ -240,6 +240,19 @@ internal class ManualReActLoopExecutor(
             state.hadToolError = false
             return LoopAction.RetryWithoutTools
         }
+        // LLM이 tool_calls 없이 도구 호출 의도를 텍스트로만 표현한 경우 재시도
+        val outputText = output?.text.orEmpty()
+        val intentDetected = looksLikeUnexecutedToolIntent(outputText)
+        if (intentDetected) {
+            logger.info { "미실행 도구 의도 감지: pending=${pending.size}, active=${state.activeTools.size}, retry=${state.textRetryCount}, text=${outputText.take(80)}" }
+        }
+        if (pending.isEmpty() && state.activeTools.isNotEmpty() &&
+            state.textRetryCount < 1 && intentDetected
+        ) {
+            logger.info { "도구 호출 의도가 텍스트로만 표현됨 — 재시도 (textRetryCount=${state.textRetryCount})" }
+            state.textRetryCount++
+            return LoopAction.RetryWithoutTools
+        }
         recordLoopDurations(hookContext, state.totalLlmDurationMs, state.totalToolDurationMs)
         return buildFinalResult(output, command, state, toolsUsed)
     }
@@ -553,8 +566,33 @@ internal class ManualReActLoopExecutor(
         } ?: current
     }
 
+    /**
+     * LLM이 tool_calls를 구조적으로 생성하지 않고 텍스트로만 도구 호출 의도를 표현했는지 감지한다.
+     * 예: "confluence_search_by_text(keyword='온보딩')" 또는 "잠시만 기다려 주세요" 패턴.
+     */
+    private fun looksLikeUnexecutedToolIntent(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        return UNEXECUTED_TOOL_INTENT_PATTERN.containsMatchIn(text)
+    }
+
     companion object {
         internal const val BUDGET_EXHAUSTED_MESSAGE =
             "토큰 예산이 초과되었습니다. 응답이 불완전할 수 있습니다."
+
+        /** LLM이 도구를 호출하지 않고 텍스트로 도구 호출 코드를 작성한 패턴 */
+        private val UNEXECUTED_TOOL_INTENT_PATTERN = Regex(
+            "(?:" +
+                "confluence_search|jira_search|bitbucket_|spec_|work_" +
+                ")\\w*\\s*\\(" +
+                "|" +
+                "잠시만.*기다려.*주세요" +
+                "|" +
+                "찾아볼게요" +
+                "|" +
+                "검색해.*볼게요" +
+                "|" +
+                "BEGIN TOOL CALL",
+            RegexOption.IGNORE_CASE
+        )
     }
 }
