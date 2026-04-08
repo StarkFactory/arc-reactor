@@ -92,7 +92,7 @@ arc:
     llm:
       default-provider: gemini
       default-model: ${ARC_REACTOR_LLM_DEFAULT_MODEL:gemini-2.5-flash}
-      temperature: ${ARC_REACTOR_LLM_TEMPERATURE:0.1}  # Phase1 최적화: 사실 기반 정확도 우선 (Gemini 2.5+에서 빈 응답 발생 시 ARC_REACTOR_LLM_TEMPERATURE=1.0 으로 복원)
+      temperature: ${ARC_REACTOR_LLM_TEMPERATURE:1.0}  # Gemini 2.5 Flash 권장값. 0.1은 도구 호출 실패를 유발함 (R43에서 확인)
       top-p: ${ARC_REACTOR_LLM_TOP_P:0.95}
       max-output-tokens: 4096
       google-search-retrieval-enabled: ${ARC_REACTOR_LLM_GOOGLE_SEARCH_RETRIEVAL_ENABLED:false}
