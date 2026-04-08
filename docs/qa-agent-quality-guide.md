@@ -856,6 +856,15 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - temperature 0.1→1.0 복원: 0.1에서는 Gemini가 도구 호출 자체를 안 함
 - **다음 조치**: work_item_context에서 description 포함하도록 수정, 또는 forcedTool 실행 시에도 jira_get_issue 추가 호출 유도
 
+### Round 44 (2026-04-09 — forcedTool 이슈 키 패턴 수정)
+- 코드 수정 3건:
+  - atlassian-mcp-server: work_item_context에 description/linkedIssues/subtasks 포함 (`083b9c9`)
+  - arc-reactor: WORK_ITEM_CONTEXT_HINTS에 "상세/설명/댓글/하위이슈/블로킹" 키워드 추가 (`fd94206e`)
+  - arc-reactor: temperature 0.1→1.0 복원 (`aacddf6e`)
+- 재검증: "HRFW-23059 이슈 상세 보여줘" → `work_item_context` 호출 성공, grounded=True, blockReason=None
+- 초반 실패는 MCP 연결 타이밍/캐시 문제 — 재시도 후 정상 동작 확인
+- **R43 차단 패턴 해결 확인: forcedTool 매칭 + description 포함 + temperature 복원**
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
