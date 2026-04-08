@@ -532,6 +532,93 @@ routes:
       - jira_get_issue
     priority: 20
 
+  - id: jira_issue_comments
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - 댓글
+      - 코멘트
+      - comment
+      - comments
+      - 최근 업데이트
+      - 논의 내용
+      - 논의
+      - 토론
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_comments` before answering.
+      Fetch the issue comments to show recent discussion and updates.
+      Do not summarize from prior knowledge without calling the tool first.
+    preferredTools:
+      - jira_get_comments
+      - jira_get_issue
+    priority: 22
+
+  - id: jira_issue_links
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - 블로킹
+      - 관련 이슈
+      - 연결된
+      - 의존성
+      - blocks
+      - blocked by
+      - blocking
+      - linked
+      - issuelinks
+      - 연결
+      - 링크된
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_issue` before answering and check the `issuelinks` field.
+      The issuelinks field contains blocking relationships (blocks/is blocked by) and related issues.
+      Do not guess issue relationships without calling the tool first.
+    preferredTools:
+      - jira_get_issue
+      - jira_search_issues
+    priority: 24
+
+  - id: jira_issue_subtasks
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - 하위 이슈
+      - 서브태스크
+      - subtask
+      - subtasks
+      - 자식 이슈
+      - 에픽 분해
+      - 에픽 하위
+      - 하위 작업
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_issue` before answering and check the `subtasks` field.
+      The subtasks field lists all child issues under this parent or epic.
+      Summarize subtask statuses (done/in-progress/todo count).
+      Do not guess subtask state without calling the tool first.
+    preferredTools:
+      - jira_get_issue
+      - jira_search_issues
+    priority: 25
+
+  - id: jira_issue_detail
+    category: jira
+    regexPatternRef: ISSUE_KEY
+    requiredKeywords:
+      - 이슈 상세
+      - 본문
+      - 설명
+      - 뭐에 대한
+      - 어떤 이슈
+      - description
+      - 내용 확인
+      - 상세 내용
+    promptInstruction: >-
+      For this request, you MUST call `jira_get_issue` before answering and read the `description` field.
+      The description contains the full issue body and acceptance criteria.
+      Do not answer what the issue is about without calling the tool first.
+    preferredTools:
+      - jira_get_issue
+    priority: 28
+
   - id: jira_issue
     category: jira
     regexPatternRef: ISSUE_KEY
@@ -603,6 +690,16 @@ routes:
       - 요약
       - 정리
       - 브리핑
+      - 에픽 진행률
+      - 진행률
+      - 진척률
+      - 진행 현황
+      - 상태 변경
+      - 완료로 변경
+      - 담당자별 분포
+      - 담당자별
+      - assignee 분포
+      - 담당자 현황
     excludeRoutes:
       - jira_due_soon
       - jira_blocker
@@ -612,6 +709,9 @@ routes:
     promptInstruction: >-
       For this request, you MUST call `jira_search_issues` before answering.
       Use the obvious project key from the user message and summarize the returned issues with source links.
+      For epic progress: search issues under the epic and count done/in-progress/todo.
+      For status changes: filter by `status CHANGED` or recent updated date.
+      For assignee distribution: group results by assignee field.
     preferredTools:
       - jira_search_issues
       - jira_search_by_text
