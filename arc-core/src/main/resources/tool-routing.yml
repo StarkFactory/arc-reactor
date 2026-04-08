@@ -215,6 +215,73 @@ routes:
       - confluence_search_by_text
     priority: 3
 
+  # ── 복합 질문 (멀티 카테고리) ──
+
+  - id: compound_jira_confluence
+    category: compound
+    multiKeywordGroups:
+      - - 이슈
+        - jira
+        - 지라
+        - 티켓
+        - 프로젝트
+      - - 문서
+        - 컨플루언스
+        - confluence
+        - wiki
+        - 위키
+        - 페이지
+    keywords:
+      - 같이
+      - 함께
+      - 이랑
+      - 도 찾아
+      - 도 같이
+      - 연결
+      - 관련
+    promptInstruction: >-
+      The user wants BOTH Jira issues AND Confluence documents. You MUST call BOTH tools:
+      1. First call `jira_search_issues` to find the issues.
+      2. Then call `confluence_search_by_text` to find related documents.
+      Do NOT skip either tool. If one fails, still call the other.
+      Present results in two sections: **이슈 현황** and **관련 문서**.
+    preferredTools:
+      - jira_search_issues
+      - confluence_search_by_text
+      - jira_search_by_text
+      - confluence_answer_question
+    priority: 2
+
+  - id: compound_jira_bitbucket
+    category: compound
+    multiKeywordGroups:
+      - - 이슈
+        - jira
+        - 지라
+        - 스프린트
+        - 티켓
+      - - pr
+        - pull request
+        - 빗버킷
+        - bitbucket
+        - 머지
+        - 브랜치
+    keywords:
+      - 같이
+      - 함께
+      - 이랑
+      - 연결
+      - 관련
+    promptInstruction: >-
+      The user wants BOTH Jira issues AND Bitbucket PRs. You MUST call BOTH tools:
+      1. First call `jira_search_issues` to find the issues.
+      2. Then call `bitbucket_list_prs` to find related PRs.
+      Do NOT skip either tool. If one fails, still call the other.
+    preferredTools:
+      - jira_search_issues
+      - bitbucket_list_prs
+    priority: 2
+
   # ── Work 도구 ──
 
   - id: work_briefing
