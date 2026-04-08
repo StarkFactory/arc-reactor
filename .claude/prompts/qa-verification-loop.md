@@ -354,3 +354,38 @@ git push origin main
 - 출처 인용 정밀도: 인라인 출처 + 하단 출처 일관성
 - Slack Block Kit context 블록 최적화
 - 보안/안정성 지표 안정화 (CircuitBreaker CLOSED 유지, 캐시 히트율 60%+)
+
+---
+
+## atlassian-mcp-server 발전 계획 (회사 정보 조회의 핵심)
+
+> atlassian-mcp-server는 300명 직원의 Jira/Confluence/Bitbucket 데이터를 에이전트에 제공하는 **핵심 인프라**.
+> arc-reactor 응답 품질은 이 서버의 도구 품질에 직접 의존한다.
+
+### 현재 도구 현황 (37개)
+- Confluence: 검색(CQL/텍스트), 스페이스, 페이지 조회, 지식 답변
+- Jira: 검색(JQL/텍스트), 이슈 조회, description, comments(신규), 프로젝트, 마감 임박, 블로커, 브리핑
+- Bitbucket: PR 목록/상세, 브랜치, 리포, SLA, 리뷰 큐
+- Work: 브리핑, 스탠드업, 우선순위, 릴리즈 리스크, 학습, 인터럽트 가드
+
+### 미구현 → 구현 필요 (품질 직접 영향)
+
+| 우선순위 | 도구 | 설명 | 품질 영향 |
+|---------|------|------|----------|
+| **P0** | Jira issuelinks READ | "뭐가 블로킹?" 답변 가능 | 이슈 의존성 분석 |
+| **P0** | Jira subtasks | "하위 이슈 보여줘" | 에픽/스토리 분해 |
+| **P1** | Confluence children/ancestors | "하위 문서 보여줘" | 문서 계층 탐색 |
+| **P1** | Confluence comments | 결정사항 검색 | 댓글에 있는 정보 접근 |
+| **P1** | Bitbucket PR diff/diffstat | "뭐가 바뀌었어?" | 코드 리뷰 컨텍스트 |
+| **P1** | Bitbucket PR comments READ | "리뷰 피드백?" | 코드 리뷰 대화 |
+| **P2** | Jira Board/Sprint API | "스프린트 진행률?" | 애자일 워크플로우 |
+| **P2** | Bitbucket 코드 검색 | "함수 X 어디서 사용?" | 코드 기반 질의 |
+| **P2** | Bitbucket 커밋 이력 | "이번 주 커밋?" | 개발 활동 추적 |
+| **P2** | Jira changelog | "언제 상태 바뀌었어?" | 워크플로우 분석 |
+
+### 검증 시 atlassian-mcp-server 체크 항목
+- 도구 응답 시간: 각 도구별 p95 < 3초
+- 에러율: 도구별 성공률 99%+
+- deny list 동작: 민감 스페이스/프로젝트 차단 확인
+- Rate limit: Atlassian Cloud API 사용량 모니터링
+- 코드 변경 시 반드시 /Users/stark/ai/atlassian-mcp-server에서 커밋+푸시
