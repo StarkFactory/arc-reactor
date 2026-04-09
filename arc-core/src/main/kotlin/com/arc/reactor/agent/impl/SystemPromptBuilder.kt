@@ -197,6 +197,8 @@ internal class SystemPromptBuilder(
             appendConfluencePreferenceHint()
             appendMutationRefusal(userPrompt)
             appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendInternalDocSearchForcing(userPrompt, workspaceToolAlreadyCalled)
+            appendTeamStatusForcing(userPrompt, workspaceToolAlreadyCalled)
             appendWorkToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendWorkContextToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendJiraToolForcing(userPrompt, workspaceToolAlreadyCalled)
@@ -472,7 +474,15 @@ internal class SystemPromptBuilder(
         append("도구에서 에러가 발생하면 기술적 세부사항 없이 ")
         append("'현재 조회에 문제가 있습니다. 잠시 후 다시 시도해 주세요'로 안내.\n")
         append("친근하고 자연스러운 톤을 유지하세요. ")
-        append("딱딱한 보고서가 아닌, 동료에게 설명하듯 답변하세요.\n")
+        append("딱딱한 보고서가 아닌, 동료에게 설명하듯 답변하세요.\n\n")
+        append("[검색 키워드 추출 규칙]\n")
+        append("Confluence, Jira 등 검색 도구 호출 시 사용자 메시지에서 ")
+        append("핵심 키워드만 추출하여 검색하라.\n")
+        append("- 장황한 문장 그대로 검색하지 말 것. 핵심 명사 1-2개로 축소.\n")
+        append("- 사내 용어/약어/캐릭터명은 그대로 검색 (예: '고놈' → '고놈').\n")
+        append("- '~이 뭐야?', '~가 뭔지 알려줘' 패턴은 핵심어만 추출.\n")
+        append("  예: '고놈이 뭐야' → 검색어: '고놈', ")
+        append("'배포 정책이 어떻게 돼?' → 검색어: '배포 정책'.\n")
     }
 
     /**
@@ -537,6 +547,45 @@ internal class SystemPromptBuilder(
         ) {
             append("\nFor this request, you MUST call `confluence_get_page_content` or `confluence_answer_question` before answering.")
             append(" Use the page title or obvious keyword from the user message and do not ask follow-up questions before the first tool call.")
+        }
+    }
+
+    /**
+     * 사내 문서 자율 검색 강제 호출 — '릴리즈 노트', '온보딩 가이드' 등
+     * 사용자가 'Confluence에서'를 명시하지 않아도 자동으로 Confluence를 검색한다.
+     */
+    private fun StringBuilder.appendInternalDocSearchForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        if (matchesHints(userPrompt, INTERNAL_DOC_HINTS)) {
+            append("\nFor this request, you MUST call ")
+            append("`confluence_search_by_text` before answering.")
+            append(" 사내 문서(릴리즈 노트, 가이드, 매뉴얼, 정책, 온보딩 등)에 대한 ")
+            append("질문은 사용자가 'Confluence에서'라고 명시하지 않아도 ")
+            append("자동으로 Confluence를 검색하라.")
+            append(" 검색 키워드는 사용자 메시지에서 핵심 명사 1-2개만 추출하라 ")
+            append("(장황한 문장 그대로 검색하지 말 것).")
+            append(" 예: '릴리즈 노트 찾아줘' → 검색어: '릴리즈 노트',")
+            append(" '온보딩 가이드 어디 있어?' → 검색어: '온보딩'.")
+        }
+    }
+
+    /**
+     * 팀 현황/진행 상황 도구 강제 호출 — 'work_morning_briefing' 또는 'jira_search_issues' 사용.
+     */
+    private fun StringBuilder.appendTeamStatusForcing(
+        userPrompt: String?,
+        workspaceToolAlreadyCalled: Boolean
+    ) {
+        if (workspaceToolAlreadyCalled) return
+        if (matchesHints(userPrompt, TEAM_STATUS_HINTS)) {
+            append("\nFor this request, you MUST call ")
+            append("`work_morning_briefing` or `jira_search_issues` before answering.")
+            append(" 팀 현황/진행 상황 질문은 반드시 도구를 호출하여 실시간 데이터를 기반으로 답변하라.")
+            append(" 프로젝트가 명시되면 `jira_search_issues`를, ")
+            append("전반적 현황이면 `work_morning_briefing`을 우선 사용하라.")
         }
     }
 
@@ -974,7 +1023,9 @@ internal class SystemPromptBuilder(
             matchesHints(prompt, WORK_PERSONAL_WRAPUP_HINTS) ||
             looksLikeWorkOwnerPrompt(prompt) ||
             looksLikeWorkItemContextPrompt(prompt) ||
-            looksLikeWorkServiceContextPrompt(prompt)
+            looksLikeWorkServiceContextPrompt(prompt) ||
+            matchesHints(prompt, INTERNAL_DOC_HINTS) ||
+            matchesHints(prompt, TEAM_STATUS_HINTS)
     }
 
     // ── 프롬프트 분류를 위한 힌트 키워드 집합 (한국어/영어) ──
@@ -1069,6 +1120,25 @@ internal class SystemPromptBuilder(
         private val LIST_HINTS = setOf("loaded specs", "list specs", "목록", "list")
         private val LOADED_HINTS = setOf("loaded", "로드된", "현재 로드된")
         private val REMOVE_HINTS = setOf("remove", "삭제")
+
+        /** 사내 문서 자율 검색 — 사용자가 'Confluence에서'라고 명시하지 않아도 매칭되는 키워드 */
+        private val INTERNAL_DOC_HINTS = setOf(
+            "릴리즈 노트", "릴리즈노트", "release note", "release notes",
+            "가이드", "guide", "매뉴얼", "manual", "온보딩", "onboarding",
+            "정책", "policy", "절차", "procedure", "프로세스", "process",
+            "규정", "regulation", "핸드북", "handbook", "사내 문서",
+            "내부 문서", "기술 문서", "운영 문서", "배포 절차", "장애 대응",
+            "코드 리뷰 가이드", "코딩 컨벤션", "convention", "아키텍처 문서",
+            "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog"
+        )
+
+        /** 팀 현황/진행 상황 — work_morning_briefing 또는 jira_search_issues 강제 호출 */
+        private val TEAM_STATUS_HINTS = setOf(
+            "팀 현황", "팀 진행", "팀 상황", "팀 상태", "팀 업무",
+            "진행 상황", "진행 현황", "진행상황", "진행현황",
+            "team status", "team progress", "team update",
+            "우리 팀", "팀원", "전체 현황", "업무 현황", "업무 상황"
+        )
 
         // WorkContextPatterns 공유 힌트 참조 (17쌍)
         private val BLOCKER_HINTS = WorkContextPatterns.BLOCKER_HINTS
