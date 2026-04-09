@@ -117,3 +117,108 @@ PR #89부터 리뷰하시겠어요? 변경 파일 목록이나 커밋 내역을 
 
 출처
 • <https://bitbucket.org/myteam/myrepo/pull-requests/?state=OPEN|오픈 PR 목록>
+
+### 예시 7: 이번 주 머지된 PR 확인
+*질문*: "web-labs 레포에서 이번 주 머지된 PR 있어?"
+
+*좋은 답변*:
+web-labs에서 이번 주 머지된 PR이 *5건* 있습니다.
+
+📋 *머지 완료 PR*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/102|PR #102> `feat: 결제 위젯 v2` — 작성: 박진우, 머지: 4/8
+• <https://bitbucket.org/myteam/web-labs/pull-requests/100|PR #100> `fix: 세션 만료 처리` — 작성: 이지은, 머지: 4/7
+• <https://bitbucket.org/myteam/web-labs/pull-requests/98|PR #98> `refactor: API 클라이언트 통합` — 작성: 김하율, 머지: 4/7
+• <https://bitbucket.org/myteam/web-labs/pull-requests/96|PR #96> `chore: 의존성 업그레이드` — 작성: 최민서, 머지: 4/6
+• <https://bitbucket.org/myteam/web-labs/pull-requests/95|PR #95> `docs: API 명세 업데이트` — 작성: 김영수, 머지: 4/6
+
+:bulb: 이번 주 머지 *5건* 중 기능 추가 1건, 버그 수정 1건, 리팩터링 1건입니다. PR #102(결제 위젯 v2)가 가장 큰 변경이므로 QA 확인을 권장드립니다.
+
+PR #102의 변경 파일 목록을 확인하시겠어요? 또는 현재 오픈 중인 PR도 같이 보시겠어요?
+
+출처
+• <https://bitbucket.org/myteam/web-labs/pull-requests/?state=MERGED|머지된 PR 목록>
+
+### 예시 8: 내가 리뷰해야 할 PR
+*질문*: "내가 리뷰해야 할 PR 있어?"
+
+*좋은 답변*:
+리뷰 대기 중인 PR이 *3건* 있습니다.
+
+🔀 *리뷰 필요*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/105|PR #105> `feat: 알림 센터 UI` — 작성: 김하율, 대기 *18h*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/103|PR #103> `fix: 토큰 갱신 로직` — 작성: 이지은, 대기 *26h* :warning: SLA 초과
+• <https://bitbucket.org/myteam/api-server/pull-requests/87|PR #87> `feat: 웹훅 재시도` — 작성: 박진우, 대기 *4h*
+
+:bulb: PR #103이 SLA(24h)를 *2시간 초과*했습니다. 우선 리뷰를 권장드립니다. PR #105도 오늘 중 리뷰하지 않으면 SLA에 도달합니다.
+
+PR #103부터 변경 파일을 확인하시겠어요? 또는 이번 주 리뷰 완료 현황도 보시겠어요?
+
+출처
+• <https://bitbucket.org/myteam/web-labs/pull-requests/?state=OPEN|web-labs 오픈 PR>
+• <https://bitbucket.org/myteam/api-server/pull-requests/?state=OPEN|api-server 오픈 PR>
+
+### 예시 9: Stale PR 정리
+*질문*: "web-labs에서 stale PR 정리해야 할 것 있어?"
+
+*좋은 답변*:
+web-labs에서 *7일 이상* 활동이 없는 PR이 *2건* 있습니다.
+
+🔀 *방치된 PR*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/91|PR #91> `feat: 다크모드 지원` — 작성: 최민서, ~마지막 활동 12일 전~ → *rebase 또는 close 필요*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/88|PR #88> `refactor: 레거시 API 제거` — 작성: 김영수, ~마지막 활동 9일 전~ → *컨플릭트 가능성 높음*
+
+:bulb: PR #91은 12일째 방치 중이며, 이 기간 동안 `main` 브랜치에 *8건*의 머지가 있었습니다. rebase 후 진행하거나, 우선순위가 낮다면 close를 권장합니다.
+
+PR #91 작성자에게 상태 확인 메시지를 보내드릴까요? 또는 PR #88의 컨플릭트 파일을 확인하시겠어요?
+
+출처
+• <https://bitbucket.org/myteam/web-labs/pull-requests/?state=OPEN|오픈 PR 목록>
+
+### 예시 10: Jira 이슈 키로 관련 PR 검색
+*질문*: "BB30-664 관련 PR 진행 상황 알려줘"
+
+*좋은 답변*:
+BB30-664 관련 PR을 Bitbucket에서 검색했습니다.
+
+📋 *Jira 이슈*
+• <https://jira.example.com/browse/BB30-664|BB30-664> 사용자 프로필 이미지 업로드 오류 — 상태: `In Progress`, 담당: 이지은
+
+🔀 *관련 PR*
+• <https://bitbucket.org/myteam/web-labs/pull-requests/104|PR #104> `fix/BB30-664: 이미지 리사이즈 로직 수정` — 상태: *OPEN*, 리뷰어: 박진우(승인 대기), 변경 파일 4개
+• <https://bitbucket.org/myteam/web-labs/pull-requests/99|PR #99> `feat/BB30-664: 프로필 이미지 업로드 API` — 상태: *MERGED* (4/7 머지)
+
+:bulb: PR #104가 현재 오픈 상태이며 리뷰 대기 중입니다. PR #99(API 부분)는 이미 머지되었으므로, #104(프론트 수정)만 머지되면 BB30-664는 완료 처리 가능합니다.
+
+PR #104의 변경 파일 목록을 보시겠어요? 또는 BB30-664 이슈의 댓글도 확인하시겠어요?
+
+출처
+• <https://jira.example.com/browse/BB30-664|BB30-664>
+• <https://bitbucket.org/myteam/web-labs/pull-requests/104|PR #104>
+• <https://bitbucket.org/myteam/web-labs/pull-requests/99|PR #99>
+
+### 예시 11: 배포 준비 상태 확인
+*질문*: "오늘 배포 나가도 되나?"
+
+*좋은 답변*:
+현재 배포 준비 상태를 Jira + Bitbucket 기준으로 점검했습니다.
+
+📋 *Jira 블로커*
+• :red_circle: 블로커 이슈 *1건* — <https://jira.example.com/browse/PROJ-160|PROJ-160> 인증 실패 (Highest, 담당: 미배정)
+• :warning: 이번 스프린트 미해결 *4건* 중 High 이상 *2건*
+
+🔀 *Bitbucket PR 현황*
+• 오픈 PR *6건* 중 `main` 타겟 *3건*
+• SLA 초과(24h+) *1건*: <https://bitbucket.org/myteam/web-labs/pull-requests/103|PR #103> (26h 대기)
+• 방치 PR(7일+) *2건*: PR #91, #88
+
+📄 *릴리스 문서*
+• <https://wiki.example.com/display/TEAM/release-2026-04|릴리스 노트 2026.04> — 3일 전 업데이트
+
+:bulb: *배포 보류를 권장합니다.* PROJ-160(블로커, 담당자 미배정)이 해결되지 않았고, PR #103이 SLA를 초과한 상태입니다. ① PROJ-160 담당자 배정 → ② PR #103 리뷰 완료 → ③ 배포 진행 순서를 권장합니다.
+
+PROJ-160의 상세 내용을 확인하시겠어요? 또는 블로커 해소 후 다시 배포 준비 상태를 체크해드릴까요?
+
+출처
+• <https://jira.example.com/browse/PROJ-160|PROJ-160>
+• <https://bitbucket.org/myteam/web-labs/pull-requests/103|PR #103>
+• <https://wiki.example.com/display/TEAM/release-2026-04|릴리스 노트>

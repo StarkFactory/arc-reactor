@@ -327,6 +327,57 @@ internal class SystemPromptBuilder(
         append("→ work_item_context fails → still call confluence_search_by_text for the document part\n")
         append("→ Report partial results: show what succeeded, note what failed.\n")
         append("NEVER give up on an entire compound request because one tool returned an error.\n")
+        appendEmptyResultRetryHint()
+        appendToolChainingEscalationHint()
+    }
+
+    /**
+     * 빈 결과 재시도 힌트 — 도구가 에러 없이 0건을 반환했을 때 키워드 변형 재검색을 유도한다.
+     *
+     * LangGraph의 "state-based retry with feedback" 패턴과 Spring AI Recursive Advisor의
+     * "검증 실패 시 피드백과 함께 재시도" 패턴을 참고하여 구현하였다.
+     * 코드 복사 없이 패턴/아이디어만 차용 (Apache 2.0 / MIT 호환).
+     */
+    private fun StringBuilder.appendEmptyResultRetryHint() {
+        append("\n[Empty Result Retry — 빈 결과 키워드 변형]\n")
+        append("When a search tool returns 0 results (empty list, no matches) ")
+        append("but NO error, do NOT immediately tell the user '결과가 없습니다'.\n")
+        append("Instead, retry with simplified or alternative keywords:\n")
+        append("1. **키워드 단순화**: 긴 문장 → 핵심 명사 1-2개로 축소.\n")
+        append("   예: '신입사원 온보딩 프로세스 가이드' → '온보딩'\n")
+        append("2. **동의어/영한 전환**: 한국어 키워드 → 영어, 또는 반대.\n")
+        append("   예: '배포 절차' → 'deploy', '인프라' → 'infrastructure'\n")
+        append("3. **부분 키워드**: 복합어를 분리하여 검색.\n")
+        append("   예: '결제시스템' → '결제', 'API게이트웨이' → 'gateway'\n")
+        append("4. **도구 전환**: confluence_search_by_text 0건 → ")
+        append("confluence_answer_question으로 재시도, ")
+        append("jira_search_issues 0건 → jira_search_by_text로 재시도.\n")
+        append("최대 2회까지 키워드 변형 재시도 후에도 0건이면 ")
+        append("'검색 결과가 없습니다. 다른 키워드로 시도해 보시겠어요?'로 안내.\n")
+    }
+
+    /**
+     * 도구 체이닝 자동 에스컬레이션 힌트 — 첫 도구 결과가 불충분하면 보조 도구를 호출하도록 유도한다.
+     *
+     * CrewAI의 "task delegation with automatic escalation" 패턴과
+     * LangGraph의 "conditional edge routing" 패턴을 참고하여 구현하였다.
+     * 코드 복사 없이 패턴/아이디어만 차용 (Apache 2.0 / MIT 호환).
+     */
+    private fun StringBuilder.appendToolChainingEscalationHint() {
+        append("\n[Tool Chaining — 자동 에스컬레이션]\n")
+        append("When a tool returns results but the information is insufficient ")
+        append("to fully answer the user's question, automatically call a follow-up tool:\n")
+        append("- jira_search_issues → 특정 이슈 상세 필요 시 → jira_get_issue\n")
+        append("- confluence_search_by_text → 문서 내용 필요 시 → confluence_get_page_content\n")
+        append("- bitbucket_list_prs → 특정 PR 상세 필요 시 → bitbucket_get_pr\n")
+        append("- spec_list → 스펙 상세 필요 시 → spec_summary 또는 spec_detail\n")
+        append("Do NOT ask the user 'Would you like more details?' ")
+        append("if the answer clearly requires detail — just call the follow-up tool.\n")
+        append("Example: User asks 'JAR-123 이슈 관련 문서 알려줘'\n")
+        append("→ jira_get_issue(JAR-123) returns issue with summary\n")
+        append("→ Automatically call confluence_search_by_text ")
+        append("with keywords from the issue summary\n")
+        append("→ Combine both results in one comprehensive response.\n")
     }
 
     /** Confluence 도구 우선순위 힌트 — 워크스페이스 쿼리에서만 포함한다. */
