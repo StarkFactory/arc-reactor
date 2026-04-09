@@ -13,7 +13,8 @@ internal object WorkContextJiraPlanner {
 
     private val jiraMyWorkHints = setOf(
         "my open", "assigned to me", "내 이슈", "내가 담당", "내 오픈",
-        "내 담당", "내 담당 이슈", "나한테", "나한테 할당", "내가 맡은"
+        "내 담당", "내 담당 이슈", "나한테", "나한테 할당", "내가 맡은",
+        "내 티켓", "내 지라", "내 jira"
     )
     private val jiraSearchHints = setOf("검색", "search")
     private val jiraRecentIssueHints = setOf(

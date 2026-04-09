@@ -76,6 +76,8 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         if (context.toolsUsed.isNotEmpty() && content.isNotBlank()) return false
         // 도구가 호출되지 않았고 워크스페이스 전용 질문이 아니면 일반 지식 답변으로 허용한다
         if (context.toolsUsed.isEmpty() && !isStrictWorkspaceQuery(context.command.userPrompt)) return false
+        // How-to 패턴("어떻게", "방법" 등)은 일반 지식 답변으로 허용한다
+        if (context.toolsUsed.isEmpty() && isHowToQuery(context.command.userPrompt)) return false
         if (allowsReadOnlyMutationRefusal(context, content)) return false
         if (allowsIdentityResolutionRefusal(content)) return false
         return !alreadyDeclinesVerification(content)
@@ -127,6 +129,11 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         return STRICT_WORKSPACE_KEYWORDS.any { keyword ->
             userPrompt.contains(keyword, ignoreCase = true)
         }
+    }
+
+    /** How-to 질문인지 판단한다 ("어떻게 보는지", "방법 알려줘" 등). */
+    private fun isHowToQuery(userPrompt: String): Boolean {
+        return HOW_TO_PATTERNS.any { pattern -> userPrompt.contains(pattern, ignoreCase = true) }
     }
 
     /** 응답이 이미 검증 불가를 선언하는 문구를 포함하는지 확인한다. */
@@ -250,6 +257,7 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "브랜치", "리포",
             "배포 현황", "배포 일정", "배포 정책", "배포 규칙", "릴리즈", "릴리스", "인시던트", "장애",
             "온보딩", "런북", "runbook", "팀 정책", "사내 정책", "우리팀 정책", "우리 팀 정책",
+            "세팅", "설정 방법", "가이드", "매뉴얼", "신입",
             "마감", "마감일", "기한", "due date", "deadline", "마감 임박",
             "완료", "완료된", "완료 이슈", "done", "resolved", "closed",
             "최근 이슈", "최근 일주일", "이번 주", "이번주", "이번 달", "이번달",
@@ -305,6 +313,11 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "thanks ", "thank you ", "hi ", "hello ",
             "고마워 ", "감사해 ", "감사합니다 ",
             "안녕 ", "안녕하세요 ", "네 ", "좋아 "
+        )
+
+        /** How-to 질문 패턴 (일반 지식 답변 허용). */
+        private val HOW_TO_PATTERNS = setOf(
+            "어떻게", "방법", "사용법", "사용 방법", "how to", "how do"
         )
 
         /** 이미 검증 불가를 선언한 응답 패턴. */

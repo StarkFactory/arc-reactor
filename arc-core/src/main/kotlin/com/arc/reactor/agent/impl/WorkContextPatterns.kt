@@ -119,7 +119,8 @@ internal object WorkContextPatterns {
 
     val EXPLICIT_BRIEFING_FALLBACK_HINTS = setOf(
         "브리핑", "briefing", "아침 요약", "오늘 현황",
-        "현황 요약", "현황 정리", "상황 정리", "상황 요약"
+        "현황 요약", "현황 정리", "상황 정리", "상황 요약",
+        "팀 진행 상황", "팀 현황", "우리 팀 상황", "팀 요약"
     )
 
     val HYBRID_RELEASE_RISK_HINTS = setOf(

@@ -1010,7 +1010,8 @@ internal class SystemPromptBuilder(
         )
         private val MY_ISSUE_HINTS = setOf(
             "내 이슈", "내가 담당", "내 담당 이슈", "나한테 할당", "내가 맡은 이슈",
-            "my open issues", "assigned to me", "내 오픈 이슈", "내 진행 이슈"
+            "my open issues", "assigned to me", "내 오픈 이슈", "내 진행 이슈",
+            "내 티켓", "내 지라", "내 jira"
         )
         private val WORK_STANDUP_HINTS = setOf(
             "standup", "스탠드업", "daily update", "업데이트 초안", "standup update",
