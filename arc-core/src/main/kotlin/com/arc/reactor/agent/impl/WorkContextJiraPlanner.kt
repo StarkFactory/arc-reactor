@@ -20,6 +20,11 @@ internal object WorkContextJiraPlanner {
         "최근 jira 이슈", "최근 이슈", "최근 운영 이슈",
         "recent jira issue", "recent issues"
     )
+    private val jiraCompletedIssueHints = setOf(
+        "최근 완료", "최근 완료 이슈", "완료된 이슈", "완료한 이슈",
+        "recently completed", "recently done", "recently resolved",
+        "done issues", "resolved issues", "closed issues"
+    )
     private val jiraStatusChangeHints = setOf(
         "상태가 많이 바뀐", "상태 변화", "status changed", "status changes"
     )
@@ -89,6 +94,25 @@ internal object WorkContextJiraPlanner {
                 }
             )
         }
+        // 완료 이슈 조회 — 프로젝트 키 없이도 완료 상태 JQL로 검색
+        if (n.matchesAnyHint(jiraCompletedIssueHints) &&
+            (n.contains("jira") || n.contains("지라") ||
+                n.contains("이슈") || n.contains("티켓") ||
+                ctx.projectKey != null)
+        ) {
+            val jql = if (ctx.projectKey != null) {
+                """project = "${ctx.projectKey}" AND status in (Done, Resolved, Closed) ORDER BY updated DESC"""
+            } else {
+                "status in (Done, Resolved, Closed) ORDER BY updated DESC"
+            }
+            return ForcedToolCallPlan(
+                "jira_search_issues",
+                buildMap {
+                    put("jql", jql)
+                    put("maxResults", 10)
+                }
+            )
+        }
         return null
     }
 
@@ -102,6 +126,16 @@ internal object WorkContextJiraPlanner {
         val pk = ctx.projectKey ?: return null
         val n = ctx.normalized
 
+        if (n.matchesAnyHint(jiraCompletedIssueHints)) {
+            return ForcedToolCallPlan(
+                "jira_search_issues",
+                mapOf(
+                    "jql" to
+                        """project = "$pk" AND status in (Done, Resolved, Closed) ORDER BY updated DESC""",
+                    "maxResults" to 10
+                )
+            )
+        }
         if (n.matchesAnyHint(jiraRecentIssueHints) ||
             n.matchesAnyHint(jiraStatusChangeHints)
         ) {

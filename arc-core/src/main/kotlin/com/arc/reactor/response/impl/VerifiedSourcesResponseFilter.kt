@@ -249,7 +249,8 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "pull request", "pr ", "브랜치", "리포",
             "배포 현황", "배포 일정", "배포 정책", "배포 규칙", "릴리즈", "릴리스", "인시던트", "장애",
             "온보딩", "런북", "runbook", "팀 정책", "사내 정책", "우리팀 정책", "우리 팀 정책",
-            "마감", "마감일", "기한", "due date", "deadline", "마감 임박"
+            "마감", "마감일", "기한", "due date", "deadline", "마감 임박",
+            "완료", "완료된", "완료 이슈", "done", "resolved", "closed"
         )
 
         /** 링크 없는 내부 읽기 전용 도구 목록. */
