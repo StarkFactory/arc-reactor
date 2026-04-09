@@ -1250,6 +1250,19 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - **코드 수정**: SystemPromptBuilder — INTERNAL_DOC_HINTS 28개 + TEAM_STATUS_HINTS 16개 + 검색 키워드 추출 규칙
 - Admin: 8/8 | 보안: PASS | 빌드: PASS (7,110 테스트) | user_identities: 2건 DB 저장
 
+### Round 76 (2026-04-09) — Confluence 자율 검색 + 팀 현황 수정 반영, 15개 실전 테스트
+- 15개 실전 시나리오 + Identity 주입 테스트
+- **수정 효과 대성공**:
+  - S2 "릴리즈 노트 찾아줘" → **confluence_search_by_text 자동 호출, grounded=true!** (R75 4점→성공)
+  - S3 "팀 진행 상황" → **work_morning_briefing 자동 호출, grounded=true!** (R75 4점→성공)
+  - S5 "환경 세팅 가이드" → **Confluence에서 온보딩 가이드 발견, grounded=true!**
+  - S9 "보안 정책 문서" → **Confluence 2회 검색, 관련 문서 발견!**
+  - S10 "배포 절차 가이드" → **Confluence 2회 검색, Labs 설정 가이드 발견!**
+  - S11 "스프린트 현황" → **Jira 50건 이슈 상태별 분류, 표 구조화!**
+  - S12 "나한테 마감 임박한 거" → **jira_my_open_issues + jira_due_soon_issues 동시, Identity 자동!**
+- **미해결**: S4 "고놈" 도구 미호출, S6 브리핑 OUTPUT_TOO_SHORT, S7 web-labs 머지PR 레포 파싱 실패, S13 "코딩 컨벤션" 미호출
+- **15개 중 성공 11개 (73%)** — Confluence 자율 검색 효과 극적
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
