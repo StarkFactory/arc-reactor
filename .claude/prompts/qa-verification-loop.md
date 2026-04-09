@@ -117,26 +117,56 @@ print('content:', str(d.get('content',''))[:600])
 ")
 ```
 
-### Agent 2: 코드 개선 (응답 품질 9.0+ 달성용)
+### Agent 2: 코드 개선 (매 Round 필수 실행 — 분석만 금지, 반드시 코드 수정)
 
 ```
 Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
-  /Users/stark/ai/arc-reactor에서 에이전트 응답 품질을 9.0+으로 높이기 위한 분석/수정.
+  에이전트 응답 품질 9.0+ 달성을 위한 **실제 코드 수정**. QA Round N.
   
-  docs/qa-agent-quality-guide.md를 먼저 읽고 최근 Round 결과에서 7~8점 시나리오 원인 확인.
+  **핵심 원칙: 분석만 하고 끝내지 말 것. 반드시 1개 이상 코드 수정 + 빌드 확인.**
   
-  ## 개선 대상 (8.0→9.0 핵심)
-  1. **인사이트 일관성**: 도구 결과 3건 이상이면 반드시 수량요약/추세/이상치/행동제안
-     - tools.md, exemplars.md 점검
-  2. **Swagger 상세 응답**: spec_list 후 spec_search/spec_detail 체인 안정화
-  3. **Confluence 검색 품질**: 키워드 추출 정확도, 결과 요약 수준
-  4. **Jira description/comments**: 아직 미구현. 이슈 본문/댓글이 없어서 상세 답변 불가
-     - /Users/stark/ai/atlassian-mcp-server에서 JiraIssueInfo에 description 필드 추가 가능 여부
-  5. **응답 시간 최적화**: 10초+ 응답 시나리오 원인 분석
+  ## Step 1: 최근 Round 결과 확인
+  docs/qa-agent-quality-guide.md의 '8. Round 검증 결과 기록'에서 최근 3개 Round의 7점 이하 시나리오 확인.
+  반복 실패 패턴이 있으면 그것을 최우선 수정 대상으로.
   
-  **가장 영향력 있는 1~2개만 실제 수정 (코드 수정 필수 — 분석만 금지).**
-  수정 후 ./gradlew compileKotlin compileTestKotlin 확인.
-  보고: 분석 + 수정 파일:라인 + 기대 점수 상승폭
+  ## Step 2: 수정 대상 선택 (영향력 큰 순서)
+  
+  ### arc-reactor (/Users/stark/ai/arc-reactor)
+  1. **VerifiedSourcesResponseFilter**: 오탐 패턴 발견 시 STRICT_WORKSPACE_KEYWORDS 보완
+  2. **WorkContextEntityExtractor/Planner**: 도구 트리거 패턴 미매칭 → forcedTool 또는 hint 추가
+  3. **SystemPromptBuilder**: 도구 선택 가이드 개선 — exemplars, tools.md
+  4. **Guard/Filter 체인**: 불필요한 차단 패턴 완화
+  5. **ReAct 루프 안정성**: 타임아웃, 에러 핸들링 개선
+  
+  ### atlassian-mcp-server (/Users/stark/ai/atlassian-mcp-server)
+  1. **도구 description 개선**: LLM이 도구를 더 잘 선택하도록 설명 보강
+  2. **누락 도구 추가**: 커밋 이력, PR diff 통계 등
+  3. **응답 구조 개선**: 인사이트/요약/출처 링크 품질 향상
+  4. **한국어 키워드 인식**: 토크나이저, 검색어 추출 개선
+  
+  ## Step 3: 오픈소스 AI Agent 레퍼런스 참고 (선택)
+  품질 개선 아이디어가 필요하면 아래 오픈소스 프로젝트의 패턴을 WebSearch로 참고:
+  - **LangChain/LangGraph**: tool selection, routing, fallback 패턴
+  - **CrewAI**: multi-agent 협업, task delegation 패턴
+  - **AutoGen**: conversation flow, error recovery 패턴
+  - **Haystack**: RAG pipeline, document retrieval 최적화
+  - **Spring AI**: tool callback, advisor chain 패턴 (arc-reactor의 기반)
+  단, 라이선스 호환(Apache 2.0, MIT) 코드만 참고. 복사 금지, 패턴/아이디어만 차용.
+  
+  ## Step 4: 수정 + 빌드 검증
+  
+  ### arc-reactor 수정 시:
+  cd /Users/stark/ai/arc-reactor && ./gradlew compileKotlin compileTestKotlin
+  관련 테스트 실행: ./gradlew :arc-core:test --tests '*관련클래스*'
+  
+  ### atlassian-mcp-server 수정 시:
+  cd /Users/stark/ai/atlassian-mcp-server && ./gradlew compileKotlin compileTestKotlin
+  
+  ## 보고
+  - 수정한 파일:라인 목록
+  - 수정 이유 (어떤 Round/시나리오의 어떤 문제를 해결)
+  - 빌드/테스트 결과
+  - 기대 점수 상승폭
 ")
 ```
 
@@ -281,13 +311,14 @@ Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
 
 6개 에이전트 결과를 종합:
 - Agent 1: 품질 8.0 이상 유지 확인. 7점 이하 있으면 원인 분석
-- Agent 2: 코드 개선 확인 (수정사항이 있으면 빌드 재검증)
+- **Agent 2: 코드 수정 확인 — 수정사항이 있으면 빌드 재검증 + 커밋. 수정 없으면 왜 안 했는지 기록**
 - Agent 3: LLM/빌드 결과 확인
 - Agent 4: Admin 연동 확인
 - Agent 5: 보안/안정성 이상 없는지 확인
 - Agent 6: 테스트 실패 있으면 즉시 수정
-- **품질이 8.0 미만이면 원인 분석 후 즉시 수정**
-- **8.0 이상이면 9.0 달성을 위한 개선 포인트 기록**
+- **품질이 8.0 미만이면 Agent 2 수정 즉시 적용 + 빌드 + 커밋**
+- **8.0 이상이면 Agent 2의 개선 작업을 다음 Round 반영 (점진적 개선)**
+- **Agent 2 수정이 arc-reactor + atlassian-mcp-server 양쪽에 걸치면 각각 별도 커밋+push**
 
 ---
 
