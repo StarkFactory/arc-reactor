@@ -1176,6 +1176,21 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - Admin: 8/8 PASS | 보안: PASS | 빌드: PASS (7,108 테스트) | 응답: 1.2s
 - **다음 과제**: ① grounded 과적용 완화 ② work_personal_focus_plan 안정화 ③ BB 레포 검색 라우팅 ④ 일반 지식 질문 거부 해소
 
+### Round 70 (2026-04-09) — 직장인 실전 재검증 + Slack UID/PR 수정 효과
+- 도구: 7/10 (70%) — S2 PR by author 미지원, S4 Confluence 미트리거, S8 일반지식 거부
+- 응답 품질: **7.4/10** — R69(6.4) 대비 **+1.0 개선**
+- **정상만: 9.1/10** — 도구 호출 시 일관된 고품질
+- 10점: 3건 (S1 아침 브리핑★ 복구, S5 BB30-664 이슈, S7 BB 교육 저장소★ 복구)
+- 9점: 2건 (S3 리뷰 대기, S9 팀 현황) | 8점: 1건 | 5점: 2건 | 4점: 2건
+- **★ R69 재검증 성공 2건**: S1 아침 브리핑(4→10), S7 BB 교육 저장소(4→10)
+- **★ R69 재검증 미해결 3건**: S4 개발환경(Confluence 미트리거), S8 번다운차트(일반지식 거부), S10 퇴근정리(이메일 미주입)
+- **실전 대화 이슈 발견**: "내 pr 목록" → bitbucket_my_authored_prs 호출됨(키워드 수정 효과!) 하지만 requesterEmail 미주입
+  - 원인: Slack Bot에 `users:read.email` 스코프 필요. 또는 시스템 프롬프트에 이메일 주입 필요
+  - ToolCallOrchestrator의 enrichToolParams 로직은 정상 — metadata에 email만 있으면 자동 주입됨
+- Admin: 8/8 PASS | 보안: PASS | 빌드: PASS (7,108 테스트) | 응답: 1.4s
+- 추세(실전): R69 6.4 → R70 **7.4** | 정상만: 8.6 → **9.1** — 실전도 개선 중
+- **다음 과제**: ① Slack `users:read.email` 스코프 확인 ② S4/S8 Confluence/일반지식 트리거 ③ PR by author 도구
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
