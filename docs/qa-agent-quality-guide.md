@@ -953,6 +953,21 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - 추세: 8.1→**7.8** | 정상만: **9.0**
 - **R47~R53 정상 시나리오 평균: 9.1/10 — 안정적 9.0+ 확인**
 
+### Round 54 (2026-04-09)
+- 도구: 7/10 (70%) — S2 Jira 미호출, S6 브리핑 에러, S8 Swagger 환각 (swagger-mcp DOWN)
+- 응답 품질: 7.1/10 — **정상만: 8.0/10**
+- 10점: 0건 | 9점: 2건 (S7 Bitbucket 저장소 50개 카테고리별 구조화, S10 캐주얼 인사+브리핑 제안)
+- 8점: 3건 (S1 Jira, S4 Confluence, S9 일반 K8s 가이드) | 7점: 2건 (S3 백로그, S5 온보딩) | 5점: 3건
+- **S7 Bitbucket 첫 실전 성공!** — 비트버킷 연동 완료 후 저장소 50개 조회, grounded=true
+- S2 원인: "이번 주 마감" → duedate JQL 미시도, 도구 미호출 → VerifiedSources 차단
+- S6 원인: Work 브리핑 오케스트레이션 실패 (R47~R54 간헐 반복)
+- S8 원인: swagger-mcp DOWN → 도구 없음 → LLM이 spec_list 환각
+- 코드 수정: VerifiedSourcesResponseFilter — STRICT_WORKSPACE_KEYWORDS에 "배포 정책", "팀 정책" 등 6개 추가
+- Admin: 8/8 PASS | 보안: 인젝션 방어 PASS, 에러 노출 PASS | 빌드: PASS (7,085 테스트 0 실패)
+- LLM 응답시간: 단순 1.6s / 도구 7.0s / 복합 9.4s | pgvector 0.8.1 UP
+- 추세: 8.1→7.8→**7.1** | 정상만: 9.4→9.0→**8.0** — 하락. swagger-mcp 기동 필요
+- **R47~R54 정상 평균: 8.9/10 (swagger DOWN으로 소폭 하락)**
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
