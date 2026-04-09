@@ -34,6 +34,40 @@ internal object ReActLoopUtils {
      */
     const val MAX_TEXT_RETRIES_AFTER_TOOL_ERROR = 2
 
+    /**
+     * 빈 검색 결과를 감지하는 패턴.
+     * 도구가 에러 없이 0건 결과를 반환한 경우를 식별한다.
+     * JSON 배열 빈 값, "totalSize":0, "results":[] 등을 매칭한다.
+     */
+    private val EMPTY_RESULT_PATTERN = Regex(
+        "\"(?:totalSize|total|count|size)\"\\s*:\\s*0" +
+            "|\"(?:results|issues|items|pages|values)\"\\s*:\\s*\\[\\s*\\]" +
+            "|^\\s*\\[\\s*\\]\\s*$",
+        RegexOption.MULTILINE
+    )
+
+    /**
+     * 빈 검색 결과 감지 시 LLM에게 키워드 변형 재시도를 유도하는 힌트 메시지 (영/한 병기).
+     *
+     * LangGraph의 "state-based retry with feedback" 패턴과
+     * CrewAI의 "max_retry_limit with guardrail feedback" 패턴을 참고하였다.
+     */
+    const val EMPTY_RESULT_RETRY_HINT =
+        "The previous tool call returned 0 results (empty). " +
+            "Try again with simplified or alternative keywords: " +
+            "1) shorten to 1-2 core nouns, " +
+            "2) switch between Korean and English, " +
+            "3) split compound words, " +
+            "4) try a different search tool. " +
+            "Do NOT tell the user there are no results yet.\n" +
+            "이전 도구 호출에서 검색 결과가 0건이었습니다. " +
+            "키워드를 변형하여 재시도하세요: " +
+            "1) 핵심 명사 1-2개로 축소, " +
+            "2) 한국어↔영어 전환, " +
+            "3) 복합어 분리, " +
+            "4) 다른 검색 도구 시도. " +
+            "아직 사용자에게 '결과가 없습니다'라고 말하지 마세요."
+
     /** 도구 에러 감지 시 LLM에게 tool_call 재시도를 유도하는 힌트 메시지 (영/한 병기). */
     const val TOOL_ERROR_RETRY_HINT =
         "The previous tool call returned an error. " +
@@ -60,6 +94,16 @@ internal object ReActLoopUtils {
     fun hasToolError(toolResponses: List<ToolResponseMessage.ToolResponse>): Boolean =
         toolResponses.any { it.responseData().startsWith(TOOL_ERROR_PREFIX) }
 
+    /** 도구 응답이 빈 검색 결과인지 확인한다 (에러 아닌 0건 응답). */
+    fun hasEmptySearchResult(
+        toolResponses: List<ToolResponseMessage.ToolResponse>
+    ): Boolean =
+        toolResponses.any { resp ->
+            val data = resp.responseData()
+            !data.startsWith(TOOL_ERROR_PREFIX) &&
+                EMPTY_RESULT_PATTERN.containsMatchIn(data)
+        }
+
     /** Google GenAI 프로바이더일 때 Tool 응답을 JSON으로 정규화해야 하는지 판단합니다. */
     fun shouldNormalizeToolResponses(chatOptions: ChatOptions): Boolean =
         chatOptions is GoogleGenAiChatOptions
@@ -73,7 +117,7 @@ internal object ReActLoopUtils {
         )
 
     /**
-     * 도구 응답 중 에러가 있으면 재시도 힌트 UserMessage를 주입합니다.
+     * 도구 응답 중 에러가 있으면 재시도 힌트를, 빈 결과이면 키워드 변형 힌트를 주입합니다.
      *
      * LLM이 도구 에러를 보고 텍스트 응답("다시 시도하겠습니다")을 생성하는 대신
      * 실제 tool_call을 생성하도록 유도합니다. 이전 iteration의 hint는 제거하여 누적을 방지합니다.
@@ -88,6 +132,9 @@ internal object ReActLoopUtils {
         if (hasToolError(toolResponses)) {
             logger.debug { "도구 에러 감지, 재시도 힌트 주입" }
             messages.add(UserMessage(TOOL_ERROR_RETRY_HINT))
+        } else if (hasEmptySearchResult(toolResponses)) {
+            logger.debug { "빈 검색 결과 감지, 키워드 변형 힌트 주입" }
+            messages.add(UserMessage(EMPTY_RESULT_RETRY_HINT))
         }
     }
 
@@ -122,6 +169,7 @@ internal object ReActLoopUtils {
     private fun cleanupRetryHints(messages: MutableList<Message>) {
         messages.removeAll {
             (it is UserMessage && it.text == TOOL_ERROR_RETRY_HINT) ||
+                (it is UserMessage && it.text == EMPTY_RESULT_RETRY_HINT) ||
                 (it is SystemMessage && it.text == TOOL_ERROR_FORCE_RETRY_HINT)
         }
     }

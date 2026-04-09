@@ -164,7 +164,12 @@ class DefaultSlackEventHandler(
         userPrompt: String
     ): AgentResult {
         val displayName = userNameResolver?.resolveName(userId)
-        val prefixed = if (displayName != null) "[$displayName] $userPrompt" else userPrompt
+        // Slack User ID 형식(U로 시작하는 대문자+숫자)이면 prefix 생략 — raw ID 노출 방지
+        val prefixed = if (displayName != null && !SLACK_USER_ID_REGEX.matches(displayName)) {
+            "[$displayName] $userPrompt"
+        } else {
+            userPrompt
+        }
         val command = buildAgentCommand(sessionId, channelId, userId, prefixed)
         return agentExecutor.execute(command)
     }
@@ -277,6 +282,8 @@ class DefaultSlackEventHandler(
 
     companion object {
         private val MENTION_REGEX = Regex("<@[A-Za-z0-9]+>")
+        /** Slack User ID 형식 (예: U088X6MECJD). resolveName 폴백 시 raw ID 노출 방지용. */
+        private val SLACK_USER_ID_REGEX = Regex("^U[A-Z0-9]+$")
         private const val NO_RESPONSE_MARKER = "[NO_RESPONSE]"
         val REACTION_TO_RATING = mapOf(
             "+1" to FeedbackRating.THUMBS_UP,
