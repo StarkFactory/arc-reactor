@@ -1385,6 +1385,17 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - Jira 간헐 오류: S1(7), S4(7) — API 장애
 - **코어 Critical 수정 + MCP 도구 등록 + QA 루프 MD 재작성 진행 중**
 
+### Round 90 (2026-04-09) — 새 QA 루프 첫 실행, 8.5/10
+- 응답 품질: **8.5/10** | 10점: **5건** | 새 20개 시나리오 (ABCDE 카테고리)
+- **A 개인화 9.0** | **B 문서 8.6** | **C 업무 9.25** | D BB 7.25 | E 일반 8.33
+- 10점: A1 내 티켓, A4 할 일 정리, B1 릴리즈노트, C1 브리핑, C2 스탠드업
+- **C 업무 통합 9.25 달성!** (R77 7.8 → R90 9.25, 목표 9.0+ 달성)
+- **B 문서 8.6** (R77 5.2 → R90 8.6, forcedTool 효과)
+- D BB 7.25 — upstream_permission_denied 다발 (MCP 세션 이슈)
+- 코어 Critical 수정 반영: saveHistory 예외 처리 + 콜백 중복 제거
+- QA 루프 MD 완전 재작성 반영 + write 도구 전부 제거 (읽기 전용)
+- 새 읽기 도구 추가 진행 중: jira_search_users, jira_get_issue_changelog, confluence_get_page_comments
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
