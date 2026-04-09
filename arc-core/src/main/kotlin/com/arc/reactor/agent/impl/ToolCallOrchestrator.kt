@@ -17,6 +17,7 @@ import com.arc.reactor.response.ToolResponseSignalExtractor
 import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.response.VerifiedSourceExtractor
 import com.arc.reactor.tool.LocalTool
+import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -62,6 +63,7 @@ internal class ToolCallOrchestrator(
     private val toolOutputSanitizer: ToolOutputSanitizer? = null,
     private val maxToolOutputLength: Int = DEFAULT_MAX_TOOL_OUTPUT_LENGTH,
     private val requesterAwareToolNames: Set<String> = emptySet(),
+    private val mcpToolCallbackProvider: () -> List<ToolCallback> = { emptyList() },
     private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties(),
     private val tokenEstimator: TokenEstimator? = null,
     private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS
@@ -288,7 +290,8 @@ internal class ToolCallOrchestrator(
         normalizeToolResponseToJson: Boolean
     ): ParallelToolExecution? {
         val toolExists = findToolAdapter(toolName, tools) != null ||
-            springCallbacksByName.containsKey(toolName)
+            springCallbacksByName.containsKey(toolName) ||
+            findMcpToolCallback(toolName) != null
         if (!toolExists) {
             logger.warn { "도구 '$toolName' 미발견 (LLM 환각 가능성): tool=$toolName" }
             return ParallelToolExecution(
@@ -694,6 +697,15 @@ internal class ToolCallOrchestrator(
         springCallbacksByName[toolName]?.let { callback ->
             return invokeSpringCallback(toolName, toolInput, callback)
         }
+        // MCP 도구 폴백: tools 목록에 없지만 MCP 서버에 등록된 도구를 동적으로 탐색한다
+        findMcpToolCallback(toolName)?.let { mcpCallback ->
+            val adapter = ArcToolCallbackAdapter(
+                arcCallback = mcpCallback,
+                fallbackToolTimeoutMs = toolCallTimeoutMs
+            )
+            logger.info { "MCP 폴백으로 도구 발견: $toolName" }
+            return invokeArcAdapter(toolName, toolInput, adapter)
+        }
         logger.warn { "도구 '$toolName' 미발견 (LLM 환각 가능성)" }
         return ToolInvocationOutcome(output = toolNotFoundMessage(toolName), success = false, trackAsUsed = false)
     }
@@ -773,6 +785,21 @@ internal class ToolCallOrchestrator(
     private fun findToolAdapter(toolName: String, tools: List<Any>): ArcToolCallbackAdapter? {
         return tools.firstNotNullOfOrNull {
             (it as? ArcToolCallbackAdapter)?.takeIf { a -> a.arcCallback.name == toolName }
+        }
+    }
+
+    /**
+     * MCP 도구 콜백 프로바이더에서 이름으로 도구를 찾습니다.
+     *
+     * tools 목록에 MCP 도구가 포함되지 않은 경우 (MCP 서버 일시 장애 후 복구 등)
+     * 동적으로 MCP 매니저에서 도구를 탐색하여 폴백으로 사용한다.
+     */
+    private fun findMcpToolCallback(toolName: String): ToolCallback? {
+        return try {
+            mcpToolCallbackProvider().firstOrNull { it.name == toolName }
+        } catch (e: Exception) {
+            logger.debug(e) { "MCP 도구 폴백 탐색 실패: $toolName" }
+            null
         }
     }
 
@@ -861,8 +888,13 @@ internal class ToolCallOrchestrator(
     ): Map<String, Any?> {
         if (toolName !in requesterAwareToolNames) return toolParams
         if (hasExistingRequesterParam(toolParams)) return toolParams
-        val identifier = findOrExtractRequesterIdentifier(metadata) ?: return toolParams
-        return toolParams + identifier
+        val identifier = findOrExtractRequesterIdentifier(metadata)
+        if (identifier != null) {
+            logger.info { "도구 파라미터 자동 주입: $toolName ← ${identifier.first}=${identifier.second}" }
+            return toolParams + identifier
+        }
+        logger.warn { "요청자 식별 불가: $toolName, metadata keys=${metadata.keys}" }
+        return toolParams
     }
 
     /** 이미 assigneeAccountId 또는 requesterEmail 파라미터가 있는지 확인합니다. */

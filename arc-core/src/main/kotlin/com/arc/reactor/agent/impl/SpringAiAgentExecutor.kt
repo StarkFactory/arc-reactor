@@ -201,6 +201,7 @@ class SpringAiAgentExecutor(
         toolOutputSanitizer = toolOutputSanitizer,
         maxToolOutputLength = properties.mcp.security.maxToolOutputLength,
         requesterAwareToolNames = properties.toolEnrichment.requesterAwareToolNames,
+        mcpToolCallbackProvider = mcpToolCallbacks,
         toolResultCacheProperties = properties.toolResultCache,
         tokenEstimator = tokenEstimator,
         maxContextWindowTokens = properties.llm.maxContextWindowTokens

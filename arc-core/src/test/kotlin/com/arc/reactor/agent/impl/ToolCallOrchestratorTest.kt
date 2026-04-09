@@ -1685,6 +1685,93 @@ class ToolCallOrchestratorTest {
         assertTrue((estimate as Int) > 0, "추정값은 양수여야 한다")
     }
 
+    @Test
+    fun `MCP 폴백으로 tools 목록에 없는 MCP 도구를 실행할 수 있어야 한다`() = runTest {
+        val mcpCallback = object : ToolCallback {
+            override val name: String = "jira_my_open_issues"
+            override val description: String = "MCP Jira tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any =
+                "mcp-result:${arguments["requesterEmail"] ?: "none"}"
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { mapOf("project" to "DEV") },
+            requesterAwareToolNames = setOf("jira_my_open_issues"),
+            mcpToolCallbackProvider = { listOf(mcpCallback) }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(
+                mapOf("requesterEmail" to "bob@example.com")
+            )
+        )
+        // tools 목록에 MCP 도구를 포함하지 않는다 (MCP 서버 장애 후 복구 시뮬레이션)
+        val toolCall = toolCall(id = "id-mcp", name = "jira_my_open_issues")
+        val responses = orchestrator.executeInParallel(
+            toolCalls = listOf(toolCall),
+            tools = emptyList(),
+            hookContext = context,
+            toolsUsed = mutableListOf(),
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        assertEquals(1, responses.size, "MCP 폴백으로 도구 응답이 반환되어야 한다")
+        assertTrue(responses[0].responseData().contains("mcp-result")) {
+            "MCP 폴백 도구의 실행 결과가 포함되어야 한다: ${responses[0].responseData()}"
+        }
+        assertTrue(responses[0].responseData().contains("bob@example.com")) {
+            "requesterEmail이 MCP 도구에도 주입되어야 한다: ${responses[0].responseData()}"
+        }
+    }
+
+    @Test
+    fun `MCP 폴백으로 직접 실행 경로에서도 MCP 도구를 실행할 수 있어야 한다`() = runTest {
+        val mcpCallback = object : ToolCallback {
+            override val name: String = "jira_daily_briefing"
+            override val description: String = "MCP Jira daily briefing"
+            override suspend fun call(arguments: Map<String, Any?>): Any =
+                "briefing:${arguments["requesterEmail"] ?: "none"}"
+        }
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 5000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            requesterAwareToolNames = setOf("jira_daily_briefing"),
+            mcpToolCallbackProvider = { listOf(mcpCallback) }
+        )
+        val context = HookContext(
+            runId = "run-1",
+            userId = "user-1",
+            userPrompt = "prompt",
+            metadata = java.util.concurrent.ConcurrentHashMap(
+                mapOf("requesterEmail" to "charlie@example.com")
+            )
+        )
+        // tools 목록이 비어있지만 MCP 폴백으로 도구 실행 가능
+        val result = orchestrator.executeDirectToolCall(
+            toolName = "jira_daily_briefing",
+            toolParams = mapOf("date" to "2026-04-09"),
+            tools = emptyList(),
+            hookContext = context,
+            toolsUsed = mutableListOf()
+        )
+
+        assertTrue(result.success) { "MCP 폴백으로 직접 실행이 성공해야 한다" }
+        assertTrue(result.output.orEmpty().contains("briefing:charlie@example.com")) {
+            "requesterEmail이 직접 실행 경로의 MCP 도구에도 주입되어야 한다: ${result.output}"
+        }
+    }
+
     private fun toolCall(id: String, name: String, arguments: String = "{}"): AssistantMessage.ToolCall {
         val toolCall = mockk<AssistantMessage.ToolCall>()
         every { toolCall.id() } returns id

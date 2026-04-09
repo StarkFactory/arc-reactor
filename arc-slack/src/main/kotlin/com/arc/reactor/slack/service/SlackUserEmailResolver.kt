@@ -1,7 +1,10 @@
 package com.arc.reactor.slack.service
 
+import com.arc.reactor.identity.UserIdentity
+import com.arc.reactor.identity.UserIdentityStore
 import com.arc.reactor.support.throwIfCancellation
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mu.KotlinLogging
@@ -14,6 +17,11 @@ private val logger = KotlinLogging.logger {}
 /**
  * users.info API를 통해 Slack 사용자 이메일을 조회하고 인메모리 캐싱한다.
  *
+ * 조회 우선순위:
+ * 1. 인메모리 캐시 (TTL 기반)
+ * 2. DB (UserIdentityStore) — 서버 재시작 후에도 캐시 워밍 불필요
+ * 3. Slack API (users.info) → 성공 시 DB에 저장
+ *
  * 최선 노력(best-effort) 설계:
  * - 조회 실패 또는 이메일 부재 시 null을 반환
  * - CancellationException 외에는 호출자에게 예외를 전파하지 않음
@@ -23,6 +31,7 @@ private val logger = KotlinLogging.logger {}
  * @param enabled 활성화 여부 (false이면 항상 null 반환)
  * @param cacheTtlSeconds 캐시 TTL (초)
  * @param cacheMaxEntries 최대 캐시 엔트리 수
+ * @param userIdentityStore DB 기반 사용자 신원 저장소 (선택)
  */
 class SlackUserEmailResolver(
     botToken: String,
@@ -32,12 +41,17 @@ class SlackUserEmailResolver(
     private val webClient: WebClient = WebClient.builder()
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
-        .build()
+        .build(),
+    private val userIdentityStore: UserIdentityStore? = null
 ) {
 
     private val cache = ConcurrentHashMap<String, CachedEmail>()
     private val cacheMutex = Mutex()
 
+    /**
+     * Slack User ID로 이메일을 조회한다.
+     * 캐시 → DB → Slack API 순서로 조회하며, Slack API 성공 시 DB에 저장한다.
+     */
     suspend fun resolveEmail(userId: String): String? {
         if (!enabled) return null
         val normalizedUserId = userId.trim()
@@ -54,13 +68,86 @@ class SlackUserEmailResolver(
                 ?.takeIf { it.expiresAtMs > currentTime }
                 ?.let { return@withLock it.email }
 
-            val resolved = fetchEmail(normalizedUserId) ?: return@withLock null
-            putCache(normalizedUserId, resolved, currentTime)
-            resolved
+            // DB 우선 조회
+            val dbIdentity = findFromDb(normalizedUserId)
+            if (dbIdentity?.email != null) {
+                putCache(normalizedUserId, dbIdentity.email, currentTime)
+                return@withLock dbIdentity.email
+            }
+
+            // Slack API 폴백
+            val profile = fetchProfile(normalizedUserId) ?: return@withLock null
+            val email = profile.email
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: return@withLock null
+
+            putCache(normalizedUserId, email, currentTime)
+            saveToDb(normalizedUserId, email, profile.displayName ?: profile.realName)
+            email
         }
     }
 
-    private suspend fun fetchEmail(userId: String): String? {
+    /**
+     * Slack User ID로 전체 신원 정보를 조회한다.
+     * 캐시/DB/Slack API를 거쳐 [UserIdentity]를 반환한다.
+     * 이메일 조회 불가 시 null 반환.
+     */
+    suspend fun resolveIdentity(userId: String): UserIdentity? {
+        if (!enabled) return null
+        val normalizedUserId = userId.trim()
+        if (normalizedUserId.isBlank()) return null
+
+        // DB에 이미 저장된 경우 즉시 반환
+        val dbIdentity = findFromDb(normalizedUserId)
+        if (dbIdentity != null) return dbIdentity
+
+        // Slack API로 프로필 조회 후 DB 저장
+        val profile = fetchProfile(normalizedUserId) ?: return null
+        val email = profile.email
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+
+        val identity = UserIdentity(
+            slackUserId = normalizedUserId,
+            email = email,
+            displayName = profile.displayName ?: profile.realName
+        )
+        saveToDb(normalizedUserId, email, identity.displayName)
+        return identity
+    }
+
+    /** DB에서 사용자 신원 정보를 조회한다. 실패 시 null 반환. */
+    private fun findFromDb(userId: String): UserIdentity? {
+        val store = userIdentityStore ?: return null
+        return try {
+            store.findBySlackUserId(userId)
+        } catch (e: Exception) {
+            logger.warn(e) { "사용자 신원 DB 조회 실패: userId=$userId" }
+            null
+        }
+    }
+
+    /** Slack API 응답을 DB에 저장한다. 실패 시 경고 로그만 남긴다. */
+    private fun saveToDb(userId: String, email: String, displayName: String?) {
+        val store = userIdentityStore ?: return
+        try {
+            store.save(
+                UserIdentity(
+                    slackUserId = userId,
+                    email = email,
+                    displayName = displayName
+                )
+            )
+            logger.debug { "Slack 사용자 신원 DB 저장 완료: userId=$userId" }
+        } catch (e: Exception) {
+            logger.warn(e) { "사용자 신원 DB 저장 실패: userId=$userId" }
+        }
+    }
+
+    /** Slack users.info API에서 프로필 정보를 조회한다. */
+    private suspend fun fetchProfile(userId: String): SlackUserProfilePayload? {
         return try {
             val response = webClient.get()
                 .uri("/users.info?user={userId}", userId)
@@ -72,9 +159,7 @@ class SlackUserEmailResolver(
                 return null
             }
 
-            response.user?.profile?.email
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
+            response.user?.profile
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Slack users.info 조회 실패: userId=$userId" }
@@ -118,8 +203,12 @@ class SlackUserEmailResolver(
     )
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private data class SlackUserProfilePayload(
-        val email: String? = null
+    internal data class SlackUserProfilePayload(
+        val email: String? = null,
+        @JsonProperty("display_name")
+        val displayName: String? = null,
+        @JsonProperty("real_name")
+        val realName: String? = null
     )
 
     companion object {

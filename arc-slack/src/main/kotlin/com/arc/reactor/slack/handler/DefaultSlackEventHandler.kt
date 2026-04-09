@@ -265,17 +265,33 @@ class DefaultSlackEventHandler(
         channelId: String,
         userId: String
     ): MutableMap<String, Any> {
-        val requesterEmail = SlackHandlerSupport.resolveRequesterEmail(userId, userEmailResolver)
         val metadata = mutableMapOf<String, Any>(
             "sessionId" to sessionId,
             "source" to "slack",
             "channel" to "slack",
             "channelId" to channelId
         )
-        if (!requesterEmail.isNullOrBlank()) {
-            metadata["requesterEmail"] = requesterEmail
-            metadata["slackUserEmail"] = requesterEmail
-            metadata["userEmail"] = requesterEmail
+        // 전체 identity 조회 시도 → 실패 시 이메일만 폴백
+        val identity = SlackHandlerSupport.resolveIdentity(userId, userEmailResolver)
+        if (identity != null) {
+            metadata["requesterEmail"] = identity.email
+            metadata["slackUserEmail"] = identity.email
+            metadata["userEmail"] = identity.email
+            val jiraAccountId = identity.jiraAccountId
+            if (!jiraAccountId.isNullOrBlank()) {
+                metadata["requesterAccountId"] = jiraAccountId
+            }
+            val displayName = identity.displayName
+            if (!displayName.isNullOrBlank()) {
+                metadata["requesterDisplayName"] = displayName
+            }
+        } else {
+            val requesterEmail = SlackHandlerSupport.resolveRequesterEmail(userId, userEmailResolver)
+            if (!requesterEmail.isNullOrBlank()) {
+                metadata["requesterEmail"] = requesterEmail
+                metadata["slackUserEmail"] = requesterEmail
+                metadata["userEmail"] = requesterEmail
+            }
         }
         return metadata
     }

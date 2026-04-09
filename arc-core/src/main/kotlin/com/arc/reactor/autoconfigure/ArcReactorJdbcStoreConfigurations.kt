@@ -7,6 +7,8 @@ import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.audit.JdbcAdminAuditStore
 import com.arc.reactor.feedback.FeedbackStore
 import com.arc.reactor.feedback.JdbcFeedbackStore
+import com.arc.reactor.identity.JdbcUserIdentityStore
+import com.arc.reactor.identity.UserIdentityStore
 import com.arc.reactor.agent.multiagent.AgentSpecStore
 import com.arc.reactor.agent.multiagent.JdbcAgentSpecStore
 import com.arc.reactor.multibot.JdbcSlackBotInstanceStore
@@ -136,6 +138,13 @@ class JdbcMemoryStoreConfiguration {
         defaultTimeoutMs = properties.approval.timeoutMs,
         resolvedRetentionMs = properties.approval.resolvedRetentionMs
     )
+
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(name = ["jdbcUserIdentityStore"])
+    fun jdbcUserIdentityStore(
+        jdbcTemplate: JdbcTemplate
+    ): UserIdentityStore = JdbcUserIdentityStore(jdbcTemplate = jdbcTemplate)
 
     @Bean
     @Primary

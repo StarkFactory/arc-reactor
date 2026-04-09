@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.handler
 
+import com.arc.reactor.identity.UserIdentity
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.memory.UserMemoryManager
 import com.arc.reactor.slack.service.SlackUserEmailResolver
@@ -54,6 +55,21 @@ internal object SlackHandlerSupport {
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "Slack 요청자 이메일 조회 실패: userId=$userId" }
+            null
+        }
+    }
+
+    /** Slack User ID로 전체 신원 정보(이메일·Jira 계정 등)를 조회한다. */
+    suspend fun resolveIdentity(
+        userId: String,
+        userEmailResolver: SlackUserEmailResolver?
+    ): UserIdentity? {
+        val resolver = userEmailResolver ?: return null
+        return try {
+            resolver.resolveIdentity(userId)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Slack 사용자 신원 조회 실패: userId=$userId" }
             null
         }
     }
