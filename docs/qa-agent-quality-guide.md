@@ -1215,6 +1215,17 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - **User Identity Store 설계 완료** — V51 마이그레이션 + DB 우선 조회 + Admin API 계획
 - Admin: 8/8 PASS | 보안: PASS | 빌드: PASS (7,108 테스트) | 응답: 1.6s | pgvector UP
 
+### Round 73 (2026-04-09) — 기존 QA 6/6 10점, 실전 S7/S8 반복 패턴
+- 도구: 8/10 — S7 Confluence 미트리거, S8 팀 현황 미호출
+- 응답 품질: **8.6/10** — 정상만: **9.6/10**
+- 10점: 6건 (S1 이슈 현황, S2 완료 이슈, S3 릴리즈노트, S5 BB PR, S6 BB PR, S10 캐주얼)
+- 9점: 1건 (S4 브리핑) | 8점: 1건 (S9 Redis) | 5점: 1건 (S7 환경 세팅) | 4점: 1건 (S8 팀 현황)
+- S7/S8 반복 실패 패턴: grounded 모드의 과도한 보수성 → 능동 조회 없이 거부
+- **User Identity Store 구현 완료** (V51 마이그레이션 + DB 조회 + Slack API fallback)
+- **MCP 도구 enrichment 수정 완료** (mcpToolCallbackProvider 동적 폴백)
+- **Jira accountId 자동 조회 구현 중** (이메일→Jira API→DB 저장)
+- Admin: 8/8 PASS | 보안: PASS | 빌드: PASS (7,108 테스트) | 응답: 1.6s
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
