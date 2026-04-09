@@ -102,6 +102,38 @@ internal object WorkContextForcedToolPlanner {
             ?: WorkContextDiscoveryPlanner
                 .planCrossSourceAndStandup(clean, ctx)
             ?: planPreDeployAndFallback(clean, ctx)
+            ?: planBriefingFallbackNoProject(clean)
+            ?: planConfluenceDocSearch(clean)
+    }
+
+    /** 프로젝트 키 없이도 브리핑 요청 시 work_morning_briefing 강제 호출. */
+    private val briefingNoProjectHints = setOf(
+        "브리핑", "briefing", "아침 브리핑", "오늘 브리핑", "데일리 브리핑",
+        "아침 요약", "오늘 현황", "현황 요약"
+    )
+
+    private fun planBriefingFallbackNoProject(normalized: String): ForcedToolCallPlan? {
+        if (!normalized.matchesAnyHint(briefingNoProjectHints)) return null
+        return ForcedToolCallPlan(
+            "work_morning_briefing",
+            mapOf("confluenceKeyword" to "weekly", "reviewSlaHours" to 24, "dueSoonDays" to 7)
+        )
+    }
+
+    /** 사내 문서 검색 강제 — INTERNAL_DOC_HINTS 매칭 시 confluence_search_by_text 강제 호출. */
+    private val internalDocHints = setOf(
+        "릴리즈 노트", "릴리즈노트", "release note", "배포 가이드", "배포 절차",
+        "보안 정책", "온보딩", "매뉴얼", "핸드북", "장애 대응", "코딩 컨벤션",
+        "아키텍처 문서", "인프라 문서", "운영 문서", "회의록", "변경 이력"
+    )
+
+    private fun planConfluenceDocSearch(normalized: String): ForcedToolCallPlan? {
+        if (!normalized.matchesAnyHint(internalDocHints)) return null
+        val keyword = internalDocHints.firstOrNull { normalized.contains(it) } ?: return null
+        return ForcedToolCallPlan(
+            "confluence_search_by_text",
+            mapOf("keyword" to keyword, "limit" to 10)
+        )
     }
 
     // ── 오케스트레이터 전용 계획 수립 메서드 ──
