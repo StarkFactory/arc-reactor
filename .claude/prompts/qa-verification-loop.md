@@ -169,10 +169,26 @@ Agent(subagent_type: "general-purpose", model: "sonnet", prompt: "
   3. **한국어 키워드 인식**: 검색어 추출 개선
   4. **누락 도구 추가**: issuelinks, subtasks, confluence children 등
 
-  ## Step 3: 오픈소스 참고 (선택)
-  - LangChain/LangGraph: tool selection, routing, fallback
-  - Spring AI: advisor chain, tool callback 패턴
-  Apache 2.0/MIT만. 복사 금지, 패턴만 차용.
+  ## Step 3: 연구 기반 개선 (논문 + 오픈소스, Apache 2.0/MIT만)
+  
+  ### 즉시 적용 가능한 기법
+  1. **Knowledge Boundary** (EMNLP 2025): LLM이 자체 지식으로 답변 가능하면 도구 호출 생략 → 불필요 호출 -20~30%
+  2. **Tool Argument Augmenter** (Spring AI): 도구 호출 시 reasoning 필드 추가 → 디버깅+프롬프트 튜닝 근거
+  3. **Graceful Degradation** (FAILSAFE.md): N회 연속 도구 실패 → STANDARD 모드 전환 → 무응답→부분응답
+  4. **Context Summarization** (ACON/NeurIPS): 메시지 삭제 대신 요약 압축 → 긴 대화 품질 유지
+  
+  ### 중기 적용 기법
+  5. **Tool Search Tool** (Spring AI Community): 43개 도구를 임베딩 인덱스에 저장, LLM에는 검색 도구 1개만 → 토큰 -34~64%
+  6. **Recursive Advisors** (Spring AI): 도구 결과 검증 실패 시 자동 재시도 advisor
+  7. **Self-Reflection** (Reflexion/NeurIPS): 응답 생성 후 자체 검증 → 1회 완결 비율 +15%
+  8. **Hierarchical Tool Search** (Edge AI 2024): 도구를 2-level 카테고리로 분류 → 선택 정확도 +15~25%
+  
+  ### 참고 오픈소스
+  - Spring AI (Apache 2.0): ToolSearchToolCallAdvisor, RecursiveAdvisor, ToolArgumentAugmenter
+  - LangGraph (MIT): conditional edges, checkpointing, state-based retry
+  - CrewAI (MIT): role-based specialization, task delegation, guardrails
+  - Haystack (Apache 2.0): LLMRanker, pipeline optimization
+  복사 금지, 패턴/아이디어만 차용.
 
   ## Step 4: 수정 + 빌드 검증
   arc-reactor: cd /Users/stark/ai/arc-reactor && ./gradlew compileKotlin compileTestKotlin
