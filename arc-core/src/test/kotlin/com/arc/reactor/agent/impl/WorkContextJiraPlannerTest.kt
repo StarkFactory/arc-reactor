@@ -75,6 +75,28 @@ class WorkContextJiraPlannerTest {
 
             assertNull(plan, "jira 관련 힌트가 없으면 null이어야 한다")
         }
+
+        @Test
+        fun `jira 키워드 없어도 내 담당 이슈 힌트 — jira_my_open_issues를 반환해야 한다`() {
+            val plan = WorkContextJiraPlanner.planJiraSearch(
+                "내 담당 이슈 보여줘",
+                ctx("내 담당 이슈 보여줘")
+            )
+
+            assertNotNull(plan, "jira 키워드 없이 '내 담당 이슈'만으로 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_my_open_issues"
+        }
+
+        @Test
+        fun `나한테 할당된 이슈 힌트 — jira_my_open_issues를 반환해야 한다`() {
+            val plan = WorkContextJiraPlanner.planJiraSearch(
+                "나한테 할당된 이슈가 뭐야",
+                ctx("나한테 할당된 이슈가 뭐야")
+            )
+
+            assertNotNull(plan, "'나한테 할당' 힌트로 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_my_open_issues"
+        }
     }
 
     // ────────────────────────────────────────

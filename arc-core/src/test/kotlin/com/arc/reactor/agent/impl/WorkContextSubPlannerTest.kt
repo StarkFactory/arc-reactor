@@ -121,12 +121,47 @@ class WorkContextSubPlannerTest {
             }
 
             @Test
-            fun `레포지토리가 없으면 null 을 반환해야 한다`() {
+            fun `slug만으로 열린 PR — workspace 없이 repo만 반환해야 한다`() {
                 val plan = WorkContextBitbucketPlanner.planBitbucketRepoScoped(
-                    ctx("열린 pr 목록", repository = null)
+                    ctx(
+                        "web-labs 레포의 열린 pr",
+                        repository = null,
+                        repositorySlug = "web-labs"
+                    )
                 )
 
-                assertNull(plan, "repository가 null이면 plan이 null이어야 한다")
+                assertNotNull(plan, "slug만 있어도 plan이 null이면 안 된다")
+                plan!!.toolName shouldBe "bitbucket_list_prs"
+                plan.arguments["repo"] shouldBe "web-labs"
+                plan.arguments["state"] shouldBe "OPEN"
+                assertTrue(
+                    !plan.arguments.containsKey("workspace"),
+                    "workspace가 없으면 인자에 포함되지 않아야 한다"
+                )
+            }
+
+            @Test
+            fun `slug만으로 stale PR — workspace 없이 repo만 반환해야 한다`() {
+                val plan = WorkContextBitbucketPlanner.planBitbucketRepoScoped(
+                    ctx(
+                        "web-labs 저장소 stale pr",
+                        repository = null,
+                        repositorySlug = "web-labs"
+                    )
+                )
+
+                assertNotNull(plan, "slug만 있어도 stale PR plan이 null이면 안 된다")
+                plan!!.toolName shouldBe "bitbucket_stale_prs"
+                plan.arguments["repo"] shouldBe "web-labs"
+            }
+
+            @Test
+            fun `repository와 slug 모두 없으면 null 을 반환해야 한다`() {
+                val plan = WorkContextBitbucketPlanner.planBitbucketRepoScoped(
+                    ctx("열린 pr 목록", repository = null, repositorySlug = null)
+                )
+
+                assertNull(plan, "repository와 slug 모두 null이면 plan이 null이어야 한다")
             }
 
             @Test

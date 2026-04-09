@@ -603,6 +603,10 @@ internal class SystemPromptBuilder(
                 matchesHints(userPrompt, PROJECT_LIST_HINTS) -> appendToolForcing(
                 "`jira_list_projects`", " Do not answer from prior knowledge."
             )
+            matchesHints(userPrompt, MY_ISSUE_HINTS) -> appendToolForcing(
+                "`jira_my_open_issues`",
+                " Use currentUser() as the assignee filter. Do not ask for account ID — call the tool directly."
+            )
             looksLikeJiraIssueTransitionPrompt(userPrompt) -> appendToolForcing(
                 "`jira_get_transitions`", " Do not guess the available states."
             )
@@ -947,8 +951,14 @@ internal class SystemPromptBuilder(
             "회의 준비", "회의 브리핑", "미팅 준비", "미팅 브리핑",
             "meeting prep", "meeting preparation", "회의 전", "회의 들어가기 전"
         )
+        private val MY_ISSUE_HINTS = setOf(
+            "내 이슈", "내가 담당", "내 담당 이슈", "나한테 할당", "내가 맡은 이슈",
+            "my open issues", "assigned to me", "내 오픈 이슈", "내 진행 이슈"
+        )
         private val WORK_STANDUP_HINTS = setOf(
-            "standup", "스탠드업", "daily update", "업데이트 초안", "standup update"
+            "standup", "스탠드업", "daily update", "업데이트 초안", "standup update",
+            "데일리 스크럼", "스크럼 준비", "standup 준비", "스탠드업 준비", "일일 업무 보고",
+            "어제 뭐 했어", "오늘 뭐 할 거야", "어제 완료", "어제 한 일", "오늘 할 일"
         )
         private val WORK_RELEASE_RISK_HINTS = setOf(
             "release risk", "risk digest", "릴리즈 위험", "출시 위험", "release digest"

@@ -547,5 +547,21 @@ class WorkContextEntityExtractorTest {
 
             parsed.issueKey.shouldBeNull()
         }
+
+        @Test
+        fun `한국어 레포 키워드에서 repositorySlug를 추출해야 한다`() {
+            val parsed = WorkContextEntityExtractor.parsePrompt("web-labs 레포의 열린 PR")
+
+            parsed.repository.shouldBeNull()
+            parsed.repositorySlug shouldBe "web-labs"
+        }
+
+        @Test
+        fun `workspace-repo 형식이면 repositorySlug도 설정되어야 한다`() {
+            val parsed = WorkContextEntityExtractor.parsePrompt("acme/payments 저장소 확인")
+
+            parsed.repository.shouldNotBeNull()
+            parsed.repositorySlug shouldBe "payments"
+        }
     }
 }

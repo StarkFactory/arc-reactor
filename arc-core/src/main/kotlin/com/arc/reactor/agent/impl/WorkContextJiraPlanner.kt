@@ -12,7 +12,8 @@ internal object WorkContextJiraPlanner {
     // ── 힌트 키워드 셋 ──
 
     private val jiraMyWorkHints = setOf(
-        "my open", "assigned to me", "내 이슈", "내가 담당", "내 오픈"
+        "my open", "assigned to me", "내 이슈", "내가 담당", "내 오픈",
+        "내 담당", "내 담당 이슈", "나한테", "나한테 할당", "내가 맡은"
     )
     private val jiraSearchHints = setOf("검색", "search")
     private val jiraRecentIssueHints = setOf(
@@ -47,8 +48,12 @@ internal object WorkContextJiraPlanner {
         ctx: PlannerCtx
     ): ForcedToolCallPlan? {
         val n = ctx.normalized
-        if ((n.contains("jira") || ctx.projectKey != null) &&
-            n.matchesAnyHint(jiraMyWorkHints)
+        // "jira" 키워드 또는 프로젝트 키가 있거나, 이슈/티켓/담당 관련 한국어 컨텍스트만으로도 개인 이슈 조회 가능
+        if (n.matchesAnyHint(jiraMyWorkHints) &&
+            (n.contains("jira") || n.contains("지라") ||
+                n.contains("이슈") || n.contains("티켓") ||
+                n.contains("담당") || n.contains("할당") || n.contains("맡은") ||
+                ctx.projectKey != null)
         ) {
             return ForcedToolCallPlan(
                 "jira_my_open_issues",
