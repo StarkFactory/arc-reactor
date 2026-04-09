@@ -14,7 +14,8 @@ arc:
       socket-connect-retry-max-delay-ms: ${ARC_REACTOR_SLACK_SOCKET_CONNECT_RETRY_MAX_DELAY_MS:30000}
       signature-verification-enabled: ${ARC_REACTOR_SLACK_SIGNATURE_VERIFICATION:true}
       fail-fast-on-saturation: ${ARC_REACTOR_SLACK_FAIL_FAST_ON_SATURATION:true}
-      notify-on-drop: ${ARC_REACTOR_SLACK_NOTIFY_ON_DROP:false}
+      max-concurrent-requests: ${ARC_REACTOR_SLACK_MAX_CONCURRENT_REQUESTS:15}
+      notify-on-drop: ${ARC_REACTOR_SLACK_NOTIFY_ON_DROP:true}
       api-max-retries: ${ARC_REACTOR_SLACK_API_MAX_RETRIES:2}
       api-retry-default-delay-ms: ${ARC_REACTOR_SLACK_API_RETRY_DEFAULT_DELAY_MS:1000}
       user-email-resolution-enabled: ${ARC_REACTOR_SLACK_USER_EMAIL_RESOLUTION_ENABLED:true}
