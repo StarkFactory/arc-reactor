@@ -11,6 +11,7 @@ import com.arc.reactor.resilience.impl.ModelFallbackStrategy
 import com.arc.reactor.response.ResponseFilter
 import com.arc.reactor.response.ResponseFilterChain
 import com.arc.reactor.response.impl.MaxLengthResponseFilter
+import com.arc.reactor.response.impl.SanitizedTextResponseFilter
 import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatModel
@@ -28,6 +29,10 @@ import org.springframework.context.annotation.Bean
  * ArcReactorAutoConfiguration의 @Import를 통해서만 처리된다.
  */
 class ArcReactorRuntimeConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(SanitizedTextResponseFilter::class)
+    fun sanitizedTextResponseFilter(): ResponseFilter = SanitizedTextResponseFilter()
 
     @Bean
     @ConditionalOnMissingBean(VerifiedSourcesResponseFilter::class)

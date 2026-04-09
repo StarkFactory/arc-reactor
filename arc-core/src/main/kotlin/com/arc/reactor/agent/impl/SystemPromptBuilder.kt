@@ -814,7 +814,10 @@ internal class SystemPromptBuilder(
                 " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call." +
                     " IMPORTANT: The default Bitbucket workspace is always 'ihunet'." +
                     " Names like 'web-labs', 'arc-reactor', 'payment-api' are repository slugs, NOT workspaces." +
-                    " Always use workspace='ihunet' and treat user-mentioned names as the 'repo' parameter."
+                    " Always use workspace='ihunet' and treat user-mentioned names as the 'repo' parameter." +
+                    " If the user asks for PR list without specifying a repository, call `bitbucket_list_repositories` first" +
+                    " to show available repositories, then use the results to query PRs across active repos." +
+                    " NEVER just ask 'which repo?' — always provide actionable information."
             )
         }
     }
@@ -1021,32 +1024,41 @@ internal class SystemPromptBuilder(
         return OPENAPI_URL_REGEX.containsMatchIn(prompt)
     }
 
-    /** workspace 관련 프롬프트인지 통합 판단한다. */
+    /**
+     * workspace 관련 프롬프트인지 통합 판단한다.
+     *
+     * 단일 힌트 매칭은 [WORKSPACE_SINGLE_HINT_SETS]로 일괄 검사하고,
+     * 복합 조건(AND 결합, 정규식 포함)만 개별 검사한다.
+     */
     private fun looksLikeWorkspacePrompt(prompt: String?): Boolean {
         if (prompt.isNullOrBlank()) return false
-        return matchesHints(prompt, JIRA_HINTS) ||
-            matchesHints(prompt, BITBUCKET_HINTS) ||
-            matchesHints(prompt, AGILE_WORKFLOW_HINTS) ||
-            looksLikeSwaggerPrompt(prompt) ||
+        if (matchesAnyHintSet(prompt)) return true
+        return looksLikeSwaggerPrompt(prompt) ||
             looksLikeConfluenceAnswerPrompt(prompt) ||
-            (matchesHints(prompt, CONFLUENCE_KNOWLEDGE_HINTS) &&
-                matchesHints(prompt, CONFLUENCE_DISCOVERY_HINTS)) ||
-            (matchesHints(prompt, CONFLUENCE_KNOWLEDGE_HINTS) &&
-                matchesHints(prompt, CONFLUENCE_PAGE_BODY_HINTS)) ||
+            looksLikeConfluenceComposite(prompt) ||
             looksLikeWorkBriefingPrompt(prompt) ||
-            matchesHints(prompt, WORK_STANDUP_HINTS) ||
-            matchesHints(prompt, WORK_RELEASE_RISK_HINTS) ||
-            matchesHints(prompt, WORK_RELEASE_READINESS_HINTS) ||
-            matchesHints(prompt, WORK_BRIEFING_PROFILE_HINTS) ||
-            matchesHints(prompt, WORK_PERSONAL_FOCUS_HINTS) ||
-            matchesHints(prompt, WORK_PERSONAL_LEARNING_HINTS) ||
-            matchesHints(prompt, WORK_PERSONAL_INTERRUPT_HINTS) ||
-            matchesHints(prompt, WORK_PERSONAL_WRAPUP_HINTS) ||
             looksLikeWorkOwnerPrompt(prompt) ||
             looksLikeWorkItemContextPrompt(prompt) ||
-            looksLikeWorkServiceContextPrompt(prompt) ||
-            matchesHints(prompt, INTERNAL_DOC_HINTS) ||
-            matchesHints(prompt, TEAM_STATUS_HINTS)
+            looksLikeWorkServiceContextPrompt(prompt)
+    }
+
+    /** Confluence 복합 조건: knowledge + (discovery 또는 page body). */
+    private fun looksLikeConfluenceComposite(prompt: String?): Boolean {
+        if (!matchesHints(prompt, CONFLUENCE_KNOWLEDGE_HINTS)) return false
+        return matchesHints(prompt, CONFLUENCE_DISCOVERY_HINTS) ||
+            matchesHints(prompt, CONFLUENCE_PAGE_BODY_HINTS)
+    }
+
+    /**
+     * [WORKSPACE_SINGLE_HINT_SETS]의 힌트 집합 중 하나라도 매칭되면 true.
+     * 정규화를 1회만 수행하고 모든 단일 힌트 집합을 순회하여 캐시 룩업 횟수를 줄인다.
+     */
+    private fun matchesAnyHintSet(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        val normalized = normalizePrompt(prompt)
+        return WORKSPACE_SINGLE_HINT_SETS.any { hints ->
+            hints.any { normalized.contains(it) }
+        }
     }
 
     // ── 프롬프트 분류를 위한 힌트 키워드 집합 (한국어/영어) ──
@@ -1184,5 +1196,18 @@ internal class SystemPromptBuilder(
         private val VALIDATE_HINTS = WorkContextPatterns.VALIDATE_HINTS
         private val SUMMARY_HINTS = WorkContextPatterns.SUMMARY_HINTS
         private val WRONG_ENDPOINT_HINTS = WorkContextPatterns.WRONG_ENDPOINT_HINTS
+
+        /**
+         * looksLikeWorkspacePrompt에서 단일 힌트 집합 OR로 검사하는 목록.
+         * 복합 조건(AND 결합, 정규식)은 별도 메서드에서 처리한다.
+         */
+        private val WORKSPACE_SINGLE_HINT_SETS: List<Set<String>> = listOf(
+            JIRA_HINTS, BITBUCKET_HINTS, AGILE_WORKFLOW_HINTS,
+            WORK_STANDUP_HINTS, WORK_RELEASE_RISK_HINTS,
+            WORK_RELEASE_READINESS_HINTS, WORK_BRIEFING_PROFILE_HINTS,
+            WORK_PERSONAL_FOCUS_HINTS, WORK_PERSONAL_LEARNING_HINTS,
+            WORK_PERSONAL_INTERRUPT_HINTS, WORK_PERSONAL_WRAPUP_HINTS,
+            INTERNAL_DOC_HINTS, TEAM_STATUS_HINTS
+        )
     }
 }

@@ -93,6 +93,7 @@ internal object WorkContextForcedToolPlanner {
                 ctx, ::hasDownstreamProjectHints
             )
             ?: WorkContextBitbucketPlanner.planBitbucketRepoScoped(ctx)
+            ?: WorkContextBitbucketPlanner.planBitbucketPrWithoutRepo(ctx)
             ?: WorkContextBitbucketPlanner.planBitbucketPersonal(ctx)
             ?: WorkContextBitbucketPlanner.planMiscBitbucket(ctx)
             ?: planApiAndOwnerMisc(ctx)

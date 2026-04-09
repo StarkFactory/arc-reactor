@@ -850,4 +850,41 @@ class WorkContextForcedToolPlannerTest {
         )
         assertEquals("DEV", plan.arguments["jiraProject"]) { "jiraProject에 DEV가 포함되어야 한다" }
     }
+
+    // ── Fix: 레포 미지정 PR 요청 시 저장소 목록 폴백 ──
+
+    @Test
+    fun `plan repository list fallback for open pr without repo해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("열린 PR 목록 보여줘")
+
+        requireNotNull(plan) { "레포 미지정 열린 PR 요청에도 도구를 호출해야 한다" }
+        assertEquals(
+            "bitbucket_list_repositories", plan.toolName,
+            "레포 미지정 PR 요청은 bitbucket_list_repositories 폴백이어야 한다"
+        )
+    }
+
+    @Test
+    fun `plan repository list fallback for pr list without repo해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("PR 목록 보여줘")
+
+        requireNotNull(plan) { "레포 미지정 PR 목록 요청에도 도구를 호출해야 한다" }
+        assertEquals(
+            "bitbucket_list_repositories", plan.toolName,
+            "레포 미지정 PR 목록 요청은 bitbucket_list_repositories 폴백이어야 한다"
+        )
+    }
+
+    @Test
+    fun `plan direct pr list when repo is specified해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan(
+            "jarvis-project/dev 저장소의 열린 PR 목록을 보여줘"
+        )
+
+        requireNotNull(plan) { "레포 지정 열린 PR 요청에 도구를 호출해야 한다" }
+        assertEquals(
+            "bitbucket_list_prs", plan.toolName,
+            "레포가 지정되면 bitbucket_list_prs를 직접 호출해야 한다"
+        )
+    }
 }

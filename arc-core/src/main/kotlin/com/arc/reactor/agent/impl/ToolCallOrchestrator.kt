@@ -206,16 +206,10 @@ internal class ToolCallOrchestrator(
         checkAllowlist(toolCall, toolName, allowedTools, normalizeToolResponseToJson)
             ?.let { return it }
 
-        val parsedToolParams = parseToolArguments(toolCall.arguments())
-        val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
-            toolName = toolName, toolParams = parsedToolParams, metadata = hookContext.metadata
-        )
-        val toolCallContext = buildToolCallContext(
-            hookContext, toolName, effectiveToolParams, totalToolCallsCounter.get()
-        )
+        val prepared = prepareToolCallParams(toolCall, toolName, hookContext, totalToolCallsCounter)
 
         checkHookAndApproval(
-            toolCall, toolName, toolCallContext, hookContext, normalizeToolResponseToJson
+            toolCall, toolName, prepared.context, hookContext, normalizeToolResponseToJson
         )?.let { return it }
 
         checkToolExistsAndReserveSlot(
@@ -223,23 +217,46 @@ internal class ToolCallOrchestrator(
             totalToolCallsCounter, maxToolCalls, normalizeToolResponseToJson
         )?.let { return it }
 
-        // 보강(enrichment)이 없으면 원본 JSON을 그대로 사용하여 직렬화→파싱 왕복을 제거한다
-        val toolInput = if (effectiveToolParams === parsedToolParams) {
-            toolCall.arguments().orEmpty().ifBlank { "{}" }
-        } else {
-            serializeToolInput(effectiveToolParams, toolCall.arguments())
-        }
         return invokeAndFinalizeParallel(
             toolCall = toolCall,
             toolName = toolName,
-            toolInput = toolInput,
-            toolCallContext = toolCallContext,
+            toolInput = prepared.toolInput,
+            toolCallContext = prepared.context,
             tools = tools,
             springCallbacksByName = springCallbacksByName,
             hookContext = hookContext,
             normalizeToolResponseToJson = normalizeToolResponseToJson
         )
     }
+
+    /** 도구 호출 파라미터 파싱, enrichment, 직렬화를 수행한다. */
+    private fun prepareToolCallParams(
+        toolCall: AssistantMessage.ToolCall,
+        toolName: String,
+        hookContext: HookContext,
+        totalToolCallsCounter: AtomicInteger
+    ): PreparedToolCall {
+        val parsedToolParams = parseToolArguments(toolCall.arguments())
+        val effectiveToolParams = enrichToolParamsForRequesterAwareTools(
+            toolName = toolName, toolParams = parsedToolParams, metadata = hookContext.metadata
+        )
+        val toolCallContext = buildToolCallContext(
+            hookContext, toolName, effectiveToolParams, totalToolCallsCounter.get()
+        )
+        // 보강(enrichment)이 없으면 원본 JSON을 그대로 사용하여 직렬화→파싱 왕복을 제거한다
+        val toolInput = if (effectiveToolParams === parsedToolParams) {
+            toolCall.arguments().orEmpty().ifBlank { "{}" }
+        } else {
+            serializeToolInput(effectiveToolParams, toolCall.arguments())
+        }
+        return PreparedToolCall(context = toolCallContext, toolInput = toolInput)
+    }
+
+    /** prepareToolCallParams의 반환 타입 — 파싱·보강된 도구 호출 준비 결과. */
+    private class PreparedToolCall(
+        val context: ToolCallContext,
+        val toolInput: String
+    )
 
     /** allowedTools 허용 목록을 확인합니다. 차단 시 [ParallelToolExecution] 반환. */
     private fun checkAllowlist(

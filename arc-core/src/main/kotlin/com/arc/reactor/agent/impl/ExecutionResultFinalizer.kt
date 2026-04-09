@@ -84,55 +84,95 @@ internal class ExecutionResultFinalizer(
         startTime: Long,
         attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
     ): AgentResult {
-        // ── 사전 계산: 메트릭/관측용 신뢰 이벤트 메타데이터 (요청당 1회) ──
-        val eventMetadata = trustEventMetadata(command, hookContext)
+        val ctx = FinalizeContext(command, hookContext, toolsUsed, startTime, trustEventMetadata(command, hookContext))
 
-        // ── 단계 1: Output Guard 파이프라인 실행 (fail-close) ──
-        val guarded = enrichResponseMetadata(
-            applyOutputGuardPipeline(result, command, hookContext, toolsUsed, startTime, eventMetadata),
-            hookContext
+        val guarded = runOutputGuardStage(result, ctx)
+        if (isGuardRejected(guarded)) return earlyReturn(guarded, ctx)
+
+        val bounded = runBoundaryStage(guarded, ctx, attemptLongerResponse)
+        if (isBoundaryRejected(bounded)) return earlyReturn(bounded, ctx)
+
+        val reguarded = runReGuardStage(bounded, guarded, ctx)
+        if (isGuardRejected(reguarded)) return earlyReturn(reguarded, ctx)
+
+        val completed = runContentFinalizeStage(reguarded, ctx) ?: return earlyReturn(
+            emptyContentFailure(ctx.hookContext, ctx.startTime), ctx
         )
-        if (isGuardRejected(guarded)) {
-            return finalizeEarlyReturn(guarded, command, hookContext, toolsUsed, startTime, eventMetadata)
-        }
 
-        // ── 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도) ──
+        return completeFinalization(completed, ctx)
+    }
+
+    /**
+     * 최종화 파이프라인에서 반복 전달되는 파라미터 묶음.
+     * finalize()의 각 단계에 동일 인자를 6~7개씩 반복 전달하는 중복을 제거한다.
+     */
+    private class FinalizeContext(
+        val command: AgentCommand,
+        val hookContext: HookContext,
+        val toolsUsed: List<String>,
+        val startTime: Long,
+        val eventMetadata: Map<String, Any>
+    )
+
+    /** 단계 1: Output Guard 파이프라인 실행 (fail-close). */
+    private suspend fun runOutputGuardStage(result: AgentResult, ctx: FinalizeContext): AgentResult {
+        return enrichResponseMetadata(
+            applyOutputGuardPipeline(
+                result, ctx.command, ctx.hookContext, ctx.toolsUsed, ctx.startTime, ctx.eventMetadata
+            ),
+            ctx.hookContext
+        )
+    }
+
+    /** 단계 2: 출력 길이 경계 검사 (너무 짧으면 더 긴 응답 재시도). */
+    private suspend fun runBoundaryStage(
+        guarded: AgentResult,
+        ctx: FinalizeContext,
+        attemptLongerResponse: suspend (String, Int, AgentCommand) -> String?
+    ): AgentResult {
         val boundaryApplied = applyOutputBoundaryRule(
-            guarded, command, hookContext, toolsUsed,
-            startTime, attemptLongerResponse, eventMetadata
+            guarded, ctx.command, ctx.hookContext, ctx.toolsUsed,
+            ctx.startTime, attemptLongerResponse, ctx.eventMetadata
         )
-        val bounded = enrichResponseMetadata(
-            boundaryApplied, hookContext
-        )
-        if (isBoundaryRejected(bounded)) {
-            return finalizeEarlyReturn(bounded, command, hookContext, toolsUsed, startTime, eventMetadata)
-        }
+        return enrichResponseMetadata(boundaryApplied, ctx.hookContext)
+    }
 
-        // ── 단계 3: 내용 변경 시 Output Guard 재실행 ──
-        val reguarded = reapplyOutputGuardIfContentChanged(
-            bounded, guarded, command, hookContext, toolsUsed, startTime, eventMetadata
+    /** 단계 3: 내용 변경 시 Output Guard 재실행. */
+    private suspend fun runReGuardStage(
+        bounded: AgentResult,
+        guarded: AgentResult,
+        ctx: FinalizeContext
+    ): AgentResult {
+        return reapplyOutputGuardIfContentChanged(
+            bounded, guarded, ctx.command, ctx.hookContext, ctx.toolsUsed, ctx.startTime, ctx.eventMetadata
         )
-        if (isGuardRejected(reguarded)) {
-            return finalizeEarlyReturn(reguarded, command, hookContext, toolsUsed, startTime, eventMetadata)
-        }
+    }
 
-        // ── 단계 4~6: 응답 필터 -> Citation 부착 -> 차단 응답 가시화 ──
+    /** 단계 4~6.5: 응답 필터 → Citation 부착 → 빈 응답 안전망. 빈 응답 시 null 반환. */
+    private suspend fun runContentFinalizeStage(result: AgentResult, ctx: FinalizeContext): AgentResult? {
         val completed = enrichAndFinalizeContent(
-            reguarded, command, hookContext, toolsUsed, startTime, eventMetadata
+            result, ctx.command, ctx.hookContext, ctx.toolsUsed, ctx.startTime, ctx.eventMetadata
         )
-
-        // ── 단계 6.5: 빈 응답 안전망 — LLM이 빈 content를 반환한 경우 에러 처리 ──
         if (isEmptySuccessResponse(completed)) {
-            logger.warn { "LLM이 빈 콘텐츠 반환, 에러로 변환 (runId=${hookContext.runId})" }
-            val emptyFailure = emptyContentFailure(hookContext, startTime)
-            return finalizeEarlyReturn(emptyFailure, command, hookContext, toolsUsed, startTime, eventMetadata)
+            logger.warn { "LLM이 빈 콘텐츠 반환, 에러로 변환 (runId=${ctx.hookContext.runId})" }
+            return null
         }
+        return completed
+    }
 
-        // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
-        observeResponse(completed, command, hookContext, toolsUsed, eventMetadata)
-        saveHistorySafely(command, completed, hookContext)
-        runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
-        return recordFinalExecution(completed, startTime)
+    /** 단계 7~10: 관측 → 대화 저장 → AfterComplete Hook → 메트릭 기록. */
+    private suspend fun completeFinalization(result: AgentResult, ctx: FinalizeContext): AgentResult {
+        observeResponse(result, ctx.command, ctx.hookContext, ctx.toolsUsed, ctx.eventMetadata)
+        saveHistorySafely(ctx.command, result, ctx.hookContext)
+        runAfterCompletionHook(ctx.hookContext, result, ctx.toolsUsed, ctx.startTime)
+        return recordFinalExecution(result, ctx.startTime)
+    }
+
+    /** 파이프라인 단계 실패 시 조기 반환 — 관측/저장/Hook 수행 후 결과 반환. */
+    private suspend fun earlyReturn(result: AgentResult, ctx: FinalizeContext): AgentResult {
+        return finalizeEarlyReturn(
+            result, ctx.command, ctx.hookContext, ctx.toolsUsed, ctx.startTime, ctx.eventMetadata
+        )
     }
 
     /**

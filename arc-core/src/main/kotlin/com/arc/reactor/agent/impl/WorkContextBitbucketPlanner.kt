@@ -89,6 +89,25 @@ internal object WorkContextBitbucketPlanner {
         return ForcedToolCallPlan("bitbucket_review_queue", emptyMap())
     }
 
+    // ── 레포 미지정 PR 요청 폴백 ──
+
+    /**
+     * 레포지토리 미지정 상태에서 PR 목록 요청 시 저장소 목록을 먼저 조회하는 폴백.
+     *
+     * "열린 PR 보여줘", "PR 목록" 등 레포 없이 PR을 요청하면
+     * 역질문 대신 bitbucket_list_repositories를 호출하여
+     * 사용자에게 선택지를 제공한다.
+     */
+    fun planBitbucketPrWithoutRepo(ctx: PlannerCtx): ForcedToolCallPlan? {
+        if (ctx.repository != null || ctx.repositorySlug != null) return null
+        val n = ctx.normalized
+        val isPrRequest = n.matchesAnyHint(bitbucketOpenPrHints) ||
+            n.matchesAnyHint(bitbucketMergedPrHints) ||
+            n.matchesAnyHint(bitbucketStalePrHints)
+        if (!isPrRequest) return null
+        return ForcedToolCallPlan("bitbucket_list_repositories", emptyMap())
+    }
+
     // ── 기타 Bitbucket 계획 ──
 
     /** Bitbucket 명시 + 리뷰 리스크 계획. */
