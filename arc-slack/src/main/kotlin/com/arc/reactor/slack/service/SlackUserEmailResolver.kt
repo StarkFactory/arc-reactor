@@ -1,5 +1,6 @@
 package com.arc.reactor.slack.service
 
+import com.arc.reactor.identity.JiraAccountIdResolver
 import com.arc.reactor.identity.UserIdentity
 import com.arc.reactor.identity.UserIdentityStore
 import com.arc.reactor.support.throwIfCancellation
@@ -42,7 +43,8 @@ class SlackUserEmailResolver(
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
         .build(),
-    private val userIdentityStore: UserIdentityStore? = null
+    private val userIdentityStore: UserIdentityStore? = null,
+    private val jiraAccountIdResolver: JiraAccountIdResolver? = null
 ) {
 
     private val cache = ConcurrentHashMap<String, CachedEmail>()
@@ -98,9 +100,11 @@ class SlackUserEmailResolver(
         val normalizedUserId = userId.trim()
         if (normalizedUserId.isBlank()) return null
 
-        // DB에 이미 저장된 경우 즉시 반환
+        // DB에 이미 저장된 경우 jiraAccountId 보강 후 반환
         val dbIdentity = findFromDb(normalizedUserId)
-        if (dbIdentity != null) return dbIdentity
+        if (dbIdentity != null) {
+            return enrichJiraAccountId(dbIdentity)
+        }
 
         // Slack API로 프로필 조회 후 DB 저장
         val profile = fetchProfile(normalizedUserId) ?: return null
@@ -115,7 +119,30 @@ class SlackUserEmailResolver(
             displayName = profile.displayName ?: profile.realName
         )
         saveToDb(normalizedUserId, email, identity.displayName)
-        return identity
+
+        // 신규 저장 후 Jira accountId 자동 조회
+        return enrichJiraAccountId(identity)
+    }
+
+    /**
+     * jiraAccountId가 비어 있으면 [JiraAccountIdResolver]로 자동 조회하여 보강한다.
+     * 조회 성공 시 DB에도 업데이트된다 (resolveAndStore 내부).
+     */
+    private suspend fun enrichJiraAccountId(identity: UserIdentity): UserIdentity {
+        if (!identity.jiraAccountId.isNullOrBlank()) return identity
+        val resolver = jiraAccountIdResolver ?: return identity
+        return try {
+            val accountId = resolver.resolveAndStore(identity.email, identity.slackUserId)
+            if (accountId != null) {
+                identity.copy(jiraAccountId = accountId)
+            } else {
+                identity
+            }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "Jira accountId 자동 조회 실패: slackUserId=${identity.slackUserId}" }
+            identity
+        }
     }
 
     /** DB에서 사용자 신원 정보를 조회한다. 실패 시 null 반환. */

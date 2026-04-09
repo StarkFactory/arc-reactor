@@ -72,6 +72,7 @@ import org.springframework.context.annotation.Import
     SloAlertConfiguration::class,
     CostAnomalyConfiguration::class,
     PromptDriftConfiguration::class,
-    GuardBlockRateConfiguration::class
+    GuardBlockRateConfiguration::class,
+    JiraAccountIdResolverConfiguration::class
 )
 class ArcReactorAutoConfiguration

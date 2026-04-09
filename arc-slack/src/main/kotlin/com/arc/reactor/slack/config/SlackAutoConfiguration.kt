@@ -3,6 +3,7 @@ package com.arc.reactor.slack.config
 import com.arc.reactor.agent.AgentExecutor
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.feedback.FeedbackStore
+import com.arc.reactor.identity.JiraAccountIdResolver
 import com.arc.reactor.identity.UserIdentityStore
 import com.arc.reactor.mcp.McpManager
 import com.arc.reactor.memory.UserMemoryManager
@@ -180,14 +181,16 @@ class SlackAutoConfiguration {
     @ConditionalOnMissingBean
     fun slackUserEmailResolver(
         properties: SlackProperties,
-        userIdentityStore: ObjectProvider<UserIdentityStore>
+        userIdentityStore: ObjectProvider<UserIdentityStore>,
+        jiraAccountIdResolver: ObjectProvider<JiraAccountIdResolver>
     ): SlackUserEmailResolver =
         SlackUserEmailResolver(
             botToken = properties.botToken,
             enabled = properties.userEmailResolutionEnabled,
             cacheTtlSeconds = properties.userEmailCacheTtlSeconds,
             cacheMaxEntries = properties.userEmailCacheMaxEntries,
-            userIdentityStore = userIdentityStore.ifAvailable
+            userIdentityStore = userIdentityStore.ifAvailable,
+            jiraAccountIdResolver = jiraAccountIdResolver.ifAvailable
         )
 
     @Bean
