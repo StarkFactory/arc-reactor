@@ -84,7 +84,9 @@ internal object WorkContextPatterns {
 
     val WORK_PERSONAL_FOCUS_HINTS = setOf(
         "focus plan", "personal focus plan", "개인 focus plan",
-        "개인 집중 계획", "오늘 집중 계획"
+        "개인 집중 계획", "오늘 집중 계획",
+        "오늘 할 일", "할 일 정리", "할일 정리", "투두", "todo",
+        "오늘 업무 정리", "업무 정리해", "할 일 목록"
     )
 
     val WORK_PERSONAL_LEARNING_HINTS = setOf(

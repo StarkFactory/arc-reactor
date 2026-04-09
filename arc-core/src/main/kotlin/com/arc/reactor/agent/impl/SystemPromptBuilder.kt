@@ -676,9 +676,10 @@ internal class SystemPromptBuilder(
     /** 개인 생산성 도구 (focus, learning, interrupt, wrapup) 강제 호출 지시. */
     private fun StringBuilder.appendWorkPersonalToolForcing(userPrompt: String?) {
         if (matchesHints(userPrompt, WORK_PERSONAL_FOCUS_HINTS)) {
-            append("\nFor this request, you MUST call `work_personal_focus_plan` before answering.")
+            append("\nFor this request, you MUST call `work_prepare_standup_update` to get today's tasks.")
+            append(" If it fails, try `work_personal_focus_plan` as fallback.")
             append(" Use the default profile and defaults when optional parameters are omitted.")
-            append(" Do not ask follow-up questions before the first tool call.")
+            append(" Do not ask follow-up questions before the first tool call. NEVER return empty.")
         }
         if (matchesHints(userPrompt, WORK_PERSONAL_LEARNING_HINTS)) {
             append("\nFor this request, you MUST call `work_personal_learning_digest` before answering.")
