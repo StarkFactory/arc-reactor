@@ -18,7 +18,16 @@ internal object WorkContextJiraPlanner {
     private val jiraSearchHints = setOf("검색", "search")
     private val jiraRecentIssueHints = setOf(
         "최근 jira 이슈", "최근 이슈", "최근 운영 이슈",
-        "recent jira issue", "recent issues"
+        "recent jira issue", "recent issues",
+        "이슈 현황", "이슈 상황", "issue status"
+    )
+
+    /** 시간 범위 기반 Jira 검색 힌트 — 일주일/월 범위의 이슈 조회. */
+    private val jiraTimeRangeHints = setOf(
+        "최근 일주일", "지난 일주일", "이번 주", "이번주",
+        "지난 주", "지난주", "이번 달", "이번달", "지난 달", "지난달",
+        "last week", "this week", "this month", "last month",
+        "일주일 이내", "한 달 이내", "7일", "30일"
     )
     private val jiraCompletedIssueHints = setOf(
         "최근 완료", "최근 완료 이슈", "완료된 이슈", "완료한 이슈",
@@ -94,6 +103,21 @@ internal object WorkContextJiraPlanner {
                 }
             )
         }
+        // 시간 범위 기반 이슈 조회 — "최근 일주일", "이번 주", "이번 달" 등
+        if (n.matchesAnyHint(jiraTimeRangeHints) &&
+            (n.contains("jira") || n.contains("지라") ||
+                n.contains("이슈") || n.contains("티켓") ||
+                ctx.projectKey != null)
+        ) {
+            val jql = buildTimeRangeJql(ctx.projectKey, n)
+            return ForcedToolCallPlan(
+                "jira_search_issues",
+                buildMap {
+                    put("jql", jql)
+                    put("maxResults", 20)
+                }
+            )
+        }
         // 완료 이슈 조회 — 프로젝트 키 없이도 완료 상태 JQL로 검색
         if (n.matchesAnyHint(jiraCompletedIssueHints) &&
             (n.contains("jira") || n.contains("지라") ||
@@ -133,6 +157,15 @@ internal object WorkContextJiraPlanner {
                     "jql" to
                         """project = "$pk" AND status in (Done, Resolved, Closed) ORDER BY updated DESC""",
                     "maxResults" to 10
+                )
+            )
+        }
+        if (n.matchesAnyHint(jiraTimeRangeHints)) {
+            return ForcedToolCallPlan(
+                "jira_search_issues",
+                mapOf(
+                    "jql" to buildTimeRangeJql(pk, n),
+                    "maxResults" to 20
                 )
             )
         }
@@ -234,5 +267,25 @@ internal object WorkContextJiraPlanner {
             )
         }
         return null
+    }
+
+    // ── 내부 유틸리티 ──
+
+    /**
+     * 시간 범위 힌트에서 JQL 조건 문자열을 생성한다.
+     *
+     * "이번 달"/"한 달 이내"이면 -30d, 나머지는 -7d 기준으로 생성한다.
+     */
+    private fun buildTimeRangeJql(projectKey: String?, normalized: String): String {
+        val period = if (normalized.contains("이번 달") || normalized.contains("이번달") ||
+            normalized.contains("지난 달") || normalized.contains("지난달") ||
+            normalized.contains("this month") || normalized.contains("last month") ||
+            normalized.contains("30일") || normalized.contains("한 달 이내")
+        ) "-30d" else "-7d"
+        return if (projectKey != null) {
+            """project = "$projectKey" AND updated >= $period ORDER BY updated DESC"""
+        } else {
+            "updated >= $period ORDER BY updated DESC"
+        }
     }
 }

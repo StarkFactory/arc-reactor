@@ -97,6 +97,30 @@ class WorkContextJiraPlannerTest {
             assertNotNull(plan, "'나한테 할당' 힌트로 plan이 null이면 안 된다")
             plan!!.toolName shouldBe "jira_my_open_issues"
         }
+
+        @Test
+        fun `최근 일주일 이슈 힌트 — jira_search_issues를 반환해야 한다 (S3 시간 범위 도구 미호출 방지)`() {
+            val plan = WorkContextJiraPlanner.planJiraSearch(
+                "최근 일주일 jira 이슈 알려줘",
+                ctx("최근 일주일 jira 이슈 알려줘")
+            )
+
+            assertNotNull(plan, "최근 일주일 힌트 매칭 시 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_search_issues"
+            val jql = plan.arguments["jql"] as String
+            jql.contains("-7d") shouldBe true
+        }
+
+        @Test
+        fun `이번 주 이슈 단독 힌트 — jira_search_issues를 반환해야 한다`() {
+            val plan = WorkContextJiraPlanner.planJiraSearch(
+                "이번 주 이슈 뭐 있어",
+                ctx("이번 주 이슈 뭐 있어")
+            )
+
+            assertNotNull(plan, "이번 주 + 이슈 힌트로 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_search_issues"
+        }
     }
 
     // ────────────────────────────────────────
@@ -167,6 +191,41 @@ class WorkContextJiraPlannerTest {
 
             assertNotNull(plan, "기본 폴백에서 plan이 null이면 안 된다")
             plan!!.toolName shouldBe "jira_search_issues"
+        }
+
+        @Test
+        fun `이슈 현황 힌트 — jira_search_issues를 반환해야 한다 (S1 오라우팅 방지)`() {
+            val plan = WorkContextJiraPlanner.planJiraProjectScoped(
+                ctx("bb30 이슈 현황", projectKey = "BB30")
+            ) { false }
+
+            assertNotNull(plan, "이슈 현황 힌트 매칭 시 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_search_issues"
+        }
+
+        @Test
+        fun `이번 주 이슈 힌트 — 시간 범위 JQL로 jira_search_issues를 반환해야 한다`() {
+            val plan = WorkContextJiraPlanner.planJiraProjectScoped(
+                ctx("이번 주 jira 이슈 알려줘", projectKey = "MFS")
+            ) { false }
+
+            assertNotNull(plan, "이번 주 힌트 매칭 시 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_search_issues"
+            val jql = plan.arguments["jql"] as String
+            jql.contains("MFS") shouldBe true
+            jql.contains("-7d") shouldBe true
+        }
+
+        @Test
+        fun `이번 달 이슈 힌트 — 30일 범위 JQL로 jira_search_issues를 반환해야 한다`() {
+            val plan = WorkContextJiraPlanner.planJiraProjectScoped(
+                ctx("이번 달 완료 이슈 현황", projectKey = "PAY")
+            ) { false }
+
+            assertNotNull(plan, "이번 달 힌트 매칭 시 plan이 null이면 안 된다")
+            plan!!.toolName shouldBe "jira_search_issues"
+            val jql = plan.arguments["jql"] as String
+            jql.contains("-30d") shouldBe true
         }
     }
 
