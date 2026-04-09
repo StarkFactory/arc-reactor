@@ -1396,6 +1396,15 @@ FAIL: 도구 미사용 또는 잘못된 도구 또는 빈 응답
 - QA 루프 MD 완전 재작성 반영 + write 도구 전부 제거 (읽기 전용)
 - 새 읽기 도구 추가 진행 중: jira_search_users, jira_get_issue_changelog, confluence_get_page_comments
 
+### Round 91 (2026-04-09) — 8.18/10, 문서 8.70 우수, BB 권한 이슈 지속
+- 응답 품질: **8.18/10** | 10점: **5건** (B1 릴리즈, B5 컨벤션, D3 저장소, E1 Kafka, E3 인사)
+- **B 문서 8.70** | E 일반 9.17 | C 업무 8.25 | A 개인 7.88 | D BB 7.00
+- C4 "BB30 현황" → work_morning_briefing 미스매치(6점). jira_search_issues 써야 함
+- D4 "머지 PR" → 도구 미호출(4점). 간헐 패턴 지속
+- A3 "마감 임박" → jira_due_soon_issues 호출했으나 결과 반환 실패(6점)
+- BB 권한(A2/D2): upstream_permission_denied 지속 — MCP 재연결 필요
+- 새 읽기 도구 3개(search_users/changelog/comments) 아직 미반영 (재시작 필요)
+
 ### Round 42 (2026-04-09 07:00)
 - 시나리오: A~G 10개
 - **도구 정확도: 10/10 (100%)**
