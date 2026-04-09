@@ -38,7 +38,10 @@ internal object WorkContextEntityExtractor {
     private val repositoryRegex =
         Regex("\\b([A-Za-z0-9._-]{2,64})/([A-Za-z0-9._-]{2,64})\\b")
     private val repositorySlugRegex =
-        Regex("([A-Za-z0-9._-]{2,64})\\s*저장소", RegexOption.IGNORE_CASE)
+        Regex(
+            "([A-Za-z0-9._-]{2,64})\\s*(?:저장소|레포지토리|레포|리포지토리|리포)",
+            RegexOption.IGNORE_CASE
+        )
     private val urlRegex = Regex("https?://[^\\s)]+", RegexOption.IGNORE_CASE)
     private val quotedKeywordRegexes = listOf(
         Regex("'([^']{2,80})'"),
@@ -105,6 +108,7 @@ internal object WorkContextEntityExtractor {
         val projectKey: String?,
         val inferredProjectKey: String?,
         val repository: Pair<String, String>?,
+        val repositorySlug: String?,
         val specUrl: String?,
         val swaggerSpecName: String?,
         val ownershipKeyword: String?,
@@ -119,13 +123,16 @@ internal object WorkContextEntityExtractor {
     fun parsePrompt(prompt: String): ParsedPrompt {
         val normalized = prompt.lowercase()
         val projectKey = extractProjectKey(prompt)
+        val repository = extractRepository(prompt)
         return ParsedPrompt(
             normalized = normalized,
             issueKey = extractIssueKey(prompt),
             serviceName = extractServiceName(prompt),
             projectKey = projectKey,
             inferredProjectKey = projectKey ?: extractLooseProjectKey(prompt),
-            repository = extractRepository(prompt),
+            repository = repository,
+            repositorySlug = repository?.second
+                ?: extractRepositorySlug(prompt),
             specUrl = extractUrl(prompt),
             swaggerSpecName = extractSwaggerSpecName(prompt),
             ownershipKeyword = extractOwnershipKeyword(prompt),

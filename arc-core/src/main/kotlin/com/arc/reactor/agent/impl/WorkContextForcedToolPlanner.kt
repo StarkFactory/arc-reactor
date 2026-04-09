@@ -153,8 +153,7 @@ internal object WorkContextForcedToolPlanner {
         val n = ctx.normalized
         if (!hasOwnershipIntent(n)) return null
 
-        val repoSlug = ctx.repository?.second
-            ?: WorkContextEntityExtractor.extractRepositorySlug(prompt)
+        val repoSlug = ctx.repositorySlug
         if (repoSlug != null) {
             return ForcedToolCallPlan(
                 "work_owner_lookup",

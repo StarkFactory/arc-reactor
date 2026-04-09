@@ -775,4 +775,41 @@ class WorkContextForcedToolPlannerTest {
         assertEquals("spec_validate", plan.toolName)
         assertEquals("pet-store", plan.arguments["specName"], "스펙 이름이 추출되어야 한다")
     }
+
+    // ── Fix: 마감/기한 관련 비개인화 질문 도구 호출 ──
+
+    @Test
+    fun `plan due soon issues for non-personal deadline query해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("이번 주 마감 Jira 이슈 알려줘")
+
+        requireNotNull(plan) { "마감 키워드 + Jira/이슈 키워드가 있으면 도구를 호출해야 한다" }
+        assertEquals("jira_due_soon_issues", plan.toolName, "마감 질문은 jira_due_soon_issues여야 한다")
+        assertEquals(7, plan.arguments["days"]) { "기본 조회 기간은 7일이어야 한다" }
+        assertEquals(20, plan.arguments["maxResults"]) { "기본 최대 결과는 20이어야 한다" }
+    }
+
+    @Test
+    fun `plan due soon issues for deadline keyword with issue hint해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("마감일이 이번 주인 이슈 보여줘")
+
+        requireNotNull(plan) { "마감일 + 이슈 키워드가 있으면 도구를 호출해야 한다" }
+        assertEquals("jira_due_soon_issues", plan.toolName, "마감일 질문은 jira_due_soon_issues여야 한다")
+    }
+
+    @Test
+    fun `plan due soon issues for due date keyword해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("due date가 이번 주인 Jira 티켓 정리해줘")
+
+        requireNotNull(plan) { "due date 키워드가 있으면 도구를 호출해야 한다" }
+        assertEquals("jira_due_soon_issues", plan.toolName, "due date 질문은 jira_due_soon_issues여야 한다")
+    }
+
+    @Test
+    fun `plan due soon issues for project scoped deadline query해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트 기한 임박 이슈 알려줘")
+
+        requireNotNull(plan) { "프로젝트+기한 키워드가 있으면 도구를 호출해야 한다" }
+        assertEquals("jira_due_soon_issues", plan.toolName, "프로젝트 스코프 기한 질문은 jira_due_soon_issues여야 한다")
+        assertEquals("DEV", plan.arguments["project"]) { "프로젝트 키가 인자에 포함되어야 한다" }
+    }
 }

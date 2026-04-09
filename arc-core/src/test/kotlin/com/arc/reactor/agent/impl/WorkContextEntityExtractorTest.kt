@@ -297,6 +297,30 @@ class WorkContextEntityExtractorTest {
         }
 
         @Test
+        fun `레포 키워드와 함께 slug를 추출해야 한다`() {
+            WorkContextEntityExtractor.extractRepositorySlug("web-labs 레포의 열린 PR")
+                .shouldBe("web-labs")
+        }
+
+        @Test
+        fun `리포지토리 키워드와 함께 slug를 추출해야 한다`() {
+            WorkContextEntityExtractor.extractRepositorySlug("web-labs 리포지토리 확인")
+                .shouldBe("web-labs")
+        }
+
+        @Test
+        fun `리포 키워드와 함께 slug를 추출해야 한다`() {
+            WorkContextEntityExtractor.extractRepositorySlug("payment-api 리포 현황")
+                .shouldBe("payment-api")
+        }
+
+        @Test
+        fun `레포지토리 키워드와 함께 slug를 추출해야 한다`() {
+            WorkContextEntityExtractor.extractRepositorySlug("core-service 레포지토리 브랜치")
+                .shouldBe("core-service")
+        }
+
+        @Test
         fun `저장소 키워드 없으면 null을 반환해야 한다`() {
             WorkContextEntityExtractor.extractRepositorySlug("repo 확인")
                 .shouldBeNull()

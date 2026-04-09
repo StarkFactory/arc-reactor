@@ -29,6 +29,7 @@ class WorkContextJiraPlannerTest {
         projectKey = projectKey,
         inferredProjectKey = inferredProjectKey,
         repository = null,
+        repositorySlug = null,
         specUrl = null,
         swaggerSpecName = null,
         ownershipKeyword = null,

@@ -28,57 +28,47 @@ internal object WorkContextBitbucketPlanner {
 
     // ── 레포지토리 스코프 Bitbucket 계획 ──
 
-    /** 레포지토리 기반 Bitbucket 도구 계획. */
+    /** 레포지토리 기반 Bitbucket 도구 계획. workspace/repo 또는 slug 단독 모두 지원. */
     fun planBitbucketRepoScoped(ctx: PlannerCtx): ForcedToolCallPlan? {
-        val repo = ctx.repository ?: return null
+        val ws = ctx.repository?.first
+        val slug = ctx.repository?.second ?: ctx.repositorySlug ?: return null
         val n = ctx.normalized
-        val ws = repo.first
-        val slug = repo.second
 
         if (n.matchesAnyHint(bitbucketOpenPrHints)) {
-            return ForcedToolCallPlan(
-                "bitbucket_list_prs",
-                mapOf(
-                    "workspace" to ws,
-                    "repo" to slug,
-                    "state" to "OPEN"
-                )
-            )
+            return buildRepoPlan("bitbucket_list_prs", ws, slug,
+                "state" to "OPEN")
         }
         if (n.matchesAnyHint(bitbucketStalePrHints)) {
-            return ForcedToolCallPlan(
-                "bitbucket_stale_prs",
-                mapOf(
-                    "workspace" to ws,
-                    "repo" to slug,
-                    "staleDays" to 7
-                )
-            )
+            return buildRepoPlan("bitbucket_stale_prs", ws, slug,
+                "staleDays" to 7)
         }
         if (n.matchesAnyHint(WorkContextPatterns.REVIEW_QUEUE_HINTS)) {
-            return ForcedToolCallPlan(
-                "bitbucket_review_queue",
-                mapOf("workspace" to ws, "repo" to slug)
-            )
+            return buildRepoPlan("bitbucket_review_queue", ws, slug)
         }
         if (n.matchesAnyHint(WorkContextPatterns.REVIEW_SLA_HINTS)) {
-            return ForcedToolCallPlan(
-                "bitbucket_review_sla_alerts",
-                mapOf(
-                    "workspace" to ws,
-                    "repo" to slug,
-                    "slaHours" to 24
-                )
-            )
+            return buildRepoPlan("bitbucket_review_sla_alerts", ws, slug,
+                "slaHours" to 24)
         }
         if (n.matchesAnyHint(bitbucketBranchListHints)) {
-            return ForcedToolCallPlan(
-                "bitbucket_list_branches",
-                mapOf("workspace" to ws, "repo" to slug)
-            )
+            return buildRepoPlan("bitbucket_list_branches", ws, slug)
         }
         return null
     }
+
+    /** 레포지토리 도구 계획의 인자 맵을 조립한다. workspace가 null이면 생략. */
+    private fun buildRepoPlan(
+        toolName: String,
+        workspace: String?,
+        slug: String,
+        vararg extras: Pair<String, Any>
+    ): ForcedToolCallPlan = ForcedToolCallPlan(
+        toolName,
+        buildMap {
+            workspace?.let { put("workspace", it) }
+            put("repo", slug)
+            for ((k, v) in extras) { put(k, v) }
+        }
+    )
 
     // ── 개인화 Bitbucket 리뷰 계획 ──
 

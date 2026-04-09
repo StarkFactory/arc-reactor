@@ -33,6 +33,12 @@ internal object WorkContextJiraPlanner {
         "assignee 없는"
     )
 
+    /** 마감/기한 관련 힌트 — 개인화 여부와 무관하게 due-soon 도구를 호출한다. */
+    private val jiraDueDateHints = setOf(
+        "마감", "마감일", "마감 임박", "기한", "due date", "deadline",
+        "due soon", "overdue", "임박"
+    )
+
     // ── Jira 검색 계획 ──
 
     /** Jira 내 오픈 이슈 및 키워드 검색 계획. */
@@ -61,6 +67,21 @@ internal object WorkContextJiraPlanner {
             return ForcedToolCallPlan(
                 "jira_search_by_text",
                 mapOf("keyword" to searchKeyword, "limit" to 10)
+            )
+        }
+        // 마감/기한 관련 질문 — 개인화 여부와 무관하게 due-soon 도구 호출
+        if (n.matchesAnyHint(jiraDueDateHints) &&
+            (n.contains("jira") || n.contains("지라") ||
+                n.contains("이슈") || n.contains("티켓") ||
+                ctx.projectKey != null)
+        ) {
+            return ForcedToolCallPlan(
+                "jira_due_soon_issues",
+                buildMap {
+                    ctx.projectKey?.let { put("project", it) }
+                    put("days", 7)
+                    put("maxResults", 20)
+                }
             )
         }
         return null

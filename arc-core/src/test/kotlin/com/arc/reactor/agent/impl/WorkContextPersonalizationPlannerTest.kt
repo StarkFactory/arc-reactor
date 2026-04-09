@@ -34,6 +34,7 @@ class WorkContextPersonalizationPlannerTest {
         projectKey = projectKey,
         inferredProjectKey = inferredProjectKey,
         repository = repository,
+        repositorySlug = repository?.second,
         specUrl = null,
         swaggerSpecName = null,
         ownershipKeyword = null,

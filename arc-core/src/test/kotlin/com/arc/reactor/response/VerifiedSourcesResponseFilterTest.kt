@@ -506,6 +506,26 @@ class VerifiedSourcesResponseFilterTest {
     }
 
     @Test
+    fun `block deadline workspace question without tool해야 한다`() = runTest {
+        val result = filter.filter(
+            content = "이번 주 마감인 이슈는 3건입니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(
+                    systemPrompt = "sys",
+                    userPrompt = "이번 주 마감 Jira 이슈 알려줘"
+                ),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 60
+            )
+        )
+
+        assertTrue(result.contains("검증 가능한 출처를 찾지 못해")) {
+            "Deadline workspace questions without tool calls should be blocked"
+        }
+    }
+
+    @Test
     fun `allow onboarding guide search when tool was called해야 한다`() = runTest {
         val result = filter.filter(
             content = "온보딩 가이드를 찾았습니다.",

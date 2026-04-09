@@ -39,7 +39,8 @@ internal object WorkContextPatterns {
 
     val REVIEW_QUEUE_HINTS = setOf(
         "queue", "대기열", "review queue", "리뷰 대기열", "검토 대기열",
-        "리뷰가 필요한", "검토가 필요한", "needs review", "review needed"
+        "리뷰가 필요한", "검토가 필요한", "needs review", "review needed",
+        "리뷰 대기", "검토 대기"
     )
 
     val REVIEW_SLA_HINTS = setOf(
