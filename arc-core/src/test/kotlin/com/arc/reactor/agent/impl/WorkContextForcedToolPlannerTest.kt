@@ -812,4 +812,42 @@ class WorkContextForcedToolPlannerTest {
         assertEquals("jira_due_soon_issues", plan.toolName, "프로젝트 스코프 기한 질문은 jira_due_soon_issues여야 한다")
         assertEquals("DEV", plan.arguments["project"]) { "프로젝트 키가 인자에 포함되어야 한다" }
     }
+
+    // ── Fix: S6 스탠드업 한국어 단독 트리거 ──
+
+    @Test
+    fun `plan standup from korean standup keyword without project key해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("스탠드업 준비해줘")
+
+        requireNotNull(plan) { "한국어 '스탠드업' 키워드만 있어도 work_prepare_standup_update를 호출해야 한다" }
+        assertEquals(
+            "work_prepare_standup_update", plan.toolName,
+            "한국어 스탠드업 단독 요청은 work_prepare_standup_update여야 한다"
+        )
+        assertEquals(7, plan.arguments["daysLookback"]) { "기본 lookback은 7일이어야 한다" }
+        assertEquals(20, plan.arguments["jiraMaxResults"]) { "기본 maxResults는 20이어야 한다" }
+    }
+
+    @Test
+    fun `plan standup from korean daily scrum keyword해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("데일리 스크럼 자료 만들어줘")
+
+        requireNotNull(plan) { "'데일리 스크럼' 키워드로 work_prepare_standup_update를 호출해야 한다" }
+        assertEquals(
+            "work_prepare_standup_update", plan.toolName,
+            "데일리 스크럼 요청은 work_prepare_standup_update여야 한다"
+        )
+    }
+
+    @Test
+    fun `plan standup from korean standup keyword with project key해야 한다`() {
+        val plan = WorkContextForcedToolPlanner.plan("DEV 프로젝트 스탠드업 준비해줘")
+
+        requireNotNull(plan) { "프로젝트 키 + 스탠드업 키워드로 work_prepare_standup_update를 호출해야 한다" }
+        assertEquals(
+            "work_prepare_standup_update", plan.toolName,
+            "프로젝트 키가 있으면 jiraProject 인자와 함께 호출되어야 한다"
+        )
+        assertEquals("DEV", plan.arguments["jiraProject"]) { "jiraProject에 DEV가 포함되어야 한다" }
+    }
 }

@@ -223,11 +223,21 @@ internal object WorkContextForcedToolPlanner {
                 }
             )
         }
-        if (ctx.inferredProjectKey != null && n.contains("standup")) {
+        val hasStandupHint = n.contains("standup") || n.contains("스탠드업") ||
+            n.contains("데일리 스크럼") || n.contains("스크럼 준비") ||
+            n.contains("일일 업무 보고")
+        if (ctx.inferredProjectKey != null && hasStandupHint) {
             return ForcedToolCallPlan(
                 "work_prepare_standup_update",
                 WorkContextArgBuilder
                     .buildStandupArgs(ctx.inferredProjectKey)
+            )
+        }
+        // 프로젝트 키 없이 스탠드업 단독 요청 — 기본 프로파일로 처리
+        if (hasStandupHint) {
+            return ForcedToolCallPlan(
+                "work_prepare_standup_update",
+                WorkContextArgBuilder.buildStandupArgs(null)
             )
         }
         return null
