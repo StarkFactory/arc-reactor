@@ -67,7 +67,7 @@ class SlackUserEmailResolverTest {
 
         email shouldBe "alice@example.com"
         mockServer.requestCount shouldBe 1
-        mockServer.takeRequest().path shouldBe "/users.info"
+        mockServer.takeRequest().path shouldBe "/users.info?user=U123"
     }
 
     @Test
