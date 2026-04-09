@@ -32,7 +32,6 @@ class SlackUserEmailResolver(
     private val webClient: WebClient = WebClient.builder()
         .baseUrl("https://slack.com/api")
         .defaultHeader("Authorization", "Bearer $botToken")
-        .defaultHeader("Content-Type", "application/json; charset=utf-8")
         .build()
 ) {
 
@@ -63,9 +62,8 @@ class SlackUserEmailResolver(
 
     private suspend fun fetchEmail(userId: String): String? {
         return try {
-            val response = webClient.post()
-                .uri("/users.info")
-                .bodyValue(mapOf("user" to userId))
+            val response = webClient.get()
+                .uri("/users.info?user={userId}", userId)
                 .retrieve()
                 .awaitBody<SlackUsersInfoResponse>()
 
