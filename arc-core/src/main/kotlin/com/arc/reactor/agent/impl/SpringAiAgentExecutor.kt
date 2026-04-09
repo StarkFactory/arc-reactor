@@ -649,14 +649,32 @@ class SpringAiAgentExecutor(
         val userMemoryContext =
             hookContext.metadata[UserMemoryInjectionHook.USER_MEMORY_CONTEXT_KEY]?.toString()
         val effectiveRagContext = mergeRagContext(ragContext, forcedToolContext?.output)
+        val requesterContext = buildRequesterContext(hookContext.metadata)
+        val enrichedMemoryContext = listOfNotNull(userMemoryContext, requesterContext)
+            .joinToString("\n\n")
+            .takeIf { it.isNotBlank() }
         return systemPromptBuilder.build(
             command.systemPrompt, effectiveRagContext,
             command.responseFormat,
             command.responseSchema,
             command.userPrompt,
             workspaceToolAlreadyCalled = forcedToolContext != null,
-            userMemoryContext = userMemoryContext
+            userMemoryContext = enrichedMemoryContext
         )
+    }
+
+    /** 요청자 신원 정보를 시스템 프롬프트 컨텍스트로 변환한다. */
+    private fun buildRequesterContext(metadata: Map<String, Any>): String? {
+        val email = metadata["requesterEmail"]?.toString()?.takeIf { it.isNotBlank() }
+        val accountId = metadata["requesterAccountId"]?.toString()?.takeIf { it.isNotBlank() }
+        val displayName = metadata["requesterDisplayName"]?.toString()?.takeIf { it.isNotBlank() }
+        if (email == null && accountId == null) return null
+        val sb = StringBuilder("[Requester Identity]\n")
+        displayName?.let { sb.append("displayName: $it\n") }
+        email?.let { sb.append("email: $it\n") }
+        accountId?.let { sb.append("jiraAccountId: $it\n") }
+        sb.append("IMPORTANT: 개인화 도구(jira_my_open_issues, bitbucket_my_authored_prs 등) 호출 시 위 정보를 requesterEmail 또는 assigneeAccountId 파라미터에 자동으로 사용하라. 사용자에게 이메일을 다시 물어보지 마라.")
+        return sb.toString()
     }
 
     /** 에이전트 모드에 따라 적절한 실행 전략(PLAN_EXECUTE vs ReAct)으로 위임한다. */
