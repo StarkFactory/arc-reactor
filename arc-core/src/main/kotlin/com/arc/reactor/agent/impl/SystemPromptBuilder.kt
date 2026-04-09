@@ -194,6 +194,7 @@ internal class SystemPromptBuilder(
             appendCompoundQuestionHint(workspaceToolAlreadyCalled)
             appendReadOnlyPolicy()
             appendToolErrorRetryHint()
+            appendDuplicateToolCallPreventionHint()
             appendConfluencePreferenceHint()
             appendMutationRefusal(userPrompt)
             appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
@@ -383,6 +384,19 @@ internal class SystemPromptBuilder(
         append("→ Automatically call confluence_search_by_text ")
         append("with keywords from the issue summary\n")
         append("→ Combine both results in one comprehensive response.\n")
+    }
+
+    /** 동일 도구 중복 호출 방지 힌트 — 불필요한 API 비용과 응답 지연을 줄인다. */
+    private fun StringBuilder.appendDuplicateToolCallPreventionHint() {
+        append("\n[Tool Call Efficiency — 중복 호출 금지]\n")
+        append("Do NOT call the same tool with the same parameters twice.\n")
+        append("If a tool returned a successful result (no error), ")
+        append("use that result immediately to compose your response. ")
+        append("Do NOT call the tool again 'to confirm' or 'to double-check'.\n")
+        append("If a tool returned an error, retry with DIFFERENT parameters ")
+        append("or use a DIFFERENT tool — never repeat the exact same call.\n")
+        append("Rule: Each tool may be called at most ONCE per question ")
+        append("with the same parameters. Different parameters are allowed.\n")
     }
 
     /** Confluence 도구 우선순위 힌트 — 워크스페이스 쿼리에서만 포함한다. */

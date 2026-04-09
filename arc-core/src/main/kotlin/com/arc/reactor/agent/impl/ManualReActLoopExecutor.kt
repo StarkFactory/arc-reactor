@@ -285,13 +285,59 @@ internal class ManualReActLoopExecutor(
         maxToolCalls: Int,
         allowedTools: Set<String>?
     ) {
+        val pendingToolCalls = chatResponse?.results?.firstOrNull()
+            ?.output?.toolCalls.orEmpty()
         val toolResponses = executeAndRecordTools(
             chatResponse, state, hookContext,
             toolsUsed, maxToolCalls, allowedTools
         )
         appendToolMessagePair(messages, action.assistantOutput, toolResponses)
+        // 성공한 도구 서명 기록 + 중복 호출 시 종합 응답 유도 힌트 주입
+        injectDuplicateToolCallHintIfNeeded(pendingToolCalls, toolResponses, state, messages)
         applyPostToolHints(toolResponses, state, messages)
         enforceMaxToolCalls(state, command, messages)
+    }
+
+    /**
+     * 도구 실행 후 성공한 서명을 기록하고, 중복 호출이 감지되면 종합 응답 유도 힌트를 주입한다.
+     * 에러 응답은 재시도 허용을 위해 중복으로 취급하지 않는다.
+     * 도구 실행 자체를 차단하지 않고, 힌트 주입 + 도구 비활성화로 다음 iteration에서 최종 응답을 유도한다.
+     */
+    private fun injectDuplicateToolCallHintIfNeeded(
+        toolCalls: List<AssistantMessage.ToolCall>,
+        toolResponses: List<ToolResponseMessage.ToolResponse>,
+        state: ReActLoopState,
+        messages: MutableList<Message>
+    ) {
+        val errorToolIds = toolResponses
+            .filter { it.responseData().startsWith(ReActLoopUtils.TOOL_ERROR_PREFIX) }
+            .map { it.id() }
+            .toSet()
+        val duplicateNames = mutableListOf<String>()
+        for (tc in toolCalls) {
+            val sig = buildToolSignature(tc)
+            if (tc.id() !in errorToolIds) {
+                if (sig in state.succeededToolSignatures) {
+                    duplicateNames.add(tc.name())
+                }
+                state.succeededToolSignatures.add(sig)
+            }
+        }
+        if (duplicateNames.isEmpty()) return
+        val names = duplicateNames.joinToString(", ")
+        logger.info { "동일 도구 중복 호출 감지: $names — 종합 응답 유도 힌트 주입" }
+        messages.add(
+            org.springframework.ai.chat.messages.UserMessage(
+                "[System] 동일한 도구($names)를 동일한 파라미터로 이미 호출했습니다. " +
+                    "추가 호출 없이 기존 결과를 종합하여 응답하세요."
+            )
+        )
+        state.activeTools = emptyList()
+    }
+
+    /** 도구 호출 서명을 생성한다 (이름 + 정규화된 인자). */
+    private fun buildToolSignature(tc: AssistantMessage.ToolCall): String {
+        return "${tc.name()}::${tc.arguments().orEmpty().trim()}"
     }
 
     // ── private 메서드: 도구 실행 기록 ──
@@ -393,6 +439,8 @@ internal class ManualReActLoopExecutor(
         var totalToolDurationMs = 0L
         var hadToolError = false
         var textRetryCount = 0
+        /** 이전 iteration에서 성공한 도구 서명(이름+인자) 집합 — 중복 호출 감지용 */
+        val succeededToolSignatures = mutableSetOf<String>()
     }
 
     // ── private 메서드: 토큰 예산 추적 ──
