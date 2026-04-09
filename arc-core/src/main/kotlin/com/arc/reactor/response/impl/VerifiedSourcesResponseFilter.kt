@@ -268,8 +268,10 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         private val VERIFICATION_KEYWORDS = setOf(
             "jira", "confluence", "bitbucket", "slack", "policy", "policies", "runbook", "incident",
             "release", "owner", "status", "guideline", "documentation", "swagger", "openapi",
-            "endpoint", "schema", "api", "지라", "컨플루언스", "비트버킷", "스웨거", "오픈api",
-            "엔드포인트", "스키마", "정책", "규정", "문서", "사내", "서비스", "규칙"
+            "endpoint", "schema", "api", "pull request", "pr ", "commit", "merge",
+            "지라", "컨플루언스", "비트버킷", "스웨거", "오픈api",
+            "엔드포인트", "스키마", "정책", "규정", "문서", "사내", "서비스", "규칙",
+            "커밋", "머지", "pr몇", "pr 몇"
         )
 
         /** 정보 요청을 나타내는 키워드/패턴. */
