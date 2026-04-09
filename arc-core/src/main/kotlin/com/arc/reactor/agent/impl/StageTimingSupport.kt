@@ -34,9 +34,10 @@ internal fun recordStageTiming(
     durationMs: Long
 ) {
     val normalizedDuration = durationMs.coerceAtLeast(0)
-    val timings = hookContext.metadata.getOrPut(STAGE_TIMINGS_METADATA_KEY) {
-        ConcurrentHashMap<String, Long>()
-    } as? MutableMap<String, Long>
+    val timings = (hookContext.metadata as java.util.concurrent.ConcurrentHashMap<String, Any>)
+        .computeIfAbsent(STAGE_TIMINGS_METADATA_KEY) {
+            ConcurrentHashMap<String, Long>()
+        } as? MutableMap<String, Long>
         ?: mutableMapOf<String, Long>().also { hookContext.metadata[STAGE_TIMINGS_METADATA_KEY] = it }
     timings[stage] = normalizedDuration
 }
