@@ -239,7 +239,10 @@ internal class SystemPromptBuilder(
     private fun StringBuilder.appendGeneralGroundingRule() {
         append("\n\n[Grounding Rules]\n")
         append("Answer directly from your knowledge. No tools needed.\n")
-        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n\n")
+        append("Do NOT say '도구를 찾을 수 없습니다' for general knowledge questions.\n")
+        append("EXCEPTION: If the user asks '~이 뭐야?', '~가 뭔데?' about a term you do NOT recognize ")
+        append("as a well-known tech/programming concept (e.g. 사내 용어, 캐릭터, 약어), ")
+        append("call `confluence_search_by_text` to check internal documentation before answering.\n\n")
         append("[Response Style]\n")
         append("You are a friendly, warm colleague — not a stiff robot.\n")
         append("- 농담, 유머, 가벼운 잡담, 게임(끝말잇기, 스무고개, 퀴즈 등)에 즐겁게 응하세요.\n")
@@ -403,8 +406,10 @@ internal class SystemPromptBuilder(
         append("User: '회고 자료 만들어줘' → call jira_search_issues (completed) → write retrospective from results\n")
         append("User: '이슈 좀 보여줘' → call jira_search_issues (recent) → show results\n")
         append("User: 'JAR project의 issues 보여줘' → call jira_search_issues(project=JAR) → show results (mixed language = treat as Korean)\n")
+        append("User: 'web-labs에서 이번 주 머지된 PR' → call bitbucket_list_prs(workspace='ihunet', repo='web-labs', state='MERGED') → show results ('web-labs' is a REPO, not workspace)\n")
         append("User: 'JAR-36을 칸반 카드로 보여줘' → call jira_get_issue(issueKey=JAR-36) → format as kanban card (READ, not write)\n")
         append("User: '회고 자료 만들어줘' → call jira_search_issues → write retrospective from results (READ, not write)\n")
+        append("User: '오늘 브리핑 해줘' → call work_morning_briefing → synthesize tool results into a comprehensive briefing summary (NEVER return empty)\n")
         append("User: 'Kotlin data class 예시 보여줘' → answer directly (GENERAL question, no tool needed)\n")
         append("User: '15 * 23은?' → answer directly (math, no tool needed)\n")
         append("User: '이번 주 완료된 이슈' → call jira_search_issues → if JQL error → simplify query (use 'resolved >= -7d' instead of startOfWeek()) and retry → show results\n")
@@ -532,6 +537,11 @@ internal class SystemPromptBuilder(
         workspaceToolAlreadyCalled: Boolean
     ) {
         if (workspaceToolAlreadyCalled) return
+        if (looksLikeExplicitConfluenceRequest(userPrompt)) {
+            append("\nThe user explicitly requested Confluence. You MUST call ")
+            append("`confluence_search_by_text` or `confluence_answer_question` before answering.")
+            append(" Do not reply directly from general knowledge or prior context.")
+        }
         if (looksLikeConfluenceAnswerPrompt(userPrompt)) {
             append("\nFor this request, you MUST call `confluence_answer_question` before answering.")
             append(" Do not reply directly from general knowledge or prior context.")
@@ -611,6 +621,8 @@ internal class SystemPromptBuilder(
             append(" Do not assemble the briefing manually.")
             append(" The tool accepts optional inputs and will use default profile settings when details are omitted.")
             append(" Infer obvious project/repository hints from the user message, but do not ask follow-up questions before the first tool call.")
+            append(" After receiving tool results, you MUST produce a comprehensive briefing summary.")
+            append(" NEVER return an empty or very short response — always synthesize the tool output into a friendly, structured report.")
         }
     }
 
@@ -799,7 +811,10 @@ internal class SystemPromptBuilder(
             )
             matchesHints(userPrompt, BITBUCKET_HINTS) -> appendToolForcing(
                 "`bitbucket_list_prs` or `bitbucket_get_pr`",
-                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call." +
+                    " IMPORTANT: The default Bitbucket workspace is always 'ihunet'." +
+                    " Names like 'web-labs', 'arc-reactor', 'payment-api' are repository slugs, NOT workspaces." +
+                    " Always use workspace='ihunet' and treat user-mentioned names as the 'repo' parameter."
             )
         }
     }
@@ -920,6 +935,12 @@ internal class SystemPromptBuilder(
     // ── 복합 로직이 있는 프롬프트 분류 함수 ──
 
     /** Confluence 답변 요청: knowledge + answer 힌트가 모두 있고 discovery가 아닌 경우. */
+    /** 사용자가 "컨플루언스에서", "confluence에서" 등 명시적으로 Confluence를 지정했는지 판단한다. */
+    private fun looksLikeExplicitConfluenceRequest(prompt: String?): Boolean {
+        if (prompt.isNullOrBlank()) return false
+        return EXPLICIT_CONFLUENCE_PATTERNS.any { prompt.contains(it, ignoreCase = true) }
+    }
+
     private fun looksLikeConfluenceAnswerPrompt(prompt: String?): Boolean {
         return matchesHints(prompt, CONFLUENCE_KNOWLEDGE_HINTS) &&
             matchesHints(prompt, CONFLUENCE_ANSWER_HINTS) &&
@@ -1039,6 +1060,11 @@ internal class SystemPromptBuilder(
             "runbook", "knowledge", "internal", "service", "space", "컨플루언스", "위키", "페이지",
             "문서", "정책", "규정", "가이드", "런북", "사내", "서비스", "스페이스"
         )
+        /** 사용자가 "컨플루언스에서" 등 명시적으로 Confluence를 지정한 패턴 */
+        private val EXPLICIT_CONFLUENCE_PATTERNS = setOf(
+            "컨플루언스에서", "confluence에서", "컨플루언스 에서",
+            "위키에서", "wiki에서"
+        )
         private val CONFLUENCE_ANSWER_HINTS = setOf(
             "what", "who", "why", "how", "describe", "explain", "summary", "summarize", "tell me",
             "알려", "설명", "요약", "정리", "무엇", "왜", "어떻게", "누구", "본문", "body", "read", "읽"
@@ -1128,7 +1154,7 @@ internal class SystemPromptBuilder(
             "정책", "policy", "절차", "procedure", "프로세스", "process",
             "규정", "regulation", "핸드북", "handbook", "사내 문서",
             "내부 문서", "기술 문서", "운영 문서", "배포 절차", "장애 대응",
-            "코드 리뷰 가이드", "코딩 컨벤션", "convention", "아키텍처 문서",
+            "코드 리뷰 가이드", "코딩 컨벤션", "컨벤션", "convention", "아키텍처 문서",
             "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog"
         )
 

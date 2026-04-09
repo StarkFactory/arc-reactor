@@ -15,6 +15,10 @@ internal object WorkContextBitbucketPlanner {
         "열린 pr", "오픈 pr", "open pr", "open prs",
         "pull request 목록", "pr 목록"
     )
+    private val bitbucketMergedPrHints = setOf(
+        "머지된 pr", "merge된 pr", "merged pr", "merged prs",
+        "머지 pr", "머지한 pr", "병합된 pr"
+    )
     private val bitbucketStalePrHints = setOf(
         "stale pr", "오래된 pr", "방치된 pr", "stale pull request"
     )
@@ -34,6 +38,10 @@ internal object WorkContextBitbucketPlanner {
         val slug = ctx.repository?.second ?: ctx.repositorySlug ?: return null
         val n = ctx.normalized
 
+        if (n.matchesAnyHint(bitbucketMergedPrHints)) {
+            return buildRepoPlan("bitbucket_list_prs", ws, slug,
+                "state" to "MERGED")
+        }
         if (n.matchesAnyHint(bitbucketOpenPrHints)) {
             return buildRepoPlan("bitbucket_list_prs", ws, slug,
                 "state" to "OPEN")

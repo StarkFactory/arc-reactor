@@ -257,7 +257,7 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "브랜치", "리포",
             "배포 현황", "배포 일정", "배포 정책", "배포 규칙", "릴리즈", "릴리스", "인시던트", "장애",
             "온보딩", "런북", "runbook", "팀 정책", "사내 정책", "우리팀 정책", "우리 팀 정책",
-            "세팅", "설정 방법", "가이드", "매뉴얼", "신입",
+            "세팅", "설정 방법", "가이드", "매뉴얼", "신입", "컨벤션", "convention",
             "마감", "마감일", "기한", "due date", "deadline", "마감 임박",
             "완료", "완료된", "완료 이슈", "done", "resolved", "closed",
             "최근 이슈", "최근 일주일", "이번 주", "이번주", "이번 달", "이번달",
@@ -279,7 +279,7 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
             "endpoint", "schema", "api", "pull request", "pr ", "commit", "merge",
             "지라", "컨플루언스", "비트버킷", "스웨거", "오픈api",
             "엔드포인트", "스키마", "정책", "규정", "문서", "사내", "서비스", "규칙",
-            "커밋", "머지", "pr몇", "pr 몇"
+            "커밋", "머지", "pr몇", "pr 몇", "컨벤션", "convention"
         )
 
         /** 정보 요청을 나타내는 키워드/패턴. */
