@@ -130,9 +130,26 @@ internal class ExecutionResultFinalizer(
 
         // ── 단계 7~10: 관측 -> 대화 저장 -> AfterComplete Hook -> 메트릭 기록 ──
         observeResponse(completed, command, hookContext, toolsUsed, eventMetadata)
-        conversationManager.saveHistory(command, completed)
+        saveHistorySafely(command, completed, hookContext)
         runAfterCompletionHook(hookContext, completed, toolsUsed, startTime)
         return recordFinalExecution(completed, startTime)
+    }
+
+    /**
+     * 대화 이력 저장을 안전하게 수행한다.
+     * 저장 실패 시에도 응답 반환에 영향을 주지 않도록 예외를 억제한다.
+     */
+    private suspend fun saveHistorySafely(
+        command: AgentCommand,
+        result: AgentResult,
+        hookContext: HookContext
+    ) {
+        try {
+            conversationManager.saveHistory(command, result)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.error(e) { "대화 이력 저장 실패 (runId=${hookContext.runId})" }
+        }
     }
 
     private fun isGuardRejected(result: AgentResult): Boolean =
@@ -200,7 +217,7 @@ internal class ExecutionResultFinalizer(
         eventMetadata: Map<String, Any>
     ): AgentResult {
         observeResponse(result, command, hookContext, toolsUsed, eventMetadata)
-        conversationManager.saveHistory(command, result)
+        saveHistorySafely(command, result, hookContext)
         runAfterCompletionHook(hookContext, result, toolsUsed, startTime)
         return result
     }

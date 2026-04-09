@@ -124,10 +124,13 @@ internal class ToolCallOrchestrator(
             return ToolCallResult(success = false, output = rejection, errorMessage = rejection, durationMs = 0)
         }
 
+        // Hook/승인 통과 후 1회만 해석하여 전달 (invokeAndFinalizeDirect 내부 중복 호출 제거)
+        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         return invokeAndFinalizeDirect(
             toolName = toolName,
             effectiveToolParams = effectiveToolParams,
             tools = tools,
+            springCallbacksByName = springCallbacksByName,
             hookContext = hookContext,
             toolCallContext = toolCallContext,
             toolsUsed = toolsUsed
@@ -322,12 +325,12 @@ internal class ToolCallOrchestrator(
         toolName: String,
         effectiveToolParams: Map<String, Any?>,
         tools: List<Any>,
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         hookContext: HookContext,
         toolCallContext: ToolCallContext,
         toolsUsed: MutableList<String>
     ): ToolCallResult {
         val toolStartTime = System.currentTimeMillis()
-        val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         val toolInput = serializeToolInput(effectiveToolParams, null)
         val invocation = invokeToolAdapter(toolName, toolInput, tools, springCallbacksByName)
 
