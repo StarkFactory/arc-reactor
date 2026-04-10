@@ -327,8 +327,13 @@ data class ConcurrencyProperties(
     /** 최대 동시 요청 수 */
     val maxConcurrentRequests: Int = 20,
 
-    /** 요청 타임아웃 (밀리초) */
-    val requestTimeoutMs: Long = 30000,
+    /**
+     * 요청 타임아웃 (밀리초).
+     * R209: 30000 → 45000. R208 minimal prompt retry가 empty 발생 시 최대 2회 재시도를 하며,
+     * 각 retry가 10~15s 소요되어 합계가 30s를 초과해 B3/B4 같은 케이스에서 timeout이 발생했다.
+     * 45s로 확장하여 retry 2회까지 안정적으로 수용.
+     */
+    val requestTimeoutMs: Long = 45000,
 
     /** 개별 도구 호출 타임아웃 (밀리초) */
     val toolCallTimeoutMs: Long = 15000

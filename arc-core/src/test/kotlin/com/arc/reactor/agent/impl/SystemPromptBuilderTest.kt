@@ -874,4 +874,120 @@ class SystemPromptBuilderTest {
             "Workspace grounding should not include [Self Identity] section"
         }
     }
+
+    // ── R208: minimal prompt retry 경로 테스트 (B4 deterministic empty 해결) ──
+
+    @Test
+    fun `R208 normal workspace prompt should include all forcing sections`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "개발 환경 세팅 방법",
+            minimalPromptRetry = false
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "Normal path should include INTERNAL_DOC forcing for 'setup' keywords"
+        }
+        assertTrue(prompt.contains("⚠️ 최종 재확인 — 예약 문구 절대 금지")) {
+            "Normal path should include R203 final reminder"
+        }
+        assertTrue(prompt.contains("Tool Call Efficiency — 중복 호출 금지")) {
+            "Normal path should include R202 preventive hint section"
+        }
+    }
+
+    @Test
+    fun `R208 minimalPromptRetry should skip INTERNAL_DOC forcing`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "개발 환경 세팅 방법",
+            minimalPromptRetry = true
+        )
+
+        // R208 핵심: INTERNAL_DOC forcing 생략 (B4 deterministic empty trigger 회피)
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트/온보딩/환경 세팅")) {
+            "Minimal retry should NOT include INTERNAL_DOC forcing body"
+        }
+    }
+
+    @Test
+    fun `R208 minimalPromptRetry should skip R203 final reminder`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "내 Jira 이슈 보여줘",
+            minimalPromptRetry = true
+        )
+
+        assertFalse(prompt.contains("⚠️ 최종 재확인 — 예약 문구 절대 금지")) {
+            "Minimal retry should NOT include R203 final reminder"
+        }
+    }
+
+    @Test
+    fun `R208 minimalPromptRetry should skip duplicate tool call prevention`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "내 Jira 이슈 보여줘",
+            minimalPromptRetry = true
+        )
+
+        assertFalse(prompt.contains("Tool Call Efficiency — 중복 호출 금지")) {
+            "Minimal retry should NOT include R202 preventive hint"
+        }
+    }
+
+    @Test
+    fun `R208 minimalPromptRetry should still include core grounding rules`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "내 Jira 이슈 보여줘",
+            minimalPromptRetry = true
+        )
+
+        // Language Rule과 Grounding Rules는 여전히 포함되어야 함 (핵심 기능 유지)
+        assertTrue(prompt.contains("[Language Rule]")) {
+            "Minimal retry should still include Language Rule"
+        }
+        assertTrue(prompt.contains("[Grounding Rules]")) {
+            "Minimal retry should still include Grounding Rules"
+        }
+    }
+
+    @Test
+    fun `R208 minimalPromptRetry prompt should be significantly shorter than normal`() {
+        val normalPrompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "개발 환경 세팅 방법",
+            minimalPromptRetry = false
+        )
+        val minimalPrompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "개발 환경 세팅 방법",
+            minimalPromptRetry = true
+        )
+
+        assertTrue(minimalPrompt.length < normalPrompt.length) {
+            "Minimal prompt (${minimalPrompt.length}) should be shorter than normal (${normalPrompt.length})"
+        }
+        // 적어도 20% 이상 줄어들어야 효과가 있음
+        val reduction = (normalPrompt.length - minimalPrompt.length).toDouble() / normalPrompt.length
+        assertTrue(reduction >= 0.20) {
+            "Minimal prompt should reduce size by >= 20%, got ${(reduction * 100).toInt()}% " +
+                "(normal=${normalPrompt.length}, minimal=${minimalPrompt.length})"
+        }
+    }
 }
