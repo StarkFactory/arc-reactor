@@ -173,29 +173,59 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
     }
 
     /**
-     * R192: 본문이 너무 짧을 때(LLM이 인사만 남기고 조기 종료) 서버 측 toolInsights로 본문을 보강한다.
+     * R192→R193: 본문이 너무 짧을 때(LLM이 인사만 남기고 조기 종료) 인사이트를 자동 주입한다.
+     *
+     * 우선순위:
+     * 1. `toolInsights`가 있으면 서버 측 미리 계산된 수치·추세·이상치를 그대로 사용 (R192)
+     * 2. `toolInsights`가 비어있지만 `verifiedSources`가 있으면 소스 개수 + 첫 3개 제목으로
+     *    합성 인사이트를 생성한다 (R193 — Confluence 등 insights 필드 미지원 도구용)
      *
      * 트리거 조건:
      * - 도구가 호출되었고
-     * - toolInsights가 비어있지 않으며
      * - 본문이 [THIN_BODY_THRESHOLD] 미만
      * - 이미 인사이트 마커(💡)가 포함되지 않음
+     * - `toolInsights` OR `verifiedSources` 중 하나라도 존재
      */
     private fun maybeAppendToolInsightsForThinBody(
         content: String,
         context: ResponseFilterContext
     ): String {
         if (context.toolsUsed.isEmpty()) return content
-        if (context.toolInsights.isEmpty()) return content
         val trimmed = content.trim()
         if (trimmed.length >= THIN_BODY_THRESHOLD) return content
         if (trimmed.contains("💡") || trimmed.contains(":bulb:")) return content
+
+        val insightLines = buildThinBodyInsightLines(context)
+        if (insightLines.isEmpty()) return content
+
         val korean = containsHangul(context.command.userPrompt)
         val insightsTitle = if (korean) "\n\n💡 인사이트" else "\n\n💡 Insights"
-        val insightLines = context.toolInsights
-            .take(MAX_FALLBACK_INSIGHTS)
-            .joinToString("\n") { "- $it" }
         return "$trimmed$insightsTitle\n$insightLines"
+    }
+
+    /**
+     * R193: thin-body 시 주입할 인사이트 줄을 생성한다.
+     * 서버 측 toolInsights 우선, 없으면 verifiedSources 메타데이터로 합성한다.
+     */
+    private fun buildThinBodyInsightLines(context: ResponseFilterContext): String {
+        if (context.toolInsights.isNotEmpty()) {
+            return context.toolInsights
+                .take(MAX_FALLBACK_INSIGHTS)
+                .joinToString("\n") { "- $it" }
+        }
+        val sources = context.verifiedSources
+        if (sources.isEmpty()) return ""
+        val korean = containsHangul(context.command.userPrompt)
+        val countLine = if (korean) {
+            "- 검색 결과: 총 ${sources.size}건"
+        } else {
+            "- Search results: ${sources.size} items"
+        }
+        val topTitles = sources.take(MAX_SYNTHETIC_TITLE_LINES).map { source ->
+            val displayTitle = source.title.trim().take(80)
+            "- $displayTitle"
+        }
+        return (listOf(countLine) + topTitles).joinToString("\n")
     }
 
     /**
@@ -418,5 +448,8 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
          * 100자는 인사 1-2문장 + 간단한 한 줄 요약 정도까지만 허용하는 보수적 임계치.
          */
         private const val THIN_BODY_THRESHOLD = 100
+
+        /** R193: 합성 인사이트에 포함할 최대 source 제목 수 */
+        private const val MAX_SYNTHETIC_TITLE_LINES = 3
     }
 }
