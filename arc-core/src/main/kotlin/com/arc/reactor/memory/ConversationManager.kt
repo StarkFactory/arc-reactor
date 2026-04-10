@@ -1,6 +1,10 @@
 package com.arc.reactor.memory
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.MediaConverter
@@ -96,7 +100,13 @@ class DefaultConversationManager(
     private val properties: AgentProperties,
     private val summaryStore: ConversationSummaryStore? = null,
     private val summaryService: ConversationSummaryService? = null,
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /**
+     * R252: 메모리 저장/조회/요약 실패를 `execution.error{stage="memory"}`에 자동 기록.
+     * 기본값 NoOp으로 backward compat. 특히 `saveMessages`와 비동기 요약은 fail-open으로
+     * 예외가 swallowing되므로 이 메트릭 없이는 조용한 실패를 추적할 수 없다.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) : ConversationManager, DisposableBean {
 
     /** 요약 관련 설정 프로퍼티 바로가기 */
@@ -166,6 +176,8 @@ class DefaultConversationManager(
             loadFromHistory(sessionId, allMessages)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R252: MemoryStore 로드 실패를 MEMORY stage로 기록 (재throw 전)
+            evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)
             span.setError(e)
             throw e
         } finally {
@@ -186,6 +198,8 @@ class DefaultConversationManager(
             buildHierarchicalHistory(sessionId, allMessages)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R252: 계층적 메모리 빌드 실패 — fail-open으로 takeLast 폴백하지만 관측 기록
+            evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)
             logger.warn(e) { "세션 $sessionId 계층적 메모리 실패, takeLast 폴백" }
             allMessages.takeLast(properties.llm.maxConversationTurns * 2)
                 .map { toSpringAiMessage(it) }
@@ -341,6 +355,8 @@ class DefaultConversationManager(
                 logger.debug { "비동기 요약 완료: session=$sessionId" }
             } catch (e: Exception) {
                 e.throwIfCancellation()
+                // R252: 비동기 요약 실패 — fail-open swallowing 대신 메트릭 기록
+                evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)
                 logger.debug(e) { "비동기 요약 실패: session=$sessionId (다음 로드 시 재시도)" }
             }
         }
@@ -379,6 +395,8 @@ class DefaultConversationManager(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R252: 세션 소유권 DB 조회 실패를 MEMORY stage로 기록
+            evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)
             logger.error(e) { "세션 소유권 조회 실패 — fail-close로 접근 차단: sessionId=$sessionId" }
             throw SessionOwnershipVerificationException(sessionId, e)
         } ?: return
@@ -434,6 +452,9 @@ class DefaultConversationManager(
             return store.get(sessionId)?.getHistory()?.size ?: messageCount
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R252: 대화 이력 저장 실패 — fail-open(return 0) 하지만 메트릭으로 관측
+            // 이 경로는 JDBC/Redis 장애 시 사용자에게 보이지 않게 실패하므로 관측이 핵심
+            evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)
             span.setError(e)
             logger.error(e) { "대화 이력 저장 실패: session=$sessionId" }
             return 0

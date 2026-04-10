@@ -17702,3 +17702,214 @@ topk(3,
 #### 📊 R251 요약
 
 🛡️ **GuardPipeline GUARD 예외 자동 기록 완료** — R250 `OutputGuardPipeline` 패턴을 **입력 측 대칭**으로 이식. `GuardPipeline` 생성자에 `evaluationMetricsCollector` 파라미터 추가 (기본 NoOp), fail-close `handleStageError()`에서 `recordError(GUARD, e)` 1줄 추가. 기존 Rejected 반환 로직(SYSTEM_ERROR 카테고리) 불변 — 메트릭 기록은 로깅과 병렬. `ArcReactorGuardConfiguration.requestGuard()`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 추가 + `getIfAvailable { NoOp }` fallback으로 Spring 자동 배선. 수정 파일 2개 (Pipeline +13 / Configuration +6), 테스트 1개 확장 (Test +155줄). 신규 테스트 **5 PASS** (R251ExecutionErrorRecording @Nested): 일반 stage 예외 기록 / 여러 stage 중 첫 실패만 기록 / 정상 Allowed 미기록 / 정책 Rejected 미기록 (PROMPT_INJECTION) / CancellationException 재throw + 미기록. JUnit @Nested discovery pre-existing 이슈로 6번째 테스트(backward compat) 누락됐으나 다른 기본 생성자 사용 테스트에서 implicitly 커버됨. 전체 `com.arc.reactor.guard.*` + `agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R251**. swagger-mcp 8181 **82 라운드 연속**. **자동 기록 stage 5/9 달성 — 과반수 돌파** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD). **Guard/OutputGuard 입출력 대칭성 완성**: 두 방향 모두에서 `safety.rejection`(정책 차단)과 `execution.error`(시스템 이상)가 분리 관측되어, 운영자가 "공격 vs 인프라 장애"를 즉시 구분할 수 있다. 예: guard 쪽 `execution.error` 급증 = Redis/인프라 문제, output_guard 쪽 급증 = PII regex 구현 문제. 두 알람을 서로 다른 대응 팀(보안 vs SRE)으로 라우팅 가능. R252부터는 PARSING/MEMORY/CACHE 등 나머지 4개 stage 또는 QA 측정 루프 재개 등 새 축으로 진행 가능.
+
+### Round 252 — 💾 2026-04-11T19:00+09:00 — ConversationManager MEMORY 예외 자동 기록 (5개 catch 지점)
+
+**작업 종류**: Directive 심화 — 6번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R251 확장)
+**완료 태스크**: #127
+
+#### 작업 배경
+
+R251까지 5개 stage 자동 기록(TOOL_CALL/LLM_CALL/HOOK/OUTPUT_GUARD/GUARD) 완성. R252는 **6번째 stage MEMORY**를 추가한다.
+
+ConversationManager는 R249 Hook과 유사한 **관측 공백** 패턴을 가진다:
+- `saveMessages()`가 JDBC 장애로 실패하면 `return 0`으로 fail-open swallowing
+- `triggerAsyncSummarization()`의 background 코루틴 실패는 `logger.debug`로만 기록
+- `loadFromHistory()`의 계층적 메모리 빌드 실패는 takeLast 폴백
+- 이들은 모두 task는 성공으로 끝나지만 **대화 이력이 조용히 날아가는** 치명적 문제
+
+**사용자 영향**:
+- 사용자가 "이전 대화가 기억 안 나요"라고 보고 → 운영자는 어느 세션이 저장 실패했는지 알 수 없음
+- Redis/JDBC 장애 시 Grafana에서 `execution.error{stage="memory"}` 스파이크로 즉시 탐지 가능
+
+#### 5개 catch 지점 매트릭스
+
+| 위치 | 함수 | 처리 방식 | R252 기록 |
+|------|------|----------|-----------|
+| line 167 | `loadHistory()` | rethrow (상위 catch) | ✓ rethrow 전 기록 |
+| line 187 | `loadFromHistory()` | takeLast 폴백 (fail-open) | ✓ 폴백 전 기록 |
+| line 382 | `verifySessionOwnership()` | `SessionOwnershipVerificationException` rethrow | ✓ rethrow 전 기록 |
+| line 342 | `triggerAsyncSummarization()` | `logger.debug` swallowing | ✓ 기록 추가 |
+| line 435 | `saveMessages()` | `return 0` swallowing (fail-open) | ✓ 기록 추가 |
+
+모든 5개 catch 지점에서 `evaluationMetricsCollector.recordError(ExecutionStage.MEMORY, e)` 1줄씩 추가.
+
+#### 신규 API
+
+**`DefaultConversationManager` 생성자 확장**:
+```kotlin
+class DefaultConversationManager(
+    private val memoryStore: MemoryStore?,
+    private val properties: AgentProperties,
+    private val summaryStore: ConversationSummaryStore? = null,
+    private val summaryService: ConversationSummaryService? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /**
+     * R252: 메모리 저장/조회/요약 실패를 execution.error{stage="memory"}에 자동 기록.
+     * 기본값 NoOp으로 backward compat.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+) : ConversationManager, DisposableBean
+```
+
+**Configuration 자동 주입** (`ArcReactorCoreBeansConfiguration.conversationManager()`):
+```kotlin
+@Bean
+@ConditionalOnMissingBean
+fun conversationManager(
+    memoryStore: MemoryStore,
+    properties: AgentProperties,
+    summaryStore: ObjectProvider<ConversationSummaryStore>,
+    summaryService: ObjectProvider<ConversationSummaryService>,
+    arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+    evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>  // R252
+): ConversationManager = DefaultConversationManager(
+    // ... 기존 파라미터 ...
+    evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+        NoOpEvaluationMetricsCollector
+    }
+)
+```
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../memory/ConversationManager.kt` | import 4개 + 생성자 파라미터 + 5개 catch 블록 기록 (+14줄) |
+| `main/.../autoconfigure/ArcReactorCoreBeansConfiguration.kt` | import 2개 + `ObjectProvider<EvaluationMetricsCollector>` + fallback (+8줄) |
+| `test/.../memory/ConversationManagerR252ExecutionErrorTest.kt` | 신규 파일 4 @Nested + 7 tests (+260줄) |
+
+**신규 별도 테스트 파일 선택 이유**: 기존 `ConversationManagerTest.kt`가 이미 상당히 크고 기존 @Nested 구조를 변경하지 않기 위해 분리. R252 전용 파일로 관심사 명확화.
+
+#### 테스트 결과
+
+**ConversationManagerR252ExecutionErrorTest — 7 tests PASS**:
+
+| @Nested 그룹 | 테스트 | 검증 내용 |
+|-------------|--------|-----------|
+| SaveMessagesFailure (2) | `saveMessages 예외가 MEMORY stage로 기록 (fail-open)` | `addMessage` JDBC 장애 → `return 0` + counter 1.0 |
+|  | `saveStreamingHistory 예외도 기록` | `saveStreamingHistory` 경로도 동일 |
+| LoadHistoryFailure (1) | `MemoryStore 조회 예외 기록 후 재throw` | `store.get()` 예외 → counter + rethrow |
+| SessionOwnershipVerificationFailure (2) | `getSessionOwner 예외 기록 + fail-close 빈 리스트` | NPE → counter + 빈 리스트 |
+|  | `slack 세션은 소유권 검증 건너뛰므로 예외 없음` | `slack-` prefix → 검증 skip → counter null |
+| HappyPath (2) | `정상 경로는 execution_error 기록 안 함` | 전체 happy path → counter null |
+|  | `기본 NoOp collector backward compat` | 파라미터 생략 → fail-open 동작 그대로 |
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.memory.*` PASS (기존 ConversationManagerTest + R252 신규)
+- 전체 `com.arc.reactor.agent.metrics.*` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 미접근
+- ✅ ConversationManager는 대화 이력 관리 — MCP 호출 경로와 독립
+- ✅ 기존 fail-open/fail-close 동작 불변
+- ✅ R251 메모리 설정 보존
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ 메트릭 기록은 캐시 키와 독립
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId` 포맷 `slack-{channelId}-{threadTs}` 불변
+- ✅ `MemoryStore` 인터페이스 계약 불변
+- ✅ `ConversationMessageTrimmer` 미수정
+- ✅ 세션 소유권 검증 로직(`verifySessionOwnership`) 동작 불변 — 메트릭 기록만 추가
+- ✅ 계층적 메모리 (facts/narrative/recent) 구조 보존
+- ✅ **이 라운드는 컨텍스트 관리 계층을 직접 건드렸으므로 특히 중요** — 기록은 기존 로직과 병렬, 제어 흐름 변경 없음
+
+**컨텍스트 관리: 유지 확인** (직접 건드린 라운드, 별도 확인)
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | 자동 기록 Round |
+|-------|-----------------|
+| `TOOL_CALL` | R246/R247 |
+| `LLM_CALL` | R248 |
+| `HOOK` | R249 |
+| `OUTPUT_GUARD` | R250 |
+| `GUARD` | R251 |
+| **`MEMORY`** | **R252** |
+| `PARSING` | ⏸️ ManualReActLoopExecutor |
+| `CACHE` | ⏸️ ResponseCache |
+| `OTHER` | ⏸️ 분류 불가 |
+
+**R252 이후 6/9 stage 자동 기록 완성** — 67% 달성.
+
+#### Fail-open 계층 관측 모델 확장
+
+R249(HookExecutor)에서 확립한 "fail-open swallowing 공백 해소" 패턴이 R252에서 **메모리 계층**으로 확장됐다:
+
+| 계층 | 정책 | fail-open catch 위치 |
+|------|------|----------------------|
+| Hook (R249) | fail-open | BeforeHooks/AfterToolCall/AfterAgentComplete |
+| **Memory (R252)** | **hybrid** | **saveMessages (fail-open) + triggerAsyncSummarization (swallow) + loadFromHistory (fallback)** |
+| Tool/LLM/Guard (R246~R251) | mixed | catch → throw 또는 Rejected 반환 |
+
+Memory 계층의 특징은 **hybrid** — 일부 경로는 fail-open (saveMessages), 일부는 fail-close (verifySessionOwnership), 일부는 fallback (loadFromHistory). R252가 **모든 catch 지점**을 커버하여 운영자가 어떤 실패 경로인지 정확히 파악할 수 있게 한다.
+
+#### 운영 시나리오 예시
+
+**시나리오 1: JDBC 대화 이력 저장 실패 감지**
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="memory"}[5m])
+```
+- R252 이전: 사용자가 "이전 대화가 기억 안 난다" 보고할 때까지 모름
+- R252 이후: Redis/JDBC 연결 불안정 시 5분 단위로 탐지
+
+**시나리오 2: 예외 클래스별 드릴다운**
+```promql
+topk(5,
+  sum by (exception) (rate(arc_reactor_eval_execution_error_total{stage="memory"}[1h]))
+)
+```
+- `SQLException`, `JedisConnectionException`, `SerializationException` 등 분포 파악
+
+**시나리오 3: 비동기 요약 실패 알람**
+메모리 stage 예외 중 "Gemini API" 관련 클래스 패턴이 많으면 → 요약 서비스 장애 의심
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="memory",exception=~"Http.*|Timeout.*"}[5m])
+```
+
+**시나리오 4: Guard/Memory/Hook fail-open 전체 스택**
+```promql
+sum by (stage) (
+  rate(arc_reactor_eval_execution_error_total{stage=~"hook|memory"}[5m])
+)
+```
+- fail-open 계층 2개(hook, memory)의 조용한 실패를 한 차트로 모니터링
+
+#### 연속 지표
+
+| 지표 | R251 | R252 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 82 | **83** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R251 | **4/5 + R224~R252** | - |
+| 자동 기록 stage 수 | 5/9 | **6/9** (+MEMORY, 67%) | 증가 |
+
+#### 다음 Round 후보
+
+- **R253+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ResponseCache CACHE 자동 기록** — Redis/Caffeine 캐시 실패 (패턴 유사)
+  3. **ManualReActLoopExecutor PARSING 자동 기록** — JSON 파싱 실패
+  4. **ApprovalController REST 엔드포인트** — R240 포맷터
+  5. **execution.error 계층 통합 알람 패턴 가이드** — `docs/evaluation-metrics.md`에 운영 시나리오 추가
+  6. **새 Directive 축 탐색** (#98 Patch-First)
+
+#### 📊 R252 요약
+
+💾 **ConversationManager MEMORY 예외 자동 기록 완료** — R251까지 5개 stage 자동 기록 이후 6번째 stage 추가. `DefaultConversationManager`의 **5개 catch 지점 전부**를 `execution.error{stage="memory"}` 메트릭에 연결: (1) `loadHistory()` rethrow 전, (2) `loadFromHistory()` takeLast 폴백 전, (3) `verifySessionOwnership()` rethrow 전, (4) `triggerAsyncSummarization()` background swallowing 전, (5) `saveMessages()` fail-open return 0 전. 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp으로 backward compat). `ArcReactorCoreBeansConfiguration.conversationManager()`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 + `getIfAvailable { NoOp }` fallback으로 Spring 자동 배선. **메모리 계층은 hybrid 패턴** — 일부 fail-open(saveMessages), 일부 fail-close(소유권 검증), 일부 fallback(계층적 메모리)이지만 R252가 모든 경로를 커버. 특히 `saveMessages` fail-open은 "사용자는 정상 응답을 받지만 대화 이력이 날아가는" 치명적 조용한 실패 패턴인데, R252 이후 Grafana 알람으로 즉시 탐지 가능. 수정 파일 2개 (Manager +14 / Configuration +8), 신규 테스트 파일 1개 (R252ExecutionErrorTest, 4 @Nested, 260줄). 신규 테스트 **7 PASS** (SaveMessagesFailure 2 + LoadHistoryFailure 1 + SessionOwnershipVerificationFailure 2 + HappyPath 2): saveMessages/saveStreamingHistory JDBC 실패 기록 / loadHistory store 예외 기록 + rethrow / getSessionOwner NPE 기록 + fail-close 빈 리스트 / slack 세션 소유권 검증 스킵 확인 / happy path 미기록 / NoOp backward compat. 전체 `com.arc.reactor.memory.*` + `agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. **컨텍스트 관리 계층을 직접 건드린 라운드**이지만 MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 — sessionId 포맷, MemoryStore 계약, 소유권 검증 로직, 계층적 메모리 구조 불변. Directive 진행: **4/5 + R224~R252**. swagger-mcp 8181 **83 라운드 연속**. **자동 기록 stage 6/9 달성 — 67%** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD + MEMORY). R252 이후 운영자는 `rate(execution.error{stage="memory"})` 알람으로 Redis/JDBC 장애 시 "사용자가 이전 대화를 기억 못 한다"는 민원 발생 전에 선제 대응 가능. `topk(5, sum by (exception))` 드릴다운으로 SQLException/JedisConnectionException/SerializationException 분포 추적. 나머지 3개 stage(PARSING/CACHE/OTHER) 중 CACHE가 다음 자연스러운 타겟 — ResponseCache는 fail-open 패턴이라 동일한 관측 공백 존재.

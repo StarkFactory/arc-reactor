@@ -3,8 +3,10 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.MicrometerAgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.agent.model.DefaultErrorMessageResolver
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.cache.CacheMetricsRecorder
@@ -210,6 +212,9 @@ class ArcReactorCoreBeansConfiguration {
 
     /**
      * 대화 관리자 (대화 이력 생명주기 관리)
+     *
+     * R252: `evaluationMetricsCollectorProvider`를 통해 메모리 저장/조회/요약 실패를
+     * `execution.error{stage="memory"}` 메트릭에 자동 기록한다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -218,13 +223,17 @@ class ArcReactorCoreBeansConfiguration {
         properties: AgentProperties,
         summaryStore: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryStore>,
         summaryService: ObjectProvider<com.arc.reactor.memory.summary.ConversationSummaryService>,
-        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+        evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
     ): ConversationManager = DefaultConversationManager(
         memoryStore = memoryStore,
         properties = properties,
         summaryStore = summaryStore.ifAvailable,
         summaryService = summaryService.ifAvailable,
-        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+        evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+            NoOpEvaluationMetricsCollector
+        }
     )
 
     @Bean
