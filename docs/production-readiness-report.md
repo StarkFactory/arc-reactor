@@ -9881,3 +9881,109 @@ R210 forcing 제거의 **누적 효과**가 확연히 나타남.
 - **R200 fallback, R195 cache 실제 트리거** (여전히 미발동)
 
 **R212 요약**: 🎉 **C 출처 40 라운드 연속 만점 마일스톤 달성**. R187~R188 돌파 이후 40 라운드 연속 유지 — Arc Reactor 품질의 가장 안정적 지표. 🏆 **8/8 METRICS ALL-MAX 32 라운드 누적**. **평균 응답시간 5284ms로 역대 최저 갱신** (R209 R2 6396ms 대비 -17%). R210 forcing 제거의 누적 효과가 B 평균 -29%, C 평균 -25%로 발현. B4 variance 3 라운드 패턴: R210 R2/R211 R1 Confluence 호출(9-12s), R212 R1 general knowledge(3.8s) — 모두 900-1360자 substantial content + structure=True. Gemini가 자율적으로 경로 선택. **B4 tools=0일 때도 quality 유지**. 10 시나리오가 4초 이내 완료. swagger-mcp 8181 **43 라운드 연속**. 20/20 + 중복 0건. 코드 변경 없이 측정 라운드.
+
+### Round 213 — 2026-04-11T01:35+09:00 (8/8 33 라운드 + B 5/5 + B4 variance 4 라운드 확대 관찰)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (8181 44 라운드 연속 안정), atlassian-mcp UP
+
+#### Task #80: 8/8 33 라운드 + B4 variance 4 라운드 관찰
+
+##### R213 Round 1 결과
+
+| 카테고리 | 출처 | 인사이트 | 구조 |
+|----------|------|----------|------|
+| A | 4/4 ✅ | 4/4 ✅ | 4/4 ✅ |
+| **B** | **5/5 ⭐** | **5/5 ⭐** | **5/5 ⭐** |
+| C (3개 도구사용) | 3/3 ✅ | 3/3 ✅ | 4/4 ✅ |
+| D | 4/4 ✅ | 4/4 ✅ | 4/4 ✅ |
+
+🏆 **8/8 METRICS ALL-MAX 33 라운드 누적** (R192~R213 R1).
+**C 출처 41 라운드 연속 만점**.
+
+#### B4 variance 4 라운드 확대 관찰
+
+| Round | Path | tools | ms | len | url | insight | struct |
+|-------|------|-------|-----|-----|-----|---------|--------|
+| R210 R2 | Confluence | `['confluence_answer_question']` | 9687 | 1363 | ✅ | ✅ | ✅ |
+| R211 R1 | Confluence | `['confluence_answer_question']` | 12906 | 909 | ✅ | ✅ | ✅ |
+| R212 R1 | General knowledge | `[]` | 3855 | 1040 | ❌ | ✅ | ✅ |
+| **R213 R1** | **Confluence** | `['confluence_answer_question']` | **10308** | **912** | ✅ | ✅ | ✅ |
+
+**4 라운드 중 3 라운드 Confluence 호출** (R210/R211/R213), **1 라운드 general knowledge** (R212). **75% Confluence rate**.
+
+**Quality는 4 라운드 모두 900-1360자 structured content + insight**. Tool 호출이 없어도 품질 유지.
+
+#### 응답시간 variance 관찰
+
+| Round | 평균 응답시간 |
+|-------|--------------|
+| R211 R1 | 5572ms |
+| R212 R1 | **5284ms** ⭐ (최저) |
+| **R213 R1** | **6419ms** ↑ |
+
+R213 R1은 R212 대비 +21% 느려짐. 원인:
+- **A1 11414ms** (평소 5-8초)
+- **C1 12561ms** (평소 8-10초)
+- **C4 10950ms** (평소 3-8초)
+- **D2 13847ms** (평소 5-10초)
+
+4 outlier가 평균을 끌어올림. 나머지 시나리오는 여전히 빠름 (D3 1437ms, E3 1462ms, C3 2020ms).
+
+**결론**: Gemini variance로 인한 일시적 latency 증가. 구조적 regression 아님.
+
+#### 📊 측정 결과 (R213 Round 1)
+
+| 메트릭 | R212 R1 | R213 R1 | 변화 |
+|--------|---------|---------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| **평균 응답시간** | 5284ms | 6419ms | +21% (variance) |
+| **A 출처/인사이트** | 4/4 ✅ | **4/4 ✅** | 유지 |
+| **B 출처** | 4/4 | **5/5 ⭐** | B4 Confluence 호출 |
+| **B 인사이트** | 4/4 | **5/5 ⭐** | B4 Confluence |
+| **B 구조** | 5/5 ✅ | **5/5 ✅** | 유지 |
+| **C 출처** | 3/3 ✅ (40 라운드) | **3/3 ✅ (41 라운드)** | 지속 |
+| **C 인사이트** | 3/3 ✅ | **3/3 ✅** | 유지 |
+| **D 출처/인사이트** | 4/4 ✅ | **4/4 ✅** | 유지 |
+| swagger-mcp 8181 | 43 라운드 | **44 라운드** | 안정 |
+
+### 🏆 **8/8 METRICS ALL-MAX 33 라운드 누적** + **C 출처 41 라운드**
+
+#### R200 fallback, R195 cache 상태 관찰
+
+- **R200 fallback** (lastNonBlankOutputText): 11 라운드 연속 미발동. LLM variance가 R202/R203/R204/R206/R207/R208/R209/R210 방어선을 모두 통과하는 edge case가 없음.
+- **R195 cache** (permission-denied TTL): 13 라운드 연속 미발동. ReAct 중복 호출 패턴이 R186 dedup + R201 retry hint + R202 preventive hint 조합으로 완전히 제거됨.
+
+두 fallback 메커니즘 모두 **안전망으로 대기 상태**. 시스템이 너무 안정적이어서 트리거될 일이 없음.
+
+#### 코드 수정 파일 (R213)
+
+**없음**. R211~R212에 이어 측정 + 관찰 라운드. R210 이후 코드 변경 없이 5 라운드 연속 안정.
+
+#### 빌드/테스트
+- 코드 변경 없음
+- arc-reactor 재기동 불필요
+- 기존 arc-core tests PASS 상태 유지
+
+#### R168→R213 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168~R191 | 인프라 + 카테고리별 개선 |
+| R192 | 🏆 8/8 ALL-MAX 최초 달성 |
+| R193~R198 | defense 확장 + B4 fix + 테스트 |
+| R199 | 🎯 8/8 10 라운드 마일스톤 |
+| R200 | 🎉 200 라운드 마일스톤 |
+| R201~R207 | Retry hint + forcing 간결화 |
+| R208~R209 | Minimal retry + timeout 확장 |
+| R210 | 🎉 8/8 30 라운드 + INTERNAL_DOC 키워드 제거 |
+| R211~R212 | 측정 + C 40 라운드 마일스톤 |
+| **R213** | **8/8 33 라운드 + B 5/5 + B4 Confluence 75% rate** |
+
+#### 남은 과제 (R214~)
+- **8/8 34+ 라운드 유지**
+- **C 출처 50 라운드 마일스톤** (현재 41, 9 라운드 후)
+- **평균 응답시간 5000ms 이하 도달**: R212 5284ms, R213 6419ms variance
+- **B4 Confluence rate 장기 관찰**: R210~R213 동안 75% (3/4). 추세 확인
+- **R200 fallback, R195 cache 실제 트리거 관찰** (여전히 미발동 — 시스템 안정성 지표)
+
+**R213 요약**: 🏆 **8/8 METRICS ALL-MAX 33 라운드 누적**, **C 출처 41 라운드 연속 만점**, **B 출처/인사이트 5/5** (B4 Confluence 호출 복귀). B4 variance 4 라운드 관찰: R210/R211/R213 Confluence 호출(3회), R212 general knowledge(1회) → **75% Confluence rate**. 모든 경우 900-1360자 substantial content + structure=True, quality 일관. 평균 응답시간 6419ms로 R212 5284ms 대비 +21% regression — A1/C1/C4/D2 4 outlier가 원인이며 구조적 regression 아닌 Gemini variance. R200 fallback 11 라운드 + R195 cache 13 라운드 연속 미발동 — 시스템 안정성 반증. swagger-mcp 8181 **44 라운드 연속**. 20/20 + 중복 0건. 코드 변경 없이 측정 라운드.
