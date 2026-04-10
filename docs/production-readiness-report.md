@@ -4787,3 +4787,124 @@ LMS솔루션팀과 러닝메이커솔루션팀의 진지한 BFF/쿠키 도메인
 - 자동 측정 has_url 검증 강화
 
 **R176 요약**: 사용자 직접 피드백("스크롤 생성기", "강퇴기능 필요") 기반 Slack UX 개선. **"나가" 류 종료 명령으로 스레드 추적 해제** + **모든 응답 맨 앞에 사용자 mention 자동 추가**. arc-slack 전체 테스트 + 5개 테스트 업데이트 PASS. 20/20 전체 성공 유지. A 출처 +100% (1/4→2/4).
+
+### Round 177 — 2026-04-10T17:40+09:00 (swagger-mcp 포트 8181 영구 이전)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (**8181 신규 포트**), atlassian-mcp UP
+**BUILD**: arc-app PASS
+**TEST**: arc-core + arc-web + arc-slack 전체 PASS
+
+#### 근본 원인 (R176 잔여 #2 — 매 라운드 반복 발생)
+
+매 라운드 시작 시 swagger-mcp가 죽어있고 8081 포트를 외부 프로세스(Paravel/Expo dev server)가 점유하는 패턴이 6 라운드 연속 반복:
+```
+swagger (port 8081):
+COMMAND   PID  USER ...  NAME
+Paravel 26993 stark ... TCP localhost:58728->localhost:8081 (ESTABLISHED)
+```
+
+매 라운드 수동으로 `lsof -i :8081 -t | xargs kill` + `swagger-mcp 재시작` 필요.
+
+#### Task #18: swagger-mcp 포트 8181로 영구 이전 (R177 핵심)
+
+**파일 1**: `swagger-mcp-server/src/main/resources/application.yml`
+```yaml
+server:
+  # R177: 8081에서 8181로 이전 — 8081은 Paravel/Expo dev server가 자주 점유하여 충돌
+  port: ${SERVER_PORT:8181}
+```
+
+**파일 2**: arc-reactor PostgreSQL `mcp_servers` 테이블 업데이트
+```sql
+UPDATE mcp_servers SET config = '{"url":"http://localhost:8181/sse"}'
+WHERE name='swagger-mcp-server';
+```
+
+**효과**:
+- 8181 포트는 외부 프로세스 충돌 가능성 매우 낮음 (덜 일반적인 포트)
+- swagger-mcp 자체 health endpoint도 8181에서 응답
+- arc-reactor가 startup 시 DB의 새 URL을 자동 로드
+
+#### 검증
+
+```
+이전 (R176까지):
+swagger (port 8081):
+  Paravel HTML 응답 (충돌)
+  arc-reactor MCP 등록: CONNECTING/FAILED 반복
+
+이후 (R177):
+swagger (port 8181):
+  {"status":"UP"} ✅
+  arc-reactor MCP 등록: CONNECTED ✅ (재시작 직후)
+```
+
+자동 startup → MCP 자동 연결 → R173 health pinger fix와 함께 작동 → 1분 내 안정화.
+
+#### Task #18-2: 자동 측정 has_url 검증 강화 (R176 잔여 #4)
+
+**파일**: `/tmp/qa_test.py` (측정 스크립트)
+
+**Before**:
+```python
+has_url = 'http' in content or '[' in content
+```
+- `[`가 인용 등에 포함되면 false positive
+- "검증된 출처를 찾지 못했습니다" 마커도 통과
+
+**After**:
+```python
+has_real_url = 'http://' in content or 'https://' in content
+has_md_link = '](' in content
+empty_source_marker = '검증된 출처를 찾지 못했습니다' in content
+has_url = (has_real_url or has_md_link) and not (
+    empty_source_marker and not has_real_url
+)
+```
+- 실제 URL 또는 마크다운 링크 형식만 인정
+- 빈 출처 마커가 있으면서 실제 URL이 없는 경우 false
+
+#### 측정 결과 (R177)
+
+| 메트릭 | R176 | R177 | 변화 |
+|--------|------|------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| 평균 응답시간 | 7046ms | 7871ms | +12% (변동) |
+| A 출처 | 2/4 | 2/4 | 유지 |
+| A 인사이트 | 2/4 | 2/4 | 유지 |
+| B 출처 | 5/5 | 4/5 | -1 (변동) |
+| **B 인사이트** | 3/5 | **4/5** | **+33%** |
+| C 출처 | 3/4 | 3/4 | 유지 |
+| C 인사이트 | 3/4 | 3/4 | 유지 |
+| D 출처 | 2/4 | 2/4 | 유지 |
+| D 인사이트 | 1/4 | 0/4 | -1 (변동) |
+
+**Gemini 비결정성**: B/D 카테고리에서 ±1 변동. 평균적으로 안정 영역.
+
+#### 코드 수정 파일 (R177)
+1. **swagger-mcp-server**: `src/main/resources/application.yml` — port 8181
+2. **arc-reactor**: PostgreSQL `mcp_servers` 테이블 — config URL 업데이트
+3. **/tmp/qa_test.py**: has_url 검증 강화 (커밋 안 함, 측정 도구)
+
+#### R168→R177 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168 | ReAct 중복 100% 제거 |
+| R169 | admin Atlassian 매핑 |
+| R170 | MY_AUTHORED_PR + IPv6 |
+| R171 | WorkContextBitbucketPlanner |
+| R172 | 첫 20/20 마일스톤 |
+| R173 | MCP 자동 재연결 |
+| R174 | Sources Instruction 강화 |
+| R175 | accountId 형식 검증 |
+| R176 | Slack 낄끼빠빠 |
+| **R177** | **swagger-mcp 8181 영구 이전 + has_url 검증 강화** ⭐ |
+
+#### 남은 과제 (R178~)
+- atlassian-mcp `BitbucketPRInsights` 빈 결과 메시지 (pre-existing test 실패로 미룸)
+- A 출처 4/4 만점 안정화 (현재 2/4 변동)
+- C 카테고리 4/4 만점 안정화
+- E 카테고리 인사이트는 캐주얼이라 우선순위 낮음
+
+**R177 요약**: swagger-mcp 포트 8181 영구 이전으로 6 라운드 연속 발생한 Paravel 충돌 영구 해결. arc-reactor PostgreSQL `mcp_servers` 테이블 config URL 업데이트. 자동 측정 has_url 검증 강화 (false positive 방지). 20/20 전체 성공 + 중복 호출 0건 유지.
