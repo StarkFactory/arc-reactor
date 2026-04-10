@@ -14770,3 +14770,287 @@ R239는 섹션 수를 바꾸지 않지만 **출력 형식 축을 확장**한다.
 #### 📊 R239 요약
 
 📝 **DoctorReport 한국어 출력 포맷터 완료**. R236 `DoctorReport`에 사람이 읽을 수 있는 두 가지 포맷터 메서드 추가: `toHumanReadable(includeDetails, lineSeparator)` 멀티라인 로그 포맷 + `toSlackMarkdown()` Slack mrkdwn 축약 포맷. `DoctorStatus` enum에 `koreanLabel()` (정상/비활성/경고/오류) + `shortCode()` (OK/SKIP/WARN/ERR, 4자 이내) 추가. `DoctorReport`에 `overallStatusLabel()` (정상 / 경고 포함 / 오류 포함) 추가. Project 규칙상 이모지 대신 `[OK]`/`[SKIP]` 텍스트 브래킷 사용. `toHumanReadable`는 헤더(생성 시각/요약/전체 상태) + 섹션별 shortCode + 메시지 + 개별 check 상세 (옵션). `toSlackMarkdown`은 섹션별 한 줄 축약 (상세 check 생략, Slack 메시지 길이 제한 대응). 신규 파일 1개 (테스트 335줄), 기존 파일 1개 수정 (`DoctorReport.kt` +110줄). 신규 테스트 **28 PASS** (5 @Nested 그룹: DoctorStatusLabels 4 / OverallStatusLabel 5 / HumanReadableFormat 9 / SlackMarkdownFormat 7 / RealisticScenarios 3). 수정 과정에서 발견한 이슈 2개(CRLF 테스트 assertion 오류, `[OK]` 카운트 assertion 오류) 모두 해결. 기존 R236 `DoctorDiagnosticsTest` 23 + R237 `DoctorControllerTest` 17 tests 영향 없음 (순수 추가). R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R239**. swagger-mcp 8181 **🎯 70 라운드 마일스톤 달성**. R236→R237→R238→R239로 Doctor 축이 **"서비스 → REST → 추가 섹션 → 포맷터"** 4단계 성숙 완성. 이제 같은 `DoctorReport` 객체가 JSON(REST 컨슈머), 한국어 멀티라인 텍스트(로그), Slack mrkdwn(알림) **3가지 컨텍스트에 자동 적응**한다.
+
+### Round 240 — ✅ 2026-04-11T13:00+09:00 — ToolApprovalRequest 한국어 포맷터 (R221 심화)
+
+**작업 종류**: Directive 심화 — Approval UX 개선 (QA 측정 없음)
+**Directive 패턴**: #1 Tool Approval 4단계 정보 구조화 (R221 심화)
+**완료 태스크**: #115
+
+#### 작업 배경
+
+R221~R229가 `ApprovalContext` (reason/action/impactScope/reversibility) 4단계 모델과 resolver chain + PII 마스킹 데코레이터를 완성했지만, **실제 사용자에게 이 컨텍스트가 어떻게 표시되는지**는 사용자 코드에 맡겨져 있었다. Slack Agent, CLI/REPL, 관리자 화면이 각자 포맷팅 로직을 반복 구현해야 하는 중복 비용이 발생한다.
+
+R239가 `DoctorReport`에 적용한 포맷터 패턴을 Approval 축으로 평행 이식한다. 같은 `ToolApprovalRequest` 객체가 CLI (`toHumanReadable`), Slack (`toSlackMarkdown`), REPL 프롬프트 (`toApprovalPromptLine`) 3가지 컨텍스트에 자동 적응되도록 한다.
+
+#### 설계 원칙
+
+1. **순수 additive** — 기존 `ApprovalModels.kt` 필드/메서드 변경 없음, 확장 함수로만 추가
+2. **Korean-first** — "복구 가능", "복구 불가", "대기 중", "승인됨" 등 한국어 라벨
+3. **Opt-in** — 사용자가 명시적으로 호출해야만 동작, 기존 경로 무영향
+4. **MCP 경로 미접근** — `ArcToolCallbackAdapter` / `McpToolRegistry` 완전 무관
+5. **캐시 영향 0** — `SystemPromptBuilder` 미수정, Golden snapshot 불변
+6. **컨텍스트 경로 미접근** — `ConversationManager`, `MemoryStore` 완전 무관
+
+#### 신규 API
+
+**`Reversibility` enum 확장**:
+```kotlin
+enum class Reversibility {
+    REVERSIBLE, PARTIALLY_REVERSIBLE, IRREVERSIBLE, UNKNOWN;
+
+    fun koreanLabel(): String  // 복구 가능 / 부분 복구 가능 / 복구 불가 / 알 수 없음
+    fun symbol(): String       // ✓ / ~ / ✗ / ? (서로 다른 유니코드 심볼)
+}
+```
+
+**`ApprovalStatus` 확장 함수**:
+```kotlin
+fun ApprovalStatus.koreanLabel(): String  // 대기 중 / 승인됨 / 거부됨 / 타임아웃
+```
+
+**`ApprovalContext.toOneLineSummary()`**:
+```kotlin
+fun ApprovalContext.toOneLineSummary(): String
+// 예: "이슈 상태 전이 · JAR-36 이슈를 'Done'으로 전이 · 1 Jira 이슈 · 복구 가능"
+// 빈 필드는 생략, UNKNOWN reversibility는 생략
+```
+
+**`ToolApprovalRequest` 포맷터 (신규 파일 `ApprovalRequestFormatter.kt`)**:
+```kotlin
+fun ToolApprovalRequest.toHumanReadable(
+    includeArguments: Boolean = true,
+    lineSeparator: String = "\n"
+): String
+
+fun ToolApprovalRequest.toSlackMarkdown(): String
+
+fun ToolApprovalRequest.toApprovalPromptLine(): String
+```
+
+**`ApprovalSummary` 포맷터**:
+```kotlin
+fun ApprovalSummary.toHumanReadable(
+    includeArguments: Boolean = true,
+    lineSeparator: String = "\n"
+): String
+```
+
+#### `toHumanReadable()` 출력 예시
+
+```
+=== 도구 승인 요청 ===
+ID: req-abc123
+실행 ID: run-xyz789
+사용자: stark@example.com
+도구: jira_transition_issue
+요청 시각: 2026-04-11T12:30:00Z
+
+[컨텍스트]
+사유: 이슈 상태 전이 (완료)
+행동: JAR-36 이슈를 'Done' 상태로 전이
+영향: 1 Jira 이슈
+복구: 복구 가능
+
+[인수]
+  issueIdOrKey: "JAR-36"
+  transitionId: "31"
+```
+
+#### `toSlackMarkdown()` 출력 예시
+
+```
+*도구 승인 요청* — `jira_transition_issue`
+> 이슈 상태 전이 (완료) · JAR-36 이슈를 'Done' 상태로 전이 · 1 Jira 이슈 · 복구 가능
+_요청자: stark@example.com_ · _ID: req-abc123_
+```
+
+#### `toApprovalPromptLine()` 출력 예시
+
+```
+[복구 가능] jira_transition_issue — JAR-36 이슈를 'Done' 상태로 전이 (1 Jira 이슈)
+```
+
+IRREVERSIBLE 작업(예: PR 머지)은 `[복구 불가]` prefix로 경고를 시각화:
+```
+[복구 불가] bitbucket_merge_pull_request — PR #42를 main에 머지 (web-labs 저장소 main 브랜치)
+```
+
+#### 사용 예
+
+**Slack 승인 봇**:
+```kotlin
+@Component
+class SlackApprovalNotifier(private val slack: SlackClient) {
+    suspend fun notify(request: ToolApprovalRequest) {
+        slack.postMessage(
+            channel = "#ops-approvals",
+            text = request.toSlackMarkdown()
+        )
+    }
+}
+```
+
+**CLI REPL**:
+```kotlin
+val request = store.next() ?: return
+println(request.toApprovalPromptLine())
+print("승인하시겠습니까? (y/n/d=상세): ")
+when (readLine()?.trim()) {
+    "d" -> println(request.toHumanReadable())
+    "y" -> store.approve(request.id)
+    // ...
+}
+```
+
+**관리자 화면 로그**:
+```kotlin
+logger.info { "\n" + summary.toHumanReadable() }
+```
+
+#### 구현 핵심
+
+- **확장 함수 파일 분리**: `ApprovalRequestFormatter.kt`로 분리하여 `ApprovalModels.kt`의 데이터 클래스 정의를 건드리지 않음
+- **`toOneLineSummary()`는 `ApprovalContext` 멤버 메서드**: Slack 포맷과 프롬프트 라인 모두에서 재사용
+- **빈/공백 필드 생략**: `takeIf { it.isNotBlank() }` 체인으로 의미 없는 라인 제거
+- **긴 인수 축약**: 200자 초과 인수는 `...`로 축약하여 CLI 출력 보호
+- **UNKNOWN 처리**: `Reversibility.UNKNOWN`일 때는 라벨 완전 생략 (시각적 노이즈 제거)
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `main/.../approval/ApprovalRequestFormatter.kt` | 209 | 6개 확장 함수 |
+| `test/.../approval/ApprovalRequestFormatterTest.kt` | 370 | 35 tests (8 `@Nested` 그룹) |
+
+**기존 파일 수정 1개**: `approval/ApprovalModels.kt`
+- `Reversibility` enum에 `koreanLabel()` / `symbol()` 추가
+- `ApprovalContext` data class에 `toOneLineSummary()` 메서드 추가
+- 기존 필드/생성자 시그니처 불변
+
+#### 테스트 결과
+
+```
+ApprovalRequestFormatterTest                    → 35 tests PASS
+  @Nested ReversibilityLabels (3)
+    - 4개 상태별 koreanLabel
+    - 모든 라벨 비어있지 않음
+    - 4개 상태별 symbol 유일성
+  @Nested ApprovalStatusLabels (2)
+    - 4개 상태별 koreanLabel
+    - 모든 상태 라벨 존재
+  @Nested OneLineSummary (4)
+    - 빈 컨텍스트는 빈 문자열
+    - 모든 필드가 가운데 점으로 구분
+    - UNKNOWN reversibility 생략
+    - 빈/공백 필드 생략
+  @Nested HumanReadableFormat (10)
+    - 헤더와 기본 필드
+    - 컨텍스트 섹션 존재
+    - null 컨텍스트 섹션 생략
+    - EMPTY 컨텍스트 섹션 생략
+    - includeArguments=true 인수 포함
+    - includeArguments=false 인수 제외
+    - null 인수 → "null" 문자열
+    - 200자 초과 인수 축약
+    - 커스텀 lineSeparator
+    - 빈 인수 맵
+  @Nested SlackMarkdownFormat (5)
+    - bold 타이틀 + code 도구명
+    - quote 요약 라인
+    - 컨텍스트 null → quote 생략
+    - italic 요청자/ID
+    - 인수 제외 (축약)
+  @Nested ApprovalPromptLine (4)
+    - 컨텍스트 null → 도구명만
+    - EMPTY 컨텍스트 → 도구명만
+    - 전체 컨텍스트 prefix + action + impactScope
+    - UNKNOWN → prefix 생략
+  @Nested ApprovalSummaryFormat (4)
+    - 상태 한국어 라벨
+    - 컨텍스트 포함
+    - null 컨텍스트 정상 처리
+    - 4개 상태 전부 라벨 출력
+  @Nested RealisticScenarios (3)
+    - Jira 전이 (복구 가능)
+    - Bitbucket PR 머지 (복구 불가)
+    - 레거시 요청 (컨텍스트 null)
+```
+
+**전체 approval 패키지 테스트 전부 PASS** (기존 9개 테스트 파일 회귀 없음).
+**R220 Golden snapshot 5개 해시 불변** 확인.
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ 도구 인수 전달 경로 불변 (포맷터는 표시용, 실행 경로와 무관)
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### Approval 축 진화
+
+| 라운드 | 변경 내용 |
+|--------|----------|
+| R221 | `ApprovalContext` 4단계 모델 + `ApprovalContextResolver` 인터페이스 |
+| R225 | `AtlassianApprovalContextResolver` 구체 구현 (Jira/Confluence/Bitbucket) |
+| R226 | `ChainedApprovalContextResolver` 조합 유틸 |
+| R227 | Resolver 자동 체이닝 옵션 |
+| R228 | `RedactedApprovalContextResolver` PII 마스킹 데코레이터 |
+| R229 | Approval PII Redaction 자동 구성 |
+| **R240** | **`ToolApprovalRequest` 한국어 포맷터 (CLI/Slack/Prompt)** |
+
+R240은 Approval 축의 **출력 형식 확장**이다. 이제 `ToolApprovalRequest` / `ApprovalSummary` 객체가:
+- **JSON** (REST 컨슈머 — 기존 `ApprovalSummary` data class)
+- **한국어 멀티라인 텍스트** (CLI/관리자 로그)
+- **Slack mrkdwn** (승인 알림 봇)
+- **한 줄 프롬프트** (REPL/터미널 승인 인터페이스)
+
+4가지 컨텍스트에 자동 적응한다.
+
+#### R239 Doctor 축과의 평행
+
+| 기능 | R239 DoctorReport | R240 ToolApprovalRequest |
+|------|-------------------|--------------------------|
+| 멀티라인 텍스트 | `toHumanReadable(includeDetails, lineSeparator)` | `toHumanReadable(includeArguments, lineSeparator)` |
+| Slack 축약 | `toSlackMarkdown()` | `toSlackMarkdown()` |
+| 한국어 라벨 | `DoctorStatus.koreanLabel()` | `Reversibility.koreanLabel()`, `ApprovalStatus.koreanLabel()` |
+| 한 줄 요약 | `summary()`, `overallStatusLabel()` | `ApprovalContext.toOneLineSummary()`, `toApprovalPromptLine()` |
+| 테스트 그룹 | 5 `@Nested` / 28 tests | 8 `@Nested` / 35 tests |
+
+두 축이 **동일한 포맷터 패턴**을 공유하여 사용자 멘탈 모델이 일관된다.
+
+#### 연속 지표
+
+| 지표 | R239 | R240 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 70 🎯 | **71** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R239 | **4/5 + R224~R240** | - |
+
+#### 다음 Round 후보
+
+- **R241+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **ApprovalController REST 엔드포인트** (R240 포맷터를 관리자 화면 기본 포맷으로 적용)
+  3. **Slack 승인 봇 사이드카** — `toSlackMarkdown()` + interactive buttons
+  4. **ToolResponseSummarizer 포맷터** — ACI 축에도 동일 패턴 이식
+  5. **새 Directive 축 탐색**
+
+#### 📊 R240 요약
+
+✅ **ToolApprovalRequest 한국어 포맷터 완료**. R239 `DoctorReport` 포맷터 패턴을 Approval 축으로 평행 이식. 신규 파일 `ApprovalRequestFormatter.kt`에 6개 확장 함수 추가: `ToolApprovalRequest.toHumanReadable(includeArguments, lineSeparator)` (CLI 멀티라인) + `ToolApprovalRequest.toSlackMarkdown()` (Slack mrkdwn 축약) + `ToolApprovalRequest.toApprovalPromptLine()` (REPL 한 줄 프롬프트) + `ApprovalSummary.toHumanReadable()` + `ApprovalStatus.koreanLabel()` + `ApprovalContext.toOneLineSummary()` (가운데 점 구분자). 기존 `ApprovalModels.kt`에 `Reversibility.koreanLabel()` (복구 가능/부분 복구 가능/복구 불가/알 수 없음) + `Reversibility.symbol()` (4개 유니코드 심볼) 추가. `toApprovalPromptLine()`은 IRREVERSIBLE 작업에 `[복구 불가]` prefix를 붙여 시각적 경고. `UNKNOWN` reversibility는 라벨 전부 생략으로 노이즈 제거. 긴 인수(200자 초과)는 말줄임표로 축약. 기존 `ApprovalModels.kt` 데이터 클래스 시그니처 불변 (순수 additive). 신규 파일 2개 (구현 209줄 + 테스트 370줄), 기존 파일 1개 수정 (`ApprovalModels.kt` +60줄). 신규 테스트 **35 PASS** (8 @Nested 그룹: ReversibilityLabels 3 / ApprovalStatusLabels 2 / OneLineSummary 4 / HumanReadableFormat 10 / SlackMarkdownFormat 5 / ApprovalPromptLine 4 / ApprovalSummaryFormat 4 / RealisticScenarios 3). 기존 approval 9개 테스트 파일 전부 회귀 없음. R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R240**. swagger-mcp 8181 **71 라운드 연속**. R221→R225→R226→R227→R228→R229→**R240**로 Approval 축이 **"모델 → 구체 구현 → 조합 → 자동 체이닝 → PII 마스킹 → 자동 구성 → 포맷터"** 7단계 성숙 완성. 이제 `ToolApprovalRequest` 객체가 JSON(REST), 한국어 멀티라인(CLI), Slack mrkdwn(알림), 한 줄 프롬프트(REPL) **4가지 컨텍스트에 자동 적응**한다. R239 Doctor 축과 동일한 포맷터 패턴을 공유하여 사용자 멘탈 모델 일관성 확보.

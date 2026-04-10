@@ -19,7 +19,32 @@ enum class Reversibility {
     IRREVERSIBLE,
 
     /** 알 수 없음 (기본값) — 컨텍스트 해석기가 판단하지 못한 경우. */
-    UNKNOWN
+    UNKNOWN;
+
+    /**
+     * 사람이 읽을 수 있는 한국어 라벨.
+     *
+     * R240: 승인 요청 포맷터(Slack/CLI/REST)에서 사용자에게 복구 가능성을 표시할 때 사용.
+     */
+    fun koreanLabel(): String = when (this) {
+        REVERSIBLE -> "복구 가능"
+        PARTIALLY_REVERSIBLE -> "부분 복구 가능"
+        IRREVERSIBLE -> "복구 불가"
+        UNKNOWN -> "알 수 없음"
+    }
+
+    /**
+     * Slack/UI 메시지용 시각 아이콘 (ASCII 대체 가능한 유니코드 심볼).
+     *
+     * R240: 사용자가 한눈에 위험도를 파악할 수 있도록 4단계에 서로 다른 심볼을 할당한다.
+     * 이모지는 실제 그래픽 이모지가 아닌 유니코드 심볼로, Slack mrkdwn에서 안전하게 렌더링된다.
+     */
+    fun symbol(): String = when (this) {
+        REVERSIBLE -> "✓"
+        PARTIALLY_REVERSIBLE -> "~"
+        IRREVERSIBLE -> "✗"
+        UNKNOWN -> "?"
+    }
 }
 
 /**
@@ -79,6 +104,29 @@ data class ApprovalContext(
             action != null ||
             impactScope != null ||
             reversibility != Reversibility.UNKNOWN
+    }
+
+    /**
+     * R240: 컨텍스트를 한 줄 요약 텍스트로 렌더링한다.
+     *
+     * 비어있는 필드는 생략하며, 모든 필드가 비어있으면 빈 문자열을 반환한다.
+     * 섹션 구분자는 ` · ` (가운데 점)을 사용하여 한국어 가독성을 높인다.
+     *
+     * 예시:
+     * ```
+     * 이슈 이동 · JAR-36을 'Done'으로 전이 · 1 이슈 · 복구 가능
+     * ```
+     */
+    fun toOneLineSummary(): String {
+        if (!hasAnyInformation()) return ""
+        val parts = mutableListOf<String>()
+        reason?.takeIf { it.isNotBlank() }?.let(parts::add)
+        action?.takeIf { it.isNotBlank() }?.let(parts::add)
+        impactScope?.takeIf { it.isNotBlank() }?.let(parts::add)
+        if (reversibility != Reversibility.UNKNOWN) {
+            parts += reversibility.koreanLabel()
+        }
+        return parts.joinToString(" · ")
     }
 
     companion object {
