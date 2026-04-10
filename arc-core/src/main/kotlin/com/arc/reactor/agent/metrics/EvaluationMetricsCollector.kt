@@ -167,6 +167,38 @@ interface EvaluationMetricsCollector {
 }
 
 /**
+ * R246: [EvaluationMetricsCollector.recordExecutionError]의 ergonomic 헬퍼.
+ *
+ * `Throwable`로부터 자동으로 `javaClass.simpleName`을 추출하여 기록한다.
+ * 호출자 코드가 `exception::class.java.simpleName`을 반복할 필요가 없어진다.
+ *
+ * ## 익명 클래스 처리
+ *
+ * `javaClass.simpleName`이 빈 문자열을 반환하는 경우(익명 람다 내부 throw 등)가 있다.
+ * 이 경우 `Throwable` 인터페이스의 fully-qualified name에서 simple name을 추출하거나,
+ * 최종적으로 `"UnknownException"`을 사용한다.
+ *
+ * ## 사용 예
+ *
+ * ```kotlin
+ * try {
+ *     tool.call(args)
+ * } catch (e: Exception) {
+ *     e.throwIfCancellation()
+ *     collector.recordError(ExecutionStage.TOOL_CALL, e)  // ✓ 간결
+ *     // 기존: collector.recordExecutionError(ExecutionStage.TOOL_CALL, e.javaClass.simpleName)
+ * }
+ * ```
+ */
+fun EvaluationMetricsCollector.recordError(stage: ExecutionStage, throwable: Throwable) {
+    val className = throwable.javaClass.simpleName.ifBlank {
+        // 익명 inner class: fully-qualified name의 마지막 세그먼트 사용
+        throwable.javaClass.name.substringAfterLast('.').ifBlank { "UnknownException" }
+    }
+    recordExecutionError(stage, className)
+}
+
+/**
  * R245: 실행 단계 분류 — [EvaluationMetricsCollector.recordExecutionError]용.
  *
  * `SafetyRejectionStage`와 구분되는 이유: 이 enum은 **보안 정책 차단이 아니라 런타임 예외**를

@@ -1,8 +1,14 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.tool.ToolCallback
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.delay
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import kotlin.system.measureTimeMillis
@@ -101,5 +107,164 @@ class ArcToolCallbackAdapterTest {
         assertTrue(output.startsWith("Error:"), "Exception should return error string, got: $output")
         assertTrue(output.contains("failing_tool"), "Error should mention tool name, got: $output")
         assertTrue(output.contains("IllegalStateException"), "Error should include exception class name, got: $output")
+    }
+
+    // ========================================================================
+    // R246: recordExecutionError 자동 기록 테스트
+    // ========================================================================
+
+    @Test
+    fun `R246 일반 예외 발생 시 TOOL_CALL stage로 execution error가 기록되어야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val callback = object : ToolCallback {
+            override val name: String = "failing_tool"
+            override val description: String = "tool that throws"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw IllegalStateException("connection refused")
+            }
+        }
+        val adapter = ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = 500,
+            evaluationCollector = collector
+        )
+
+        adapter.call("{}")
+
+        val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+            .counter()
+        assertNotNull(counter) {
+            "tool_call + IllegalStateException Counter가 등록되어야 한다"
+        }
+        assertEquals(1.0, counter!!.count()) { "1회 기록" }
+    }
+
+    @Test
+    fun `R246 TimeoutCancellationException도 TOOL_CALL stage로 기록되어야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val callback = object : ToolCallback {
+            override val name: String = "slow_tool"
+            override val description: String = "slow tool"
+            override val timeoutMs: Long = 30
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                delay(200)
+                return "late"
+            }
+        }
+        val adapter = ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = 500,
+            evaluationCollector = collector
+        )
+
+        adapter.call("{}")
+
+        // 타임아웃도 execution.error로 기록되어야 함 — exception은 TimeoutCancellationException
+        val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "TimeoutCancellationException")
+            .counter()
+        assertNotNull(counter) {
+            "타임아웃도 TOOL_CALL stage로 기록되어야 한다"
+        }
+        assertEquals(1.0, counter!!.count())
+    }
+
+    @Test
+    fun `R246 정상 실행에서는 execution error가 기록되지 않아야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val callback = object : ToolCallback {
+            override val name: String = "echo"
+            override val description: String = "echo tool"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                return "ok"
+            }
+        }
+        val adapter = ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = 500,
+            evaluationCollector = collector
+        )
+
+        val output = adapter.call("""{"message":"hi"}""")
+
+        assertEquals("ok", output)
+        // 정상 경로는 execution.error 메트릭 없음
+        val meter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .counter()
+        assertNull(meter) {
+            "정상 실행에서는 execution.error Counter가 등록되지 않아야 한다"
+        }
+    }
+
+    @Test
+    fun `R246 collector 미주입 시 기본 NoOp으로 동작하고 예외 없어야 한다 (backward compat)`() {
+        val callback = object : ToolCallback {
+            override val name: String = "failing_tool"
+            override val description: String = "tool that throws"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw RuntimeException("boom")
+            }
+        }
+        // evaluationCollector 파라미터 생략 → NoOpEvaluationMetricsCollector 기본값
+        val adapter = ArcToolCallbackAdapter(
+            arcCallback = callback,
+            fallbackToolTimeoutMs = 500
+        )
+
+        val output = adapter.call("{}")
+
+        assertTrue(output.startsWith("Error:")) {
+            "기본값 NoOp에서도 예외 처리 경로는 그대로 동작"
+        }
+        assertTrue(output.contains("RuntimeException"))
+    }
+
+    @Test
+    fun `R246 여러 도구 예외가 각각 기록되어야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+
+        // 두 개의 다른 도구가 서로 다른 예외 throw
+        val toolA = object : ToolCallback {
+            override val name: String = "tool_a"
+            override val description: String = "a"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw IllegalArgumentException("invalid input")
+            }
+        }
+        val toolB = object : ToolCallback {
+            override val name: String = "tool_b"
+            override val description: String = "b"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw IllegalStateException("disk full")
+            }
+        }
+
+        val adapterA = ArcToolCallbackAdapter(toolA, 500, collector)
+        val adapterB = ArcToolCallbackAdapter(toolB, 500, collector)
+
+        adapterA.call("{}")
+        adapterA.call("{}")
+        adapterB.call("{}")
+
+        val counterA = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalArgumentException")
+            .counter()
+        assertNotNull(counterA) { "tool_a 예외 Counter 등록" }
+        assertEquals(2.0, counterA!!.count()) { "tool_a 2회 기록" }
+
+        val counterB = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+            .counter()
+        assertNotNull(counterB) { "tool_b 예외 Counter 등록" }
+        assertEquals(1.0, counterB!!.count()) { "tool_b 1회 기록" }
     }
 }

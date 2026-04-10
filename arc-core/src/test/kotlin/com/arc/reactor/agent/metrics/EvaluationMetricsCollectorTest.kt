@@ -522,4 +522,97 @@ class EvaluationMetricsCollectorTest {
             }
         }
     }
+
+    @Nested
+    inner class RecordErrorExtension {
+
+        private fun newCollector(): Pair<SimpleMeterRegistry, MicrometerEvaluationMetricsCollector> {
+            val registry = SimpleMeterRegistry()
+            return registry to MicrometerEvaluationMetricsCollector(registry)
+        }
+
+        @Test
+        fun `recordError 확장 함수는 Throwable의 simpleName을 추출해 기록해야 한다`() {
+            val (registry, collector) = newCollector()
+            val exception = IllegalStateException("oops")
+            collector.recordError(ExecutionStage.TOOL_CALL, exception)
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+                .counter()
+            assertNotNull(counter)
+            assertEquals(1.0, counter!!.count())
+        }
+
+        @Test
+        fun `recordError는 RuntimeException 계열도 정상 처리해야 한다`() {
+            val (registry, collector) = newCollector()
+            listOf<Throwable>(
+                RuntimeException("a"),
+                IllegalArgumentException("b"),
+                NullPointerException("c"),
+                UnsupportedOperationException("d")
+            ).forEach { collector.recordError(ExecutionStage.OTHER, it) }
+
+            val classes = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counters()
+                .mapNotNull { it.id.getTag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION) }
+                .toSet()
+            assertEquals(
+                setOf(
+                    "RuntimeException",
+                    "IllegalArgumentException",
+                    "NullPointerException",
+                    "UnsupportedOperationException"
+                ),
+                classes
+            ) { "4개 예외 클래스 simpleName이 각각 독립 태그로 기록" }
+        }
+
+        @Test
+        fun `recordError는 익명 inner 클래스 예외도 처리해야 한다`() {
+            val (registry, collector) = newCollector()
+            // 익명 inner class: javaClass.simpleName이 빈 문자열이 될 수 있음
+            val anonymous: Throwable = object : RuntimeException("anon") {}
+            collector.recordError(ExecutionStage.OTHER, anonymous)
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counters()
+                .firstOrNull()
+            assertNotNull(counter) {
+                "익명 클래스 예외도 Counter가 등록되어야 한다"
+            }
+            val exceptionTag = counter!!.id.getTag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION)
+            assertNotNull(exceptionTag) { "exception 태그가 반드시 존재해야 한다" }
+            assertTrue(exceptionTag!!.isNotBlank()) {
+                "빈 simpleName → fully-qualified 마지막 세그먼트 또는 UnknownException fallback: $exceptionTag"
+            }
+        }
+
+        @Test
+        fun `recordError는 NoOp 수집기에서도 no-op이어야 한다`() {
+            NoOpEvaluationMetricsCollector.recordError(
+                ExecutionStage.TOOL_CALL,
+                IllegalStateException("test")
+            )
+            assertTrue(true) { "예외 없이 반환" }
+        }
+
+        @Test
+        fun `recordError는 9개 stage 모두 사용 가능해야 한다`() {
+            val (registry, collector) = newCollector()
+            ExecutionStage.values().forEach { stage ->
+                collector.recordError(stage, RuntimeException("x"))
+            }
+
+            val stages = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counters()
+                .mapNotNull { it.id.getTag(MicrometerEvaluationMetricsCollector.TAG_STAGE) }
+                .toSet()
+            assertEquals(9, stages.size) {
+                "9개 stage 모두 독립 태그"
+            }
+        }
+    }
 }
