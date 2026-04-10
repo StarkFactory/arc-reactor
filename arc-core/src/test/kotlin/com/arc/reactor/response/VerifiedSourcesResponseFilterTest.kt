@@ -544,4 +544,195 @@ class VerifiedSourcesResponseFilterTest {
             "When a tool was called and returned content, the response should not be blocked"
         }
     }
+
+    // ── R192: thin-body + toolInsights 주입 ──
+
+    @Test
+    fun `R192 thin body with toolInsights should append insight block`() = runTest {
+        // 본문이 100자 미만 + toolInsights 존재 → 💡 인사이트 블록 자동 주입
+        val result = filter.filter(
+            content = "내 PR 현황을 정리해 드릴게요.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "내 PR 현황 알려줘"),
+                toolsUsed = listOf("bitbucket_my_authored_prs"),
+                verifiedSources = listOf(
+                    VerifiedSource("ihunet/repo1", "https://bitbucket.org/ihunet/repo1")
+                ),
+                toolInsights = listOf(
+                    "본인이 작성한 OPEN PR 0건 (검토 대기 없음) — 스캔: 20개 레포",
+                    "일부 레포(20개) 조회 실패: repo1, repo2"
+                ),
+                durationMs = 100
+            )
+        )
+
+        assertTrue(result.contains("💡 인사이트")) {
+            "Thin body with toolInsights should inject a 💡 insights block, got: ${result.take(200)}"
+        }
+        assertTrue(result.contains("본인이 작성한 OPEN PR 0건")) {
+            "First toolInsight should be included"
+        }
+        assertTrue(result.contains("일부 레포(20개) 조회 실패")) {
+            "Second toolInsight should be included"
+        }
+    }
+
+    // ── R193: Confluence 합성 인사이트 fallback (verifiedSources 기반) ──
+
+    @Test
+    fun `R193 thin body without toolInsights should synthesize from verifiedSources`() = runTest {
+        // 본문 100자 미만 + toolInsights 없음 + verifiedSources 존재 → 합성 인사이트 주입
+        val result = filter.filter(
+            content = "릴리즈 노트를 찾아드릴게요.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "릴리즈 노트 최신"),
+                toolsUsed = listOf("confluence_search_by_text"),
+                verifiedSources = listOf(
+                    VerifiedSource("릴리즈 노트 — 2026-04-09", "https://example.com/rel-0409"),
+                    VerifiedSource("릴리즈 노트 — 2026-04-08", "https://example.com/rel-0408"),
+                    VerifiedSource("릴리즈 노트 — 2026-04-07", "https://example.com/rel-0407")
+                ),
+                toolInsights = emptyList(),
+                durationMs = 120
+            )
+        )
+
+        assertTrue(result.contains("💡 인사이트")) {
+            "Thin body with verifiedSources but no toolInsights should inject synthetic insights"
+        }
+        assertTrue(result.contains("검색 결과: 총 3건")) {
+            "Synthetic insight should include verified source count, got: ${result.take(300)}"
+        }
+        assertTrue(result.contains("릴리즈 노트 — 2026-04-09")) {
+            "Synthetic insight should include top source titles"
+        }
+    }
+
+    @Test
+    fun `R192 thin body without any insights or sources should not inject`() = runTest {
+        // 본문 100자 미만 + toolInsights 없음 + verifiedSources 없음 → 주입 안 함
+        val result = filter.filter(
+            content = "요청하신 데이터를 찾지 못했습니다.",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "정책 조회"),
+                toolsUsed = listOf("jira_search_issues"),
+                verifiedSources = emptyList(),
+                toolInsights = emptyList(),
+                durationMs = 80
+            )
+        )
+
+        assertFalse(result.contains("💡 인사이트")) {
+            "Thin body with empty insights/sources should not inject synthetic insight"
+        }
+    }
+
+    // ── R194: insight-poor body (정상 길이지만 마커 부재) ──
+
+    @Test
+    fun `R194 insight poor long body should inject minimal insight`() = runTest {
+        // 본문 100자 이상 + 💡/권장/분석 등 마커 전무 + toolInsights 존재 → 주입
+        val longContentNoMarkers = "배포 가이드를 찾아봤습니다. 검색 결과 몇 가지 관련 문서가 있는데요, " +
+            "다국어 구축 제안서와 STG 서버 구성 문서가 배포와 관련된 내용을 포함하고 있습니다. " +
+            "혹시 특정 시스템에 대한 배포 가이드가 필요하시면 더 구체적으로 알려주시겠어요?"
+        val result = filter.filter(
+            content = longContentNoMarkers,
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "배포 가이드 어디 있어?"),
+                toolsUsed = listOf("confluence_search_by_text"),
+                verifiedSources = listOf(
+                    VerifiedSource("다국어(i18n) 구축 제안서", "https://example.com/i18n"),
+                    VerifiedSource("STG 서버 구성", "https://example.com/stg")
+                ),
+                toolInsights = emptyList(),
+                durationMs = 200
+            )
+        )
+
+        assertTrue(longContentNoMarkers.length >= 100) { "Pre-check: content should be above thin-body threshold" }
+        assertTrue(result.contains("💡 인사이트")) {
+            "Insight-poor long body should receive a 💡 insights block"
+        }
+        assertTrue(result.contains("검색 결과: 총 2건")) {
+            "Insight-poor should use synthetic insight when toolInsights empty"
+        }
+    }
+
+    @Test
+    fun `R194 content with existing insight marker should NOT receive injection`() = runTest {
+        // 이미 💡 마커 포함 → 추가 주입 없음 (중복 방지)
+        val contentWithMarker = "배포 가이드 검색 결과입니다. " +
+            "💡 인사이트: '배포 가이드'라는 정확한 제목의 문서는 없지만 관련 문서가 5건 있습니다."
+        val result = filter.filter(
+            content = contentWithMarker,
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "배포 가이드 어디 있어?"),
+                toolsUsed = listOf("confluence_search_by_text"),
+                verifiedSources = listOf(
+                    VerifiedSource("배포 문서 1", "https://example.com/deploy1")
+                ),
+                toolInsights = listOf("서버 계산 인사이트"),
+                durationMs = 150
+            )
+        )
+
+        // 💡 marker는 content에 1번, sources block은 별도 추가
+        // 추가 "💡 인사이트" 블록이 2번 이상 나타나지 않아야 함
+        val insightBlockCount = result.split("💡 인사이트").size - 1
+        assertTrue(insightBlockCount <= 1) {
+            "Existing 💡 marker should prevent duplicate injection, found $insightBlockCount blocks"
+        }
+    }
+
+    @Test
+    fun `R194 content with 건수 keyword should NOT trigger insight poor injection`() = runTest {
+        // "건" 단어는 INSIGHT_MARKER_PATTERNS에 포함 → 주입 안 함
+        val contentWithKeyword = "현재 진행 중인 이슈 3건을 확인했습니다. " +
+            "HRFW-5695, LND-77, SETTING-104 이슈가 담당자에게 할당되어 있습니다. " +
+            "마감일은 각각 다음 주에 도래할 예정입니다."
+        val result = filter.filter(
+            content = contentWithKeyword,
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "내 이슈 보여줘"),
+                toolsUsed = listOf("jira_my_open_issues"),
+                verifiedSources = listOf(
+                    VerifiedSource("HRFW-5695", "https://example.com/HRFW-5695")
+                ),
+                toolInsights = listOf("총 3건 이슈 확인"),
+                durationMs = 200
+            )
+        )
+
+        // content already has "건", "마감" → hasInsightMarker returns true → no extra injection
+        // content 본문에는 "인사이트" 섹션이 원래부터 없어야 함
+        assertFalse(result.substringBefore("출처").contains("💡 인사이트")) {
+            "Content with existing insight keywords should not receive automatic 💡 인사이트 block"
+        }
+    }
+
+    // ── R195: toolInsights가 ResponseFilterContext를 통해 전달되는지 확인 ──
+
+    @Test
+    fun `R195 empty content with toolInsights should use fallback message with insights`() = runTest {
+        // 완전히 빈 content + toolInsights 존재 → buildFallbackVerifiedResponse + 인사이트 포함
+        val result = filter.filter(
+            content = "",
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "내 PR 상황"),
+                toolsUsed = listOf("bitbucket_my_authored_prs"),
+                verifiedSources = listOf(
+                    VerifiedSource("ihunet/repo", "https://bitbucket.org/ihunet/repo")
+                ),
+                toolInsights = listOf("24시간+ 미업데이트: 3건", "리뷰어 미지정: 1건"),
+                durationMs = 100
+            )
+        )
+
+        assertTrue(result.contains("💡 인사이트")) {
+            "Empty content fallback with toolInsights should include 💡 insights section"
+        }
+        assertTrue(result.contains("24시간+ 미업데이트: 3건")) {
+            "Fallback insight should include tool-calculated insights"
+        }
+    }
 }

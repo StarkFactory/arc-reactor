@@ -75,4 +75,96 @@ class VerifiedSourceTest {
             "Title should be inferred from URL segment when no title field exists"
         }
     }
+
+    // ── R192~R194: toolInsights 추출 (extractInsights) ──
+
+    @Test
+    fun `extractInsights should read top-level insights array`() {
+        val output = """
+            {
+              "ok": true,
+              "insights": [
+                "총 12건",
+                "24시간+ 미업데이트: 5건",
+                "평균 수명: 4.3일"
+              ]
+            }
+        """.trimIndent()
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertEquals(3, insights.size) { "Top-level insights array should be extracted" }
+        assertEquals("총 12건", insights[0]) { "First insight should be preserved" }
+        assertEquals("24시간+ 미업데이트: 5건", insights[1]) { "Second insight should be preserved" }
+        assertEquals("평균 수명: 4.3일", insights[2]) { "Third insight should be preserved" }
+    }
+
+    @Test
+    fun `extractInsights should return empty list for missing insights field`() {
+        val output = """
+            {
+              "ok": true,
+              "count": 0,
+              "sources": []
+            }
+        """.trimIndent()
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertEquals(0, insights.size) { "No insights field → empty list" }
+    }
+
+    @Test
+    fun `extractInsights should deduplicate and trim blank entries`() {
+        val output = """
+            {
+              "insights": ["총 3건", " 총 3건 ", "", "  ", "마감 임박: 2건"]
+            }
+        """.trimIndent()
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertEquals(2, insights.size) { "Duplicates and blanks should be removed" }
+        assertTrue(insights.contains("총 3건")) { "Trimmed duplicate should be preserved once" }
+        assertTrue(insights.contains("마감 임박: 2건")) { "Non-blank distinct entry should be kept" }
+    }
+
+    @Test
+    fun `extractInsights should cap to MAX_INSIGHTS`() {
+        val manyInsights = (1..20).joinToString(",") { "\"item $it\"" }
+        val output = """
+            {
+              "insights": [$manyInsights]
+            }
+        """.trimIndent()
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertTrue(insights.size <= 10) { "Should cap at MAX_INSIGHTS (10)" }
+        assertEquals("item 1", insights.first()) { "Preservation order: first items kept" }
+    }
+
+    @Test
+    fun `extractInsights should ignore non-string insight array entries`() {
+        val output = """
+            {
+              "insights": ["유효", 42, null, {"nested": "object"}, "또 다른 유효"]
+            }
+        """.trimIndent()
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertEquals(2, insights.size) { "Only textual insights should be collected" }
+        assertTrue(insights.contains("유효")) { "First textual entry should be kept" }
+        assertTrue(insights.contains("또 다른 유효")) { "Last textual entry should be kept" }
+    }
+
+    @Test
+    fun `extractInsights should handle malformed JSON gracefully`() {
+        val output = "not valid json {"
+
+        val insights = VerifiedSourceExtractor.extractInsights(output)
+
+        assertEquals(0, insights.size) { "Malformed JSON → empty list without exception" }
+    }
 }
