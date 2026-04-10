@@ -187,7 +187,8 @@ class DefaultSlackEventHandlerTest {
 
             handler.handleAppMention(command())
 
-            coVerify { messagingService.sendMessage("C456", "The answer is 42", "1234.5678") }
+            // R176: 응답 맨 앞에 사용자 mention 자동 추가
+            coVerify { messagingService.sendMessage("C456", "<@U123> The answer is 42", "1234.5678") }
         }
 
         @Test
@@ -219,11 +220,13 @@ class DefaultSlackEventHandlerTest {
 
             handler.handleAppMention(command())
 
+            // R176: 응답 맨 앞에 사용자 mention 추가됨 — :warning:은 그 뒤에 위치
             coVerify {
                 messagingService.sendMessage(
                     "C456",
                     match {
-                        it.shouldStartWith(":warning:")
+                        it.shouldStartWith("<@U123>")
+                        it.shouldContain(":warning:")
                         it.shouldContain("Blocked by input policy")
                         true
                     },
@@ -242,10 +245,11 @@ class DefaultSlackEventHandlerTest {
 
             handler.handleAppMention(command())
 
+            // R176: 응답 맨 앞에 사용자 mention 자동 추가
             coVerify {
                 messagingService.sendMessage(
                     "C456",
-                    "RAG says policy is 30 days. MCP tool confirmed latest ticket status.",
+                    "<@U123> RAG says policy is 30 days. MCP tool confirmed latest ticket status.",
                     "1234.5678"
                 )
             }
@@ -283,8 +287,9 @@ class DefaultSlackEventHandlerTest {
 
             handler.handleAppMention(command())
 
+            // R176: 응답 맨 앞에 사용자 mention 자동 추가
             coVerify(exactly = 1) {
-                messagingService.sendMessage("C456", "The answer is 42", "1234.5678")
+                messagingService.sendMessage("C456", "<@U123> The answer is 42", "1234.5678")
             }
         }
     }

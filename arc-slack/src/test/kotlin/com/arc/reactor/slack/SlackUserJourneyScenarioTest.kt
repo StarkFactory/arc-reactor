@@ -133,10 +133,11 @@ class SlackUserJourneyScenarioTest {
         val response = controller.handleEvent(payload)
         response.statusCode shouldBe HttpStatus.OK
 
+        // R176: 응답 맨 앞에 사용자 mention 자동 추가
         coVerify(timeout = 2_000) {
             messagingService.sendMessage(
                 "C456",
-                "RAG found the policy update. MCP verified ticket ARC-101 owner is @alice.",
+                "<@U123> RAG found the policy update. MCP verified ticket ARC-101 owner is @alice.",
                 "1710000.0000"
             )
         }

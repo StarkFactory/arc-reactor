@@ -26,6 +26,17 @@ class SlackThreadTracker(
         trackedThreads[key(channelId, threadTs)] = now + ttlSeconds.coerceAtLeast(60)
     }
 
+    /**
+     * 특정 스레드를 추적에서 제거한다 — "나가" 명령 등으로 사용자가 봇을 명시적으로 내보낼 때 사용.
+     *
+     * 제거 후 해당 스레드에 새 메시지가 와도 봇은 응답하지 않는다 (추적 안 됨 → 무시).
+     * 새로운 멘션(`@reactor`)이 오면 자동으로 다시 추적된다.
+     */
+    fun untrack(channelId: String, threadTs: String) {
+        if (channelId.isBlank() || threadTs.isBlank()) return
+        trackedThreads.remove(key(channelId, threadTs))
+    }
+
     fun isTracked(channelId: String, threadTs: String): Boolean {
         if (channelId.isBlank() || threadTs.isBlank()) return false
         val now = Instant.now().epochSecond

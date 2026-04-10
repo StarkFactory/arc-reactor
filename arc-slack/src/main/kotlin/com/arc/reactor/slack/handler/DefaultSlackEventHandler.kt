@@ -56,6 +56,13 @@ class DefaultSlackEventHandler(
         }
 
         val threadTs = command.threadTs ?: command.ts
+
+        // R176: 멘션 자체가 quit 명령이면 (예: @reactor 나가) 작별 후 종료
+        if (isQuitCommand(cleanText)) {
+            handleQuitCommand(command.channelId, threadTs, command.userId)
+            return
+        }
+
         threadTracker?.track(command.channelId, threadTs)
         executeAndRespond(command.channelId, threadTs, command.userId, cleanText)
     }
@@ -65,8 +72,52 @@ class DefaultSlackEventHandler(
         if (text.isBlank()) return
 
         val threadTs = command.threadTs ?: command.ts
+
+        // R176: "나가" 류 종료 명령 감지 → 작별 인사 후 스레드 추적 해제 (낄끼빠빠)
+        if (isQuitCommand(text)) {
+            handleQuitCommand(command.channelId, threadTs, command.userId)
+            return
+        }
+
         threadTracker?.track(command.channelId, threadTs)
         executeAndRespond(command.channelId, threadTs, command.userId, text)
+    }
+
+    /**
+     * 사용자가 봇을 스레드에서 내보내려는 명령인지 판단한다.
+     * 짧고 명확한 패턴만 매칭 — 일반 대화에서 우연히 매칭되지 않도록 길이 제한.
+     */
+    private fun isQuitCommand(text: String): Boolean {
+        val normalized = text.trim().lowercase()
+        if (normalized.length > 30) return false
+        return QUIT_COMMAND_PATTERNS.any { normalized.contains(it) }
+    }
+
+    /**
+     * 종료 명령에 대한 작별 인사를 보내고 스레드 추적을 해제한다.
+     * 이후 동일 스레드의 메시지는 봇이 무시한다 (다시 멘션하면 자동 재추적).
+     */
+    private suspend fun handleQuitCommand(
+        channelId: String,
+        threadTs: String,
+        userId: String
+    ) {
+        val displayName = userNameResolver?.resolveName(userId)
+            ?.takeIf { it.isNotBlank() && !SLACK_USER_ID_REGEX.matches(it) }
+        val mention = "<@$userId>"
+        val farewell = if (displayName != null) {
+            "$mention 알겠습니다, $displayName 님! 잠시 자리 비킬게요. 필요하면 `@reactor`로 다시 불러주세요. \uD83D\uDC4B"
+        } else {
+            "$mention 알겠습니다! 잠시 자리 비킬게요. 필요하면 `@reactor`로 다시 불러주세요. \uD83D\uDC4B"
+        }
+        try {
+            messagingService.sendMessage(channelId = channelId, text = farewell, threadTs = threadTs)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "작별 메시지 전송 실패: channel=$channelId" }
+        }
+        threadTracker?.untrack(channelId, threadTs)
+        logger.info { "스레드 추적 해제 (quit 명령): channel=$channelId thread=$threadTs by user=$userId" }
     }
 
     override suspend fun handleChannelMessage(command: SlackEventCommand): Boolean {
@@ -147,7 +198,8 @@ class DefaultSlackEventHandler(
             setAssistantStatusSafely(channelId, threadTs, "")
             val content = result.content.orEmpty().trim()
             if (content == NO_RESPONSE_MARKER) return
-            sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt)
+            // R176: 응답 대상 명시 — 다수 채널에서 누구한테 답하는지 명확하게
+            sendAgentResponse(channelId, threadTs, result, sessionId, userPrompt, userId)
         } catch (e: Exception) {
             e.throwIfCancellation()
             setAssistantStatusSafely(channelId, threadTs, "")
@@ -219,15 +271,23 @@ class DefaultSlackEventHandler(
         )
     }
 
-    /** 에이전트 응답을 Slack 스레드에 전송하고 봇 응답을 추적한다. */
+    /**
+     * 에이전트 응답을 Slack 스레드에 전송하고 봇 응답을 추적한다.
+     *
+     * R176: 응답 맨 앞에 사용자 mention을 추가하여 다수가 있는 채널에서
+     * "이건 X한테 답한 거예요"를 명확히 한다. 응답 텍스트에 이미 mention이
+     * 포함되어 있으면 중복 추가하지 않는다.
+     */
     private suspend fun sendAgentResponse(
         channelId: String,
         threadTs: String,
         result: AgentResult,
         sessionId: String,
-        userPrompt: String
+        userPrompt: String,
+        targetUserId: String
     ) {
-        val responseText = SlackResponseTextFormatter.fromResult(result, userPrompt)
+        val rawText = SlackResponseTextFormatter.fromResult(result, userPrompt)
+        val responseText = prependTargetMentionIfMissing(rawText, targetUserId)
         val blocks = SlackBlockKitFormatter.buildBlocks(result, userPrompt)
         val sendResult = messagingService.sendMessage(
             channelId = channelId,
@@ -244,6 +304,18 @@ class DefaultSlackEventHandler(
                     "channel=$channelId thread=$threadTs error=${sendResult.error}"
             }
         }
+    }
+
+    /**
+     * 응답 텍스트 맨 앞에 대상 사용자 mention을 추가한다.
+     * 이미 응답에 동일 사용자 mention이 포함되어 있으면 중복 추가하지 않는다.
+     * R176: 다수 채널에서 누구에게 답하는 건지 명확히 하기 위함.
+     */
+    private fun prependTargetMentionIfMissing(text: String, targetUserId: String): String {
+        if (targetUserId.isBlank()) return text
+        val mention = "<@$targetUserId>"
+        if (text.contains(mention)) return text
+        return "$mention $text"
     }
 
     /** 에이전트 실행 실패 시 사용자에게 오류 메시지를 전송한다. */
@@ -301,6 +373,17 @@ class DefaultSlackEventHandler(
         /** Slack User ID 형식 (예: U088X6MECJD). resolveName 폴백 시 raw ID 노출 방지용. */
         private val SLACK_USER_ID_REGEX = Regex("^U[A-Z0-9]+$")
         private const val NO_RESPONSE_MARKER = "[NO_RESPONSE]"
+
+        /**
+         * 봇을 스레드에서 내보내는 종료 명령 패턴 (R176).
+         * 짧고 명확한 표현만 매칭 — 일반 대화에서 우연히 트리거되지 않도록 isQuitCommand에서 길이 30자 제한.
+         * 한국어/영어 둘 다 지원.
+         */
+        private val QUIT_COMMAND_PATTERNS = listOf(
+            "나가", "꺼져", "그만", "물러가", "비켜", "닥쳐", "조용",
+            "엑터야 나가", "리액터 나가", "reactor 나가",
+            "go away", "shut up", "be quiet", "leave us", "stop", "dismiss"
+        )
         val REACTION_TO_RATING = mapOf(
             "+1" to FeedbackRating.THUMBS_UP,
             "thumbsup" to FeedbackRating.THUMBS_UP,
