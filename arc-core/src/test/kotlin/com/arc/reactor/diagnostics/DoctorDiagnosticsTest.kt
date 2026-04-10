@@ -41,17 +41,18 @@ class DoctorDiagnosticsTest {
     inner class DefaultState {
 
         @Test
-        fun `모든 기능이 비활성이면 4개 섹션 중 3개 SKIPPED 1개 OK여야 한다`() {
-            // Approval / Summarizer / Evaluation 모두 미설정
+        fun `모든 기능이 비활성이면 5개 섹션 중 4개 SKIPPED 1개 OK여야 한다`() {
+            // Approval / Summarizer / Evaluation / ResponseCache 모두 미설정
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
 
-            assertEquals(4, report.sections.size) { "4개 섹션" }
+            assertEquals(5, report.sections.size) { "R238 이후 5개 섹션" }
 
             val approval = report.sections.find { it.name == "Approval Context Resolver" }
             assertEquals(DoctorStatus.SKIPPED, approval!!.status)
@@ -61,6 +62,11 @@ class DoctorDiagnosticsTest {
 
             val evaluation = report.sections.find { it.name == "Evaluation Metrics Collector" }
             assertEquals(DoctorStatus.SKIPPED, evaluation!!.status)
+
+            val responseCache = report.sections.find { it.name == "Response Cache" }
+            assertEquals(DoctorStatus.SKIPPED, responseCache!!.status) {
+                "ResponseCache 빈 미등록 → SKIPPED"
+            }
 
             val promptLayer = report.sections.find { it.name == "Prompt Layer Registry" }
             assertEquals(DoctorStatus.OK, promptLayer!!.status) {
@@ -77,7 +83,8 @@ class DoctorDiagnosticsTest {
                 ),
                 evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(
                     NoOpEvaluationMetricsCollector
-                )
+                ),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -104,7 +111,8 @@ class DoctorDiagnosticsTest {
                     AtlassianApprovalContextResolver()
                 ),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -125,7 +133,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = providerOf<ApprovalContextResolver>(wrapped),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -144,7 +153,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = providerOf<ApprovalContextResolver>(brokenResolver),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -165,7 +175,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = providerOf<ToolResponseSummarizer>(default),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -189,7 +200,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = providerOf<ToolResponseSummarizer>(wrapped),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -211,7 +223,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(collector)
+                evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(collector),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -228,6 +241,119 @@ class DoctorDiagnosticsTest {
     }
 
     @Nested
+    inner class ResponseCacheSection {
+
+        @Test
+        fun `NoOp 캐시는 SKIPPED로 분류되어야 한다`() {
+            val noOp = com.arc.reactor.cache.impl.NoOpResponseCache()
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = providerOf<com.arc.reactor.cache.ResponseCache>(noOp)
+            )
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Response Cache" }!!
+
+            assertEquals(DoctorStatus.SKIPPED, section.status) {
+                "NoOp 캐시는 실제 캐싱 없음 → SKIPPED"
+            }
+
+            val tierCheck = section.checks.find { it.name == "cache tier" }!!
+            assertEquals(DoctorStatus.SKIPPED, tierCheck.status)
+            assertTrue(tierCheck.detail.contains("NoOp"))
+        }
+
+        @Test
+        fun `Caffeine 캐시는 WARN으로 분류되어야 한다 (프로세스 로컬)`() {
+            val caffeine = com.arc.reactor.cache.impl.CaffeineResponseCache(
+                maxSize = 1000,
+                ttlMinutes = 60
+            )
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = providerOf<com.arc.reactor.cache.ResponseCache>(caffeine)
+            )
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Response Cache" }!!
+
+            assertEquals(DoctorStatus.WARN, section.status) {
+                "Caffeine은 프로세스 로컬 → 멀티 인스턴스 환경에서 WARN"
+            }
+
+            val tierCheck = section.checks.find { it.name == "cache tier" }!!
+            assertTrue(tierCheck.detail.contains("Caffeine"))
+
+            val semanticCheck = section.checks.find { it.name == "semantic search" }!!
+            assertEquals(DoctorStatus.WARN, semanticCheck.status) {
+                "Caffeine은 SemanticResponseCache 미구현 → 의미적 검색 불가"
+            }
+        }
+
+        @Test
+        fun `SemanticResponseCache 구현체는 OK로 분류되어야 한다`() {
+            // SemanticResponseCache 인터페이스를 구현하는 stub
+            val semantic = object : com.arc.reactor.cache.SemanticResponseCache {
+                override suspend fun get(key: String): com.arc.reactor.cache.CachedResponse? = null
+
+                override suspend fun put(
+                    key: String,
+                    response: com.arc.reactor.cache.CachedResponse
+                ) { /* no-op */ }
+
+                override fun invalidateAll() { /* no-op */ }
+
+                override suspend fun getSemantic(
+                    command: com.arc.reactor.agent.model.AgentCommand,
+                    toolNames: List<String>,
+                    exactKey: String
+                ): com.arc.reactor.cache.CachedResponse? = null
+
+                override suspend fun putSemantic(
+                    command: com.arc.reactor.agent.model.AgentCommand,
+                    toolNames: List<String>,
+                    exactKey: String,
+                    response: com.arc.reactor.cache.CachedResponse
+                ) { /* no-op */ }
+            }
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = providerOf<com.arc.reactor.cache.ResponseCache>(semantic)
+            )
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Response Cache" }!!
+
+            assertEquals(DoctorStatus.OK, section.status)
+
+            val semanticCheck = section.checks.find { it.name == "semantic search" }!!
+            assertEquals(DoctorStatus.OK, semanticCheck.status)
+            assertTrue(semanticCheck.detail.contains("활성"))
+
+            val tierCheck = section.checks.find { it.name == "cache tier" }!!
+            assertTrue(tierCheck.detail.contains("의미적"))
+        }
+
+        @Test
+        fun `빈 미등록이면 SKIPPED 반환`() {
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
+            )
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Response Cache" }!!
+
+            assertEquals(DoctorStatus.SKIPPED, section.status)
+            assertTrue(section.message.contains("비활성"))
+        }
+    }
+
+    @Nested
     inner class PromptLayerSection {
 
         @Test
@@ -235,7 +361,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -262,13 +389,14 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
             val summary = report.summary()
 
-            assertTrue(summary.contains("4 섹션")) { "섹션 수" }
+            assertTrue(summary.contains("5 섹션")) { "R238 이후 섹션 수" }
             assertTrue(summary.contains("OK") || summary.contains("SKIPPED")) {
                 "상태 이름 포함"
             }
@@ -281,7 +409,8 @@ class DoctorDiagnosticsTest {
                     AtlassianApprovalContextResolver()
                 ),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -296,7 +425,8 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
@@ -323,13 +453,14 @@ class DoctorDiagnosticsTest {
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = providerOf<ApprovalContextResolver>(brokenResolver),
                 toolSummarizerProvider = emptyProvider(),
-                evaluationCollectorProvider = emptyProvider()
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
             )
 
             val report = doctor.runDiagnostics()
 
-            // 4개 섹션 모두 존재
-            assertEquals(4, report.sections.size)
+            // 5개 섹션 모두 존재 (R238 이후)
+            assertEquals(5, report.sections.size)
 
             // 다른 섹션은 정상
             val promptLayer = report.sections.find { it.name == "Prompt Layer Registry" }!!

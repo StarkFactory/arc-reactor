@@ -7,6 +7,10 @@ import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.approval.ApprovalContextResolver
 import com.arc.reactor.approval.RedactedApprovalContextResolver
+import com.arc.reactor.cache.ResponseCache
+import com.arc.reactor.cache.SemanticResponseCache
+import com.arc.reactor.cache.impl.CaffeineResponseCache
+import com.arc.reactor.cache.impl.NoOpResponseCache
 import com.arc.reactor.tool.summarize.NoOpToolResponseSummarizer
 import com.arc.reactor.tool.summarize.RedactedToolResponseSummarizer
 import com.arc.reactor.tool.summarize.ToolResponseSummarizer
@@ -78,7 +82,8 @@ private val logger = KotlinLogging.logger {}
 class DoctorDiagnostics(
     private val approvalResolverProvider: ObjectProvider<ApprovalContextResolver>,
     private val toolSummarizerProvider: ObjectProvider<ToolResponseSummarizer>,
-    private val evaluationCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
+    private val evaluationCollectorProvider: ObjectProvider<EvaluationMetricsCollector>,
+    private val responseCacheProvider: ObjectProvider<ResponseCache>
 ) {
 
     /**
@@ -91,7 +96,8 @@ class DoctorDiagnostics(
             safeRun("Approval Context Resolver") { diagnoseApprovalResolver() },
             safeRun("Tool Response Summarizer") { diagnoseToolSummarizer() },
             safeRun("Evaluation Metrics Collector") { diagnoseEvaluationCollector() },
-            safeRun("Prompt Layer Registry") { diagnosePromptLayerRegistry() }
+            safeRun("Prompt Layer Registry") { diagnosePromptLayerRegistry() },
+            safeRun("Response Cache") { diagnoseResponseCache() }
         )
         return DoctorReport(
             generatedAt = Instant.now(),
@@ -368,6 +374,133 @@ class DoctorDiagnostics(
             message = "활성 ($collectorType) — ${EvaluationMetricsCatalog.ALL.size}개 메트릭"
         )
     }
+
+    /**
+     * R238: Response Cache 섹션 — NoOp/Caffeine/Redis(Semantic) 구분.
+     *
+     * Redis 의미적 캐시 미사용 시 WARN으로 표시. R231 이후 Arc Reactor가 Redis 의미적
+     * 캐시를 핵심 성능/비용 축으로 삼고 있으므로, 프로덕션에서는 Redis 백엔드가 권장된다.
+     */
+    private fun diagnoseResponseCache(): DoctorSection {
+        val cache = responseCacheProvider.ifAvailable
+        val checks = mutableListOf<DoctorCheck>()
+
+        if (cache == null) {
+            checks.add(
+                DoctorCheck(
+                    name = "cache bean",
+                    status = DoctorStatus.SKIPPED,
+                    detail = "ResponseCache 빈 미등록 — 응답 캐싱 완전 비활성"
+                )
+            )
+            return DoctorSection(
+                name = "Response Cache",
+                status = DoctorStatus.SKIPPED,
+                checks = checks,
+                message = "비활성 — 빈 미등록"
+            )
+        }
+
+        val cacheType = cache::class.java.simpleName
+        checks.add(
+            DoctorCheck(
+                name = "cache bean",
+                status = DoctorStatus.OK,
+                detail = "등록됨: $cacheType"
+            )
+        )
+
+        // 캐시 유형 분류
+        val tier = classifyCacheTier(cache)
+        checks.add(
+            DoctorCheck(
+                name = "cache tier",
+                status = tier.status,
+                detail = tier.detail
+            )
+        )
+
+        // NoOp 캐시는 의미적 검색 여부가 무의미하므로 early-return
+        // (캐싱 자체가 비활성화된 상태에서 semantic search 여부 경고는 혼란만 유발)
+        if (tier.tierName == "noop") {
+            return DoctorSection(
+                name = "Response Cache",
+                status = DoctorStatus.SKIPPED,
+                checks = checks,
+                message = "비활성 — NoOp 캐시 (실제 캐싱 없음)"
+            )
+        }
+
+        // 의미적 캐시 기능 확인 (Redis Semantic만 지원)
+        val isSemantic = cache is SemanticResponseCache
+        checks.add(
+            DoctorCheck(
+                name = "semantic search",
+                status = if (isSemantic) DoctorStatus.OK else DoctorStatus.WARN,
+                detail = if (isSemantic) {
+                    "활성 — 의미적 유사도 기반 캐시 히트 지원"
+                } else {
+                    "비활성 — 정확한 키 매칭만 (의미적 히트 없음). " +
+                        "Redis + pgvector + Spring AI EmbeddingModel 설정 권장"
+                }
+            )
+        )
+
+        val overallStatus = when {
+            checks.any { it.status == DoctorStatus.ERROR } -> DoctorStatus.ERROR
+            checks.any { it.status == DoctorStatus.WARN } -> DoctorStatus.WARN
+            else -> DoctorStatus.OK
+        }
+
+        return DoctorSection(
+            name = "Response Cache",
+            status = overallStatus,
+            checks = checks,
+            message = "활성 ($cacheType, tier=${tier.tierName})"
+        )
+    }
+
+    /**
+     * 캐시 구현체를 tier로 분류한다.
+     * - NoOp: 완전 비활성 (SKIPPED)
+     * - Caffeine: 프로세스 로컬 (WARN — 멀티 인스턴스 환경에서는 비효율)
+     * - RedisSemanticResponseCache: 프로덕션 권장 (OK)
+     * - 기타 커스텀: OK (사용자가 알아서 결정)
+     */
+    private fun classifyCacheTier(cache: ResponseCache): CacheTier {
+        return when {
+            cache is NoOpResponseCache -> CacheTier(
+                tierName = "noop",
+                status = DoctorStatus.SKIPPED,
+                detail = "NoOp 캐시 — 모든 get/put이 no-op, 실제 캐싱 없음"
+            )
+            cache is CaffeineResponseCache -> CacheTier(
+                tierName = "caffeine",
+                status = DoctorStatus.WARN,
+                detail = "Caffeine in-memory 캐시 — 프로세스 로컬만. " +
+                    "멀티 인스턴스 환경에서는 Redis 권장"
+            )
+            // RedisSemanticResponseCache는 SemanticResponseCache를 구현하며
+            // 별도 클래스 체크는 검증 복잡도를 키우므로 인터페이스 체크로 충분
+            cache is SemanticResponseCache -> CacheTier(
+                tierName = "semantic",
+                status = DoctorStatus.OK,
+                detail = "의미적 캐시 구현체 — 프로덕션 권장 백엔드 (Redis + pgvector 등)"
+            )
+            else -> CacheTier(
+                tierName = "custom",
+                status = DoctorStatus.OK,
+                detail = "커스텀 구현체: ${cache::class.java.simpleName}"
+            )
+        }
+    }
+
+    /** 캐시 tier 분류 결과 (사설 helper). */
+    private data class CacheTier(
+        val tierName: String,
+        val status: DoctorStatus,
+        val detail: String
+    )
 
     /** R220/R235 Prompt Layer Registry 섹션 — 분류 무결성 체크. */
     private fun diagnosePromptLayerRegistry(): DoctorSection {

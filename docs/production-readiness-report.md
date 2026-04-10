@@ -14311,3 +14311,194 @@ R236이 "진단 로직"을 제공하고 R237이 "HTTP 접근성"을 제공한다
 #### 📊 R237 요약
 
 🌐 **R236 심화: DoctorController (arc-admin REST 엔드포인트) 완료**. R236 `DoctorDiagnostics` 서비스를 HTTP로 노출하는 관리자 전용 REST 컨트롤러 추가. 2개 엔드포인트(`GET /api/admin/doctor` 전체 보고서 + `GET /api/admin/doctor/summary` 한 줄 요약). HTTP 상태 정책: 모두 OK → 200, WARN → 200 + `X-Doctor-Status: WARN`, ERROR → 500 + `X-Doctor-Status: ERROR`. 인가: `isAnyAdmin(exchange)`로 `ADMIN` 또는 `ADMIN_DEVELOPER` 역할 체크, 권한 없으면 403 + `forbiddenResponse()`. Double fail-safe — R236이 이미 fail-safe 이지만 컨트롤러도 `runDiagnosticsSafely()` 래퍼로 한 번 더 try/catch, 극단적 예외 시에도 유효한 `DoctorReport` 반환하여 클라이언트 JSON 파싱 실패 방지. `@ConditionalOnBean(DoctorDiagnostics::class)`로 R236 서비스 빈이 있을 때만 등록. 기존 `arc-admin` 컨트롤러 패턴(@Tag/@ConditionalOnBean/isAnyAdmin) 그대로 준수. 신규 파일 2개 (컨트롤러 170줄 + 테스트 230줄), **기존 파일 수정 0건**. 신규 테스트 **17 PASS** (5 @Nested 그룹: Authentication/ReportEndpoint/SummaryEndpoint/**FailSafeBehavior** ⭐/HeaderConstants). mockk로 `DoctorDiagnostics`와 `ServerWebExchange` role 시뮬레이션하여 end-to-end HTTP 동작 검증. 기존 R219~R236 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R237**. swagger-mcp 8181 **68 라운드 연속** 안정. R236 + R237로 사용자는 이제 **코드 작성 없이 curl 한 번(`curl -H "Authorization: Bearer $TOKEN" /api/admin/doctor`)** 으로 R225~R236 전체 opt-in 스택의 현재 활성화 상태를 확인할 수 있다.
+
+### Round 238 — 💾 2026-04-11T12:00+09:00 — DoctorDiagnostics 확장: Response Cache 섹션
+
+**작업 종류**: Directive 심화 — R236 진단 서비스 확장 (QA 측정 없음)
+**Directive 패턴**: Observability 축 연속
+**완료 태스크**: #113
+
+#### 작업 배경
+
+R236 `DoctorDiagnostics`는 4개 섹션(Approval / Summarizer / Evaluation / PromptLayer)을 진단했지만, **Response Cache** 상태는 빠져 있었다. 이는 심각한 공백이다 — Arc Reactor의 Redis 의미적 캐시(`RedisSemanticResponseCache`)는 R231 이후 핵심 성능/비용 축이며, 잘못 구성된 캐시(NoOp 또는 Caffeine)는 프로덕션에서 **LLM 호출 비용 급증과 응답 지연 악화**를 유발한다.
+
+R238은 5번째 섹션 `Response Cache`를 추가하여 사용자가 curl 한 번으로 "내 캐시 백엔드가 Redis인지 NoOp인지" 확인할 수 있게 한다.
+
+#### 설계 원칙
+
+1. **3-tier 분류**: `noop` (SKIPPED) / `caffeine` (WARN, 프로세스 로컬) / `semantic` (OK, 프로덕션 권장)
+2. **Early-return for NoOp**: NoOp 캐시의 경우 "semantic search" 체크가 의미 없으므로 early-return으로 건너뜀 (혼란 방지)
+3. **Interface-based 분류**: `SemanticResponseCache` 인터페이스 구현 여부로 의미적 검색 지원 판별 — 특정 Redis 구현체에 종속되지 않음
+4. **ObjectProvider optional**: R236과 동일하게 `ObjectProvider<ResponseCache>` → 빈 미등록 시 SKIPPED
+
+#### Cache Tier 분류 로직
+
+```kotlin
+private fun classifyCacheTier(cache: ResponseCache): CacheTier {
+    return when {
+        cache is NoOpResponseCache -> CacheTier(
+            tierName = "noop",
+            status = DoctorStatus.SKIPPED,
+            detail = "NoOp 캐시 — 모든 get/put이 no-op, 실제 캐싱 없음"
+        )
+        cache is CaffeineResponseCache -> CacheTier(
+            tierName = "caffeine",
+            status = DoctorStatus.WARN,
+            detail = "Caffeine in-memory 캐시 — 프로세스 로컬만. " +
+                "멀티 인스턴스 환경에서는 Redis 권장"
+        )
+        cache is SemanticResponseCache -> CacheTier(
+            tierName = "semantic",
+            status = DoctorStatus.OK,
+            detail = "의미적 캐시 구현체 — 프로덕션 권장 백엔드 (Redis + pgvector 등)"
+        )
+        else -> CacheTier(
+            tierName = "custom",
+            status = DoctorStatus.OK,
+            detail = "커스텀 구현체: ${cache::class.java.simpleName}"
+        )
+    }
+}
+```
+
+**인터페이스 기반 semantic 판별**: `RedisSemanticResponseCache` 구체 클래스 대신 `SemanticResponseCache` 인터페이스를 체크한다. 이는 사용자가 자체 Redis 외 다른 백엔드(Elasticsearch, Milvus, Qdrant 등)로 의미적 캐시를 구현해도 올바르게 인식되도록 한다.
+
+#### 진단 흐름
+
+1. `responseCacheProvider.ifAvailable` → null 시 **SKIPPED**, 종료
+2. `cache bean` 체크 (등록 확인)
+3. `cache tier` 체크 (NoOp/Caffeine/Semantic/Custom)
+4. **Early-return if NoOp** (semantic search 체크 무의미)
+5. `semantic search` 체크 (NoOp 이외의 경우)
+6. Overall status = 모든 체크의 worst case
+
+#### 변경 파일
+
+| 파일 | 변경 | 설명 |
+|------|------|------|
+| `diagnostics/DoctorDiagnostics.kt` | 수정 | `responseCacheProvider` 파라미터 + `diagnoseResponseCache()` 메서드 + `classifyCacheTier()` helper + `CacheTier` 데이터 클래스 (+116줄) |
+| `autoconfigure/DoctorDiagnosticsConfiguration.kt` | 수정 | `ObjectProvider<ResponseCache>` 주입 |
+| `test/.../DoctorDiagnosticsTest.kt` | 수정 | 기존 13개 생성자 호출에 `responseCacheProvider` 추가 + 신규 `ResponseCacheSection` 테스트 그룹 (4 tests) + 섹션 수 4→5 업데이트 |
+
+**신규 파일 0개, 기존 파일 3개 수정.** 가장 작은 확장 규모.
+
+#### 테스트 업데이트
+
+- **Backward compat**: 기존 13개 `DoctorDiagnostics` 생성자 호출 모두에 `responseCacheProvider = emptyProvider()` 추가 — `replace_all` 기반 일괄 변경
+- **섹션 수 업데이트**: `DefaultState` / `SafeRunBehavior` / `ReportHelpers` 그룹의 "4 섹션" 기대를 "5 섹션"으로 수정
+- **신규 `ResponseCacheSection` 그룹 (4 tests)**:
+  - NoOp 캐시 → `SKIPPED` (early-return으로 semantic search 체크 없음)
+  - Caffeine 캐시 → `WARN` (프로세스 로컬) + `semantic search` WARN
+  - `SemanticResponseCache` 구현체 → `OK` + `semantic search` OK
+  - 빈 미등록 → `SKIPPED`
+
+#### 수정 과정에서 발견한 이슈
+
+**1. NoOp 캐시 테스트 실패**: 초기 구현에서 NoOp 캐시도 `semantic search` 체크를 실행하여 WARN으로 올라갔다. NoOp 상황에서는 "의미적 검색 가능 여부"가 무의미하므로 혼란만 유발 → early-return으로 수정.
+
+**2. Caffeine 생성자 파라미터 오타**: `ttlSeconds` → 실제로는 `ttlMinutes`. 수정.
+
+**3. `SemanticResponseCache` stub 시그니처**: `SemanticResponseCache`가 `ResponseCache`를 상속하므로 `get(key)`/`put(key, response)`/`invalidateAll()` 모두 구현 필요. 초기에 `get(command, toolNames)` 오버로드로 잘못 구현 → 올바른 시그니처로 수정.
+
+#### 테스트 결과
+
+```
+DoctorDiagnosticsTest                          → 23 tests PASS (19 + 4 신규)
+  @Nested DefaultState (2) — 섹션 수 5로 업데이트
+  @Nested ApprovalSection (3) — 변경 없음
+  @Nested SummarizerSection (2) — 변경 없음
+  @Nested EvaluationSection (1) — 변경 없음
+  @Nested ResponseCacheSection (4) ⭐ 신규
+    - NoOp → SKIPPED (early-return)
+    - Caffeine → WARN (프로세스 로컬)
+    - SemanticResponseCache → OK
+    - 빈 미등록 → SKIPPED
+  @Nested PromptLayerSection (1) — 변경 없음
+  @Nested ReportHelpers (3) — summary "5 섹션"으로 업데이트
+  @Nested SafeRunBehavior (1) — 섹션 수 5로 업데이트
+  @Nested AutoConfigIntegration (4) — 변경 없음
+```
+
+**기존 R219~R237 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 불변
+- R236 전체 19 tests → **23 tests**로 증가 (4개 추가, 0개 손실)
+- R237 `DoctorControllerTest` 17 tests 영향 없음 (mockk 사용)
+- 전체 arc-core + arc-admin 컴파일 PASS
+- 전체 16 tasks compileKotlin/compileTestKotlin PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ 진단은 read-only introspection
+- ✅ 캐시 클래스 체크만 수행 (인스턴스 메서드 호출 없음)
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `RedisSemanticResponseCache` 구현 자체 미수정 (진단만)
+- ✅ **캐시 건강 상태 관측성 강화** — R231 이후 핵심 성능 축인 Redis 의미적 캐시의 잘못된 구성을 사전 경고
+
+**캐시 영향: 0 (캐시 자체는 미수정, 진단만 추가)**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+
+#### 사용 사례: 프로덕션 배포 검증
+
+**배포 직후 curl 프로브**:
+```bash
+$ curl -sH "Authorization: Bearer $TOKEN" \
+    https://arc.example.com/api/admin/doctor | jq '.sections[] | select(.name == "Response Cache")'
+
+{
+  "name": "Response Cache",
+  "status": "WARN",
+  "checks": [
+    {"name": "cache bean", "status": "OK", "detail": "등록됨: CaffeineResponseCache"},
+    {"name": "cache tier", "status": "WARN", "detail": "Caffeine in-memory 캐시 — 프로세스 로컬만. 멀티 인스턴스 환경에서는 Redis 권장"},
+    {"name": "semantic search", "status": "WARN", "detail": "비활성 — 정확한 키 매칭만 (의미적 히트 없음). Redis + pgvector + Spring AI EmbeddingModel 설정 권장"}
+  ],
+  "message": "활성 (CaffeineResponseCache, tier=caffeine)"
+}
+```
+
+→ 사용자는 "아, 프로덕션 환경인데 Caffeine만 쓰고 있네. Redis로 전환해야겠다"를 **즉시 파악** 가능.
+
+**이상적 상태**:
+```bash
+"status": "OK",
+"message": "활성 (RedisSemanticResponseCache, tier=semantic)"
+```
+
+#### DoctorDiagnostics 축 진화
+
+| 라운드 | 섹션 수 | 추가된 섹션 |
+|--------|---------|------------|
+| R236 | 4 | Approval / Summarizer / Evaluation / PromptLayer |
+| R237 | 4 | REST 노출만 (섹션 변화 없음) |
+| **R238** | **5** | **+ Response Cache** |
+
+#### 연속 지표
+
+| 지표 | R237 | R238 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 68 | **69** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R237 | **4/5 + R224~R238** | - |
+
+#### 다음 Round 후보
+
+- **R239+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **DoctorDiagnostics 추가 섹션** — MCP Manager / HookExecutor / RequestGuard
+  3. **DoctorReport 한국어 출력 포맷터** — 로그/슬랙 메시지용 `toHumanReadable()` 메서드
+  4. **새 Directive 축 탐색**
+
+#### 📊 R238 요약
+
+💾 **R236 DoctorDiagnostics 확장: Response Cache 섹션 추가 완료**. 5번째 섹션으로 캐시 백엔드 구성을 진단 — NoOp(SKIPPED) / Caffeine(WARN, 프로세스 로컬) / SemanticResponseCache 구현체(OK, 프로덕션 권장) 3-tier 분류. 인터페이스 기반 분류로 사용자 커스텀 의미적 캐시 구현체(Elasticsearch/Milvus/Qdrant 등)도 자동 인식. NoOp 캐시의 경우 "semantic search" 체크가 의미 없으므로 **early-return**으로 혼란 방지. `DoctorDiagnostics` 생성자에 `responseCacheProvider: ObjectProvider<ResponseCache>` 추가, autoconfig 업데이트, 기존 13개 테스트 생성자 호출에 `emptyProvider()` 일괄 추가 (`replace_all`), 섹션 수 기대값 4→5 업데이트, 신규 `ResponseCacheSection` 테스트 그룹 4 tests 추가. 수정 과정에서 발견한 이슈 3개(NoOp early-return 필요, Caffeine `ttlMinutes` 오타, SemanticResponseCache stub 시그니처) 모두 해결. 신규 파일 0개, **기존 파일 3개 수정** (DoctorDiagnostics +116줄 / autoconfig +4줄 / 테스트). 테스트 **23 PASS** (R236 19 + 신규 4, 총 9 @Nested 그룹). 기존 R219~R237 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R238**. swagger-mcp 8181 **69 라운드 연속** 안정. 이제 사용자는 `curl .../api/admin/doctor` 한 번으로 "내 캐시 백엔드가 Redis인지 Caffeine인지 NoOp인지"를 즉시 확인할 수 있어, R231 이후 핵심 성능 축인 Redis 의미적 캐시의 잘못된 구성으로 인한 비용 급증을 사전에 경고받을 수 있다.

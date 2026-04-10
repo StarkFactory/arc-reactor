@@ -2,6 +2,7 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.approval.ApprovalContextResolver
+import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.diagnostics.DoctorDiagnostics
 import com.arc.reactor.tool.summarize.ToolResponseSummarizer
 import org.springframework.beans.factory.ObjectProvider
@@ -48,10 +49,12 @@ class DoctorDiagnosticsConfiguration {
     fun doctorDiagnostics(
         approvalResolverProvider: ObjectProvider<ApprovalContextResolver>,
         toolSummarizerProvider: ObjectProvider<ToolResponseSummarizer>,
-        evaluationCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
+        evaluationCollectorProvider: ObjectProvider<EvaluationMetricsCollector>,
+        responseCacheProvider: ObjectProvider<ResponseCache>
     ): DoctorDiagnostics = DoctorDiagnostics(
         approvalResolverProvider = approvalResolverProvider,
         toolSummarizerProvider = toolSummarizerProvider,
-        evaluationCollectorProvider = evaluationCollectorProvider
+        evaluationCollectorProvider = evaluationCollectorProvider,
+        responseCacheProvider = responseCacheProvider
     )
 }
