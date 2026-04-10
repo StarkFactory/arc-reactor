@@ -730,4 +730,110 @@ class SystemPromptBuilderTest {
             "Planning prompt should not contain Few-shot Examples (standard build section)"
         }
     }
+
+    // ── R197: INTERNAL_DOC_HINTS 확장 테스트 (B4 "개발 환경 세팅 방법" 회귀 방지) ──
+
+    @Test
+    fun `R197 '개발 환경 세팅 방법' prompt should force confluence_search_by_text`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "개발 환경 세팅 방법"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "'개발 환경 세팅 방법' should trigger INTERNAL_DOC_HINTS → confluence_search_by_text forcing"
+        }
+        assertTrue(prompt.contains("사내 문서")) {
+            "Prompt should mention 사내 문서 routing rationale"
+        }
+    }
+
+    @Test
+    fun `R197 '환경 설정' prompt should force confluence_search_by_text`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "프로젝트 환경 설정 어떻게 해?"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "'환경 설정' should trigger INTERNAL_DOC_HINTS routing"
+        }
+    }
+
+    @Test
+    fun `R197 '셋업' prompt should force confluence_search_by_text`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "로컬 셋업 문서 있어?"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "'셋업' should trigger INTERNAL_DOC_HINTS routing"
+        }
+    }
+
+    @Test
+    fun `R197 '설치 방법' prompt should force confluence_search_by_text`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "Docker 설치 방법 알려줘"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "'설치 방법' should trigger INTERNAL_DOC_HINTS routing"
+        }
+    }
+
+    @Test
+    fun `R197 'development environment' prompt should force confluence_search_by_text`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "How to setup development environment"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "English 'development environment' should trigger INTERNAL_DOC_HINTS routing"
+        }
+    }
+
+    @Test
+    fun `R197 '릴리즈 노트' prompt should still force confluence_search_by_text (pre-existing hint)`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "최신 릴리즈 노트 찾아줘"
+        )
+
+        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
+            "Pre-existing '릴리즈 노트' hint should still work after R197 extension"
+        }
+    }
+
+    @Test
+    fun `R197 general prompt without INTERNAL_DOC_HINTS should NOT force confluence`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "오늘 날씨 어때?"
+        )
+
+        // INTERNAL_DOC forcing 섹션이 포함되지 않아야 한다 (날씨는 일반 지식 질문)
+        // 다만 다른 섹션에서 confluence_search_by_text를 언급할 수 있으므로
+        // INTERNAL_DOC_HINTS 전용 메시지("사내 문서")가 없어야 함
+        assertFalse(prompt.contains("사내 문서(릴리즈 노트")) {
+            "General weather query should not trigger INTERNAL_DOC forcing"
+        }
+    }
 }
