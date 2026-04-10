@@ -653,15 +653,13 @@ internal class SystemPromptBuilder(
     ) {
         if (workspaceToolAlreadyCalled) return
         if (matchesHints(userPrompt, INTERNAL_DOC_HINTS)) {
-            append("\nFor this request, you MUST call ")
-            append("`confluence_search_by_text` before answering.")
-            append(" 사내 문서(릴리즈 노트, 가이드, 매뉴얼, 정책, 온보딩 등)에 대한 ")
-            append("질문은 사용자가 'Confluence에서'라고 명시하지 않아도 ")
-            append("자동으로 Confluence를 검색하라.")
-            append(" 검색 키워드는 사용자 메시지에서 핵심 명사 1-2개만 추출하라 ")
-            append("(장황한 문장 그대로 검색하지 말 것).")
-            append(" 예: '릴리즈 노트 찾아줘' → 검색어: '릴리즈 노트',")
-            append(" '온보딩 가이드 어디 있어?' → 검색어: '온보딩'.")
+            // R207: 간결화 — 기존 verbose 버전이 Gemini에서 "개발 환경 세팅" 등 일부 키워드 조합 시
+            // empty content를 반환하는 현상 관찰. `appendConfluenceToolForcing`의 톤에 맞춰 간소화.
+            // 기존 장문의 예시/부연 설명 제거 → Gemini safety filter 트리거 완화 기대.
+            append("\nFor this request, you MUST call `confluence_search_by_text` before answering.")
+            append(" 사내 문서(가이드/매뉴얼/릴리즈 노트/온보딩/환경 세팅 등)는 사용자가 ")
+            append("'Confluence에서'를 명시하지 않아도 자동으로 Confluence를 검색하라.")
+            append(" 사용자 메시지에서 핵심 명사 1-2개를 검색어로 사용하라.")
         }
     }
 
