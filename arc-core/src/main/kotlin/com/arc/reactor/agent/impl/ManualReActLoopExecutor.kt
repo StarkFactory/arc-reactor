@@ -796,26 +796,6 @@ internal class ManualReActLoopExecutor(
         return UNEXECUTED_TOOL_INTENT_PATTERN.containsMatchIn(text)
     }
 
-    /**
-     * R204: 텍스트가 "완결된 답변"인지 판단한다.
-     * 본문 길이가 충분하고 (>= 300자) 다음 중 하나라도 포함하면 완결된 것으로 본다:
-     * - `💡` 인사이트 마커
-     * - `**` 마크다운 강조 (구조화된 답변)
-     * - 2개 이상의 불릿 포인트 (`- ` 또는 `* `)
-     * - "출처" 섹션 또는 http URL
-     *
-     * 완결 판정 시 retry를 하지 않아 false positive 방지 + 응답시간 절감.
-     */
-    private fun looksLikeCompletedAnswer(text: String): Boolean {
-        if (text.length < COMPLETED_ANSWER_MIN_LENGTH) return false
-        if (text.contains("💡") || text.contains(":bulb:")) return true
-        if (text.contains("**")) return true
-        if (text.contains("http://") || text.contains("https://")) return true
-        val bulletCount = BULLET_LINE_PATTERN.findAll(text).count()
-        if (bulletCount >= 2) return true
-        return false
-    }
-
     companion object {
         internal const val BUDGET_EXHAUSTED_MESSAGE =
             "토큰 예산이 초과되었습니다. 응답이 불완전할 수 있습니다."
@@ -852,10 +832,35 @@ internal class ManualReActLoopExecutor(
             RegexOption.IGNORE_CASE
         )
 
-        /** R204: 완결된 답변 최소 길이 임계치 — 이 값 미만이면 intent로 간주할 수 있다. */
-        private const val COMPLETED_ANSWER_MIN_LENGTH = 300
+        /**
+         * R204→R205: 완결된 답변 최소 길이 임계치 — 이 값 미만이면 intent로 간주할 수 있다.
+         * R205 조정: 300 → 150. Korean 텍스트는 char당 정보 밀도가 높아 300자 요구는 너무 엄격함.
+         * 150자는 "잠시만 기다려 주세요!" 같은 짧은 예약 문구(~30자)는 충분히 배제하면서
+         * 실제 완결 답변(BB30 조회 실패 + 💡 + 출처 ~250자)은 포착할 수 있다.
+         */
+        private const val COMPLETED_ANSWER_MIN_LENGTH = 150
 
         /** R204: 불릿 라인 감지 패턴 (`- ` 또는 `* ` 또는 `1. ` 등). */
         private val BULLET_LINE_PATTERN = Regex("(?m)^\\s*(?:[-*]\\s|\\d+\\.\\s)")
+
+        /**
+         * R205: 텍스트가 "완결된 답변"인지 판단한다 (R204의 기존 looksLikeCompletedAnswer를 companion으로 이동).
+         * 본문 길이가 충분하고 (>= [COMPLETED_ANSWER_MIN_LENGTH]자) 다음 중 하나라도 포함하면 완결된 것으로 본다:
+         * - `💡` 인사이트 마커
+         * - `**` 마크다운 강조 (구조화된 답변)
+         * - 2개 이상의 불릿 포인트 (`- ` 또는 `* `)
+         * - "출처" 섹션 또는 http URL
+         *
+         * R205: 단위 테스트를 위해 `internal` 가시성으로 companion에 노출.
+         */
+        internal fun looksLikeCompletedAnswer(text: String): Boolean {
+            if (text.length < COMPLETED_ANSWER_MIN_LENGTH) return false
+            if (text.contains("💡") || text.contains(":bulb:")) return true
+            if (text.contains("**")) return true
+            if (text.contains("http://") || text.contains("https://")) return true
+            val bulletCount = BULLET_LINE_PATTERN.findAll(text).count()
+            if (bulletCount >= 2) return true
+            return false
+        }
     }
 }
