@@ -1247,7 +1247,11 @@ internal class SystemPromptBuilder(
             "규정", "regulation", "핸드북", "handbook", "사내 문서",
             "내부 문서", "기술 문서", "운영 문서", "배포 절차", "장애 대응",
             "코드 리뷰 가이드", "코딩 컨벤션", "컨벤션", "convention", "아키텍처 문서",
-            "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog"
+            "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog",
+            // R197: 개발 환경 세팅/설정 방법 — 사내 문서로 분류하여 Confluence 자동 검색
+            "세팅", "셋업", "setup", "설정 방법", "환경 설정", "환경설정",
+            "개발 환경", "dev environment", "development environment",
+            "configuration", "install", "설치 방법", "설치방법"
         )
 
         /** 팀 현황/진행 상황 — work_morning_briefing 또는 jira_search_issues 강제 호출 */
