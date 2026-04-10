@@ -1,6 +1,8 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.guard.GuardStage
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.audit.GuardAuditPublisher
@@ -103,10 +105,14 @@ class GuardConfiguration {
     fun requestGuard(
         stages: List<GuardStage>,
         auditPublisher: ObjectProvider<GuardAuditPublisher>,
-        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+        evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
     ): RequestGuard = GuardPipeline(
         stages = stages,
         auditPublisher = auditPublisher.ifAvailable,
-        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+        evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+            NoOpEvaluationMetricsCollector
+        }
     )
 }

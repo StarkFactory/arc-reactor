@@ -1,5 +1,9 @@
 package com.arc.reactor.guard.impl
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.guard.GuardStage
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.audit.GuardAuditPublisher
@@ -49,7 +53,16 @@ private val logger = KotlinLogging.logger {}
 class GuardPipeline(
     stages: List<GuardStage> = emptyList(),
     private val auditPublisher: GuardAuditPublisher? = null,
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /**
+     * R251: Guard stage 예외를 `execution.error{stage="guard"}` 메트릭에 기록.
+     * 기본값 NoOp으로 backward compat. Fail-close로 Rejected가 반환되지만 OutputGuard(R250)와
+     * 대칭적으로 시스템 레벨 이상(stage 구현 버그, Redis 장애 등)을 별도 관측한다.
+     *
+     * `safety.rejection{stage=guard, reason=injection}` — 정책에 의한 정상 거부
+     * `execution.error{stage=guard, exception=...}` — stage 구현이 throw한 예외
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) : RequestGuard {
 
     // ── 초기화: 활성화된 단계만 order 기준 정렬하여 보관 ──
@@ -202,6 +215,9 @@ class GuardPipeline(
         pipelineStartNanos: Long,
         span: ArcReactorTracer.SpanHandle
     ): StageOutcome.Rejected {
+        // R251: Guard stage 예외를 execution.error 메트릭에 기록
+        // fail-close로 Rejected가 반환되지만 stage 구현 버그 등 시스템 레벨 이상을 별도 관측
+        evaluationMetricsCollector.recordError(ExecutionStage.GUARD, e)
         logger.error(e) { "Guard 단계 ${stage.stageName} 실행 실패" }
         publishAudit(
             command, stage.stageName, "error", e.message, null,
