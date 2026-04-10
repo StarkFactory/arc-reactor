@@ -13018,3 +13018,177 @@ R232~R233에서 이 두 단계를 추가하면 ACI 축도 Approval 축과 완전
 #### 📊 R231 요약
 
 🛡️ **R223 심화: RedactedToolResponseSummarizer (PII 마스킹 데코레이터) 완료**. R228 `RedactedApprovalContextResolver`와 동일한 패턴을 R223 `ToolResponseSummarizer`에 적용. 기존 summarizer를 감싸 반환된 `ToolResponseSummary`의 `text`와 `primaryKey` 필드에서 이메일/Bearer/Atlassian/Slack 토큰/한국 휴대폰/주민번호 등 **7개 기본 PII 패턴**을 정규식으로 마스킹. `kind`/`originalLength`/`itemCount` 등 비-텍스트 필드는 그대로 유지. 사용자 정의 추가 패턴과 `replacement` 문자열 지원. Fail-safe: 정규식 예외 시 `"[REDACTED]"` 전체 대체. R228과 동일한 패턴 리스트를 복사본으로 독립 유지 (향후 공통 유틸 `PiiPatterns.kt` 추출 여지). 신규 파일 2개 (데코레이터 170줄 + 테스트 340줄), 기존 파일 수정 0건. 신규 테스트 **22 PASS** (9 @Nested 그룹 포함 DefaultSummarizerIntegration 통합 테스트). 기존 R219~R230 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 재확인 완료, R228 27 + R230 20 tests 재검증. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R231**. swagger-mcp 8181 **62 라운드 연속** 안정. R223→R230→R231로 ACI 축에 **Composite + Decorator** 단계 모두 추가되어 Approval 축과 평행 관계에 거의 도달했다. R232~R233에서 Auto-wire + Decorator Auto 단계를 추가하면 두 축의 성숙 단계가 완전히 동일해진다.
+
+### Round 232 — 🔌 2026-04-11T09:00+09:00 — R231 심화: ToolResponseSummarizer PII Redaction 자동 구성
+
+**작업 종류**: Directive 심화 — R229 Approval 패턴을 ACI 축에 적용 (QA 측정 없음)
+**Directive 패턴**: #2 ACI 도구 출력 요약 (연속)
+**완료 태스크**: #107
+
+#### 작업 배경
+
+R231에서 `RedactedToolResponseSummarizer` 데코레이터를 도입했지만 사용자가 활성화하려면 여전히 `@Bean` 메서드를 작성해야 했다. R229가 Approval 축에서 `ApprovalPiiRedactionConfiguration` 자동 구성을 도입한 것과 동일한 패턴을 **ACI 축에도 적용**하여, 속성 하나로 자동 활성화되도록 확장한다.
+
+```yaml
+arc:
+  reactor:
+    tool:
+      response:
+        summarizer:
+          enabled: true
+          pii-redaction: {enabled: true}   # R232 신규
+```
+
+#### 핵심 구현 — R229와 동일 패턴
+
+```kotlin
+@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])
+class ToolResponseSummarizerPiiRedactionConfiguration {
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.tool.response.summarizer.pii-redaction",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    @ConditionalOnBean(ToolResponseSummarizer::class)
+    fun redactedToolResponseSummarizer(
+        baseSummarizers: List<ToolResponseSummarizer>
+    ): ToolResponseSummarizer {
+        val base = baseSummarizers.firstOrNull { it !is RedactedToolResponseSummarizer }
+            ?: throw IllegalStateException("non-redacted 베이스 없음")
+        return RedactedToolResponseSummarizer(base)
+    }
+}
+```
+
+R229와 동일한 **@Primary 패턴**: 기존 베이스 빈은 컨텍스트에 그대로 남아 디버깅 가능, `@Qualifier`로 원본 접근 가능.
+
+#### 중요: R223 `@Primary` 제거
+
+R232 구현 중 테스트 실행에서 **Two @Primary beans 충돌** 발견. R223 `ToolResponseSummarizerConfiguration`의 `defaultToolResponseSummarizer()`가 `@Primary`로 등록되어 있었다. R232가 추가하는 Redacted 빈도 `@Primary`이므로 두 개의 `@Primary` ToolResponseSummarizer가 존재하게 된다.
+
+**분석**:
+- R223의 `@Primary`는 원래 redundant였다: `noOpToolResponseSummarizer`가 `@ConditionalOnMissingBean(ToolResponseSummarizer::class)`로 Default와 공존하지 않으므로, Default가 등록되면 컨텍스트에 유일한 bean이다
+- R229 Approval 축에서는 `AtlassianApprovalResolverConfiguration`이 `@Primary` 없이 설계되어 있어 R229 Redacted 빈이 유일한 `@Primary`가 된다
+- R232도 같은 구조를 기대했으므로 R223의 `@Primary`는 실제로는 R227/R229 패턴과 일관성을 깨는 부분이었다
+
+**수정**: R223의 `defaultToolResponseSummarizer()`에서 `@Primary` 제거. 안전성:
+1. `noOpToolResponseSummarizer`가 `@ConditionalOnMissingBean` → Default와 공존 안 함 → 유일 bean
+2. 사용자 커스텀 `@Bean` → 그쪽이 우선되어야 하므로 @Primary 제거가 올바른 방향
+3. 기존 R223 테스트 전체 재검증 → 회귀 없음
+
+`import Primary` 도 함께 제거. 변경 사유를 KDoc에 명시하여 미래 재도입 방지.
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `autoconfigure/ToolResponseSummarizerPiiRedactionConfiguration.kt` | 115 | `@AutoConfiguration` + `@Primary` 빈 팩토리 |
+| `test/.../ToolResponseSummarizerPiiRedactionConfigurationTest.kt` | 265 | 12 tests (5 `@Nested` 그룹) |
+
+**기존 파일 수정 2개**:
+- `ArcReactorAutoConfiguration.kt` — `@Import`에 R232 추가
+- `ToolResponseSummarizerConfiguration.kt` — `@Primary` 제거 (+ KDoc 설명)
+
+#### 4가지 활성화 조합
+
+| # | `summarizer.enabled` | `pii-redaction.enabled` | Primary 빈 |
+|---|---------------------|-------------------------|-----------|
+| 1 | `true` | `true` | **`Redacted(Default)`** (R232 신규) |
+| 2 | `true` | 미설정/`false` | `DefaultToolResponseSummarizer` (R223 동작) |
+| 3 | 미설정 | `true` | `Redacted(NoOp)` (기본 NoOp 베이스 래핑) |
+| 4 | 미설정 | 미설정 | `NoOpToolResponseSummarizer` (R223 기본값) |
+
+#### 테스트 결과
+
+```
+ToolResponseSummarizerPiiRedactionConfigurationTest  → 12 tests PASS
+  @Nested WithDefaultBase (3)
+    - summarizer + redaction 모두 true → Redacted 래핑
+    - 실제 이메일 마스킹 (user@company.com → text/primaryKey 마스킹)
+    - 원본 Default + Redacted 2개 빈 동시 존재
+  @Nested WithoutRedaction (2)
+    - summarizer만 true → 원본 Default 유지
+    - pii-redaction=false → 원본 Default 유지
+  @Nested WithoutBaseSummarizer (2)
+    - summarizer 없이 redaction만 true → NoOp 베이스 래핑
+    - 아무 속성 없음 → NoOp만 (1개 빈)
+  @Nested WithUserCustomBean (2)
+    - 사용자 @Bean + redaction=true → 커스텀 래핑
+    - 사용자 @Bean 단독 → 커스텀 그대로
+  @Nested SelfWrappingPrevention (2)
+    - UserRedacted만 등록 + redaction=true → startup 실패 (non-redacted 없음)
+    - UserRedacted + CustomBase + redaction=true → CustomBase 베이스로 선택 → 정상
+```
+
+**`SelfWrappingPrevention` 엣지 케이스 정정**: 초기 테스트는 "NoOp + UserRedacted → 래핑 정상"을 기대했으나, R223의 `@ConditionalOnMissingBean(ToolResponseSummarizer::class)` 때문에 **UserRedacted가 등록되면 NoOp은 등록되지 않는다**. 따라서 UserRedacted만 유일한 빈 → R232가 non-redacted 베이스를 못 찾음 → `IllegalStateException` → startup 실패. 이 동작이 올바르며 명확한 에러 메시지를 제공한다. 두 번째 테스트로 "UserRedacted + StubCustomSummarizer → CustomBase 선택" 케이스도 추가하여 올바른 동작을 확인한다.
+
+**기존 R219~R231 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- R223 `DefaultToolResponseSummarizerTest` 20 + `ToolResponseSummarizerHookTest` 14 PASS (R223 @Primary 제거 영향 0)
+- R225 33 + R226 22 + R227 14 + R228 27 + R229 11 + R230 20 + R231 22 tests PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 도구 인수/응답 경로 전혀 미수정
+- ✅ 자동 구성/DI 레이어만 확장
+- ✅ R223/R230/R231 로직 자체 미수정 (R223만 @Primary annotation 제거)
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 마스킹된 요약은 `HookContext.metadata`에만 저장 (R223 기존 경로)
+
+#### opt-in / 기본값
+
+- **기본 상태**: `pii-redaction.enabled=true` 미설정 → 자동 구성이 빈 등록 안 함 → R223/R230/R231 동작 그대로
+- **활성화**: 단일 속성 추가 → 자동 래핑
+- **R231 사용자와의 호환성**: R231 수동 래핑 사용자가 redaction=true까지 설정하면 `SelfWrappingPrevention` 가드가 명확한 에러 메시지로 알려줌
+
+#### Approval vs ACI 성숙 단계 평행 관계 (R232 완성)
+
+| 단계 | Approval (R221~R229) | ACI (R223~R232) |
+|------|---------------------|------------------|
+| Foundation | R221 | R223 |
+| Concrete | R225 (Atlassian 특화) | — (사용자 공간) |
+| Composite | R226 | R230 |
+| Auto-wire | R227 (체인 자동) | 미도입 |
+| Decorator | R228 | R231 |
+| **Decorator Auto** | **R229** | **R232** ← this |
+
+**ACI 축에 Decorator Auto 단계 추가 완료.** 두 축의 성숙 단계는 이제 **"Auto-wire" 단계 (체인 자동 구성)를 제외하고 모두 평행**하다. ACI 축에 Auto-wire를 추가할지는 사용 사례가 명확해질 때 결정 (Approval 쪽 R227의 "atlassian+heuristic" 패턴과 달리, ACI는 특정 summarizer 체인 조합이 덜 일반적임).
+
+#### 연속 지표
+
+| 지표 | R231 | R232 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 62 | **63** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R231 | **4/5 + R224~R232** | - |
+
+#### 다음 Round 후보
+
+- **R233+**:
+  1. **Evaluation 대시보드 문서** — R222+R224 메트릭 Grafana JSON + Prometheus 쿼리 예시 (여러 라운드 미룬 항목)
+  2. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 활용 워크스페이스 프로파일 오버라이드
+  3. **공통 `PiiPatterns.kt` 추출 리팩토링** — R228/R231의 중복 패턴을 `support/` 공통 유틸로 통합
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+
+#### 📊 R232 요약
+
+🔌 **R231 심화: ToolResponseSummarizer PII Redaction 자동 구성 완료**. `arc.reactor.tool.response.summarizer.pii-redaction.enabled=true` 속성 설정 시 기존 `ToolResponseSummarizer` 베이스 빈을 `RedactedToolResponseSummarizer`로 감싸 `@Primary`로 자동 등록. R229 Approval 축 패턴과 **완전히 동일**. `@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])`로 평가 순서 보장, `@ConditionalOnBean` + `List<ToolResponseSummarizer>` 필터링으로 이중 래핑 방지. 구현 중 발견한 **R223 `@Primary` 충돌**을 함께 수정: R223의 `defaultToolResponseSummarizer()`는 `noOpToolResponseSummarizer`가 `@ConditionalOnMissingBean`으로 공존 안 하므로 `@Primary`가 원래 redundant였고, R232 Redacted `@Primary`와 충돌을 일으켰다. @Primary 제거로 R232 래핑이 가능해지며 R223 테스트는 회귀 없음. 신규 파일 2개 (autoconfig 115줄 + 테스트 265줄), 기존 파일 2개 수정 (ArcReactorAutoConfiguration @Import + ToolResponseSummarizerConfiguration @Primary 제거). `ApplicationContextRunner` 기반 신규 테스트 **12 PASS** (5 @Nested 그룹: WithDefaultBase, WithoutRedaction, WithoutBaseSummarizer, WithUserCustomBean, SelfWrappingPrevention). 기존 R219~R231 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224+R225+R226+R227+R228+R229+R230+R231+R232**. swagger-mcp 8181 **63 라운드 연속** 안정. **Approval vs ACI 평행 관계**: 이제 두 축 모두 "Foundation → (Concrete/사용자) → Composite → Decorator → Decorator Auto"의 동일한 성숙 단계를 가진다. "Auto-wire" 체인 자동 구성만이 Approval 축에만 존재하는데, 이는 ACI에서 특정 체인 조합의 일반성이 낮아 아직 도입하지 않은 상태다.

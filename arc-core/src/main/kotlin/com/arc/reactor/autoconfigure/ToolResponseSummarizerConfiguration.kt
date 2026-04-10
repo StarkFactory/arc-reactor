@@ -9,7 +9,6 @@ import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Primary
 
 /**
  * R223 Directive #2 Agent-Computer Interface(ACI) 도구 출력 요약 계층 자동 설정.
@@ -48,10 +47,14 @@ import org.springframework.context.annotation.Primary
 class ToolResponseSummarizerConfiguration {
 
     /**
-     * 기본 휴리스틱 요약기 — `enabled=true` 일 때만 `@Primary`로 no-op을 대체.
+     * 기본 휴리스틱 요약기 — `enabled=true` 일 때만 no-op을 대체.
+     *
+     * R232 이전에는 `@Primary`가 붙어있었지만, R232 `ToolResponseSummarizerPiiRedactionConfiguration`이
+     * 래핑한 `@Primary` Redacted 빈과 충돌을 일으켰다. `noOpToolResponseSummarizer`는
+     * `@ConditionalOnMissingBean(ToolResponseSummarizer::class)`로 Default와 공존하지 않으므로
+     * @Primary 없이도 유일한 bean으로 주입된다. @Primary 제거는 안전하며 R232 래핑을 가능하게 한다.
      */
     @Bean
-    @Primary
     @ConditionalOnProperty(
         prefix = "arc.reactor.tool.response.summarizer",
         name = ["enabled"],
