@@ -1316,11 +1316,14 @@ internal class SystemPromptBuilder(
             "규정", "regulation", "핸드북", "handbook", "사내 문서",
             "내부 문서", "기술 문서", "운영 문서", "배포 절차", "장애 대응",
             "코드 리뷰 가이드", "코딩 컨벤션", "컨벤션", "convention", "아키텍처 문서",
-            "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog",
-            // R197: 개발 환경 세팅/설정 방법 — 사내 문서로 분류하여 Confluence 자동 검색
-            "세팅", "셋업", "setup", "설정 방법", "환경 설정", "환경설정",
-            "개발 환경", "dev environment", "development environment",
-            "configuration", "install", "설치 방법", "설치방법"
+            "인프라 문서", "보안 정책", "회의록", "변경 이력", "changelog"
+            // R197 추가, R210 제거: "세팅/셋업/setup/환경 설정/개발 환경" 등.
+            // 이 키워드 조합이 INTERNAL_DOC forcing 경로로 라우팅되면 Gemini가
+            // empty content를 deterministic하게 반환하는 현상 발견 (R207~R208 실험).
+            // R208 minimal retry로 recovery 가능하지만 5-10s 추가 지연 발생.
+            // R210: 키워드 자체를 제거하여 첫 호출부터 appendGeneralGroundingRule 경로로
+            // 라우팅 → 일반 지식 답변 즉시 반환. 명시적으로 "confluence에서 개발 환경 세팅"
+            // 같이 표현하면 EXPLICIT_CONFLUENCE_PATTERNS 경로로 검색 가능.
         )
 
         /** 팀 현황/진행 상황 — work_morning_briefing 또는 jira_search_issues 강제 호출 */

@@ -733,8 +733,13 @@ class SystemPromptBuilderTest {
 
     // ── R197: INTERNAL_DOC_HINTS 확장 테스트 (B4 "개발 환경 세팅 방법" 회귀 방지) ──
 
+    // R210: R197에서 추가했던 "세팅/셋업/setup/환경 설정/개발 환경" 등 키워드를
+    // INTERNAL_DOC_HINTS에서 제거. 이 키워드 조합이 Gemini empty content deterministic
+    // trigger임이 R207~R208 isolation 실험으로 확인됨. 이제 이 키워드 쿼리는
+    // general grounding 경로로 라우팅되어 일반 지식 답변을 즉시 반환한다.
+
     @Test
-    fun `R197 '개발 환경 세팅 방법' prompt should force confluence_search_by_text`() {
+    fun `R210 '개발 환경 세팅 방법' should NOT force INTERNAL_DOC confluence (removed in R210)`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -742,16 +747,14 @@ class SystemPromptBuilderTest {
             userPrompt = "개발 환경 세팅 방법"
         )
 
-        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "'개발 환경 세팅 방법' should trigger INTERNAL_DOC_HINTS → confluence_search_by_text forcing"
-        }
-        assertTrue(prompt.contains("사내 문서")) {
-            "Prompt should mention 사내 문서 routing rationale"
+        // R210: INTERNAL_DOC 전용 메시지("사내 문서(가이드/매뉴얼/릴리즈 노트/...")가 없어야 한다
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트")) {
+            "R210: '개발 환경 세팅 방법' should NOT trigger INTERNAL_DOC forcing (removed for Gemini empty workaround)"
         }
     }
 
     @Test
-    fun `R197 '환경 설정' prompt should force confluence_search_by_text`() {
+    fun `R210 '환경 설정' should NOT force INTERNAL_DOC confluence`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -759,13 +762,13 @@ class SystemPromptBuilderTest {
             userPrompt = "프로젝트 환경 설정 어떻게 해?"
         )
 
-        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "'환경 설정' should trigger INTERNAL_DOC_HINTS routing"
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트")) {
+            "R210: '환경 설정' keyword removed from INTERNAL_DOC_HINTS"
         }
     }
 
     @Test
-    fun `R197 '셋업' prompt should force confluence_search_by_text`() {
+    fun `R210 '셋업' should NOT force INTERNAL_DOC confluence`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -773,13 +776,13 @@ class SystemPromptBuilderTest {
             userPrompt = "로컬 셋업 문서 있어?"
         )
 
-        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "'셋업' should trigger INTERNAL_DOC_HINTS routing"
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트")) {
+            "R210: '셋업' keyword removed from INTERNAL_DOC_HINTS"
         }
     }
 
     @Test
-    fun `R197 '설치 방법' prompt should force confluence_search_by_text`() {
+    fun `R210 '설치 방법' should NOT force INTERNAL_DOC confluence`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -787,13 +790,13 @@ class SystemPromptBuilderTest {
             userPrompt = "Docker 설치 방법 알려줘"
         )
 
-        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "'설치 방법' should trigger INTERNAL_DOC_HINTS routing"
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트")) {
+            "R210: '설치 방법' keyword removed from INTERNAL_DOC_HINTS"
         }
     }
 
     @Test
-    fun `R197 'development environment' prompt should force confluence_search_by_text`() {
+    fun `R210 'development environment' should NOT force INTERNAL_DOC confluence`() {
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
@@ -801,8 +804,8 @@ class SystemPromptBuilderTest {
             userPrompt = "How to setup development environment"
         )
 
-        assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "English 'development environment' should trigger INTERNAL_DOC_HINTS routing"
+        assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트")) {
+            "R210: 'development environment' keyword removed from INTERNAL_DOC_HINTS"
         }
     }
 
@@ -878,17 +881,18 @@ class SystemPromptBuilderTest {
     // ── R208: minimal prompt retry 경로 테스트 (B4 deterministic empty 해결) ──
 
     @Test
-    fun `R208 normal workspace prompt should include all forcing sections`() {
+    fun `R208 normal workspace prompt should include final reminder and dup prevention`() {
+        // R210: "개발 환경 세팅 방법" 대신 여전히 INTERNAL_DOC_HINTS 매칭되는 "릴리즈 노트" 사용
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
             responseFormat = ResponseFormat.TEXT,
-            userPrompt = "개발 환경 세팅 방법",
+            userPrompt = "최신 릴리즈 노트 찾아줘",
             minimalPromptRetry = false
         )
 
         assertTrue(prompt.contains("MUST call `confluence_search_by_text`")) {
-            "Normal path should include INTERNAL_DOC forcing for 'setup' keywords"
+            "Normal path should include INTERNAL_DOC forcing for 릴리즈 노트"
         }
         assertTrue(prompt.contains("⚠️ 최종 재확인 — 예약 문구 절대 금지")) {
             "Normal path should include R203 final reminder"
@@ -900,15 +904,16 @@ class SystemPromptBuilderTest {
 
     @Test
     fun `R208 minimalPromptRetry should skip INTERNAL_DOC forcing`() {
+        // R210: 릴리즈 노트 쿼리 사용 (R210 이후에도 INTERNAL_DOC_HINTS 매칭됨)
         val prompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
             responseFormat = ResponseFormat.TEXT,
-            userPrompt = "개발 환경 세팅 방법",
+            userPrompt = "최신 릴리즈 노트 찾아줘",
             minimalPromptRetry = true
         )
 
-        // R208 핵심: INTERNAL_DOC forcing 생략 (B4 deterministic empty trigger 회피)
+        // R208 핵심: INTERNAL_DOC forcing 생략 (Gemini empty response 우회 메커니즘 유지)
         assertFalse(prompt.contains("사내 문서(가이드/매뉴얼/릴리즈 노트/온보딩/환경 세팅")) {
             "Minimal retry should NOT include INTERNAL_DOC forcing body"
         }
@@ -965,18 +970,19 @@ class SystemPromptBuilderTest {
 
     @Test
     fun `R208 minimalPromptRetry prompt should be significantly shorter than normal`() {
+        // R210: 워크스페이스 경로 유지하려면 INTERNAL_DOC_HINTS 매칭되는 쿼리 사용 (릴리즈 노트)
         val normalPrompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
             responseFormat = ResponseFormat.TEXT,
-            userPrompt = "개발 환경 세팅 방법",
+            userPrompt = "최신 릴리즈 노트 찾아줘",
             minimalPromptRetry = false
         )
         val minimalPrompt = builder.build(
             basePrompt = "You are helpful.",
             ragContext = null,
             responseFormat = ResponseFormat.TEXT,
-            userPrompt = "개발 환경 세팅 방법",
+            userPrompt = "최신 릴리즈 노트 찾아줘",
             minimalPromptRetry = true
         )
 
