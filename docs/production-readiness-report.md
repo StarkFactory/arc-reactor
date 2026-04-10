@@ -13611,3 +13611,241 @@ R234로 Evaluation 축이 **"구현 → 시너지 → 사용자 관측"** 완전
 #### 📊 R234 요약
 
 📊 **R222+R224 관측 기반 완성: EvaluationMetricsCatalog + 사용자 가이드**. 여러 라운드 미뤄온 Evaluation 대시보드 문서를 드디어 완성. 타입화된 `EvaluationMetricsCatalog` 오브젝트가 `MicrometerEvaluationMetricsCollector`의 상수를 직접 참조하여 **drift 방지**. 7개 `Metric` 상수(TASK_COMPLETED/TASK_DURATION/TOOL_CALLS/TOKEN_COST/HUMAN_OVERRIDE/SAFETY_REJECTION/TOOL_RESPONSE_KIND) + `MetricType` enum(COUNTER/TIMER/DISTRIBUTION_SUMMARY) + `findByName()`/`filterByType()` 조회 API + `METRIC_NAME_PREFIX` 상수. 테스트 전략: **`MicrometerAlignment` 그룹**이 end-to-end로 `SimpleMeterRegistry`에 실제 기록을 발생시킨 뒤 카탈로그의 모든 이름이 registry에 등록되었는지 검증하여 카탈로그 ↔ 구현 drift를 원천 차단. `docs/evaluation-metrics.md`는 330줄의 사용자 가이드: 활성화 → 카탈로그 → 9개 Prometheus 쿼리 → 9개 패널 Grafana JSON 템플릿 → 5개 알림 규칙. 신규 파일 3개 (카탈로그 175줄 + 테스트 230줄 + 문서 330줄), **기존 파일 수정 0건**. 신규 테스트 **19 PASS** (5 @Nested 그룹: BasicInvariants, TypeDistribution, MicrometerAlignment, LookupHelpers, UnitField). 기존 R219~R233 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R234**. swagger-mcp 8181 **🎯 65 라운드 마일스톤 달성**. R222→R224→R234로 Evaluation 축이 **"구현 → 시너지 → 사용자 관측"** 완전 생명주기에 도달 — 사용자는 이제 YAML 1줄과 Grafana JSON 붙여넣기만으로 7개 메트릭 + 9개 쿼리 + 9개 패널 + 5개 알림 전체 관측 스택을 얻는다.
+
+### Round 235 — 📐 2026-04-11T10:30+09:00 — R220 심화: PromptLayerProfile 도입 (passive introspection)
+
+**작업 종류**: Directive 심화 — R220 Prompt Layer 기반 확장 (QA 측정 없음)
+**Directive 패턴**: #4 Prompt Layer 분리 (연속)
+**완료 태스크**: #110
+
+#### 작업 배경
+
+R220에서 `PromptLayer` enum과 `PromptLayerRegistry`를 도입했지만, 이후 15라운드 동안 **Prompt Layer 축은 휴면 상태**였다. Approval(R221/R225~R229)과 ACI(R223/R230~R233) 축이 풍부하게 발전한 것과 대조적이다. 이유는 명확하다:
+
+- Prompt Layer는 `SystemPromptBuilder`의 출력을 제어하는 영역이므로, 변경 시 **byte-identical 원칙**을 반드시 지켜야 한다 (Redis 캐시 scopeFingerprint가 systemPrompt를 SHA-256 해시하므로)
+- R220 Golden snapshot 5개 해시가 16라운드 동안 모든 심화 작업에서 불변성을 강제해왔다
+- "출력을 바꾸지 않으면서 의미 있는 확장을 하는" 일이 만만치 않다
+
+R235는 이 제약 하에서 실현 가능한 다음 단계를 찾는다: **선언적 프로파일 데이터 모델 + introspection 확장**. `SystemPromptBuilder`를 전혀 건드리지 않고 `PromptLayerRegistry` 위에 조회 전용 레이어를 얹는다.
+
+#### 설계 원칙
+
+1. **Passive**: `SystemPromptBuilder` 출력에 영향 없음 → R220 Golden snapshot 5개 해시 불변
+2. **선언적 의도 표현**: 사용자가 "어떤 계층을 활성화할 것인가"를 `PromptLayerProfile`로 기술
+3. **Introspection 전용**: `PromptLayerRegistry.filterMethodsByProfile(profile)`로 "이 프로파일에서는 어떤 메서드가 포함되는가"를 조회만 가능, 실제 호출 gating은 없음
+4. **미래 확장 기반**: 향후 `SystemPromptBuilder.build(profile = X)` 오버로드를 도입한다면 이 모델을 그대로 활용 가능 (단 그 시점에는 cache flush 이벤트로 사용자 승인 필요)
+5. **불변 데이터 클래스**: `PromptLayerProfile`은 `data class` + `val` → thread-safe, 예측 가능
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `agent/impl/PromptLayerProfile.kt` | 285 | `PromptLayerProfile` data class + 5개 상수 + 빌더 메서드 + Registry 확장 함수 2개 |
+| `test/.../PromptLayerProfileTest.kt` | 380 | 33 tests (9 `@Nested` 그룹) |
+
+**기존 파일 수정 0건.** `PromptLayer.kt`와 `PromptLayerRegistry`는 한 글자도 건드리지 않았다.
+
+#### `PromptLayerProfile` 구조
+
+```kotlin
+internal data class PromptLayerProfile(
+    val enabledLayers: Set<PromptLayer>
+) {
+    fun isEnabled(layer: PromptLayer): Boolean
+    fun withLayer(layer: PromptLayer): PromptLayerProfile
+    fun withoutLayer(layer: PromptLayer): PromptLayerProfile
+    fun withLayers(vararg layers: PromptLayer): PromptLayerProfile
+    fun withoutLayers(vararg layers: PromptLayer): PromptLayerProfile
+    fun disabledLayers(): Set<PromptLayer>
+    fun isFullyEnabled(): Boolean
+    fun isEmpty(): Boolean
+
+    companion object {
+        val ALL_LAYERS: PromptLayerProfile     // 6개 계층 모두
+        val MINIMAL: PromptLayerProfile        // IDENTITY + SAFETY + MEMORY_HINT
+        val WORKSPACE_FOCUSED: PromptLayerProfile  // IDENTITY + SAFETY + TOOL_POLICY + WORKSPACE_POLICY + RESPONSE_STYLE
+        val SAFETY_ONLY: PromptLayerProfile    // IDENTITY + SAFETY
+        val EMPTY: PromptLayerProfile          // 어떤 계층도 없음
+    }
+}
+```
+
+#### Registry 확장 함수
+
+```kotlin
+internal fun PromptLayerRegistry.filterMethodsByProfile(
+    profile: PromptLayerProfile
+): Set<String> {
+    if (profile.isEmpty()) return emptySet()
+    return allClassifiedMethods()
+        .filter { name ->
+            val layer = layerOf(name) ?: return@filter false
+            profile.isEnabled(layer)
+        }
+        .toSet()
+}
+
+internal fun PromptLayerRegistry.isMethodEnabled(
+    methodName: String,
+    profile: PromptLayerProfile
+): Boolean {
+    val layer = layerOf(methodName) ?: return false
+    return profile.isEnabled(layer)
+}
+```
+
+**중요**: `PromptLayerRegistry`는 `internal object`라 `object` 선언 내부에는 외부에서 메서드를 추가할 수 없지만, 확장 함수(`fun PromptLayerRegistry.filterMethodsByProfile(...)`)로 정적 메서드처럼 호출 가능하다. 이는 `PromptLayerRegistry` 자체를 건드리지 않고 기능을 확장하는 Kotlin의 관용적 패턴이다.
+
+#### 5개 프로파일 상수
+
+| 상수 | 활성 계층 수 | 활성 계층 | 용도 |
+|------|-------------|-----------|------|
+| `ALL_LAYERS` | 6 | 전체 | R220 기본 동작과 동등 |
+| `WORKSPACE_FOCUSED` | 5 | IDENTITY, SAFETY, TOOL_POLICY, WORKSPACE_POLICY, RESPONSE_STYLE | Jira/Confluence/Bitbucket 업무 에이전트 |
+| `MINIMAL` | 3 | IDENTITY, SAFETY, MEMORY_HINT | 도구 없는 단순 Q&A 봇 |
+| `SAFETY_ONLY` | 2 | IDENTITY, SAFETY | 벤치마크/프롬프트 실험 |
+| `EMPTY` | 0 | 없음 | 테스트/문서화 |
+
+#### 빌더 스타일 API
+
+```kotlin
+// 모든 계층에서 RESPONSE_STYLE과 MEMORY_HINT 제거
+val custom = PromptLayerProfile.ALL_LAYERS
+    .withoutLayers(PromptLayer.RESPONSE_STYLE, PromptLayer.MEMORY_HINT)
+
+// MINIMAL에 TOOL_POLICY 추가
+val extended = PromptLayerProfile.MINIMAL.withLayer(PromptLayer.TOOL_POLICY)
+```
+
+불변 패턴: 모든 빌더 메서드는 새 `PromptLayerProfile` 인스턴스를 반환하며 원본은 변경되지 않는다.
+
+#### 테스트 결과
+
+```
+PromptLayerProfileTest                         → 33 tests PASS
+  @Nested Constants (5)
+    - ALL_LAYERS 6개 전부
+    - MINIMAL 3개 (IDENTITY + SAFETY + MEMORY_HINT)
+    - WORKSPACE_FOCUSED 5개
+    - SAFETY_ONLY 2개
+    - EMPTY 0개
+  @Nested Equality (3)
+    - Set 순서 무관 동등성
+    - SAFETY_ONLY == 수동 구성
+    - 다른 계층 집합은 불일치
+  @Nested BuilderMethods (7)
+    - withLayer idempotent
+    - withLayer 신규 추가
+    - withoutLayer 제거
+    - withoutLayer idempotent
+    - withLayers 여러 개 추가
+    - withoutLayers 여러 개 제거
+    - 불변성 (원본 변경 안 됨)
+  @Nested DisabledLayersMethod (4)
+    - ALL_LAYERS disabled == empty
+    - EMPTY disabled == 6개
+    - MINIMAL disabled == 3개
+    - enabled + disabled 합집합 항상 6개
+  @Nested StateChecks (3)
+    - ALL_LAYERS isFullyEnabled
+    - EMPTY isEmpty
+    - MINIMAL 둘 다 false
+  @Nested RegistryFilterExtension (7)
+    - ALL_LAYERS 필터 == allClassifiedMethods
+    - EMPTY 필터 == emptySet
+    - MINIMAL 필터의 모든 메서드가 허용 계층
+    - MINIMAL 특정 핵심 메서드 포함 (appendLanguageRule 등)
+    - MINIMAL이 TOOL_POLICY 메서드 제외
+    - WORKSPACE_FOCUSED가 TOOL_POLICY 포함, MEMORY_HINT 제외
+    - 계층 조합의 합집합 불변식
+  @Nested RegistryIsMethodEnabledExtension (5)
+    - ALL_LAYERS에서 모든 등록 메서드 활성
+    - EMPTY에서 모든 메서드 비활성
+    - 알 수 없는 메서드 false
+    - MINIMAL에서 appendLanguageRule (IDENTITY) true
+    - MINIMAL에서 appendJiraToolForcing (TOOL_POLICY) false
+  @Nested ByteIdenticalInvariance (1) ⭐
+    - 프로파일 사용 후에도 Registry allClassifiedMethods 크기 불변
+    - (R220 Golden snapshot 검증은 SystemPromptBuilderGoldenSnapshotTest에서 수행)
+```
+
+**기존 R219~R234 테스트 모두 회귀 없음**:
+- **R220 `SystemPromptBuilderGoldenSnapshotTest` 5 tests PASS** ⭐ (5 SHA-256 해시 완전 불변)
+- R220 `PromptLayerRegistryTest` 20 tests PASS
+- R228 27 / R230 20 / R231 22 / R232 12 / R233 23 / R234 19 tests PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미수정
+- ✅ PromptLayerProfile은 순수 데이터 모델
+- ✅ Registry 확장 함수도 읽기 전용 introspection
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ **R220 Golden snapshot 5개 해시 재확인 완료** (SystemPromptBuilderGoldenSnapshotTest PASS)
+- ✅ `PromptLayer.kt`, `PromptLayerRegistry` 객체 미수정
+- ✅ 프로파일은 passive — byte-identical 원칙 지속
+
+**캐시 영향: 0 (byte-identical 보장)**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 프로파일은 프롬프트 생성 경로와 독립
+
+#### opt-in / backward compat
+
+- **기본 동작**: 프로파일을 사용하지 않으면 R220 이후와 완전히 동일 (passive)
+- **사용 방법**: `PromptLayerRegistry.filterMethodsByProfile(profile)` 호출만으로 조회
+- **기존 사용자 영향**: 0 (추가만 있음)
+
+#### 미래 가능성 (R236+ 또는 사용자 확장)
+
+지금은 passive 이지만 프로파일 모델이 있으므로 미래에 다음을 추가 가능:
+
+1. **Opt-in runtime gating**: `SystemPromptBuilder.build(command, profile)` 오버로드
+2. **워크스페이스별 프로파일**: `AgentCommand.metadata["promptLayerProfile"]` → 런타임 선택
+3. **Admin API**: `/admin/prompt-layers?profile=minimal` → 미리보기
+4. **A/B 테스트**: 프로파일별 응답 품질 비교 (R222 Evaluation 메트릭과 결합)
+
+이 모든 확장은 R235 없이도 구현 가능하지만, 공통 데이터 모델이 있으면 일관성이 보장된다.
+
+**중요**: 실제 runtime gating을 도입하는 경우 출력이 변경되므로 **cache flush 이벤트**로 사용자 승인이 필요하다. R235는 그 단계에 도달하지 않았다.
+
+#### Prompt Layer 축의 휴면 깨기
+
+R220 이후 16라운드 동안 Approval(R221~R233)과 ACI(R223~R233) 축은 Foundation → Concrete → Composite → Auto-wire → Decorator → Decorator Auto 6단계로 성숙했다. Prompt Layer 축은:
+
+| 라운드 | 단계 |
+|--------|------|
+| R220 | Foundation (enum + Registry + Golden snapshot) |
+| **R235** | **Introspection Profile** (passive data model + Registry 확장) |
+
+R235는 Prompt Layer 축의 두 번째 성숙 단계다. 다른 축과 달리 runtime gating이 cache flush 이벤트를 요구하므로 passive 단계에 머무는 것이 안전하다.
+
+#### 연속 지표
+
+| 지표 | R234 | R235 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 65 🎯 | **66** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| R220 Golden snapshot | 불변 | **불변** (재확인) | ⭐ |
+| Directive 태스크 완료 | 4/5 + R224~R234 | **4/5 + R224~R235** | - |
+
+#### 다음 Round 후보
+
+- **R236+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정으로 R220~R235 누적 효과 정량 비교
+  2. **Directive 축 성숙도 리뷰** — 5대 패턴이 거의 모두 심화되어 새 방향 탐색 필요
+  3. **Prompt Layer runtime gating (cache flush 이벤트)** — R235 기반 위에 SystemPromptBuilder.build(profile) 오버로드 추가, 사용자 승인 후 진행
+  4. **Doctor command utility** — 모든 R225~R234 기능의 현재 활성화 상태를 보고하는 진단 도구
+
+#### 📊 R235 요약
+
+📐 **R220 심화: PromptLayerProfile 도입 (passive introspection)**. R220 `PromptLayer`/`PromptLayerRegistry` 도입 이후 16라운드 동안 휴면 상태였던 Prompt Layer 축을 다시 활성화. `SystemPromptBuilder` 출력을 **한 글자도 건드리지 않으면서** 선언적 프로파일 모델과 Registry introspection 확장을 추가. `PromptLayerProfile` data class는 `enabledLayers: Set<PromptLayer>`로 어떤 계층이 활성화될 것인지 표현하며, 5개 상수(ALL_LAYERS / WORKSPACE_FOCUSED / MINIMAL / SAFETY_ONLY / EMPTY) + 8개 빌더 메서드(withLayer/withoutLayer/isEnabled/isFullyEnabled 등) 제공. `PromptLayerRegistry`에 2개 확장 함수(`filterMethodsByProfile`, `isMethodEnabled`) 추가 — Registry 객체 자체는 미수정 (Kotlin 관용 패턴). 신규 파일 2개 (PromptLayerProfile 285줄 + 테스트 380줄), **기존 파일 수정 0건**. 신규 테스트 **33 PASS** (9 @Nested 그룹 포함 **ByteIdenticalInvariance**). **R220 `SystemPromptBuilderGoldenSnapshotTest` 5개 해시 재확인 완료** ⭐ — 프로파일은 completely passive. 기존 R219~R234 테스트 모두 회귀 없음. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R235**. swagger-mcp 8181 **66 라운드 연속** 안정. R220의 "Foundation" 단계 위에 **"Introspection Profile"** 두 번째 단계 추가 완료. Runtime gating은 cache flush 이벤트로 사용자 승인이 필요하므로 R236+ 또는 사용자 확장 영역으로 남김.
