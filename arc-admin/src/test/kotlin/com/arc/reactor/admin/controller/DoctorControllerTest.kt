@@ -13,7 +13,10 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.web.server.ServerWebExchange
 import java.time.Instant
 
@@ -27,13 +30,30 @@ class DoctorControllerTest {
     private val doctor = mockk<DoctorDiagnostics>()
     private val controller = DoctorController(doctor)
 
-    private fun exchangeWithRole(role: UserRole?): ServerWebExchange {
+    /**
+     * R244: 테스트 헬퍼 업데이트 — DoctorController가 `resolveFormat()`에서
+     * `exchange.request.headers.getFirst(ACCEPT)`를 호출하므로 request 경로도 mock한다.
+     * 기본은 빈 Accept 헤더 → JSON 포맷.
+     */
+    private fun exchangeWithRole(
+        role: UserRole?,
+        acceptHeader: String? = null
+    ): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
         val attributes = mutableMapOf<String, Any>()
         if (role != null) {
             attributes["userRole"] = role
         }
         every { exchange.attributes } returns attributes
+
+        val request = mockk<ServerHttpRequest>()
+        val headers = HttpHeaders()
+        if (acceptHeader != null) {
+            headers.add(HttpHeaders.ACCEPT, acceptHeader)
+        }
+        every { request.headers } returns headers
+        every { exchange.request } returns request
+
         return exchange
     }
 
@@ -268,6 +288,202 @@ class DoctorControllerTest {
             assertEquals("OK", DoctorController.STATUS_OK)
             assertEquals("WARN", DoctorController.STATUS_WARN)
             assertEquals("ERROR", DoctorController.STATUS_ERROR)
+        }
+
+        @Test
+        fun `TEXT_MARKDOWN_VALUE 상수는 text-markdown이어야 한다 (R244)`() {
+            assertEquals("text/markdown", DoctorController.TEXT_MARKDOWN_VALUE)
+        }
+    }
+
+    @Nested
+    inner class ContentNegotiation {
+
+        @Test
+        fun `Accept 헤더 없음은 JSON 반환 (backward compat)`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(exchangeWithRole(UserRole.ADMIN, acceptHeader = null))
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(
+                MediaType.APPLICATION_JSON,
+                response.headers.contentType
+            ) {
+                "Accept 헤더 없으면 JSON 기본"
+            }
+            assertTrue(response.body is DoctorReport) {
+                "body는 DoctorReport 객체여야 한다"
+            }
+        }
+
+        @Test
+        fun `Accept application-json은 JSON 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "application/json")
+            )
+
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType)
+            assertTrue(response.body is DoctorReport)
+        }
+
+        @Test
+        fun `Accept text-plain은 한국어 멀티라인 텍스트 반환 (R239 toHumanReadable)`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/plain")
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType) {
+                "Content-Type은 text/plain이어야 한다"
+            }
+            val body = response.body as String
+            assertTrue(body.contains("=== Arc Reactor Doctor Report ===")) {
+                "toHumanReadable 헤더 포함"
+            }
+            assertTrue(body.contains("전체 상태: 정상")) {
+                "한국어 overall 라벨 포함"
+            }
+        }
+
+        @Test
+        fun `Accept text-markdown은 Slack mrkdwn 포맷 반환 (R239 toSlackMarkdown)`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/markdown")
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(
+                "text/markdown",
+                response.headers.contentType?.toString()
+            ) {
+                "Content-Type은 text/markdown이어야 한다"
+            }
+            val body = response.body as String
+            assertTrue(body.contains("*Arc Reactor Doctor Report*")) {
+                "Slack bold 타이틀 포함"
+            }
+        }
+
+        @Test
+        fun `Accept text-x-markdown도 markdown으로 인식`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/x-markdown")
+            )
+
+            assertEquals("text/markdown", response.headers.contentType?.toString()) {
+                "text/x-markdown은 TEXT_MARKDOWN으로 라우팅"
+            }
+        }
+
+        @Test
+        fun `Accept wildcard는 JSON 기본 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "*/*")
+            )
+
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType) {
+                "wildcard는 JSON 기본"
+            }
+            assertTrue(response.body is DoctorReport)
+        }
+
+        @Test
+        fun `Accept 여러 타입 중 text-markdown이 우선 매칭`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(
+                    UserRole.ADMIN,
+                    acceptHeader = "application/json, text/markdown, text/plain"
+                )
+            )
+
+            assertEquals("text/markdown", response.headers.contentType?.toString()) {
+                "markdown이 우선순위 1"
+            }
+        }
+
+        @Test
+        fun `Accept 여러 타입 중 text-plain이 두 번째 우선 매칭`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(
+                    UserRole.ADMIN,
+                    acceptHeader = "application/json, text/plain"
+                )
+            )
+
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType) {
+                "markdown 없으면 text/plain 우선"
+            }
+        }
+
+        @Test
+        fun `quality factor가 있는 Accept 헤더도 파싱되어야 한다`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(
+                    UserRole.ADMIN,
+                    acceptHeader = "text/plain;q=0.9, application/json;q=0.8"
+                )
+            )
+
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType) {
+                "q= 파라미터는 무시하고 순서대로 매칭"
+            }
+        }
+
+        @Test
+        fun `알 수 없는 미디어 타입은 JSON 기본으로 fallback`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "application/xml")
+            )
+
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType) {
+                "알 수 없는 타입 → JSON fallback"
+            }
+        }
+
+        @Test
+        fun `text-plain 응답도 ERROR 시 HTTP 500과 올바른 Content-Type을 유지`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.ERROR)
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/plain")
+            )
+
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) {
+                "ERROR는 여전히 500"
+            }
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType) {
+                "ERROR + text/plain 조합도 Content-Type 유지"
+            }
+            assertEquals("ERROR", response.headers.getFirst(DoctorController.STATUS_HEADER))
+            val body = response.body as String
+            assertTrue(body.contains("전체 상태: 오류 포함")) {
+                "한국어 오류 라벨 포함"
+            }
+        }
+
+        @Test
+        fun `text-markdown WARN 응답도 200과 WARN 헤더 유지`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(
+                DoctorStatus.OK,
+                DoctorStatus.WARN
+            )
+            val response = controller.report(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/markdown")
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode) {
+                "WARN은 200 유지"
+            }
+            assertEquals("WARN", response.headers.getFirst(DoctorController.STATUS_HEADER))
+            assertEquals("text/markdown", response.headers.contentType?.toString())
         }
     }
 }

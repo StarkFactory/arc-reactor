@@ -15887,3 +15887,258 @@ R239 포맷터 + R243 자동화의 결합으로 다음 시나리오가 현실화
 #### 📊 R243 요약
 
 🚀 **StartupDoctorLogger 기동 시점 자동 진단 로그 완료** — R236~R239 Doctor 축을 런타임에 통합 완성. 신규 파일 `StartupDoctorLogger.kt` (85줄, `ApplicationRunner` 구현): 기동 시점에 `doctor.runDiagnostics()` 호출 → `DoctorReport.toHumanReadable(includeDetails)`로 한국어 멀티라인 텍스트 생성 → 단일 `logger.info` 호출로 개행 포함 출력 → `hasWarningsOrErrors()`이면 `logger.warn`으로 전체 상태 라벨 추가 경고. `DoctorDiagnosticsConfiguration`에 `@Bean @ConditionalOnMissingBean(StartupDoctorLogger::class) @ConditionalOnProperty("arc.reactor.diagnostics.startup-log.enabled", havingValue="true", matchIfMissing=false)` 추가. 기본값 **off** (opt-in), `enabled=true`일 때만 활성화. 추가 속성 2개: `include-details` (기본 true, `@Value`로 바인딩) + `warn-on-issues` (기본 true). Fail-open 원칙: `runDiagnostics()` 예외도 서비스 기동을 차단하지 않음 (`logger.warn(e)`로만 기록). `Bm25WarmUpRunner` 패턴을 모방하여 기존 코드베이스 스타일 일관성 유지. 신규 테스트 **22 PASS** (Runner 16 + Configuration 6): BasicBehavior 4 / FailOpen 2 / ConfigurationFlags 3 / ReportContentCoverage 5 / DefaultOff 2 / OptInOn 4. 기존 `com.arc.reactor.diagnostics.*` + `com.arc.reactor.autoconfigure.*` 전체 회귀 PASS. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R243**. swagger-mcp 8181 **74 라운드 연속**. R236→R237→R238→R239→**R243**로 Doctor 축이 **"서비스 → REST → 섹션 확장 → 포맷터 → 자동 기동 통합"** 5단계 런타임 통합 완성. 이제 사용자는 **자동**(기동 로그), **on-demand HTTP**(R237), **on-demand 코드**(R236) 3가지 접근 방식 중 운영 스타일에 맞는 것을 선택할 수 있다. 관측 UX 시너지: Loki 로그 쿼리("전체 상태: 경고 포함"), Alertmanager 문자열 매칭, CI/CD 기동 로그 검증 등 다양한 운영 워크플로우에 즉시 통합 가능.
+
+### Round 244 — 🔀 2026-04-11T15:00+09:00 — DoctorController Content Negotiation (R237+R239 시너지)
+
+**작업 종류**: Directive 심화 — REST 컨텐츠 협상 (QA 측정 없음)
+**Directive 패턴**: Observability 축 (R237 REST + R239 포맷터 직접 연결)
+**완료 태스크**: #119
+
+#### 작업 배경
+
+R237 `DoctorController`는 JSON만 반환했고 R239에서 `DoctorReport.toHumanReadable()` / `toSlackMarkdown()` 포맷터가 추가되었지만, 사용자가 이를 HTTP로 받으려면 클라이언트에서 JSON을 받아 자체 포맷팅을 하거나 R243 StartupDoctorLogger를 통해 간접적으로 접근해야 했다.
+
+R244는 **같은 엔드포인트(`GET /api/admin/doctor`)**가 클라이언트의 `Accept` 헤더에 따라 JSON / text/plain / text/markdown 중 적절한 포맷으로 응답하도록 한다. 단일 URI, 여러 표현 — REST의 Content Negotiation 원칙에 부합한다.
+
+#### 설계 원칙
+
+1. **Backward compatible** — 기존 클라이언트(Accept 없음, `*/*`, `application/json`)는 **모두 JSON**을 받아 변경 없음
+2. **Opt-in 표현** — `text/plain`, `text/markdown`은 클라이언트가 **명시적으로 요청해야** 반환됨
+3. **수동 파싱** — Spring WebFlux의 자동 ContentNegotiation 대신 **명시적 Accept 헤더 파싱**으로 매칭 규칙을 통제 가능하게
+4. **우선순위 명확** — markdown > plain > json (클라이언트가 여러 타입 허용 시)
+5. **Quality factor 무시** — `q=`는 단순화를 위해 파싱하지 않음 (과도한 복잡도 방지)
+6. **Error path 보존** — 500/WARN/OK HTTP 상태 및 `X-Doctor-Status` 헤더는 포맷과 무관하게 동작
+
+#### 신규 API (DoctorController 내부)
+
+**`ReportFormat` 내부 enum**:
+```kotlin
+private enum class ReportFormat {
+    JSON,          // 기본 — Jackson이 DoctorReport를 JSON으로 직렬화
+    TEXT_PLAIN,    // R239 toHumanReadable() — 한국어 멀티라인
+    TEXT_MARKDOWN  // R239 toSlackMarkdown() — Slack mrkdwn
+}
+```
+
+**`resolveFormat()` 매칭 규칙** (우선순위 순):
+1. `text/markdown` 또는 `text/x-markdown` → `TEXT_MARKDOWN`
+2. `text/plain` → `TEXT_PLAIN`
+3. `application/json` → `JSON`
+4. wildcard, 알 수 없는 타입, Accept 헤더 없음 → `JSON` (기본, backward compat)
+
+**`@GetMapping` `produces` 확장**:
+```kotlin
+@GetMapping(
+    produces = [
+        MediaType.APPLICATION_JSON_VALUE,
+        MediaType.TEXT_PLAIN_VALUE,
+        DOCTOR_TEXT_MARKDOWN_VALUE  // top-level const val
+    ]
+)
+fun report(exchange: ServerWebExchange): ResponseEntity<Any> {
+    // ...
+    val (body, contentType) = when (format) {
+        ReportFormat.JSON ->
+            report as Any to MediaType.APPLICATION_JSON
+        ReportFormat.TEXT_PLAIN ->
+            report.toHumanReadable() as Any to MediaType.TEXT_PLAIN
+        ReportFormat.TEXT_MARKDOWN ->
+            report.toSlackMarkdown() as Any to MediaType.valueOf(DOCTOR_TEXT_MARKDOWN_VALUE)
+    }
+    return ResponseEntity
+        .status(httpStatus)
+        .header(STATUS_HEADER, statusHeader)
+        .contentType(contentType)
+        .body(body)
+}
+```
+
+#### 사용 예
+
+**curl with Accept 헤더**:
+```bash
+# 기본 — JSON (backward compat)
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/admin/doctor
+
+# 한국어 멀티라인 (배포 직후 빠른 확인)
+curl -H "Accept: text/plain" -H "Authorization: Bearer <token>" \
+     http://localhost:8080/api/admin/doctor
+
+# Slack에 바로 붙일 수 있는 mrkdwn
+curl -H "Accept: text/markdown" -H "Authorization: Bearer <token>" \
+     http://localhost:8080/api/admin/doctor
+```
+
+**text/plain 응답 예**:
+```
+=== Arc Reactor Doctor Report ===
+생성 시각: 2026-04-11T15:00:00Z
+요약: 5 섹션 — OK 3, SKIPPED 2
+전체 상태: 정상
+
+[OK] Approval Context Resolver
+     활성 (RedactedApprovalContextResolver)
+...
+```
+
+**text/markdown 응답 예**:
+```
+*Arc Reactor Doctor Report*
+> 5 섹션 — OK 3, SKIPPED 2
+
+`[OK]` *Approval Context Resolver* — 활성 (RedactedApprovalContextResolver)
+`[OK]` *Tool Response Summarizer* — 활성
+`[SKIP]` *Evaluation Metrics Collector* — 비활성
+...
+```
+
+이 markdown 출력은 Slack 채널에 바로 붙여넣거나, Shell 스크립트에서 curl 결과를 잡아 `slack-send`에 파이프할 수 있다.
+
+#### 구현 핵심
+
+**`DOCTOR_TEXT_MARKDOWN_VALUE` top-level 선언**: Kotlin annotation은 companion object `const val`을 참조할 수 없는 경우가 있어, `@GetMapping(produces = [...])` 배열 내부에서 사용할 수 있도록 top-level `private const val`로 선언.
+
+**Companion object `TEXT_MARKDOWN_VALUE` 재노출**: 테스트에서 `DoctorController.TEXT_MARKDOWN_VALUE`로 접근할 수 있도록 companion에도 상수를 유지.
+
+**`exchange.request.headers.getFirst(HttpHeaders.ACCEPT).orEmpty()`**: null-safe한 헤더 접근. 빈 문자열이면 즉시 `JSON` 반환.
+
+**Comma + quality factor 처리**:
+```kotlin
+val mediaTypes = accept.split(',').map { it.trim().substringBefore(';').lowercase() }
+```
+`text/plain;q=0.9, application/json;q=0.8` → `["text/plain", "application/json"]`로 파싱.
+
+**`when (format)` exhaustive**: Kotlin 컴파일러가 3개 enum 값을 모두 검증하도록 `else` 없는 `when` 사용.
+
+#### 수정 과정에서 발견한 이슈 3개
+
+**1. Top-level vs companion object `const val`**: 처음에 `companion object`에 `TEXT_MARKDOWN_VALUE`를 선언하고 `@GetMapping(produces = [TEXT_MARKDOWN_VALUE])`에서 참조했으나 "Unresolved reference" 컴파일 오류. Kotlin annotation argument에서 동일 클래스의 companion object `const val`을 참조할 때 순서 의존성이 있는 것으로 보임. Top-level `private const val DOCTOR_TEXT_MARKDOWN_VALUE`로 이동하여 해결. Companion에도 별도 상수로 유지하여 외부 호환.
+
+**2. KDoc 내 `*/*` wildcard 문자**: `resolveFormat()` KDoc에 "wildcard (*​/*)"를 예시로 쓰려고 했는데 `*/`가 KDoc 블록 종료 토큰과 충돌하여 "Unclosed comment" 오류 + 클래스 body 전체가 파싱 실패 ("Unresolved reference 'STATUS_HEADER'", "runDiagnosticsSafely" 등). Zero-width space U+200B로 회피하려 했으나 여전히 문제. 최종적으로 "wildcard (star-slash-star)" 같이 한글 설명으로 우회.
+
+**3. MockK `ServerWebExchange.request` 누락**: R237 기존 테스트 헬퍼 `exchangeWithRole()`가 `exchange.attributes`만 mock하고 `exchange.request`는 mock하지 않아서 `resolveFormat()` 호출 시 `MockKException: no answer found for getRequest()` 9개 테스트 실패. 헬퍼를 업데이트하여 `ServerHttpRequest` mock + `HttpHeaders` 객체를 주입, `acceptHeader: String? = null` 옵션 파라미터 추가. 기존 테스트는 기본값(Accept 없음 = JSON)으로 자동 동작.
+
+#### 신규/수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../DoctorController.kt` | top-level `DOCTOR_TEXT_MARKDOWN_VALUE` const + `report()` 메서드 Content Negotiation + `resolveFormat()` 헬퍼 + `ReportFormat` 내부 enum + companion `TEXT_MARKDOWN_VALUE` 재노출 (+90줄) |
+| `test/.../DoctorControllerTest.kt` | `exchangeWithRole` 헬퍼에 `acceptHeader` 옵션 + `ServerHttpRequest` mock + `ContentNegotiation` @Nested 12 tests + HeaderConstants `TEXT_MARKDOWN_VALUE` 검증 1 test (+170줄) |
+
+**신규 테스트 13개**:
+
+| @Nested ContentNegotiation (12) | 검증 |
+|------|------|
+| Accept 없음 → JSON (backward compat) | null acceptHeader |
+| Accept `application/json` → JSON | 명시 JSON |
+| Accept `text/plain` → 한국어 멀티라인 | `toHumanReadable` 활용 + `전체 상태: 정상` 라벨 |
+| Accept `text/markdown` → Slack mrkdwn | `toSlackMarkdown` 활용 + `*Arc Reactor Doctor Report*` bold |
+| Accept `text/x-markdown` → markdown | alias 라우팅 |
+| Accept `*/*` wildcard → JSON | wildcard 기본 |
+| Accept `json, markdown, plain` → markdown | 우선순위 1 |
+| Accept `json, plain` → plain | markdown 없으면 plain |
+| Accept `text/plain;q=0.9, application/json;q=0.8` → plain | q= 파싱 무시하고 순서 매칭 |
+| Accept `application/xml` → JSON fallback | 알 수 없는 타입 |
+| text/plain + ERROR 상태 → 500 + 한국어 "오류 포함" | 에러 경로 + 포맷 조합 |
+| text/markdown + WARN 상태 → 200 + WARN 헤더 | WARN 경로 + 포맷 조합 |
+
+| @Nested HeaderConstants (1 추가) | |
+|------|------|
+| `TEXT_MARKDOWN_VALUE == "text/markdown"` | 상수 검증 |
+
+#### 테스트 결과
+
+**DoctorControllerTest — 32 tests PASS** (6 @Nested 그룹, 기존 19 + 신규 13):
+```
+@Nested Authentication (5) — 기존
+@Nested ReportEndpoint (6) — 기존 (exchangeWithRole 헬퍼 업데이트로 백필)
+@Nested SummaryEndpoint (4) — 기존
+@Nested FailSafeBehavior (3) — 기존
+@Nested HeaderConstants (3) — 기존 2 + R244 1
+@Nested ContentNegotiation (12) — R244 신규
+```
+
+**기존 회귀**:
+- 전체 `arc-admin` 테스트 PASS
+- 전체 `com.arc.reactor.diagnostics.*` PASS (R236~R239 + R243)
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ REST 출력 포맷 확장은 MCP 호출 경로와 무관
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ REST 컨트롤러는 캐시 키와 무관
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### Doctor 축 진화
+
+| 라운드 | 변경 내용 | 출력 포맷 |
+|--------|----------|-----------|
+| R236 | Foundation — `DoctorDiagnostics` + 4 섹션 | (프로그램 내부) |
+| R237 | REST — `DoctorController` | JSON only |
+| R238 | 확장 — Response Cache 섹션 (5번째) | (동일) |
+| R239 | 포맷터 — `toHumanReadable()` / `toSlackMarkdown()` | 3가지 |
+| R243 | 자동화 — `StartupDoctorLogger` | 로그 (text) |
+| **R244** | **Content Negotiation — Accept 헤더 기반 포맷 선택** | **3 via 1 URI** |
+
+R244는 Doctor 축의 **표현 계층 통합**이다. 이제 같은 `GET /api/admin/doctor` 엔드포인트가 클라이언트 요구에 따라:
+- **JSON** (기존 클라이언트, 프로그래밍 통합)
+- **text/plain** (curl 배포 확인, CLI 출력)
+- **text/markdown** (Slack 직접 붙여넣기, 문서 생성)
+
+3가지 표현을 자동으로 제공한다.
+
+#### 관측 UX 종합 (R236~R244)
+
+이제 사용자는 다음과 같은 다층적 관측 UX를 사용할 수 있다:
+
+| 접근 방식 | 구현 | 사용 시나리오 |
+|----------|------|---------------|
+| **기동 로그 자동** (R243) | `StartupDoctorLogger` | 배포 직후 kubectl logs에서 확인 |
+| **REST JSON** (R237) | `GET /api/admin/doctor` | Grafana/Prometheus/프로그래밍 통합 |
+| **REST text/plain** (**R244**) | `Accept: text/plain` | curl 빠른 확인 |
+| **REST text/markdown** (**R244**) | `Accept: text/markdown` | Slack 붙여넣기, 문서 생성 |
+| **프로그래밍 직접** (R236) | `doctor.runDiagnostics()` | 커스텀 로직 통합 |
+| **코드 내 포맷팅** (R239) | `report.toHumanReadable()` | 커스텀 CLI 개발 |
+
+6가지 접근 방식 — 운영자, 개발자, 봇 모두에게 최적의 인터페이스 제공.
+
+#### 연속 지표
+
+| 지표 | R243 | R244 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 74 | **75** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R243 | **4/5 + R224~R244** | - |
+| Doctor 축 접근 방식 | 3가지 (R243까지) | **6가지** | 2배 확장 |
+
+#### 다음 Round 후보
+
+- **R245+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **ApprovalController REST** — R240 포맷터 + Content Negotiation 패턴 이식
+  3. **DoctorController summary endpoint Content Negotiation** — `/api/admin/doctor/summary`도 text/plain 지원
+  4. **`EvaluationMetricsCollector` 에러 메트릭** — `recordError(stage, exception)`
+  5. **text/markdown alias 확장** — `application/markdown` 등 추가 MIME 지원
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R244 요약
+
+🔀 **DoctorController Content Negotiation 완료** — R237 REST + R239 포맷터를 직접 연결. 같은 `GET /api/admin/doctor` 엔드포인트가 클라이언트 `Accept` 헤더에 따라 JSON(기본) / text/plain / text/markdown 중 적절한 포맷으로 응답. Backward compatibility 완전 유지 — Accept 없음, `*/*` 와일드카드, `application/json` 모두 JSON 반환. `resolveFormat()` 수동 Accept 파싱으로 우선순위 명시 제어 (markdown > plain > json), comma + quality factor (`;q=`) 처리. 내부 `private enum ReportFormat` + top-level `private const val DOCTOR_TEXT_MARKDOWN_VALUE` (Kotlin annotation argument 참조를 위해 companion 대신 top-level). Companion에도 `TEXT_MARKDOWN_VALUE` 재노출하여 테스트/외부 참조 가능. `@GetMapping(produces = [JSON, TEXT_PLAIN, TEXT_MARKDOWN])` 확장. text/plain → `report.toHumanReadable()` 한국어 멀티라인, text/markdown → `report.toSlackMarkdown()` Slack mrkdwn. ERROR/WARN HTTP 상태와 `X-Doctor-Status` 헤더는 포맷과 무관하게 보존. 신규 파일 없음, 수정 파일 2개 (Controller +90줄 / Test +170줄). 신규 테스트 **13 PASS** (ContentNegotiation 12 + HeaderConstants 1), 기존 19 tests는 `exchangeWithRole` 헬퍼 업데이트(`ServerHttpRequest` mock + `acceptHeader: String? = null` 옵션)로 자동 백필. **총 32 DoctorControllerTest PASS**. 수정 과정 이슈 3개 해결: (1) companion `const val` annotation 참조 실패 → top-level 선언으로 우회, (2) KDoc 내부 `*/*` wildcard 문자가 블록 종료 토큰과 충돌 → "star-slash-star" 한글 설명으로 우회, (3) MockK `ServerWebExchange.request` 누락 → 헬퍼 헬퍼 업데이트로 일괄 해결. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R244**. swagger-mcp 8181 **75 라운드 연속**. R236→R237→R238→R239→R243→**R244**로 Doctor 축이 **"서비스 → REST → 섹션 → 포맷터 → 자동화 → Content Negotiation"** 6단계 표현 계층 통합 완성. 이제 사용자는 **6가지 접근 방식**(기동 로그 / REST JSON / REST text-plain / REST text-markdown / 프로그래밍 직접 / 코드 내 포맷팅) 중 운영 스타일에 맞는 것을 선택할 수 있다. curl 한 줄로 배포 확인(`curl -H "Accept: text/plain"`), Slack 직접 붙여넣기(`curl -H "Accept: text/markdown" | pbcopy`), Grafana 통합(`Accept: application/json`) 등 다양한 워크플로우가 같은 URI로 통합된다.

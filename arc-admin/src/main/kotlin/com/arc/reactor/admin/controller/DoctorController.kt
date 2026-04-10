@@ -8,7 +8,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -16,6 +18,12 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 
 private val logger = KotlinLogging.logger {}
+
+/**
+ * R244: `text/markdown` 미디어 타입 — Spring [MediaType]에는 상수가 없으므로 top-level로 선언.
+ * RFC 7763에서 정의된 공식 타입. 어노테이션 인자에서 참조 가능하도록 top-level `const val`.
+ */
+private const val DOCTOR_TEXT_MARKDOWN_VALUE: String = "text/markdown"
 
 /**
  * R237: R236 [DoctorDiagnostics] 서비스를 HTTP로 노출하는 REST 컨트롤러.
@@ -92,31 +100,49 @@ class DoctorController(
     @Operation(
         summary = "opt-in 기능 진단 보고서",
         description = "R225~R236에서 도입한 Approval/Summarizer/Evaluation/PromptLayer 기능의 " +
-            "현재 활성화 상태를 진단한다."
+            "현재 활성화 상태를 진단한다. R244: Accept 헤더에 따라 JSON/text-plain/text-markdown " +
+            "중 적절한 포맷으로 응답한다."
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "정상 또는 경고 포함"),
         ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
         ApiResponse(responseCode = "500", description = "진단 섹션에 ERROR 발생")
     )
-    @GetMapping
+    @GetMapping(
+        produces = [
+            MediaType.APPLICATION_JSON_VALUE,
+            MediaType.TEXT_PLAIN_VALUE,
+            DOCTOR_TEXT_MARKDOWN_VALUE
+        ]
+    )
     fun report(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val report = runDiagnosticsSafely()
-        return when {
-            report.hasErrors() -> ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .header(STATUS_HEADER, STATUS_ERROR)
-                .body(report)
-            report.hasWarningsOrErrors() -> ResponseEntity
-                .status(HttpStatus.OK)
-                .header(STATUS_HEADER, STATUS_WARN)
-                .body(report)
-            else -> ResponseEntity
-                .status(HttpStatus.OK)
-                .header(STATUS_HEADER, STATUS_OK)
-                .body(report)
+        val format = resolveFormat(exchange)
+        val httpStatus = when {
+            report.hasErrors() -> HttpStatus.INTERNAL_SERVER_ERROR
+            else -> HttpStatus.OK
         }
+        val statusHeader = when {
+            report.hasErrors() -> STATUS_ERROR
+            report.hasWarningsOrErrors() -> STATUS_WARN
+            else -> STATUS_OK
+        }
+
+        val (body, contentType) = when (format) {
+            ReportFormat.JSON ->
+                report as Any to MediaType.APPLICATION_JSON
+            ReportFormat.TEXT_PLAIN ->
+                report.toHumanReadable() as Any to MediaType.TEXT_PLAIN
+            ReportFormat.TEXT_MARKDOWN ->
+                report.toSlackMarkdown() as Any to MediaType.valueOf(DOCTOR_TEXT_MARKDOWN_VALUE)
+        }
+
+        return ResponseEntity
+            .status(httpStatus)
+            .header(STATUS_HEADER, statusHeader)
+            .contentType(contentType)
+            .body(body)
     }
 
     /**
@@ -156,6 +182,39 @@ class DoctorController(
     }
 
     /**
+     * R244: 클라이언트의 `Accept` 헤더를 분석하여 응답 포맷을 결정한다.
+     *
+     * ## 매칭 규칙 (우선순위 순)
+     *
+     * 1. `text/markdown` (또는 `text/x-markdown`) → [ReportFormat.TEXT_MARKDOWN]
+     * 2. `text/plain` → [ReportFormat.TEXT_PLAIN]
+     * 3. `application/json` → [ReportFormat.JSON]
+     * 4. wildcard (star-slash-star) 또는 Accept 헤더 없음 → [ReportFormat.JSON] (기본)
+     *
+     * ## Backward compatibility
+     *
+     * 기존 클라이언트는 Accept 헤더를 `application/json`으로 보내거나 wildcard로 보냈으므로
+     * 모두 JSON을 받는다. 새로운 text 포맷은 명시적으로 `Accept: text/plain`을 요청할 때만
+     * 반환된다.
+     */
+    private fun resolveFormat(exchange: ServerWebExchange): ReportFormat {
+        val accept = exchange.request.headers.getFirst(HttpHeaders.ACCEPT).orEmpty()
+        if (accept.isBlank()) return ReportFormat.JSON
+
+        // 여러 미디어 타입이 콤마로 구분될 수 있음. quality factor(;q=)는 단순화를 위해 무시.
+        val mediaTypes = accept.split(',').map { it.trim().substringBefore(';').lowercase() }
+        return when {
+            mediaTypes.any { it == DOCTOR_TEXT_MARKDOWN_VALUE || it == "text/x-markdown" } ->
+                ReportFormat.TEXT_MARKDOWN
+            mediaTypes.any { it == MediaType.TEXT_PLAIN_VALUE } ->
+                ReportFormat.TEXT_PLAIN
+            mediaTypes.any { it == MediaType.APPLICATION_JSON_VALUE } ->
+                ReportFormat.JSON
+            else -> ReportFormat.JSON // wildcard, unknown types → JSON 기본
+        }
+    }
+
+    /**
      * 진단 실행을 안전하게 래핑한다. `DoctorDiagnostics` 자체가 이미 fail-safe 설계이지만,
      * 혹시라도 예외가 새어 나오면 여기서 catch하여 ERROR 보고서를 합성한다.
      */
@@ -185,11 +244,30 @@ class DoctorController(
         }
     }
 
+    /**
+     * R244: 응답 포맷 분류.
+     *
+     * 컨트롤러가 Accept 헤더로 결정하여 적절한 직렬화 경로로 라우팅한다.
+     */
+    private enum class ReportFormat {
+        /** 기본 — Jackson이 `DoctorReport`를 JSON으로 직렬화. */
+        JSON,
+
+        /** R239 `toHumanReadable()` — 한국어 멀티라인 텍스트. */
+        TEXT_PLAIN,
+
+        /** R239 `toSlackMarkdown()` — Slack/Markdown 축약 포맷. */
+        TEXT_MARKDOWN
+    }
+
     companion object {
         /** 응답 헤더 — 클라이언트가 body 파싱 없이 overall 상태를 확인할 수 있도록 */
         const val STATUS_HEADER: String = "X-Doctor-Status"
         const val STATUS_OK: String = "OK"
         const val STATUS_WARN: String = "WARN"
         const val STATUS_ERROR: String = "ERROR"
+
+        /** R244: `text/markdown` 미디어 타입 상수 (top-level 선언 재노출). */
+        const val TEXT_MARKDOWN_VALUE: String = "text/markdown"
     }
 }
