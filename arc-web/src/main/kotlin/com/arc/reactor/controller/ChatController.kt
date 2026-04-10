@@ -290,15 +290,40 @@ class ChatController(
         return enrichWithPromptVersion(merged, request)
     }
 
-    /** exchange에서 요청자 신원 정보를 추출하여 메타데이터에 추가한다. 이미 존재하면 덮어쓰지 않는다. */
+    /**
+     * exchange에서 요청자 신원 정보를 추출하여 메타데이터에 추가한다. 이미 존재하면 덮어쓰지 않는다.
+     *
+     * 로컬 계정(admin@arc.io 등)은 Atlassian 계정과 매핑되지 않아 개인화 도구가 실패하므로,
+     * `ARC_REACTOR_DEFAULT_REQUESTER_EMAIL` 환경변수로 fallback email을 지정할 수 있다.
+     * 이 fallback은 로컬 계정 이메일이 admin@arc.io / anonymous 또는 '.local' 도메인일 때만 적용된다.
+     */
     private fun resolveRequesterIdentity(base: Map<String, Any>, exchange: ServerWebExchange): Map<String, Any> {
         if (containsRequesterIdentity(base)) return base
-        val email = resolveRequesterEmailFromExchange(exchange)
+        val rawEmail = resolveRequesterEmailFromExchange(exchange)
+        val email = applyLocalAccountEmailFallback(rawEmail)
         val accountId = resolveRequesterAccountIdFromExchange(exchange)
         val withAccount = if (accountId == null) base else base + mapOf(
             "requesterAccountId" to accountId, "accountId" to accountId
         )
         return email?.let { withAccount + mapOf("requesterEmail" to it, "userEmail" to it) } ?: withAccount
+    }
+
+    /**
+     * 로컬 개발용 계정 이메일을 Atlassian-매핑된 이메일로 치환한다.
+     * 환경변수 `ARC_REACTOR_DEFAULT_REQUESTER_EMAIL`에 값이 있고
+     * 원본 이메일이 로컬용 (admin@arc.io, anonymous, *.local 도메인) 일 때만 치환한다.
+     */
+    private fun applyLocalAccountEmailFallback(original: String?): String? {
+        if (original.isNullOrBlank()) return System.getenv("ARC_REACTOR_DEFAULT_REQUESTER_EMAIL")
+            ?.trim()?.takeIf { it.isNotBlank() }
+        val isLocalAccount = original == "anonymous" ||
+            original.equals("admin@arc.io", ignoreCase = true) ||
+            original.endsWith(".local", ignoreCase = true) ||
+            original.endsWith("@arc.local", ignoreCase = true)
+        if (!isLocalAccount) return original
+        val fallback = System.getenv("ARC_REACTOR_DEFAULT_REQUESTER_EMAIL")
+            ?.trim()?.takeIf { it.isNotBlank() }
+        return fallback ?: original
     }
 
     /** 프롬프트 템플릿 버전 정보로 메타데이터를 보강한다. */

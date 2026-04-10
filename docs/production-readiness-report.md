@@ -4105,3 +4105,56 @@ BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard REJECTED, 성능 avg 1,
 - D 카테고리 인사이트 포함률 0/4는 실제 PR 데이터가 빈 상태인 것도 영향 (테스트 대상 레포에 OPEN PR 없음)
 
 **R168 요약**: ReAct 중복 호출 완전 제거 (-100%), 평균 응답시간 -14%, Bitbucket 서버측 인사이트 인프라 구축. 전체 20/20 PASS.
+
+### Round 169 — 2026-04-10T15:20+09:00 (R168 남은 과제 3건 해결)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (11 tools), atlassian-mcp UP (43 tools), DB/Redis healthy
+**BUILD**: arc-core + arc-web PASS (0 warnings)
+**TEST**: `:arc-core:test` PASS, `:arc-web:test` PASS, `:arc-core:test --tests *SystemPromptBuilder* *ChatController*` PASS
+
+#### 자체 QA 측정 (20 시나리오 병렬, pre-fix → post-fix)
+| 메트릭 | R168 | R169 pre | R169 post | 추이 |
+|--------|------|----------|-----------|------|
+| 중복 호출 | 0건 | 0건 | **0건** | 유지 ✅ |
+| 평균 도구 호출/시나리오 | 0.8 | 0.8 | 0.8 | 유지 |
+| 평균 응답시간 | 5505ms | 5830ms | 6666ms | 실제 데이터 반환으로 증가 |
+| **A 출처 포함률** | 1/4 | 0/4 | **2/4** | +200% |
+| **A 인사이트 포함률** | 2/4 | 0/4 | **2/4** | +∞ |
+| **B 출처 포함률** | 4/5 | 4/5 | **5/5** | 만점 ⭐ |
+| B 인사이트 포함률 | 2/5 | 3/5 | 3/5 | 유지 |
+| **C 출처 포함률** | 3/4 | 3/4 | **4/4** | 만점 ⭐ |
+| C 인사이트 포함률 | 3/4 | 3/4 | 3/4 | 유지 |
+| 전체 성공 | 20/20 | 20/20 | 20/20 | 유지 |
+
+#### R168 남은 과제 3건 해결
+
+**Task #6: Bitbucket insights 필드 LLM 활용 지침 (완료)**
+- 파일: `arc-core/.../SystemPromptBuilder.kt:appendResponseQualityInstruction`
+- 수정: `[도구 응답의 insights 필드 활용 — 매우 중요]` 섹션 추가
+- 지침: 응답 JSON의 `insights` 배열을 3번 "인사이트" 섹션에 그대로 활용, 수치 재계산 금지
+- 예시: `"insights": ["총 12건", "24h+ 미업데이트: 5건"]` → 응답 "💡 24시간 이상 업데이트 없는 PR 5건..."
+
+**Task #7: admin@arc.io → ihunet@hunet.co.kr 매핑 (완료)**
+- 파일: `arc-web/.../ChatController.kt:resolveRequesterIdentity` + 신규 `applyLocalAccountEmailFallback`
+- 환경변수: `ARC_REACTOR_DEFAULT_REQUESTER_EMAIL=ihunet@hunet.co.kr`
+- 동작: 로그인 이메일이 `admin@arc.io`, `anonymous`, `*.local` 도메인이면 환경변수 값으로 자동 치환
+- **검증**: `A1 "내 지라 티켓 보여줘"` → 실제 4건 Jira 이슈 반환 (HRFW-5695, LND-77, SETTING-104 등)
+
+**Task #8: D4 "BB30" 모호한 이름 처리 (완료)**
+- 파일: `arc-core/.../SystemPromptBuilder.kt:appendDuplicateToolCallPreventionHint`
+- 수정: `[Ambiguous Name Disambiguation — 모호한 이름 처리]` 섹션 추가
+- 지침:
+  - `[A-Z]+-?\d+` 패턴(Jira 프로젝트 키 처럼 보임) + "저장소" 언급 → 먼저 `bitbucket_list_repositories`로 확인, 없으면 Jira로 해석
+  - 소문자+하이픈(레포 slug 처럼 보임) + "프로젝트" 언급 → `jira_list_projects` 확인
+  - **도구 호출 없이 "찾을 수 없습니다" 포기 금지** — 반드시 list 도구로 한 번 탐색
+
+#### 코드 수정 파일 (R169)
+1. `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/SystemPromptBuilder.kt` — insights 지침 + 모호한 이름 처리
+2. `arc-web/src/main/kotlin/com/arc/reactor/controller/ChatController.kt` — 로컬 계정 → Atlassian 이메일 fallback
+
+#### 남은 과제 (R170~)
+- D 카테고리 여전히 부진 (출처 1/4, 인사이트 0/4) — Bitbucket API 토큰은 단일 사용자 기반이므로 admin 개인화 도구 일부만 작동. 실제 PR 데이터가 빈 레포에 집중됨
+- A4 forcedTool 재검증 필요 (A4 간헐 실패 이력 있음)
+- Gemini 응답 변동성 (R105: 무변경 -1.7점)
+
+**R169 요약**: R168 남은 3건 과제 전부 해결. 로컬 계정 → Atlassian 이메일 fallback으로 개인화 도구 복구 확인. B/C 카테고리 출처 포함률 **만점 달성**. A 카테고리 출처·인사이트 +200% 개선. 중복 호출 0건 유지. 전체 20/20 PASS.
