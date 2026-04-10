@@ -11935,3 +11935,211 @@ R225는 **수직**(특정 도구 최적화), R226은 **수평**(여러 리졸버
 #### 📊 R226 요약
 
 🔗 **R225 심화: ChainedApprovalContextResolver 조합 유틸 완료**. 여러 `ApprovalContextResolver`를 순서대로 시도하여 첫 non-null 결과를 반환하는 유틸 클래스 신규. short-circuit(첫 non-null 즉시 반환) + fail-open(개별 리졸버 예외는 다음으로 진행) + 불변 리스트 + thread-safe 보장. varargs 생성자 + `EMPTY` 상수 + `size()`/`isEmpty()` 헬퍼 제공. 기존 R225 사용 패턴(`AtlassianApprovalContextResolver` → `HeuristicApprovalContextResolver` fallback)을 1급 API로 승격. 신규 파일 2개 (리졸버 122줄 + 테스트 280줄), 기존 파일 수정 0건. 신규 테스트 **22 PASS** (7 @Nested 그룹: EmptyChain, SingleResolver, MultiResolverOrdering, FailOpenBehavior, ImmutableConstruction, IntegrationWithRealResolvers, ConstructorEquivalence). 기존 R219~R225 테스트 모두 회귀 없음, R220 Golden snapshot 해시 불변, 전체 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 + R225 + R226 심화**. swagger-mcp 8181 **57 라운드 연속** 안정.
+
+### Round 227 — ⚙️ 2026-04-11T06:30+09:00 — R226 심화: Approval Resolver 자동 체이닝 옵션
+
+**작업 종류**: Directive 심화 — R225+R226 인프라 자동 조립 (QA 측정 없음)
+**Directive 패턴**: #1 Tool Approval UX 강화 (연속)
+**완료 태스크**: #102
+
+#### 작업 배경
+
+R225는 `AtlassianApprovalContextResolver`를 속성 기반 자동 구성으로 제공했고, R226은 `ChainedApprovalContextResolver` 조합 유틸을 도입하여 사용자가 여러 리졸버를 수동으로 체이닝할 수 있게 했다. 그러나 **"프로덕션에서 가장 자주 쓰이는 패턴"** (Atlassian 우선 + Heuristic fallback)을 위해서는 여전히 사용자가 `@Bean` 메서드를 직접 작성해야 했다:
+
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = ChainedApprovalContextResolver(
+    AtlassianApprovalContextResolver(),
+    HeuristicApprovalContextResolver()
+)
+```
+
+R227은 이 boilerplate를 **속성 2개 설정만으로 대체**하여 "batteries included" 경험을 제공한다:
+
+```yaml
+arc:
+  reactor:
+    approval:
+      atlassian-resolver:
+        enabled: true
+      heuristic-fallback:
+        enabled: true
+```
+
+#### 설계 원칙
+
+1. **4가지 활성화 조합** 명확히 정의
+2. **기존 R225 동작 유지**: 단일 속성만 설정된 경우 (A=true, B 미설정) → 기존과 동일하게 atlassian 단독 리졸버
+3. **사용자 커스텀 빈 우선**: `@Bean ApprovalContextResolver`가 존재하면 자동 구성은 양보 (`@ConditionalOnMissingBean`)
+4. **Spring `@ConditionalOnProperty` 복수 이름 활용**: `name` 리스트의 모든 속성이 `havingValue`와 일치해야 활성화
+5. **@Bean 메서드 선언 순서로 우선순위 표현**: chain 메서드가 먼저, 단독 메서드가 뒤
+
+#### 4가지 활성화 조합
+
+| 조합 | `atlassian-resolver.enabled` | `heuristic-fallback.enabled` | 사용자 커스텀 빈 | 주입 결과 |
+|------|------|------|------|-----------|
+| A | `true` | `true` | 없음 | **`ChainedApprovalContextResolver`** (R227 신규) |
+| B | `true` | 미설정/`false` | 없음 | `AtlassianApprovalContextResolver` (R225 기존) |
+| C | 아무거나 | 아무거나 | **있음** | 사용자 커스텀 빈 (최우선) |
+| D | 미설정/`false` | 미설정/`false` | 없음 | 빈 없음 → enrichment 없음 (R221 기본) |
+
+조합 B는 R225와 완전히 동일하게 동작하여 **backward compat를 보장**한다.
+
+#### 변경 파일
+
+| 파일 | 변경 | 설명 |
+|------|------|------|
+| `autoconfigure/AtlassianApprovalResolverConfiguration.kt` | **수정** | 신규 `approvalContextResolverChain()` 빈 메서드 추가 (기존 `atlassianApprovalContextResolver()`는 유지) |
+| `test/.../AtlassianApprovalResolverConfigurationTest.kt` | **신규** | 14 tests — 4가지 조합 × ApplicationContextRunner 기반 통합 검증 |
+
+**신규 파일 1개, 기존 파일 1개 수정** (기존 파일 삭제 없음 → backward compat).
+
+#### 핵심 구현
+
+```kotlin
+@AutoConfiguration
+class AtlassianApprovalResolverConfiguration {
+
+    // R227: 양쪽 속성 모두 true → 체인
+    @Bean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval",
+        name = ["atlassian-resolver.enabled", "heuristic-fallback.enabled"],
+        havingValue = "true"
+    )
+    @ConditionalOnMissingBean(ApprovalContextResolver::class)
+    fun approvalContextResolverChain(): ApprovalContextResolver =
+        ChainedApprovalContextResolver(
+            AtlassianApprovalContextResolver(),
+            HeuristicApprovalContextResolver()
+        )
+
+    // R225: atlassian 단독 (체인 빈이 등록되지 않았고 atlassian만 true인 경우)
+    @Bean
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval.atlassian-resolver",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    @ConditionalOnMissingBean(ApprovalContextResolver::class)
+    fun atlassianApprovalContextResolver(): ApprovalContextResolver =
+        AtlassianApprovalContextResolver()
+}
+```
+
+**핵심 트릭**: `@ConditionalOnProperty`의 `name` 리스트는 **AND 조건**이다. 즉 리스트의 모든 속성이 `havingValue`와 일치해야 조건이 `true`가 된다. 이를 활용하여 "양쪽 속성이 모두 true"라는 조건을 단일 annotation으로 표현한다.
+
+두 빈 메서드 모두 `@ConditionalOnMissingBean(ApprovalContextResolver::class)`를 가지므로, 첫 번째가 등록되면 두 번째는 skip된다. Spring은 같은 `@AutoConfiguration` 클래스 내에서 `@Bean` 메서드를 선언 순서대로 평가한다.
+
+#### 테스트 전략: ApplicationContextRunner
+
+Spring Boot의 `ApplicationContextRunner`를 사용하여 **실제 스프링 컨텍스트 부트스트랩을 시뮬레이션**한다. 단순 단위 테스트로는 검증 불가능한 `@ConditionalOnProperty` + `@ConditionalOnMissingBean` 조합을 실제 동작하는 컨텍스트에서 확인한다.
+
+테스트 구조 (14 tests, 5 `@Nested` 그룹):
+
+```
+AtlassianApprovalResolverConfigurationTest
+├── CombinationA_ChainBoth (3)
+│   ├── 양쪽 속성 true → ChainedApprovalContextResolver size=2
+│   ├── jira 도구 → Atlassian resolver 처리 (impactScope=HRFW-42)
+│   └── delete_order → Heuristic fallback (IRREVERSIBLE)
+├── CombinationB_AtlassianOnly (3)
+│   ├── atlassian만 true → AtlassianApprovalContextResolver 단독
+│   ├── heuristic=false 명시 → 단독 (체인 아님)
+│   └── 단독은 atlassian 외 도구에 null 반환
+├── CombinationC_UserBeanOverride (2)
+│   ├── atlassian=true + 사용자 빈 → 사용자 빈 우선
+│   └── 양쪽 true + 사용자 빈 → 사용자 빈 우선 (체인보다 우선)
+├── CombinationD_Disabled (4)
+│   ├── 속성 없음 → 빈 없음
+│   ├── atlassian=false → 빈 없음
+│   ├── atlassian=false + heuristic=true → 빈 없음 (chain 조건 미충족)
+│   └── heuristic=true만 → 빈 없음
+└── SingletonInstance (2)
+    ├── 체인 등록 시 정확히 1개
+    └── 단독 등록 시 정확히 1개
+```
+
+#### 테스트 결과
+
+```
+AtlassianApprovalResolverConfigurationTest     → 14 tests PASS
+```
+
+**기존 R219/R220/R221/R222/R223/R224/R225/R226 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료 (byte-identical 유지)
+- R225 `AtlassianApprovalContextResolverTest` 33 tests PASS
+- R226 `ChainedApprovalContextResolverTest` 22 tests PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미수정
+- ✅ R225 `AtlassianApprovalContextResolver` 불변
+- ✅ R226 `ChainedApprovalContextResolver` 불변
+- ✅ 자동 구성만 확장, 리졸버 자체 로직은 R225+R226 그대로
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ Slack 스레드 경로 미수정
+
+#### opt-in / backward compat
+
+**R225 사용자 (조합 B)**:
+- `atlassian-resolver.enabled=true`만 설정 → **완전히 R225 동작 그대로**
+- 빈 타입 동일: `AtlassianApprovalContextResolver`
+- 추가 설정 불필요
+
+**R227 신규 사용자 (조합 A)**:
+- 두 속성 모두 설정 → `ChainedApprovalContextResolver`가 자동 주입
+- Jira/Confluence/Bitbucket 도구는 Atlassian resolver가 처리
+- 그 외 모든 도구는 Heuristic resolver가 처리 (예: `delete_order` → IRREVERSIBLE)
+- fail-open 보장: Atlassian resolver가 예외 던져도 Heuristic이 처리
+
+**사용자 커스텀 빈 (조합 C)**:
+- `@Bean ApprovalContextResolver` 존재 → 자동 구성 양보 (R225/R227 동일)
+
+#### R225/R226/R227 비교
+
+| 측면 | R225 | R226 | R227 |
+|------|------|------|------|
+| 목적 | 특정 도구 세트 지원 | 리졸버 조합 유틸 | 자동 체이닝 |
+| 스코프 | atlassian-mcp-server | 모든 리졸버 범용 | atlassian-mcp-server + Heuristic |
+| 기본 제공 | 속성 기반 | 수동 `@Bean` | 속성 기반 |
+| Boilerplate | 낮음 | 중간 (1 @Bean) | **0** (속성만) |
+| 적합한 경우 | Atlassian만 사용 | 커스텀 체이닝 | 프로덕션 기본값 |
+
+R227은 R225+R226을 조합하는 가장 흔한 패턴을 **설정만으로** 구현하게 해주는 convenience 레이어.
+
+#### 연속 지표
+
+| 지표 | R226 | R227 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 57 | **58** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R226 | **4/5 + R224~R227** | - |
+
+#### 다음 Round 후보
+
+- **R228+**:
+  1. **Evaluation 대시보드 문서** — R222+R224 메트릭을 위한 Grafana JSON 템플릿 + Prometheus 쿼리 예시 (`docs/evaluation-metrics-dashboard.md` 신규)
+  2. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 워크스페이스 프로파일 오버라이드 (byte-identical 엄수)
+  3. **Tool Response Summarizer 자동 체이닝** — R223 `ToolResponseSummarizer`도 여러 구현체 체인 지원
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — Directive 작업들의 효과 정량 비교
+
+#### 📊 R227 요약
+
+⚙️ **R226 심화: Approval Resolver 자동 체이닝 완료**. `AtlassianApprovalResolverConfiguration`에 `approvalContextResolverChain()` 빈 메서드 신규 추가. `@ConditionalOnProperty`의 `name` 리스트 AND 조건을 활용하여 `atlassian-resolver.enabled=true` + `heuristic-fallback.enabled=true` 양쪽 속성이 모두 true일 때 `ChainedApprovalContextResolver(AtlassianApprovalContextResolver + HeuristicApprovalContextResolver)`가 자동 주입되도록 구현. 기존 R225 단독 리졸버 빈(`atlassianApprovalContextResolver()`)은 유지되어 backward compat 보장 — `atlassian-resolver.enabled=true`만 설정하면 R225와 완전 동일 동작. 두 빈 모두 `@ConditionalOnMissingBean(ApprovalContextResolver::class)`로 사용자 커스텀 빈 우선. 신규 파일 1개 (테스트 245줄), 기존 파일 1개 수정 (autoconfig 확장). `ApplicationContextRunner` 기반 신규 테스트 **14 PASS** (5 @Nested 그룹: CombinationA_ChainBoth / CombinationB_AtlassianOnly / CombinationC_UserBeanOverride / CombinationD_Disabled / SingletonInstance). 기존 R219~R226 테스트 모두 회귀 없음, R220 Golden snapshot 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224+R225+R226+R227**. swagger-mcp 8181 **58 라운드 연속** 안정. R225~R227 3라운드로 "프로덕션 기본값 → 체이닝 유틸 → 자동 체이닝" 진화가 완성되어, 사용자는 이제 YAML 속성 2줄만 추가하면 Atlassian 우선 + Heuristic fallback 패턴을 바로 활성화할 수 있다.
