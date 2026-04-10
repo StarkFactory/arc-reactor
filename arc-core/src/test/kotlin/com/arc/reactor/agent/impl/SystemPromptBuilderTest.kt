@@ -97,8 +97,9 @@ class SystemPromptBuilderTest {
             userPrompt = "DEV 프로젝트 Jira 이슈를 요약해줘."
         )
 
-        assertTrue(prompt.contains("End the response with a 'Sources' section")) {
-            "Workspace prompts should include 'Sources' section instruction"
+        // R174: 출처 섹션 필수 포함 — '출처' 섹션 또는 'Sources Section' 키워드 검증
+        assertTrue(prompt.contains("Sources Section") || prompt.contains("출처 섹션 필수 포함")) {
+            "Workspace prompts should include sources section instruction"
         }
     }
 

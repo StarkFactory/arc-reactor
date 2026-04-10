@@ -934,7 +934,20 @@ internal class SystemPromptBuilder(
     /** TEXT 형식 + workspace 요청 시 Sources 섹션 지시를 추가한다. */
     private fun StringBuilder.appendSourcesInstruction(responseFormat: ResponseFormat, userPrompt: String?) {
         if (responseFormat == ResponseFormat.TEXT && looksLikeWorkspacePrompt(userPrompt)) {
-            append("\nEnd the response with a 'Sources' section that lists the supporting links.")
+            append("\n\n[Sources Section — 출처 섹션 필수 포함]\n")
+            append("워크스페이스 도구(jira_*, bitbucket_*, confluence_*, work_*, spec_*) 호출 시 ")
+            append("응답 마지막에 반드시 '출처' 섹션을 추가하라.\n")
+            append("도구 응답의 `sources` 필드(있는 경우) 또는 `pullRequests[*].url`, ")
+            append("`issues[*].key` (https://ihunet.atlassian.net/browse/{key}로 변환), ")
+            append("`pages[*].webui` 같은 필드에서 URL을 추출하여 마크다운 링크로 표시하라.\n")
+            append("형식 예시:\n")
+            append("```\n")
+            append("출처\n")
+            append("- [HRFW-5695](https://ihunet.atlassian.net/browse/HRFW-5695)\n")
+            append("- [edubank_ios PR #42](https://bitbucket.org/ihunet/edubank_ios/pull-requests/42)\n")
+            append("```\n")
+            append("출처가 없으면 '- 검증된 출처를 찾지 못했습니다.'로 명시 — 절대 출처 섹션 자체를 생략하지 마라.\n")
+            append("이는 필수 섹션이며, 도구를 호출하지 않은 일반 지식 답변에는 해당 안 됨.\n")
         }
     }
 

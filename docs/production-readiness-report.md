@@ -4482,3 +4482,86 @@ Bitbucket 도구가 안정적으로 호출되어 출처 URL이 응답에 자주 
 - E 카테고리 출처는 캐주얼이라 정상이지만 인사이트 0/3 개선 가능
 
 **R173 요약**: McpHealthPinger를 FAILED/PENDING 상태도 자동 처리하도록 확장. **MCP 1분 내 자동 복구 검증** + D 출처 1/4 → 3/4 (+200%) + B 인사이트 2/5 → 4/5 (+100%) 대폭 개선. 평균 응답시간 -8%. 중복 호출 0건 유지. 20/20 전체 성공 유지.
+
+### Round 174 — 2026-04-10T16:20+09:00 (Sources Instruction 강화 + B 만점 달성)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (Paravel 정리 후), atlassian-mcp UP
+**MCP 자동 복구**: R173 health pinger fix 작동 — 시작 후 60초 내 두 MCP 자동 CONNECTED
+**BUILD**: arc-core compileKotlin + bootJar PASS
+**TEST**: arc-core 전체 PASS
+
+#### Task #15: A/B/C/D 출처 만점 진입 (Sources Instruction 강화)
+
+**근본 원인**: R173 baseline에서 A 출처가 1/4로 변동, B/C/D도 부분 손실. 조사:
+- `SystemPromptBuilder.appendSourcesInstruction`이 단 한 줄짜리 약한 지침
+  ```
+  "End the response with a 'Sources' section that lists the supporting links."
+  ```
+- LLM이 이 짧은 영문 지침을 자주 무시 → 응답에서 출처 섹션 누락
+
+**파일**: `arc-core/.../SystemPromptBuilder.kt:appendSourcesInstruction`
+
+**변경**: 출처 섹션 작성 가이드를 대폭 강화
+- `[Sources Section — 출처 섹션 필수 포함]` 한국어 헤더
+- 도구 응답의 `sources` 필드 또는 `pullRequests[*].url`, `issues[*].key` (→ `https://ihunet.atlassian.net/browse/{key}` 변환), `pages[*].webui` 등 추출 경로 명시
+- 마크다운 형식 예시 포함:
+  ```
+  출처
+  - [HRFW-5695](https://ihunet.atlassian.net/browse/HRFW-5695)
+  - [edubank_ios PR #42](https://bitbucket.org/ihunet/edubank_ios/pull-requests/42)
+  ```
+- "출처가 없으면 '- 검증된 출처를 찾지 못했습니다.'로 명시 — 절대 출처 섹션 자체를 생략 금지"
+
+**테스트 업데이트** (`SystemPromptBuilderTest.kt`): 새 헤더 `Sources Section` 또는 `출처 섹션 필수 포함` 검증
+
+#### 측정 결과 (R174)
+
+| 메트릭 | R173 | R174 | 변화 |
+|--------|------|------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| 평균 응답시간 | 5952ms | 8306ms | +40% (강화된 프롬프트로 응답 길어짐) |
+| 평균 도구 호출 | 0.9 | 1.0 | 향상 |
+| A 출처 | 2/4 | 1/4 | 변동 (Gemini 변동성) |
+| A 인사이트 | 2/4 | 1/4 | 변동 |
+| **B 출처** | 4/5 | **5/5 만점** ⭐ | +25% |
+| B 인사이트 | 4/5 | 4/5 | 유지 |
+| **C 출처** | 4/4 | 4/4 | 만점 유지 |
+| **C 인사이트** | 4/4 | 4/4 | 만점 유지 |
+| D 출처 | 3/4 | 3/4 | 유지 |
+| **D 인사이트** | 0/4 | **1/4** | **첫 인사이트 출현** ⭐ |
+| D1/D3 도구 호출 | 2/2 | 2/2 | 유지 |
+| D2 도구 호출 | 1 | 2 | 향상 |
+
+**주요 성과**:
+- **B 카테고리 출처 5/5 만점 달성** (R169 4/5 → R174 5/5)
+- **D 인사이트 첫 출현** (0/4 → 1/4)
+- **만점 카테고리 2개** (B 출처, C 출처/인사이트 모두)
+
+**A 카테고리 분석**: 강화된 sources instruction에도 출처 1/4로 부진. 가설:
+- A 카테고리(개인화)는 LLM이 "내 이슈" 같은 응답 시 친근한 톤을 우선시하여 출처 섹션 생략 경향
+- 또는 jira_my_open_issues / bitbucket_my_authored_prs 응답에 sources 필드 자체가 약함
+- R175 추가 조사: atlassian-mcp의 개인화 도구가 issue key/PR url을 sources에 명시적으로 추가하는지 검증 필요
+
+#### 코드 수정 파일 (R174)
+1. `arc-core/.../SystemPromptBuilder.kt` — `appendSourcesInstruction` 강화
+2. `arc-core/src/test/.../SystemPromptBuilderTest.kt` — 새 헤더 키워드 검증
+
+#### R168→R174 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168 | ReAct 중복 100% 제거 |
+| R169 | admin Atlassian 매핑 |
+| R170 | MY_AUTHORED_PR + IPv6 |
+| R171 | WorkContextBitbucketPlanner |
+| R172 | 첫 20/20 마일스톤 |
+| R173 | MCP 자동 재연결, D 출처 +200% |
+| **R174** | **Sources Instruction 강화, B 출처 만점, D 첫 인사이트** ⭐ |
+
+#### 남은 과제 (R175~)
+- A 카테고리 출처 만점 진입 (atlassian-mcp 개인화 도구 sources 필드 직접 검증)
+- 평균 응답시간 회복 (R173 5952 → R174 8306, 강화된 프롬프트가 응답을 길게 만듦)
+- atlassian-mcp BitbucketPRInsights 빈 결과 메시지 (R173 시도, pre-existing 테스트로 미룸)
+- swagger-mcp 8081 충돌 자동 정리 (반복 발생, Paravel 외부 프로세스)
+
+**R174 요약**: SystemPromptBuilder의 sources instruction을 한 줄에서 12줄+로 대폭 강화. **B 카테고리 출처 5/5 만점 달성** + D 카테고리 첫 인사이트 출현 (0/4 → 1/4). C 카테고리 출처/인사이트 모두 만점 유지. 중복 호출 0건. 20/20 전체 성공 유지. A 카테고리는 추가 조사 필요 (R175 과제).
