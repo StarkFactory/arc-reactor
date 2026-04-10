@@ -420,4 +420,106 @@ class EvaluationMetricsCollectorTest {
             assertTrue(true) { "default no-op 구현이 backward compat를 유지해야 한다" }
         }
     }
+
+    @Nested
+    inner class ExecutionError {
+
+        private fun newCollector(): Pair<SimpleMeterRegistry, MicrometerEvaluationMetricsCollector> {
+            val registry = SimpleMeterRegistry()
+            return registry to MicrometerEvaluationMetricsCollector(registry)
+        }
+
+        @Test
+        fun `실행 에러는 stage와 exception 태그로 Counter 기록되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordExecutionError(ExecutionStage.TOOL_CALL, "SocketTimeoutException")
+            collector.recordExecutionError(ExecutionStage.TOOL_CALL, "SocketTimeoutException")
+            collector.recordExecutionError(ExecutionStage.LLM_CALL, "HttpClientErrorException")
+            collector.recordExecutionError(ExecutionStage.PARSING, "JsonParseException")
+
+            val toolTimeout = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "SocketTimeoutException")
+                .counter()
+            assertNotNull(toolTimeout) { "tool_call + SocketTimeoutException Counter 등록" }
+            assertEquals(2.0, toolTimeout!!.count()) { "2회 기록" }
+
+            val llmError = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "llm_call")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "HttpClientErrorException")
+                .counter()
+            assertNotNull(llmError)
+            assertEquals(1.0, llmError!!.count())
+
+            val parseError = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "parsing")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "JsonParseException")
+                .counter()
+            assertNotNull(parseError)
+            assertEquals(1.0, parseError!!.count())
+        }
+
+        @Test
+        fun `빈 exception 이름은 unknown으로 변환되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordExecutionError(ExecutionStage.OTHER, "")
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "other")
+                .tag(
+                    MicrometerEvaluationMetricsCollector.TAG_EXCEPTION,
+                    MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
+                )
+                .counter()
+            assertNotNull(counter) { "빈 exception → unknown 태그" }
+            assertEquals(1.0, counter!!.count())
+        }
+
+        @Test
+        fun `9개 ExecutionStage 모두 독립적으로 기록되어야 한다`() {
+            val (registry, collector) = newCollector()
+            ExecutionStage.values().forEach { stage ->
+                collector.recordExecutionError(stage, "TestException")
+            }
+
+            val stages = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counters()
+                .mapNotNull { it.id.getTag(MicrometerEvaluationMetricsCollector.TAG_STAGE) }
+                .toSet()
+            assertEquals(9, stages.size) {
+                "9개 ExecutionStage가 독립 태그로 등록되어야 한다"
+            }
+        }
+
+        @Test
+        fun `NoOp 수집기의 recordExecutionError는 no-op이어야 한다`() {
+            NoOpEvaluationMetricsCollector.recordExecutionError(
+                ExecutionStage.TOOL_CALL,
+                "TimeoutException"
+            )
+            NoOpEvaluationMetricsCollector.recordExecutionError(ExecutionStage.OTHER, "")
+            assertTrue(true) { "NoOp 수집기의 새 메서드는 예외 없이 반환해야 한다" }
+        }
+
+        @Test
+        fun `interface default 구현은 no-op이어야 한다 (backward compat)`() {
+            val customCollector = object : EvaluationMetricsCollector {
+                override fun recordTaskCompleted(success: Boolean, durationMs: Long, errorCode: String?) {}
+                override fun recordToolCallCount(count: Int, toolNames: List<String>) {}
+                override fun recordTokenCost(costUsd: Double, model: String) {}
+                override fun recordHumanOverride(outcome: HumanOverrideOutcome, toolName: String) {}
+                override fun recordSafetyRejection(stage: SafetyRejectionStage, reason: String) {}
+                // recordExecutionError 구현 생략 → default no-op
+            }
+            customCollector.recordExecutionError(ExecutionStage.LLM_CALL, "AnyException")
+            assertTrue(true) { "default no-op 구현이 backward compat를 유지해야 한다" }
+        }
+
+        @Test
+        fun `ExecutionStage enum은 9개 값을 가져야 한다`() {
+            assertEquals(9, ExecutionStage.values().size) {
+                "TOOL_CALL/LLM_CALL/GUARD/HOOK/OUTPUT_GUARD/PARSING/MEMORY/CACHE/OTHER"
+            }
+        }
+    }
 }

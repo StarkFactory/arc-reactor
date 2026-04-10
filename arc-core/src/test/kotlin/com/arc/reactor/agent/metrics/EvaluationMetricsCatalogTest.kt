@@ -20,9 +20,9 @@ class EvaluationMetricsCatalogTest {
     inner class BasicInvariants {
 
         @Test
-        fun `ALL 리스트는 8개 메트릭을 포함해야 한다`() {
-            assertEquals(8, EvaluationMetricsCatalog.ALL.size) {
-                "R222 6개 + R224 1개 + R242 1개 = 8개"
+        fun `ALL 리스트는 9개 메트릭을 포함해야 한다`() {
+            assertEquals(9, EvaluationMetricsCatalog.ALL.size) {
+                "R222 6개 + R224 1개 + R242 1개 + R245 1개 = 9개"
             }
         }
 
@@ -68,12 +68,13 @@ class EvaluationMetricsCatalogTest {
     inner class TypeDistribution {
 
         @Test
-        fun `COUNTER 유형은 5개여야 한다`() {
+        fun `COUNTER 유형은 6개여야 한다`() {
             val counters = EvaluationMetricsCatalog.filterByType(
                 EvaluationMetricsCatalog.MetricType.COUNTER
             )
-            assertEquals(5, counters.size) {
-                "TASK_COMPLETED/TOKEN_COST/HUMAN_OVERRIDE/SAFETY_REJECTION/TOOL_RESPONSE_KIND"
+            assertEquals(6, counters.size) {
+                "TASK_COMPLETED/TOKEN_COST/HUMAN_OVERRIDE/SAFETY_REJECTION/" +
+                    "TOOL_RESPONSE_KIND/EXECUTION_ERROR"
             }
         }
 
@@ -148,6 +149,10 @@ class EvaluationMetricsCatalogTest {
                 MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION,
                 EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION.name
             )
+            assertEquals(
+                MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR,
+                EvaluationMetricsCatalog.EXECUTION_ERROR.name
+            )
         }
 
         @Test
@@ -177,6 +182,16 @@ class EvaluationMetricsCatalogTest {
         }
 
         @Test
+        fun `EXECUTION_ERROR 태그는 stage와 exception이어야 한다`() {
+            assertEquals(
+                listOf("stage", "exception"),
+                EvaluationMetricsCatalog.EXECUTION_ERROR.tags
+            ) {
+                "R245 실행 에러는 stage + exception class로 집계"
+            }
+        }
+
+        @Test
         fun `TOOL_CALLS는 태그가 없어야 한다`() {
             assertTrue(EvaluationMetricsCatalog.TOOL_CALLS.tags.isEmpty()) {
                 "DistributionSummary는 태그 없이 기록"
@@ -200,6 +215,7 @@ class EvaluationMetricsCatalogTest {
             collector.recordSafetyRejection(SafetyRejectionStage.GUARD, "injection")
             collector.recordToolResponseKind("list_top_n", "jira_search")
             collector.recordToolResponseCompression(75, "jira_search")
+            collector.recordExecutionError(ExecutionStage.TOOL_CALL, "SocketTimeoutException")
 
             // 카탈로그의 각 메트릭이 registry에 존재하는지 확인
             EvaluationMetricsCatalog.ALL.forEach { metric ->

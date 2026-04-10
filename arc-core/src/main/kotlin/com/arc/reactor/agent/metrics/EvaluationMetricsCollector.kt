@@ -130,6 +130,80 @@ interface EvaluationMetricsCollector {
     fun recordToolResponseCompression(percent: Int, toolName: String) {
         // 기본 no-op (backward compat)
     }
+
+    /**
+     * R245: 실행 경로에서 발생한 예외를 stage + exception class별로 기록한다.
+     *
+     * ## 기존 메트릭과의 차별점
+     *
+     * - [recordTaskCompleted]: task 전체 성공/실패 + `errorCode` (집계 관점)
+     * - [recordSafetyRejection]: Guard/OutputGuard/Hook 보안 차단 (정책 관점)
+     * - **[recordExecutionError]**: 실제 throwable 예외 (런타임 관점)
+     *
+     * 예를 들어 `ToolCallback.call()`에서 `SocketTimeoutException`이 발생하면
+     * `recordExecutionError(ExecutionStage.TOOL_CALL, "SocketTimeoutException")`이 기록된다.
+     * 이는 task 전체는 실패로 끝났을 수도 아닐 수도 있지만(ReAct 루프가 재시도 가능),
+     * 특정 stage의 예외 분포를 추적하여 운영 문제를 빠르게 탐지할 수 있게 한다.
+     *
+     * ## 사용 시나리오
+     *
+     * 1. **Tool call timeout 탐지**: `execution.error{stage="tool_call", exception="SocketTimeoutException"}`
+     *    비율이 급증하면 특정 MCP 서버 네트워크 문제
+     * 2. **LLM API 장애 감지**: `execution.error{stage="llm_call", exception="HttpClientErrorException"}`
+     *    카운트가 비정상적이면 Gemini/Anthropic API 장애 가능성
+     * 3. **Parsing 실패 추적**: `execution.error{stage="parsing"}`으로 JSON 계획 파싱 실패 빈도 관측
+     *
+     * **기본 구현은 no-op** 이다. [NoOpEvaluationMetricsCollector]와 커스텀 구현체가 변경 없이
+     * 동작하도록 하기 위함이다.
+     *
+     * @param stage 예외가 발생한 실행 단계
+     * @param exceptionClass 예외 클래스 심플 이름 (예: `TimeoutException`, `IllegalStateException`)
+     *
+     * @see ExecutionStage 실행 단계 분류
+     */
+    fun recordExecutionError(stage: ExecutionStage, exceptionClass: String) {
+        // 기본 no-op (backward compat)
+    }
+}
+
+/**
+ * R245: 실행 단계 분류 — [EvaluationMetricsCollector.recordExecutionError]용.
+ *
+ * `SafetyRejectionStage`와 구분되는 이유: 이 enum은 **보안 정책 차단이 아니라 런타임 예외**를
+ * 추적한다. 보안 차단은 의도된 거부(guard가 정상 동작)이지만, 런타임 예외는 의도되지 않은
+ * 실패(외부 의존성 장애, 파싱 오류, 메모리 저장 실패 등)이다.
+ *
+ * 두 enum이 `GUARD`, `HOOK`, `OUTPUT_GUARD`를 공유하는 이유는 해당 계층에서 **차단**과 **예외**가
+ * 모두 발생할 수 있기 때문이다 (예: Guard 로직 자체가 예외를 throw하면 `ExecutionStage.GUARD`
+ * + 예외 클래스로 기록, 정상적으로 Reject을 반환하면 `SafetyRejectionStage.GUARD` + reason으로 기록).
+ */
+enum class ExecutionStage {
+    /** 도구 호출 실행 중 (`ArcToolCallbackAdapter`, MCP tool 호출) */
+    TOOL_CALL,
+
+    /** LLM API 호출 중 (`ChatClient.call()`, streaming) */
+    LLM_CALL,
+
+    /** Guard 체인 실행 중 (Unicode/RateLimit/Validation/Injection/Classification/Permission) */
+    GUARD,
+
+    /** Hook 실행 중 (Before/AfterToolCall/AgentStart/AgentComplete) */
+    HOOK,
+
+    /** Output Guard 체인 실행 중 (PII 마스킹 등) */
+    OUTPUT_GUARD,
+
+    /** JSON 계획 / tool argument 파싱 실패 */
+    PARSING,
+
+    /** `ConversationMemory` 저장/조회 실패 */
+    MEMORY,
+
+    /** `ResponseCache` 저장/조회 실패 */
+    CACHE,
+
+    /** 기타 / 분류 불가 */
+    OTHER
 }
 
 /**

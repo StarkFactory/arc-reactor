@@ -16142,3 +16142,264 @@ R244는 Doctor 축의 **표현 계층 통합**이다. 이제 같은 `GET /api/ad
 #### 📊 R244 요약
 
 🔀 **DoctorController Content Negotiation 완료** — R237 REST + R239 포맷터를 직접 연결. 같은 `GET /api/admin/doctor` 엔드포인트가 클라이언트 `Accept` 헤더에 따라 JSON(기본) / text/plain / text/markdown 중 적절한 포맷으로 응답. Backward compatibility 완전 유지 — Accept 없음, `*/*` 와일드카드, `application/json` 모두 JSON 반환. `resolveFormat()` 수동 Accept 파싱으로 우선순위 명시 제어 (markdown > plain > json), comma + quality factor (`;q=`) 처리. 내부 `private enum ReportFormat` + top-level `private const val DOCTOR_TEXT_MARKDOWN_VALUE` (Kotlin annotation argument 참조를 위해 companion 대신 top-level). Companion에도 `TEXT_MARKDOWN_VALUE` 재노출하여 테스트/외부 참조 가능. `@GetMapping(produces = [JSON, TEXT_PLAIN, TEXT_MARKDOWN])` 확장. text/plain → `report.toHumanReadable()` 한국어 멀티라인, text/markdown → `report.toSlackMarkdown()` Slack mrkdwn. ERROR/WARN HTTP 상태와 `X-Doctor-Status` 헤더는 포맷과 무관하게 보존. 신규 파일 없음, 수정 파일 2개 (Controller +90줄 / Test +170줄). 신규 테스트 **13 PASS** (ContentNegotiation 12 + HeaderConstants 1), 기존 19 tests는 `exchangeWithRole` 헬퍼 업데이트(`ServerHttpRequest` mock + `acceptHeader: String? = null` 옵션)로 자동 백필. **총 32 DoctorControllerTest PASS**. 수정 과정 이슈 3개 해결: (1) companion `const val` annotation 참조 실패 → top-level 선언으로 우회, (2) KDoc 내부 `*/*` wildcard 문자가 블록 종료 토큰과 충돌 → "star-slash-star" 한글 설명으로 우회, (3) MockK `ServerWebExchange.request` 누락 → 헬퍼 헬퍼 업데이트로 일괄 해결. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R244**. swagger-mcp 8181 **75 라운드 연속**. R236→R237→R238→R239→R243→**R244**로 Doctor 축이 **"서비스 → REST → 섹션 → 포맷터 → 자동화 → Content Negotiation"** 6단계 표현 계층 통합 완성. 이제 사용자는 **6가지 접근 방식**(기동 로그 / REST JSON / REST text-plain / REST text-markdown / 프로그래밍 직접 / 코드 내 포맷팅) 중 운영 스타일에 맞는 것을 선택할 수 있다. curl 한 줄로 배포 확인(`curl -H "Accept: text/plain"`), Slack 직접 붙여넣기(`curl -H "Accept: text/markdown" | pbcopy`), Grafana 통합(`Accept: application/json`) 등 다양한 워크플로우가 같은 URI로 통합된다.
+
+### Round 245 — 🚨 2026-04-11T15:30+09:00 — execution.error 메트릭 (R222 축 9번째 메트릭)
+
+**작업 종류**: Directive 심화 — Evaluation 메트릭 축 확장 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R222 심화)
+**완료 태스크**: #120
+
+#### 작업 배경
+
+R222 Evaluation 메트릭 축은 task 집계(성공/실패 + errorCode)와 보안 차단(safety.rejection)은 추적하지만, **실제 throwable 런타임 예외**는 직접 추적하지 않았다:
+
+| 관점 | 메트릭 | 무엇을 추적 |
+|------|--------|-------------|
+| 집계 | `task.completed{result, error_code}` | 작업 전체 성공/실패 + 에러 코드 |
+| 정책 | `safety.rejection{stage, reason}` | Guard/OutputGuard/Hook 보안 차단 |
+| **런타임** | **(없음)** | **실제 throwable 예외 + 발생 단계** |
+
+R245는 이 공백을 메운다. `execution.error{stage, exception}` Counter로 도구 호출/LLM 호출/파싱/메모리/캐시 등 각 단계에서 발생한 예외를 **예외 클래스 이름**으로 분류하여 추적한다. 이는:
+- **운영 장애 탐지**: `stage="tool_call", exception="SocketTimeoutException"` 급증 → 특정 MCP 서버 네트워크 문제
+- **API 장애 감지**: `stage="llm_call", exception="HttpClientErrorException"` → Gemini/Anthropic 장애
+- **파싱 문제 추적**: `stage="parsing"` → JSON 계획 파싱 실패 빈도
+
+#### 설계 원칙
+
+1. **순수 additive** — `EvaluationMetricsCollector` 인터페이스에 default no-op 메서드 추가
+2. **Enum + String 하이브리드** — stage는 `ExecutionStage` enum (타입 안전), exception은 String (유연성)
+3. **SafetyRejectionStage와 구분** — 의도된 거부(security policy)와 의도되지 않은 예외(runtime failure)를 다른 메트릭으로 분리
+4. **Counter 선택** — DistributionSummary가 아닌 Counter (각 예외 발생은 독립 이벤트)
+5. **9개 stage enum** — TOOL_CALL, LLM_CALL, GUARD, HOOK, OUTPUT_GUARD, PARSING, MEMORY, CACHE, OTHER
+
+#### 신규 API
+
+**`EvaluationMetricsCollector` 인터페이스**:
+```kotlin
+interface EvaluationMetricsCollector {
+    // ... 기존 메서드 ...
+
+    /**
+     * R245: 실행 경로 throwable 예외를 stage + exception class로 기록.
+     * 기본 구현은 no-op (backward compat).
+     */
+    fun recordExecutionError(stage: ExecutionStage, exceptionClass: String) {
+        // 기본 no-op
+    }
+}
+```
+
+**`ExecutionStage` enum (9개)**:
+```kotlin
+enum class ExecutionStage {
+    TOOL_CALL,      // ArcToolCallbackAdapter, MCP tool 호출
+    LLM_CALL,       // ChatClient.call(), streaming
+    GUARD,          // Guard 체인 실행 중 예외 (Reject 아님, 예외)
+    HOOK,           // Hook 실행 중 예외
+    OUTPUT_GUARD,   // Output Guard 체인 예외
+    PARSING,        // JSON 계획 / tool arg 파싱 실패
+    MEMORY,         // ConversationMemory 저장/조회 실패
+    CACHE,          // ResponseCache 저장/조회 실패
+    OTHER           // 기타 / 분류 불가
+}
+```
+
+**`MicrometerEvaluationMetricsCollector` 구현**:
+```kotlin
+override fun recordExecutionError(stage: ExecutionStage, exceptionClass: String) {
+    runCatching {
+        Counter.builder(METRIC_EXECUTION_ERROR)
+            .tag(TAG_STAGE, stage.name.lowercase())
+            .tag(TAG_EXCEPTION, exceptionClass.ifBlank { UNKNOWN_TAG })
+            .register(registry)
+            .increment()
+    }.onFailure { e ->
+        logger.warn(e) { "recordExecutionError 실패: stage=$stage, exception=$exceptionClass" }
+    }
+}
+
+companion object {
+    const val METRIC_EXECUTION_ERROR = "arc.reactor.eval.execution.error"
+    const val TAG_EXCEPTION = "exception"  // 신규 태그
+}
+```
+
+**`EvaluationMetricsCatalog` 9번째 메트릭**:
+```kotlin
+val EXECUTION_ERROR: Metric = Metric(
+    name = MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR,
+    type = MetricType.COUNTER,
+    tags = listOf(TAG_STAGE, TAG_EXCEPTION),
+    description = "R245 런타임 예외 분포. task.completed의 집계 관점, " +
+        "safety.rejection의 정책 관점과 달리 실제 throwable 예외를 stage별로 분류하여 " +
+        "운영 문제를 빠르게 탐지한다."
+)
+```
+
+#### SafetyRejection vs ExecutionError 차이
+
+동일한 stage(`GUARD`, `HOOK`, `OUTPUT_GUARD`)가 두 enum 모두에 존재하는 이유:
+
+| 시나리오 | 기록 메트릭 |
+|---------|-------------|
+| Guard가 정상적으로 인젝션 탐지 후 Reject 반환 | `safety.rejection{stage=guard, reason=injection}` |
+| Guard 로직 자체에서 `IllegalStateException` throw | `execution.error{stage=guard, exception=IllegalStateException}` |
+| Tool이 `401 Unauthorized` 반환 (정상 에러 응답) | `tool.response.kind{kind=error_cause_first}` (R224) |
+| Tool 호출 중 `SocketTimeoutException` | `execution.error{stage=tool_call, exception=SocketTimeoutException}` |
+
+Guard가 **차단**(정책 동작)과 **예외**(런타임 실패)를 구분하는 것은 운영 관점에서 매우 중요하다. 전자는 정상 동작이고, 후자는 버그다.
+
+#### Prometheus 쿼리 예시 (`docs/evaluation-metrics.md`)
+
+**stage별 발생률**:
+```promql
+sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
+```
+
+**예외 클래스 top 5** (운영 우선순위):
+```promql
+topk(5,
+  sum by (exception) (rate(arc_reactor_eval_execution_error_total[5m]))
+)
+```
+
+**특정 stage + exception 조합 모니터링**:
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="tool_call",exception="SocketTimeoutException"}[5m])
+```
+
+**Alertmanager 규칙 예시**:
+```yaml
+- alert: ToolCallTimeoutSurge
+  expr: rate(arc_reactor_eval_execution_error_total{stage="tool_call",exception="SocketTimeoutException"}[5m]) > 0.1
+  for: 5m
+  annotations:
+    summary: "도구 호출 타임아웃 급증 — MCP 서버 네트워크 확인"
+```
+
+#### 수정/신규 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../EvaluationMetricsCollector.kt` | `recordExecutionError` default 메서드 + `ExecutionStage` enum 9개 (+87줄) |
+| `main/.../MicrometerEvaluationMetricsCollector.kt` | `recordExecutionError` 구현 + `METRIC_EXECUTION_ERROR` + `TAG_EXCEPTION` 상수 (+17줄) |
+| `main/.../EvaluationMetricsCatalog.kt` | `EXECUTION_ERROR` Metric + `ALL` 리스트 확장 (+14줄) |
+| `main/.../DoctorDiagnostics.kt` | 카탈로그 detail에 `error` 단어 추가 (1줄) |
+| `docs/evaluation-metrics.md` | 9번째 메트릭 행 + Prometheus 4개 쿼리 + Alertmanager 규칙 + 참조 섹션 (+36줄) |
+| `test/.../EvaluationMetricsCollectorTest.kt` | `ExecutionError` @Nested 6 tests (+112줄) |
+| `test/.../EvaluationMetricsCatalogTest.kt` | 카운트 8→9, Counter 5→6, Micrometer 정렬 검증 + EXECUTION_ERROR 태그 검증 (+22줄) |
+| `test/.../DoctorDiagnosticsTest.kt` | 카탈로그 카운트 `"8개"` → `"9개"` + `"error"` assertion 추가 (+6줄) |
+
+#### 테스트 결과
+
+**EvaluationMetricsCollectorTest — R245 신규 6 tests PASS**:
+```
+@Nested ExecutionError (6)
+  - 실행 에러는 stage와 exception 태그로 Counter 기록되어야 한다
+    → tool_call + SocketTimeoutException (2회), llm_call + HttpClientErrorException, parsing + JsonParseException
+  - 빈 exception 이름은 unknown으로 변환되어야 한다
+  - 9개 ExecutionStage 모두 독립적으로 기록되어야 한다
+    → ExecutionStage.values().forEach 후 태그 집합 검증
+  - NoOp 수집기의 recordExecutionError는 no-op이어야 한다
+  - interface default 구현은 no-op이어야 한다 (backward compat)
+  - ExecutionStage enum은 9개 값을 가져야 한다
+```
+
+**EvaluationMetricsCatalogTest — 기존 업데이트 + R245 추가**:
+```
+- ALL 리스트는 9개 메트릭 (8→9 수정)
+- COUNTER 유형은 6개 (5→6 수정)
+- Micrometer 정렬 검증에 EXECUTION_ERROR 추가
+- EXECUTION_ERROR 태그는 stage와 exception이어야 한다 (신규)
+- end-to-end 기록에 recordExecutionError 호출 추가
+```
+
+**DoctorDiagnosticsTest — 기존 카운트 assertion 업데이트**:
+- `"8개"` → `"9개"` + `"error"` 단어 검증 추가
+
+**전체 회귀**:
+- `com.arc.reactor.agent.metrics.*` 전부 PASS
+- `com.arc.reactor.diagnostics.*` 전부 PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ 메트릭은 관측 레이어 — MCP 호출 경로와 무관
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### Evaluation 메트릭 축 진화
+
+| 라운드 | 변경 내용 | ALL 크기 | Counter |
+|--------|----------|----------|---------|
+| R222 | 6개 기본 메트릭 | 6 | 4 |
+| R224 | R223 시너지 → TOOL_RESPONSE_KIND | 7 | 5 |
+| R234 | 타입화 카탈로그 + 관측 가이드 | 7 | 5 |
+| R242 | R241 시너지 → TOOL_RESPONSE_COMPRESSION | 8 | 5 |
+| **R245** | **런타임 예외 → EXECUTION_ERROR** | **9** | **6** |
+
+R245는 **9번째 메트릭 + 런타임 예외 추적 완성**이다. 이제 R222 축이 "집계(task.completed) + 정책(safety.rejection) + **런타임(execution.error)**" 3가지 관점을 모두 커버한다.
+
+#### 메트릭 3축 관점 완성
+
+```
+┌────────────────────────────────────────────────────────┐
+│ R222 Evaluation 메트릭 축 — 3가지 관점                   │
+├────────────────────────────────────────────────────────┤
+│  집계 관점 (R222)                                       │
+│    task.completed{result, error_code}                  │
+│    task.duration, tool.calls, token.cost.usd           │
+│    human.override                                      │
+│                                                         │
+│  정책 관점 (R222)                                       │
+│    safety.rejection{stage, reason}                     │
+│                                                         │
+│  시너지 관점 (R224, R242)                               │
+│    tool.response.kind{kind, tool}                      │
+│    tool.response.compression{tool}                     │
+│                                                         │
+│  런타임 관점 (R245) ← 신규                              │
+│    execution.error{stage, exception}                   │
+└────────────────────────────────────────────────────────┘
+```
+
+#### 연속 지표
+
+| 지표 | R244 | R245 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 75 | **76** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R244 | **4/5 + R224~R245** | - |
+| Evaluation 메트릭 개수 | 8 | **9** | 증가 |
+| 메트릭 관점 | 3 (집계/정책/시너지) | **4** (+ 런타임) | 확장 |
+
+#### 다음 Round 후보
+
+- **R246+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 + Content Negotiation
+  3. **EvaluationMetricsHook 자동 예외 기록** — Hook에서 catch하는 예외를 recordExecutionError로 자동 변환
+  4. **R245 통합 — 기존 코드에 recordExecutionError 삽입** — ArcToolCallbackAdapter, ChatClient 예외 캐치 지점
+  5. **DoctorController summary endpoint Content Negotiation**
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R245 요약
+
+🚨 **execution.error 메트릭 추가 완료** — R222 Evaluation 축에 **9번째 메트릭** 추가, **런타임 예외 관점** 완성. 기존 메트릭은 task 집계(`task.completed{result, error_code}`), 정책 차단(`safety.rejection{stage, reason}`), 시너지(`tool.response.kind/compression`)를 커버했지만 **실제 throwable 예외를 stage별로 분류하는** 메트릭이 없었다. R245는 `recordExecutionError(stage: ExecutionStage, exceptionClass: String)` 인터페이스 메서드 추가 + `ExecutionStage` enum 9개 (TOOL_CALL / LLM_CALL / GUARD / HOOK / OUTPUT_GUARD / PARSING / MEMORY / CACHE / OTHER) + Micrometer `Counter{stage, exception}` 구현. `EvaluationMetricsCatalog.EXECUTION_ERROR` 등록으로 ALL.size 8→9, COUNTER 유형 5→6. `TAG_EXCEPTION = "exception"` 신규 태그 상수. default no-op으로 backward compat 유지 — `NoOpEvaluationMetricsCollector`와 커스텀 구현체는 변경 없이 동작. `SafetyRejectionStage`와의 차별점: safety는 의도된 거부(policy), execution은 의도되지 않은 예외(runtime). 두 enum이 `GUARD`, `HOOK`, `OUTPUT_GUARD`를 공유하여 같은 계층의 정책 동작과 런타임 실패를 분리 추적 가능. `DoctorDiagnostics` 카탈로그 detail에 `error` 단어 추가 (drift 방지). `docs/evaluation-metrics.md`에 9번째 메트릭 행 + Prometheus 4개 쿼리 (stage별 rate / exception top 5 / 특정 조합 모니터링 / Alertmanager 규칙) + 참조 섹션 업데이트. 기존 파일 4개 수정 (Collector +87 / Micrometer +17 / Catalog +14 / Doctor 1), 문서 1개 수정 (+36), 테스트 3개 수정/확장 (Collector +112 / Catalog +22 / Doctor +6). 신규 테스트 **6 PASS** (ExecutionError 6) + 기존 assertion 8개 업데이트. 전체 Metrics + Diagnostics 패키지 PASS. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R245**. swagger-mcp 8181 **76 라운드 연속**. R222 축이 이제 **"집계(task) + 정책(safety) + 시너지(ACI) + 런타임(execution)"** 4가지 관점을 모두 커버 — 운영자는 특정 도구의 타임아웃 급증, LLM API 장애, 파싱 실패 빈도 등을 각 stage + exception 조합으로 정확히 탐지할 수 있다. `tool_call + SocketTimeoutException` 급증 → MCP 서버 네트워크, `llm_call + HttpClientErrorException` → Gemini/Anthropic API, `parsing + JsonParseException` → JSON 계획 휴리스틱 문제 등 운영 시나리오별 직접 진단 가능. 다음 단계로 `EvaluationMetricsHook` 또는 기존 코드의 예외 catch 지점에서 `recordExecutionError` 자동 호출을 삽입하면 사용자 코드 수정 없이 이 메트릭이 활성화된다.

@@ -131,6 +131,18 @@ class MicrometerEvaluationMetricsCollector(
         }
     }
 
+    override fun recordExecutionError(stage: ExecutionStage, exceptionClass: String) {
+        runCatching {
+            Counter.builder(METRIC_EXECUTION_ERROR)
+                .tag(TAG_STAGE, stage.name.lowercase())
+                .tag(TAG_EXCEPTION, exceptionClass.ifBlank { UNKNOWN_TAG })
+                .register(registry)
+                .increment()
+        }.onFailure { e ->
+            logger.warn(e) { "recordExecutionError 실패: stage=$stage, exception=$exceptionClass" }
+        }
+    }
+
     companion object {
         const val METRIC_TASK_COMPLETED = "arc.reactor.eval.task.completed"
         const val METRIC_TASK_DURATION = "arc.reactor.eval.task.duration"
@@ -145,6 +157,9 @@ class MicrometerEvaluationMetricsCollector(
         /** R242: 도구 응답 요약 압축률 분포 (R222+R241 시너지). */
         const val METRIC_TOOL_RESPONSE_COMPRESSION = "arc.reactor.eval.tool.response.compression"
 
+        /** R245: 실행 경로 예외 분포 (stage + exception class). */
+        const val METRIC_EXECUTION_ERROR = "arc.reactor.eval.execution.error"
+
         const val TAG_RESULT = "result"
         const val TAG_ERROR_CODE = "error_code"
         const val TAG_MODEL = "model"
@@ -155,6 +170,9 @@ class MicrometerEvaluationMetricsCollector(
 
         /** R224: 도구 응답 요약 분류 태그. */
         const val TAG_KIND = "kind"
+
+        /** R245: 예외 클래스 이름 태그. */
+        const val TAG_EXCEPTION = "exception"
 
         const val RESULT_SUCCESS = "success"
         const val RESULT_FAILURE = "failure"

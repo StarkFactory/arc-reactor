@@ -22,7 +22,7 @@ package com.arc.reactor.agent.metrics
  * 사용자가 이 카탈로그를 실제 대시보드/알림으로 활용하는 방법은 `docs/evaluation-metrics.md`
  * 를 참조한다. 각 메트릭의 Prometheus 쿼리 예시와 Grafana 패널 정의가 포함되어 있다.
  *
- * ## R222+R224+R242 8개 메트릭
+ * ## R222+R224+R242+R245 9개 메트릭
  *
  * | Enum | Name | 유형 | 태그 |
  * |------|------|------|------|
@@ -34,6 +34,7 @@ package com.arc.reactor.agent.metrics
  * | [SAFETY_REJECTION] | `arc.reactor.eval.safety.rejection` | COUNTER | stage, reason |
  * | [TOOL_RESPONSE_KIND] | `arc.reactor.eval.tool.response.kind` | COUNTER | kind, tool |
  * | [TOOL_RESPONSE_COMPRESSION] | `arc.reactor.eval.tool.response.compression` | DISTRIBUTION_SUMMARY | tool |
+ * | [EXECUTION_ERROR] | `arc.reactor.eval.execution.error` | COUNTER | stage, exception |
  *
  * @see MicrometerEvaluationMetricsCollector 실제 Micrometer 구현체
  * @see EvaluationMetricsCollector 수집기 인터페이스
@@ -160,6 +161,20 @@ object EvaluationMetricsCatalog {
         unit = "percent"
     )
 
+    /** R245: 실행 경로 예외 분포 — stage + exception class별 카운터. */
+    val EXECUTION_ERROR: Metric = Metric(
+        name = MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR,
+        type = MetricType.COUNTER,
+        tags = listOf(
+            MicrometerEvaluationMetricsCollector.TAG_STAGE,
+            MicrometerEvaluationMetricsCollector.TAG_EXCEPTION
+        ),
+        description = "R245 런타임 예외 분포. task.completed의 집계 관점, " +
+            "safety.rejection의 정책 관점과 달리 실제 throwable 예외를 stage별로 분류하여 " +
+            "운영 문제를 빠르게 탐지한다. stage=tool_call|llm_call|guard|hook|output_guard|" +
+            "parsing|memory|cache|other, exception=예외 클래스 simple name."
+    )
+
     /**
      * 전체 메트릭 리스트 — 카탈로그의 single source of truth.
      * 새 메트릭 추가 시 여기에도 추가해야 한다.
@@ -172,7 +187,8 @@ object EvaluationMetricsCatalog {
         HUMAN_OVERRIDE,
         SAFETY_REJECTION,
         TOOL_RESPONSE_KIND,
-        TOOL_RESPONSE_COMPRESSION
+        TOOL_RESPONSE_COMPRESSION,
+        EXECUTION_ERROR
     )
 
     /**
