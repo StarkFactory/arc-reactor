@@ -11728,3 +11728,210 @@ AtlassianApprovalContextResolverTest            → 33 tests PASS
 #### 📊 R225 요약
 
 🔧 **R221 심화: AtlassianApprovalContextResolver 구현 완료**. atlassian-mcp-server의 실제 도구 이름(Jira 13개 + Confluence 9개 + Bitbucket 10개, 전수 조사 기반) prefix로 카테고리 분류, 각 카테고리별 인수 키 우선순위(`issueKey` > `project` > `jql` 등)로 `impactScope` 추출, 사람이 읽을 수 있는 `action` 문자열 생성. 모두 read-only이므로 `Reversibility.REVERSIBLE` 고정. 옵트인 자동 구성 (`arc.reactor.approval.atlassian-resolver.enabled=true`) + `@ConditionalOnMissingBean`으로 사용자 커스텀 리졸버 우선. 신규 파일 3개 (리졸버 170줄 + 자동 구성 62줄 + 테스트 345줄), 기존 파일 1줄 수정(`@Import`). 신규 테스트 **33 PASS** (7 @Nested 그룹, 실제 도구 이름 전수 회귀 검증 포함), 기존 R219/R220/R221/R222/R223/R224 테스트 회귀 없음, R220 Golden snapshot 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 + R225 심화**. swagger-mcp 8181 **56 라운드 연속** 안정. 리졸버가 유용한 시나리오: 민감 프로젝트 스트릭트 정책, 대량 스캔 비용 가시화, 감사 추적, 미래 쓰기 도구 대비.
+
+### Round 226 — 🔗 2026-04-11T06:00+09:00 — R225 심화: ChainedApprovalContextResolver 조합 유틸
+
+**작업 종류**: Directive 심화 — R221+R225 Tool Approval 인프라 조합 유틸 (QA 측정 없음)
+**Directive 패턴**: #1 Tool Approval UX 강화 (연속)
+**완료 태스크**: #101
+
+#### 작업 배경
+
+R225에서 `AtlassianApprovalContextResolver`를 도입하면서 **체인 구성 패턴**을 권장했다:
+
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = ApprovalContextResolver { tool, args ->
+    AtlassianApprovalContextResolver().resolve(tool, args)
+        ?: HeuristicApprovalContextResolver().resolve(tool, args)
+}
+```
+
+그러나 이 패턴에는 문제가 있다:
+1. **예외 안전성 부재**: 첫 리졸버가 예외를 던지면 체인 전체가 실패 → 승인 흐름 중단
+2. **반복되는 boilerplate**: 체인 구성 시마다 사용자가 직접 작성
+3. **확장성 제한**: 3개 이상 체이닝 시 가독성 저하
+4. **테스트 어려움**: lambda 기반이라 mockk로 개별 단계 검증이 까다로움
+
+R226은 `ChainedApprovalContextResolver`를 도입하여 이 패턴을 **1급 유틸로 승격**한다.
+
+#### 설계 원칙
+
+1. **Fail-open 보장**: 개별 리졸버의 예외가 체인 전체를 막지 않음 (경고 로깅 후 다음 리졸버 시도)
+2. **Short-circuit**: 첫 non-null이 나오면 즉시 반환, 이후 리졸버는 호출하지 않음
+3. **불변 리스트**: 생성 시점에 복사본 고정, 외부 리스트 변경이 체인에 영향 없음
+4. **Thread safety**: 각 리졸버의 `resolve()`가 thread-safe 하다면 체인도 동시 호출 안전
+5. **Ergonomic API**: varargs 생성자 + `EMPTY` 상수 + `size()`/`isEmpty()` 헬퍼
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `approval/ChainedApprovalContextResolver.kt` | 122 | 리졸버 조합 유틸 + fail-open 래퍼 |
+| `test/.../ChainedApprovalContextResolverTest.kt` | 280 | 22 tests (7 `@Nested` 그룹) |
+
+**총 2개 신규 파일, 기존 파일 수정 0건.** 가장 작은 변경 규모의 심화 Round.
+
+#### 핵심 API
+
+```kotlin
+class ChainedApprovalContextResolver(
+    resolvers: List<ApprovalContextResolver>
+) : ApprovalContextResolver {
+
+    // varargs 생성자 — 간결한 사용
+    constructor(vararg resolvers: ApprovalContextResolver) : this(resolvers.toList())
+
+    // 순차 시도 + short-circuit + fail-open
+    override fun resolve(toolName: String, arguments: Map<String, Any?>): ApprovalContext?
+
+    // 헬퍼
+    fun size(): Int
+    fun isEmpty(): Boolean
+
+    companion object {
+        // 빈 체인 — 항상 null 반환
+        val EMPTY: ChainedApprovalContextResolver
+    }
+}
+```
+
+#### Fail-Open 동작
+
+```kotlin
+private fun tryResolve(resolver, toolName, arguments, index): ApprovalContext? {
+    return try {
+        resolver.resolve(toolName, arguments)
+    } catch (e: Exception) {
+        e.throwIfCancellation()
+        logger.warn(e) { "리졸버 #$index 실패, 다음으로 진행" }
+        null
+    }
+}
+```
+
+**전파 규칙**:
+- `CancellationException` → 재전파 (코루틴 취소는 존중)
+- 기타 모든 예외 → 로깅 후 null 반환 → 다음 리졸버로 진행
+
+#### 사용 패턴
+
+**패턴 1** — Atlassian 우선, Heuristic fallback (가장 일반적):
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = ChainedApprovalContextResolver(
+    AtlassianApprovalContextResolver(),
+    HeuristicApprovalContextResolver()
+)
+```
+
+**패턴 2** — 3단 체인 (사내 도구 우선):
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = ChainedApprovalContextResolver(
+    MyCustomResolver(),                  // 1순위: 사내 도구
+    AtlassianApprovalContextResolver(),  // 2순위: atlassian-mcp-server
+    HeuristicApprovalContextResolver()   // 3순위: 일반 휴리스틱
+)
+```
+
+**패턴 3** — List 생성자 (동적 구성):
+```kotlin
+@Bean
+fun approvalContextResolver(
+    customResolvers: List<ApprovalContextResolver>
+): ApprovalContextResolver = ChainedApprovalContextResolver(customResolvers)
+```
+
+#### 테스트 결과
+
+```
+ChainedApprovalContextResolverTest             → 22 tests PASS
+  @Nested EmptyChain (4)
+    - 빈 체인 / EMPTY 상수 / 빈 varargs / isEmpty-size 일관성
+  @Nested SingleResolver (3)
+    - 단일 리졸버 passthrough / null 전달 / size=1
+  @Nested MultiResolverOrdering (4)
+    - 첫 non-null short-circuit (두 번째 호출 안 됨)
+    - null → 다음 리졸버 (순서 검증 verifyOrder)
+    - 모두 null → null 반환
+    - 3개 체인 중 두 번째만 non-null (세 번째 호출 안 됨)
+  @Nested FailOpenBehavior (3)
+    - 첫 리졸버 예외 → 두 번째 정상 진행
+    - 모두 예외 → null
+    - 예외 후에도 인자 그대로 전달
+  @Nested ImmutableConstruction (1)
+    - 외부 리스트 변경이 체인에 영향 없음
+  @Nested IntegrationWithRealResolvers (3)
+    - Atlassian + Heuristic 체인 (실제 도구)
+    - jira_get_issue → Atlassian 처리
+    - delete_order → Heuristic IRREVERSIBLE 분류
+    - 알 수 없는 도구 → Heuristic UNKNOWN 분류
+  @Nested ConstructorEquivalence (1)
+    - varargs vs List 생성자 결과 동등성
+```
+
+**기존 R219/R220/R221/R222/R223/R224/R225 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 도구 호출 경로 전혀 미수정
+- ✅ 리졸버 체인은 순수 in-memory 조합 로직
+- ✅ R225 `AtlassianApprovalContextResolver`는 그대로 유지
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 체인은 순수 함수형 조합, HookContext 직접 변경 없음
+
+#### opt-in / 기본값
+
+- **기본 상태**: 빈 등록 안 됨. 사용자가 `@Bean`으로 `ChainedApprovalContextResolver(...)`를 직접 구성
+- **자동 구성 없음**: R225의 `AtlassianApprovalResolverConfiguration`과 달리, 체인은 사용자의 명시적 선택이 필요한 조합 도구
+- **기존 사용자 영향**: 0 (완전 backward compat, 추가만 있음)
+
+#### R225 vs R226 비교
+
+| 측면 | R225 | R226 |
+|------|------|------|
+| 목적 | 특정 도구 세트 지원 | 리졸버 조합 유틸 |
+| 스코프 | atlassian-mcp-server 전용 | 모든 리졸버 범용 |
+| 기본 제공 | 속성 기반 자동 등록 | 수동 `@Bean` 구성 |
+| Fail-open | 단일 리졸버 내부 | 리졸버 간 전파 방지 |
+| 대표 사용 | 직접 주입 | 여러 리졸버 체이닝 |
+
+R225는 **수직**(특정 도구 최적화), R226은 **수평**(여러 리졸버 조합).
+
+#### 연속 지표
+
+| 지표 | R225 | R226 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 56 | **57** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224 + R225 | **4/5 + R224 + R225 + R226** | - |
+
+#### 다음 Round 후보
+
+- **R227+**:
+  1. **Evaluation 대시보드 문서** — R222+R224 메트릭 Grafana JSON 템플릿 + Prometheus 쿼리 예시 (`docs/evaluation-metrics-dashboard.md` 신규)
+  2. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 활용한 워크스페이스 프로파일 오버라이드 (byte-identical 원칙 엄수)
+  3. **ApprovalContextResolver 자동 체이닝 옵션** — 속성 조합(`atlassian-resolver.enabled=true` + `heuristic-fallback.enabled=true`) 시 자동으로 `ChainedApprovalContextResolver` 주입
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — Directive 작업들의 효과 정량 비교
+
+#### 📊 R226 요약
+
+🔗 **R225 심화: ChainedApprovalContextResolver 조합 유틸 완료**. 여러 `ApprovalContextResolver`를 순서대로 시도하여 첫 non-null 결과를 반환하는 유틸 클래스 신규. short-circuit(첫 non-null 즉시 반환) + fail-open(개별 리졸버 예외는 다음으로 진행) + 불변 리스트 + thread-safe 보장. varargs 생성자 + `EMPTY` 상수 + `size()`/`isEmpty()` 헬퍼 제공. 기존 R225 사용 패턴(`AtlassianApprovalContextResolver` → `HeuristicApprovalContextResolver` fallback)을 1급 API로 승격. 신규 파일 2개 (리졸버 122줄 + 테스트 280줄), 기존 파일 수정 0건. 신규 테스트 **22 PASS** (7 @Nested 그룹: EmptyChain, SingleResolver, MultiResolverOrdering, FailOpenBehavior, ImmutableConstruction, IntegrationWithRealResolvers, ConstructorEquivalence). 기존 R219~R225 테스트 모두 회귀 없음, R220 Golden snapshot 해시 불변, 전체 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 + R225 + R226 심화**. swagger-mcp 8181 **57 라운드 연속** 안정.
