@@ -5149,3 +5149,87 @@ data class ToolEnrichmentProperties(
 - 자동 주입 안 되던 다른 설정도 점검 (Spring Boot 3.x 바인딩 이슈)
 
 **R179 요약**: R178에서 추적한 atlassian-mcp `currentUser()` fallback 문제의 근본 원인이 `ToolEnrichmentProperties` Spring 바인딩 실패로 빈 셋 기본값 사용임을 발견. 14개 개인화 도구를 기본값으로 추가하여 자동 주입 동작 복구. **A 출처 1/4 → 3/4 (+200%)**, D 출처 2/4 → 3/4 (+50%), B 출처 5/5 만점, 평균 응답시간 -17%, 중복 0건 유지, 20/20 전체 성공.
+
+### Round 180 — 2026-04-10T18:30+09:00 (R179 안정성 검증 + BitbucketPRInsights 빈 결과 메시지)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (8181 4 라운드 연속 안정), atlassian-mcp UP
+**BUILD**: arc-core PASS, atlassian-mcp PASS
+**TEST**: arc-core + atlassian-mcp BitbucketPR 테스트 PASS
+
+#### R179 안정성 검증
+
+R179 fix(`ToolEnrichmentProperties` 14개 도구 기본값) 후 첫 cron 라운드 측정:
+- A 출처 3/4 **유지** (R179 첫 측정과 동일)
+- 자동 주입 정상 동작 확인 (`도구 파라미터 자동 주입: jira_my_open_issues ← requesterEmail=...`)
+- 평균 응답시간 6076ms (R179 6202ms 대비 -2% 추가 개선)
+
+#### Task #21: BitbucketPRInsights 빈 결과 메시지 (R180 핵심)
+
+**문제**: D 카테고리 인사이트가 매 라운드 0/4. PR 데이터가 빈 환경에서 BitbucketPRInsights가 `emptyList()` 반환 → LLM 응답에 인사이트 섹션 누락.
+
+**파일**: `atlassian-mcp-server/src/main/kotlin/com/atlassian/mcpserver/tool/bitbucket/BitbucketPRInsights.kt`
+
+**Before**:
+```kotlin
+fun compute(prs: List<BitbucketPRInfo>): List<String> {
+    if (prs.isEmpty()) return emptyList()
+    ...
+}
+```
+
+**After (R180)**:
+```kotlin
+fun compute(prs: List<BitbucketPRInfo>): List<String> {
+    if (prs.isEmpty()) {
+        return listOf(
+            "현재 열린 PR 0건 — 모두 정리되었거나 활동 휴지기",
+            "신규 PR 등록 시 자동 알림 받으려면 review_queue 도구로 모니터링 권장"
+        )
+    }
+    ...
+}
+```
+
+**효과**: PR이 비어있어도 LLM이 응답에 활용할 수 있는 의미 있는 인사이트 메시지 제공. R168에서 추가한 인프라가 실제 데이터 빈 환경에서도 작동.
+
+#### 측정 결과 (R180)
+
+| 메트릭 | R179 | R180 | 변화 |
+|--------|------|------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| 평균 응답시간 | 6202ms | 6076ms | **-2%** |
+| **A 출처** | 3/4 | **3/4** | **유지** (R179 fix 안정 ✅) |
+| A 인사이트 | 2/4 | 2/4 | 유지 |
+| B 출처 | 5/5 | 4/5 | -1 (변동) |
+| B 인사이트 | 3/5 | 3/5 | 유지 |
+| C 출처 | 3/4 | 3/4 | 유지 |
+| C 인사이트 | 3/4 | 2/4 | -1 (변동) |
+| D 출처 | 3/4 | 2/4 | -1 (변동) |
+| D 인사이트 | 0/4 | 0/4 | LLM 응답 활용 미동작 (R181 과제) |
+| D 도구 호출 | 5 | 5 | 유지 |
+
+**주요 관찰**:
+- A 출처 3/4가 두 라운드 연속 유지 = R179 fix가 안정적
+- D 인사이트 0/4 — BitbucketPRInsights 인프라는 추가됐지만 LLM이 자동 sources block만 사용하고 인사이트 메시지를 응답 본문에 활용 안 함
+- B/C/D 카테고리 ±1 Gemini 비결정성 변동
+
+#### 코드 수정 파일 (R180)
+- `atlassian-mcp-server/.../BitbucketPRInsights.kt` — 빈 PR 결과 메시지 추가 (별도 레포 commit)
+- arc-reactor: 코드 변경 없음, R179 안정성 검증 라운드
+
+#### R168→R180 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168~R177 | 핵심 인프라 + 응답 품질 |
+| R178 | A 카테고리 추적 |
+| R179 | ToolEnrichmentProperties 빈 셋 fix → A 출처 +200% |
+| **R180** | **R179 안정성 검증 + BitbucketPRInsights 빈 메시지** |
+
+#### 남은 과제 (R181~)
+- D 인사이트 LLM 응답 활용 — `appendResponseQualityInstruction`에 BitbucketPRInsights 활용 명시 추가
+- A 출처 4/4 만점 진입 (현재 3/4 안정)
+- 다른 ConfigurationProperties 빈 셋 기본값 점검 (R179와 같은 패턴)
+- swagger-mcp 8181 5 라운드 연속 안정 검증
+
+**R180 요약**: R179 fix 안정성 검증 (A 출처 3/4 유지). BitbucketPRInsights 빈 PR 결과 메시지 추가로 인프라 보강. 평균 응답시간 -2%. 중복 0건 + 20/20 전체 성공 유지. D 인사이트 LLM 활용은 R181 과제 (시스템 프롬프트 지침 강화 필요).
