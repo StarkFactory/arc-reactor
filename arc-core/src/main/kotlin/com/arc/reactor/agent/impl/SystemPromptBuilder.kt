@@ -206,9 +206,29 @@ internal class SystemPromptBuilder(
             appendBitbucketToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendSwaggerToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendSourcesInstruction(responseFormat, userPrompt)
+            // R203: 예약 문구 금지 재강조 — LLM이 가장 최근에 본 지시에 더 무게를 두는 경향을
+            // 이용해 프롬프트 맨 끝에 final reminder를 삽입한다. R202 preventive hint는
+            // 프롬프트 앞쪽에 있어 Gemini가 약 30% 놓침.
+            appendPreventReservedPhrasesFinalReminder()
         } else {
             appendGeneralGroundingRule()
         }
+    }
+
+    /**
+     * R203: 프롬프트 마지막에 "예약 문구 금지 + tool_calls 즉시 emit" 지시를 한 번 더 반복.
+     * LLM의 recency bias를 이용해 첫 응답에서 "잠시만 기다려 주세요!" 패턴이 출력되는 것을 최대한 막는다.
+     */
+    private fun StringBuilder.appendPreventReservedPhrasesFinalReminder() {
+        append("\n\n[⚠️ 최종 재확인 — 예약 문구 절대 금지]\n")
+        append("이번 응답 생성 시 **첫 문장부터** 반드시 다음을 준수하라:\n")
+        append("1. 도구 호출이 필요한 요청이면 텍스트 없이 바로 `tool_calls`를 emit한다.\n")
+        append("2. '잠시만 기다려 주세요', '찾아볼게요', '찾아드릴게요', '조회하고 있어요', ")
+        append("'정리해 드릴게요', '준비해 드릴게요' 같은 **어떠한 예약 문구도 출력 금지**. ")
+        append("이 문구들은 사용자 경험을 저해하고 실제 응답을 지연시킨다.\n")
+        append("3. 도구 결과를 받은 **후에만** 최종 답변을 작성하라.\n")
+        append("4. 이 지시를 위반한 이전 응답은 재시도되어 비용이 2배로 증가한다. ")
+        append("첫 응답을 올바르게 생성하는 것이 최선이다.\n")
     }
 
     /** 언어 규칙 — 모든 요청에 항상 포함한다. */
