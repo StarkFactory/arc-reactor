@@ -4,10 +4,12 @@ import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.approval.ApprovalContextResolver
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.diagnostics.DoctorDiagnostics
+import com.arc.reactor.diagnostics.StartupDoctorLogger
 import com.arc.reactor.tool.summarize.ToolResponseSummarizer
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 
 /**
@@ -56,5 +58,42 @@ class DoctorDiagnosticsConfiguration {
         toolSummarizerProvider = toolSummarizerProvider,
         evaluationCollectorProvider = evaluationCollectorProvider,
         responseCacheProvider = responseCacheProvider
+    )
+
+    /**
+     * R243: [StartupDoctorLogger] — 기동 시점 자동 진단 로그.
+     *
+     * opt-in 기본값. `arc.reactor.diagnostics.startup-log.enabled=true` 로만 활성화된다.
+     * 기본 off인 이유는 (1) 사용자에게 예상치 못한 로그 출력을 강요하지 않기 위함이고
+     * (2) 이미 `DoctorController` REST 엔드포인트로 on-demand 조회가 가능하기 때문이다.
+     *
+     * ## 프로퍼티
+     *
+     * - `arc.reactor.diagnostics.startup-log.enabled` (기본 `false`) — 활성 여부
+     * - `arc.reactor.diagnostics.startup-log.include-details` (기본 `true`) — check 상세 포함
+     * - `arc.reactor.diagnostics.startup-log.warn-on-issues` (기본 `true`) — 경고/오류 추가 로그
+     */
+    @Bean
+    @ConditionalOnMissingBean(StartupDoctorLogger::class)
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.diagnostics.startup-log",
+        name = ["enabled"],
+        havingValue = "true",
+        matchIfMissing = false
+    )
+    fun startupDoctorLogger(
+        doctor: DoctorDiagnostics,
+        @org.springframework.beans.factory.annotation.Value(
+            "\${arc.reactor.diagnostics.startup-log.include-details:true}"
+        )
+        includeDetails: Boolean,
+        @org.springframework.beans.factory.annotation.Value(
+            "\${arc.reactor.diagnostics.startup-log.warn-on-issues:true}"
+        )
+        warnOnIssues: Boolean
+    ): StartupDoctorLogger = StartupDoctorLogger(
+        doctor = doctor,
+        includeDetails = includeDetails,
+        warnOnIssues = warnOnIssues
     )
 }
