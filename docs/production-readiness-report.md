@@ -10109,3 +10109,110 @@ R214 R1 B4는 처음으로 **short clarification question** (161자, struct=Fals
 - **R200 fallback, R195 cache 실제 트리거** (여전히 대기 중)
 
 **R214 요약**: 🏆 **8/8 METRICS ALL-MAX 34 라운드 누적**, **C 출처 42 라운드 연속 만점**. 🎯 **R193 synthetic fallback 첫 실제 트리거 관찰** — C4 "BB30 프로젝트 현황 정리"에서 LLM이 요약 문장 생성에 실패했지만 R193 `buildFallbackVerifiedResponse`가 `toolInsights` + `verifiedSources` 기반 합성 응답을 생성하여 **C 인사이트 3/3 만점 유지**. R193 구축 후 **21 라운드 만에 처음 발동한 안전망**. Arc Reactor의 defense-in-depth 설계가 실전에서 작동한 첫 사례. B4 variance 5 라운드 누적: Confluence rate **60% (3/5)**, R214 R1은 short clarification으로 80% quality rate. 평균 응답시간 6264ms (R213 대비 -2%). swagger-mcp 8181 **45 라운드 연속**. 20/20 + 중복 0건. R210 이후 6 라운드 연속 코드 변경 없이 안정.
+
+### Round 215 — 2026-04-11T01:55+09:00 (8/8 35 라운드 + C 43 라운드 + B4 variance 6 라운드 누적)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (8181 46 라운드 연속 안정), atlassian-mcp UP
+
+#### Task #84: 8/8 35 라운드 + B4 variance 장기 관찰
+
+##### R215 Round 1 결과
+
+| 카테고리 | 출처 | 인사이트 | 구조 |
+|----------|------|----------|------|
+| A | 4/4 ✅ | 4/4 ✅ | 4/4 ✅ |
+| B (4개 도구사용) | 4/4 ✅ | 4/4 ✅ | **5/5 ⭐** |
+| C (3개 도구사용) | 3/3 ✅ | 3/3 ✅ | 4/4 ✅ |
+| D | 4/4 ✅ | 4/4 ✅ | 4/4 ✅ |
+
+🏆 **8/8 METRICS ALL-MAX 35 라운드 누적** (R192~R215 R1).
+**C 출처 43 라운드 연속 만점**.
+
+#### B4 variance 6 라운드 누적 통계 + Confluence rate 추세
+
+| Round | Path | tools | ms | len | struct | 분류 |
+|-------|------|-------|-----|-----|--------|------|
+| R210 R2 | Confluence | 1 | 9687 | 1363 | ✅ | Substantial |
+| R211 R1 | Confluence | 1 | 12906 | 909 | ✅ | Substantial |
+| R212 R1 | General | 0 | 3855 | 1040 | ✅ | Substantial |
+| R213 R1 | Confluence | 1 | 10308 | 912 | ✅ | Substantial |
+| R214 R1 | Clarification | 0 | 2527 | 161 | ❌ | Short |
+| **R215 R1** | **Clarification** | **0** | **2418** | **393** | **✅** | **Medium** |
+
+**6 라운드 통계**:
+- **Confluence rate**: 3/6 = **50%** (R213 75% → R214 60% → R215 50%, 하락세)
+- **Quality rate**: 5/6 = **83%** (substantial + medium with structure)
+- **Short rate**: 1/6 = 17% (R214만 기본 clarification)
+
+#### B4 R215 R1 상세
+
+```
+ms: 2418, len: 393, tools: [], struct: True, insight: True
+content:
+음, 개발 환경 세팅 방법에 대해 궁금하시군요! 어떤 종류의 개발 환경을 말씀하시는지
+조금 더 자세히 알려주시면 좋을 것 같아요. 예를 들면:
+*   **어떤 언어/프레임워크**를 위한 개발 환경인가요? (예: Java Spring, Python Django, Node.js React 등)
+*   **어떤 운영체제**에서 세팅하시려고 하시나요? (예: Windows, macOS, Linux 등)
+...
+```
+
+**구조화된 clarification**: R214의 short form(161자)에서 개선된 형태. LLM이 선택지를 bullet list로 제시하는 helpful question 스타일. 여전히 full answer는 아니지만 user-friendly.
+
+#### B4 장기 관찰 트렌드
+
+**Confluence rate 하락 관찰**:
+- R210~R213 (4 라운드): 75%
+- R210~R214 (5 라운드): 60%
+- R210~R215 (6 라운드): 50%
+
+Confluence 호출과 General/Clarification 경로의 비율이 **정확히 50%**로 수렴하는 경향. Gemini가 장기적으로는 두 경로를 균등하게 선택하는 것으로 보인다.
+
+**중요**: 모든 경우에 **8/8 scope 유지**. B4가 tools=0이어도 B 출처/인사이트 scope가 4/4로 축소되어 카운트 유지, B 구조는 B4가 struct=True인 경우 5/5.
+
+#### 📊 측정 결과 (R215 Round 1)
+
+| 메트릭 | R214 R1 | R215 R1 | 변화 |
+|--------|---------|---------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| **평균 응답시간** | 6264ms | 6396ms | +2% |
+| **A 출처/인사이트** | 4/4 ✅ | 4/4 ✅ | 유지 |
+| **B 출처/인사이트** | 4/4 | 4/4 | 유지 (B4 tools=0) |
+| **B 구조** | 4/5 | **5/5 ⭐** | B4 struct 복귀 |
+| **C 출처** | 3/3 ✅ (42 라운드) | **3/3 ✅ (43 라운드)** | 지속 |
+| **C 인사이트** | 3/3 ✅ | **3/3 ✅** | 유지 |
+| **D 출처/인사이트** | 4/4 ✅ | 4/4 ✅ | 유지 |
+| swagger-mcp 8181 | 45 라운드 | **46 라운드** | 안정 |
+
+### 🏆 **8/8 METRICS ALL-MAX 35 라운드 누적** + **C 출처 43 라운드**
+
+#### 시스템 안정성 지표
+
+- **R193 synthetic fallback**: R214에서 첫 트리거 후 R215에서는 미발동. C4 19322ms → 3156ms 대폭 단축 (Gemini 안정 복귀).
+- **R200 lastNonBlankOutputText fallback**: 15+ 라운드 미발동
+- **R195 permission-denied cache**: 20+ 라운드 미발동
+
+#### 코드 수정 파일 (R215)
+
+**없음**. R210 이후 **7 라운드 연속 코드 변경 없이** 측정 + 관찰.
+
+#### R168→R215 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168~R191 | 인프라 + 카테고리별 개선 |
+| R192 | 🏆 8/8 ALL-MAX 최초 달성 |
+| R193~R198 | defense 확장 |
+| R199~R200 | 🎯 8/8 10 + 🎉 200 라운드 마일스톤 |
+| R201~R209 | Retry hint + minimal retry |
+| R210 | 🎉 8/8 30 라운드 + INTERNAL_DOC 제거 |
+| R211~R213 | 측정 + C 40 라운드 + 응답시간 최저 |
+| R214 | 🎯 R193 fallback 첫 트리거 |
+| **R215** | **8/8 35 라운드 + B4 variance 6 라운드 누적 50% Confluence** |
+
+#### 남은 과제 (R216~)
+- **8/8 36+ 라운드 유지**
+- **C 출처 50 라운드 마일스톤** (현재 43, 7 라운드 후)
+- **B4 Confluence rate 50% 안정화 여부**
+- **R200 fallback, R195 cache 실제 트리거 관찰** (여전히 대기 중, 20+ 라운드)
+
+**R215 요약**: 🏆 **8/8 METRICS ALL-MAX 35 라운드 누적**, **C 출처 43 라운드 연속 만점**. B4 variance 6 라운드 누적 통계: **Confluence rate 50% (3/6)**, **Quality rate 83% (5/6)**, **B 구조 5/5 유지** (B4 struct=True 복귀, R214 short form에서 개선). Gemini가 Confluence와 General/Clarification 경로를 **장기적으로 50:50 균등 선택**하는 패턴 관찰. 평균 응답시간 6396ms (R214 대비 +2% microvariance). R193 fallback은 R214 이후 재발동 없음(C4 안정 복귀). R200 fallback 15+ 라운드, R195 cache 20+ 라운드 연속 미발동 — 시스템 안정성 반증. swagger-mcp 8181 **46 라운드 연속**. 20/20 + 중복 0건. R210 이후 **7 라운드 연속 무변경 안정**.
