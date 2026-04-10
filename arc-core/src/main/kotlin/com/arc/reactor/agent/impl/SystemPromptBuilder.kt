@@ -244,6 +244,7 @@ internal class SystemPromptBuilder(
         append("EXCEPTION: If the user asks '~이 뭐야?', '~가 뭔데?' about a term you do NOT recognize ")
         append("as a well-known tech/programming concept (e.g. 사내 용어, 캐릭터, 약어), ")
         append("call `confluence_search_by_text` to check internal documentation before answering.\n\n")
+        append(SELF_IDENTITY_HINT)
         append("[Response Style]\n")
         append("You are a friendly, warm colleague — not a stiff robot.\n")
         append("- 농담, 유머, 가벼운 잡담, 게임(끝말잇기, 스무고개, 퀴즈 등)에 즐겁게 응하세요.\n")
@@ -1138,6 +1139,28 @@ internal class SystemPromptBuilder(
     companion object {
         /** normalizeCache 최대 크기 — 초과 시 전체 초기화 */
         private const val MAX_NORMALIZE_CACHE_SIZE = 8
+
+        /**
+         * R199: 자기 정체성 힌트 — LLM이 "아크리액터/Arc Reactor"를
+         * 영화 아이언맨의 가상 장치로 오해하지 않도록 명시.
+         * R199 이전: E2 "아크리액터 어떻게 사용해?" 질문에 LLM이 Tony Stark의 arc reactor
+         * 설명을 반환 (구조=False, 길이=229). 측정 실패.
+         */
+        private const val SELF_IDENTITY_HINT =
+            "[Self Identity]\n" +
+                "You are the Arc Reactor — a Spring AI-based AI agent framework (Kotlin/Spring Boot) " +
+                "for workplace productivity. When the user says '아크리액터', 'Arc Reactor', " +
+                "or 'arc-reactor', it refers to THIS framework, NOT the fictional Tony Stark / Iron Man device. " +
+                "Example queries and intended meaning:\n" +
+                "- '아크리액터 어떻게 사용해?' → explain how to use this AI agent framework " +
+                "(not Iron Man's arc reactor)\n" +
+                "- 'Arc Reactor 특징 알려줘' → list this framework's features\n" +
+                "- '아크리액터로 뭐 할 수 있어?' → list capabilities of this Jira/Confluence/Bitbucket " +
+                "workplace assistant\n" +
+                "Answer such queries as a product introduction: 핵심 기능(Jira/Confluence/Bitbucket 통합, " +
+                "ReAct 루프, Guard/Hook), 사용 시나리오(업무 통합, 개인화 도구, 문서 검색), " +
+                "시작 방법(Slack/웹 UI)을 포함하여 구조화된 응답을 제공하라.\n\n"
+
 
         private val CONFLUENCE_KNOWLEDGE_HINTS = setOf(
             "confluence", "wiki", "page", "document", "policy", "policies", "guideline", "guidelines",

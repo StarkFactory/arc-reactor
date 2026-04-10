@@ -836,4 +836,42 @@ class SystemPromptBuilderTest {
             "General weather query should not trigger INTERNAL_DOC forcing"
         }
     }
+
+    // ── R199: 자기 정체성 힌트 (아크리액터 → Iron Man 혼동 방지) ──
+
+    @Test
+    fun `R199 general query should include self identity hint`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "아크리액터 어떻게 사용해?"
+        )
+
+        // "아크리액터"는 워크스페이스 키워드가 아니므로 general grounding 경로를 탄다
+        assertTrue(prompt.contains("[Self Identity]")) {
+            "General queries should include [Self Identity] section"
+        }
+        assertTrue(prompt.contains("Spring AI-based AI agent framework")) {
+            "Self identity should clarify Arc Reactor is this framework"
+        }
+        assertTrue(prompt.contains("NOT the fictional Tony Stark")) {
+            "Self identity should explicitly reject Iron Man interpretation"
+        }
+    }
+
+    @Test
+    fun `R199 workspace query should NOT inject self identity hint`() {
+        val prompt = builder.build(
+            basePrompt = "You are helpful.",
+            ragContext = null,
+            responseFormat = ResponseFormat.TEXT,
+            userPrompt = "내 Jira 이슈 보여줘"
+        )
+
+        // workspace grounding 경로는 self identity 주입 대상 아님
+        assertFalse(prompt.contains("[Self Identity]")) {
+            "Workspace grounding should not include [Self Identity] section"
+        }
+    }
 }
