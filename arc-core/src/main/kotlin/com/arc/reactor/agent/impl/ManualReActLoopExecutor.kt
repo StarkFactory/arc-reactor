@@ -9,6 +9,7 @@ import com.arc.reactor.agent.model.MediaConverter
 import com.arc.reactor.agent.model.ResponseFormat
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
 import kotlin.coroutines.cancellation.CancellationException
@@ -100,9 +101,30 @@ internal class ManualReActLoopExecutor(
         val messages = buildInitialMessages(conversationHistory, command)
         while (true) {
             trimMessages(messages, systemPrompt, state.activeTools)
-            val response = callLlmAndAccumulate(
-                activeChatClient, systemPrompt, messages, state, hookContext
-            )
+            val response = try {
+                callLlmAndAccumulate(
+                    activeChatClient, systemPrompt, messages, state, hookContext
+                )
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                // R200: LLM 호출 실패 시 fallback 복구
+                // 재시도 중(textRetryCount > 0) AND 이전에 저장한 non-blank text가 있으면
+                // 그 텍스트로 최종 응답을 합성하여 null timeout을 방지한다.
+                val fallbackText = state.lastNonBlankOutputText
+                if (state.textRetryCount > 0 && !fallbackText.isNullOrBlank()) {
+                    logger.warn(e) {
+                        "LLM 재시도 실패 — 이전 응답 텍스트로 fallback " +
+                            "(textRetryCount=${state.textRetryCount}, fallbackLen=${fallbackText.length})"
+                    }
+                    return buildFallbackResultFromText(fallbackText, command, state, toolsUsed)
+                }
+                throw e
+            }
+            // R200: 이후 retry 실패 시 fallback으로 쓸 수 있도록 저장
+            val currentText = response?.results?.firstOrNull()?.output?.text.orEmpty()
+            if (currentText.isNotBlank()) {
+                state.lastNonBlankOutputText = currentText
+            }
             handleBudgetCheck(response, budgetTracker, state, hookContext, toolsUsed)
                 ?.let { return it }
             when (val action = resolveToolCallAction(
@@ -116,6 +138,20 @@ internal class ManualReActLoopExecutor(
                 )
             }
         }
+    }
+
+    /** R200: LLM 재시도 실패 시 이전 non-blank 텍스트로 AgentResult를 합성한다. */
+    private suspend fun buildFallbackResultFromText(
+        fallbackText: String,
+        command: AgentCommand,
+        state: ReActLoopState,
+        toolsUsed: List<String>
+    ): AgentResult {
+        val result = validateAndRepairResponse(
+            fallbackText, command.responseFormat,
+            command, state.totalTokenUsage, ArrayList(toolsUsed)
+        )
+        return result
     }
 
     // ── private 메서드: 루프 초기화 ──
@@ -564,6 +600,12 @@ internal class ManualReActLoopExecutor(
         val succeededToolSignatures = mutableSetOf<String>()
         /** 성공한 도구 서명 → 결과 본문 매핑 — 사전 차단 시 캐시된 결과 재사용용 */
         val succeededToolResults = mutableMapOf<String, String>()
+        /**
+         * R200: LLM 재시도 중 실패 시 fallback으로 사용할 마지막 non-blank 응답 텍스트.
+         * "미실행 도구 의도 감지" retry가 Gemini API 오류로 실패할 때 null 응답 대신
+         * 이 텍스트를 최종 응답으로 복구한다. C4 "BB30 프로젝트 현황 정리" 30s timeout 방지.
+         */
+        var lastNonBlankOutputText: String? = null
     }
 
     // ── private 메서드: 토큰 예산 추적 ──
