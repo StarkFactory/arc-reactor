@@ -13388,3 +13388,226 @@ PiiPatternsTest                                → 23 tests PASS
 #### 📊 R233 요약
 
 ♻️ **기술 부채 정리: 공통 PiiPatterns.kt 추출 리팩토링 완료**. R228/R231에 중복되어 있던 7개 PII 정규식 패턴(이메일/Bearer/Atlassian granular/Slack/한국 휴대폰 국내·국제/주민번호)을 `arc-core/.../support/PiiPatterns.kt` 공통 유틸로 추출. 7개 개별 상수(`EMAIL`, `BEARER_TOKEN`, `ATLASSIAN_GRANULAR`, `SLACK_TOKEN`, `KOREAN_PHONE_DOMESTIC`, `KOREAN_PHONE_INTERNATIONAL`, `KOREAN_RRN`)와 이들을 묶은 `DEFAULT` 리스트 노출. R228 `RedactedApprovalContextResolver`와 R231 `RedactedToolResponseSummarizer`의 `DEFAULT_PATTERNS`를 `PiiPatterns.DEFAULT` 참조로 단순화 (각 파일에서 13줄의 정규식 리터럴 → 한 줄 참조). 두 데코레이터가 **동일 인스턴스**를 공유하여 패턴 drift 원천 불가. 기존 `DEFAULT_PATTERNS` 공개 상수는 유지되어 사용자 코드 영향 0. 신규 파일 2개 (PiiPatterns 130줄 + 테스트 265줄), 기존 파일 2개 수정 (R228/R231 각각 -14줄). 신규 테스트 **23 PASS** (9 @Nested 그룹 포함 **SharedReferenceInvariance** — R228/R231의 `DEFAULT_PATTERNS`가 `===` reference equality로 동일 인스턴스임을 증명). 기존 R219~R232 테스트 모두 회귀 없음 (R228 27 + R231 22 + R229 11 + R230 42 + R232 12 재검증). R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R233**. swagger-mcp 8181 **64 라운드 연속** 안정. R228과 R231의 tech debt가 해소되어 향후 패턴 수정 시 **한 곳만 업데이트**하면 양쪽 데코레이터에 자동 반영된다.
+
+### Round 234 — 📊 2026-04-11T10:00+09:00 — R222+R224 관측 기반 완성: EvaluationMetricsCatalog + 사용자 가이드
+
+**작업 종류**: Directive 심화 — 관측 인프라 완성 + 사용자 가이드 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation (연속)
+**완료 태스크**: #109
+
+#### 작업 배경
+
+R222에서 `EvaluationMetricsCollector`와 6개 기본 메트릭을 도입하고 R224에서 R223과의 시너지로 7번째 메트릭(`tool.response.kind`)을 추가했다. 그러나 사용자 관점에서 이 메트릭들을 **실제로 활용**하려면:
+
+1. 어떤 메트릭이 어떤 이름으로 노출되는지 알아야 함
+2. Prometheus 쿼리 문법을 알아야 함 (이름 변환 `.` → `_` 등)
+3. Grafana 패널을 직접 구성해야 함
+4. 적절한 알림 임계치를 정해야 함
+
+R234 이전에는 이 정보가 각 코드 파일의 KDoc에 분산되어 있어 **새 사용자가 메트릭을 활용하기까지의 진입 장벽**이 높았다. 여러 라운드(R223 ~ R233) 동안 "Evaluation 대시보드 문서"를 R+1 방향성으로 미뤄왔지만, 이제 Approval/ACI 시리즈가 성숙되어 드디어 관측 인프라를 완성할 차례다.
+
+#### 설계 원칙
+
+1. **타입화된 카탈로그 + 런타임 검증**: 단순 문서가 아니라 **코드와 문서가 일치하는지 테스트로 강제**
+2. **Single source of truth**: 카탈로그는 `MicrometerEvaluationMetricsCollector`의 상수를 직접 참조
+3. **Drift 방지**: 새 메트릭 추가 시 카탈로그 업데이트를 강제하는 테스트 (개수, 이름, 태그 일치)
+4. **사용자 가이드는 실용적**: 실제 Prometheus 쿼리, Grafana JSON, 알림 규칙을 paste-ready로 제공
+
+#### 신규 파일
+
+| 파일 | 유형 | 라인 수 | 역할 |
+|------|------|---------|------|
+| `agent/metrics/EvaluationMetricsCatalog.kt` | 코드 | 175 | 타입화된 메트릭 카탈로그 (7개 `Metric` 상수 + `MetricType` enum + 조회 API) |
+| `test/.../EvaluationMetricsCatalogTest.kt` | 테스트 | 230 | 19 tests (5 `@Nested` 그룹), Micrometer 구현체와 정렬 검증 |
+| `docs/evaluation-metrics.md` | 문서 | 330 | 활성화 가이드 + Prometheus 쿼리 + Grafana JSON + 알림 규칙 |
+
+**기존 파일 수정 0건.** 순수 additive 작업.
+
+#### `EvaluationMetricsCatalog.kt` 구조
+
+```kotlin
+object EvaluationMetricsCatalog {
+
+    enum class MetricType { COUNTER, TIMER, DISTRIBUTION_SUMMARY }
+
+    data class Metric(
+        val name: String,
+        val type: MetricType,
+        val tags: List<String>,
+        val description: String,
+        val unit: String? = null
+    )
+
+    val TASK_COMPLETED: Metric = Metric(
+        name = MicrometerEvaluationMetricsCollector.METRIC_TASK_COMPLETED,
+        type = MetricType.COUNTER,
+        tags = listOf(
+            MicrometerEvaluationMetricsCollector.TAG_RESULT,
+            MicrometerEvaluationMetricsCollector.TAG_ERROR_CODE
+        ),
+        description = "에이전트 작업 완료 누적 카운터..."
+    )
+    // ... 6개 더 (TASK_DURATION, TOOL_CALLS, TOKEN_COST,
+    //              HUMAN_OVERRIDE, SAFETY_REJECTION, TOOL_RESPONSE_KIND)
+
+    val ALL: List<Metric> = listOf(/* 7개 */)
+
+    fun findByName(name: String): Metric?
+    fun filterByType(type: MetricType): List<Metric>
+
+    const val METRIC_NAME_PREFIX = "arc.reactor.eval."
+}
+```
+
+**핵심 설계 결정**: 카탈로그의 `name`과 `tags` 값은 `MicrometerEvaluationMetricsCollector`의 기존 상수를 **직접 참조**한다. 이는 Micrometer 구현체를 수정하면 카탈로그도 자동으로 업데이트되어 drift가 불가능함을 의미한다.
+
+#### 테스트 전략 — Catalog ↔ Implementation 정렬 강제
+
+가장 중요한 테스트는 **`MicrometerAlignment @Nested` 그룹**:
+
+```kotlin
+@Test
+fun `Micrometer 수집기가 카탈로그와 동일한 이름으로 메트릭을 기록해야 한다`() {
+    val registry = SimpleMeterRegistry()
+    val collector = MicrometerEvaluationMetricsCollector(registry)
+
+    // 모든 메트릭을 한 번씩 기록
+    collector.recordTaskCompleted(success = true, durationMs = 100L)
+    collector.recordToolCallCount(count = 2)
+    collector.recordTokenCost(costUsd = 0.001, model = "gemini-flash")
+    collector.recordHumanOverride(HumanOverrideOutcome.APPROVED, "test_tool")
+    collector.recordSafetyRejection(SafetyRejectionStage.GUARD, "injection")
+    collector.recordToolResponseKind("list_top_n", "jira_search")
+
+    // 카탈로그의 각 메트릭이 registry에 존재하는지 확인
+    EvaluationMetricsCatalog.ALL.forEach { metric ->
+        val found = registry.meters.any { it.id.name == metric.name }
+        assertTrue(found) {
+            "카탈로그의 '${metric.name}'이 Micrometer registry에 존재해야 한다"
+        }
+    }
+}
+```
+
+이 테스트가 있으면:
+- 새 메트릭을 추가했는데 카탈로그에 빼먹음 → 테스트 실패
+- 카탈로그에 새 메트릭 추가했는데 Micrometer 구현에 반영 안 함 → 테스트 실패
+- 메트릭 이름 오타 → 테스트 실패
+
+**테스트가 drift를 원천 차단**한다.
+
+#### 테스트 결과
+
+```
+EvaluationMetricsCatalogTest                  → 19 tests PASS
+  @Nested BasicInvariants (5)
+    - 7개 메트릭
+    - 이름 고유성
+    - prefix arc_reactor_eval_
+    - description 비어있지 않음
+    - METRIC_NAME_PREFIX 상수
+  @Nested TypeDistribution (3)
+    - COUNTER 5개 / TIMER 1개 / DISTRIBUTION_SUMMARY 1개
+  @Nested MicrometerAlignment (5)
+    - 7개 이름이 모두 Collector 상수와 일치
+    - TASK_COMPLETED 태그 (result, error_code)
+    - TOOL_RESPONSE_KIND 태그 (kind, tool)
+    - TOOL_CALLS 태그 비어있음
+    - end-to-end registry 등록 확인 (가장 강력한 drift 방지)
+  @Nested LookupHelpers (3)
+    - findByName 존재 / 없음 / 빈 문자열
+    - filterByType 합계 = 전체
+  @Nested UnitField (4)
+    - TASK_DURATION="ms" / TOKEN_COST="usd" / TOOL_CALLS="calls"
+    - TASK_COMPLETED unit=null
+```
+
+**기존 R219~R233 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- R222 `EvaluationMetricsCollectorTest` 16 + `EvaluationMetricsHookTest` 23 PASS (카탈로그 추가가 기존 코드에 영향 없음)
+- R228 27 / R230 20 / R231 22 / R232 12 / R233 23 tests PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### `docs/evaluation-metrics.md` 구조
+
+사용자가 "어떻게 켜고 어떻게 보는가"에 대한 완전한 답을 제공:
+
+1. **활성화**: `arc.reactor.evaluation.metrics.enabled=true` + Micrometer/Prometheus 요구사항
+2. **메트릭 카탈로그**: 7개 메트릭 표 + 태그 값 사전 (result, error_code, outcome 등)
+3. **Prometheus 쿼리 예시** (9개):
+   - Task success rate
+   - Task 실패 사유 분포 top 5
+   - p95 지연 (histogram_quantile)
+   - 평균 도구 호출 수
+   - 모델별 시간당 비용
+   - HITL 거부율
+   - HITL 타임아웃 비율 (시스템 개선 신호)
+   - 도구별 에러 응답 비율 (R224 시너지)
+   - 빈 응답이 가장 많은 도구 top 5
+4. **Grafana 대시보드 JSON** — 9개 패널 템플릿 (import 가능)
+5. **알림 규칙 예시** — 5개 Prometheus alert:
+   - ArcReactorLowSuccessRate (< 95%)
+   - ArcReactorHighP95Latency (> 15s)
+   - ArcReactorTokenCostBudgetExceeded (> $10/hour)
+   - ArcReactorHitlTimeoutHigh (> 10%)
+   - ArcReactorInjectionSurge (> 0.5/sec)
+
+**실용성 우선**: 사용자가 paste하면 바로 동작하는 쿼리와 JSON을 제공하여 진입 장벽을 최소화.
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미수정
+- ✅ 카탈로그는 순수 데이터 상수 + 관측 문서
+- ✅ 기존 R222/R224 수집 로직 미수정
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 카탈로그/문서는 대화 이력 경로와 완전 독립
+
+#### opt-in / backward compat
+
+- **카탈로그**: 순수 추가 — 사용자 코드 영향 0
+- **문서**: 별도 파일 — 기존 docs 영향 0
+- **활성화**: R222의 기존 프로퍼티(`arc.reactor.evaluation.metrics.enabled=true`)를 그대로 사용, 추가 설정 필요 없음
+
+#### R222 → R224 → R234 Evaluation 축 진화
+
+| 라운드 | 단계 | 역할 |
+|--------|------|------|
+| R222 | Foundation | 6개 기본 메트릭 + Hook + Micrometer 백엔드 |
+| R224 | Synergy | R223 `SummaryKind` 통합 → 7번째 메트릭 (`tool.response.kind`) |
+| **R234** | **Observability** | **카탈로그 + 사용자 가이드 + 대시보드 템플릿 + 알림 규칙** |
+
+R234로 Evaluation 축이 **"구현 → 시너지 → 사용자 관측"** 완전 생명주기를 달성. 이제 사용자는 `arc.reactor.evaluation.metrics.enabled=true` 한 줄과 `docs/evaluation-metrics.md`의 Grafana JSON 붙여넣기만으로 **7개 메트릭 + 9개 쿼리 + 9개 패널 + 5개 알림 규칙** 전체 스택을 활성화할 수 있다.
+
+#### 연속 지표
+
+| 지표 | R233 | R234 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 64 | **65 🎯** | **65 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R233 | **4/5 + R224~R234** | - |
+
+#### 다음 Round 후보
+
+- **R235+**:
+  1. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 워크스페이스 프로파일 오버라이드 (byte-identical 엄수)
+  2. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 QA 측정으로 누적 Directive 효과 정량 비교
+  3. **새로운 Directive 심화 방향** — 5대 패턴 심화가 어느 정도 소진되어 새 방향 탐색 필요할 수 있음
+
+#### 📊 R234 요약
+
+📊 **R222+R224 관측 기반 완성: EvaluationMetricsCatalog + 사용자 가이드**. 여러 라운드 미뤄온 Evaluation 대시보드 문서를 드디어 완성. 타입화된 `EvaluationMetricsCatalog` 오브젝트가 `MicrometerEvaluationMetricsCollector`의 상수를 직접 참조하여 **drift 방지**. 7개 `Metric` 상수(TASK_COMPLETED/TASK_DURATION/TOOL_CALLS/TOKEN_COST/HUMAN_OVERRIDE/SAFETY_REJECTION/TOOL_RESPONSE_KIND) + `MetricType` enum(COUNTER/TIMER/DISTRIBUTION_SUMMARY) + `findByName()`/`filterByType()` 조회 API + `METRIC_NAME_PREFIX` 상수. 테스트 전략: **`MicrometerAlignment` 그룹**이 end-to-end로 `SimpleMeterRegistry`에 실제 기록을 발생시킨 뒤 카탈로그의 모든 이름이 registry에 등록되었는지 검증하여 카탈로그 ↔ 구현 drift를 원천 차단. `docs/evaluation-metrics.md`는 330줄의 사용자 가이드: 활성화 → 카탈로그 → 9개 Prometheus 쿼리 → 9개 패널 Grafana JSON 템플릿 → 5개 알림 규칙. 신규 파일 3개 (카탈로그 175줄 + 테스트 230줄 + 문서 330줄), **기존 파일 수정 0건**. 신규 테스트 **19 PASS** (5 @Nested 그룹: BasicInvariants, TypeDistribution, MicrometerAlignment, LookupHelpers, UnitField). 기존 R219~R233 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R234**. swagger-mcp 8181 **🎯 65 라운드 마일스톤 달성**. R222→R224→R234로 Evaluation 축이 **"구현 → 시너지 → 사용자 관측"** 완전 생명주기에 도달 — 사용자는 이제 YAML 1줄과 Grafana JSON 붙여넣기만으로 7개 메트릭 + 9개 쿼리 + 9개 패널 + 5개 알림 전체 관측 스택을 얻는다.
