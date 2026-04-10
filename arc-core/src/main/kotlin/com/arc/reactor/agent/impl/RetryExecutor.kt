@@ -1,6 +1,10 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.RetryProperties
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.resilience.CircuitBreaker
 import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.delay
@@ -19,6 +23,13 @@ private val logger = KotlinLogging.logger {}
  *
  * CancellationException은 항상 재던져 구조적 동시성을 보존한다.
  *
+ * ## R248: Evaluation 메트릭 자동 기록
+ *
+ * [evaluationMetricsCollector]가 주입되면 재시도 소진 후 최종 throw 직전에
+ * [EvaluationMetricsCollector.recordError]를 호출하여 `execution.error{stage="llm_call"}` 또는
+ * 호출자가 지정한 stage로 자동 기록한다. 중간 재시도 성공 시에는 기록하지 않는다 (일시적
+ * 오류는 관측 가치가 낮고 로그로 충분).
+ *
  * @see com.arc.reactor.agent.config.RetryProperties 재시도 설정 (maxAttempts, delay 등)
  * @see com.arc.reactor.resilience.CircuitBreaker 서킷 브레이커 (선택 사항)
  * @see SpringAiAgentExecutor LLM 호출 시 이 executor를 통해 재시도
@@ -28,7 +39,17 @@ internal class RetryExecutor(
     private val circuitBreaker: CircuitBreaker?,
     private val isTransientError: (Exception) -> Boolean,
     private val delayFn: suspend (Long) -> Unit = { delay(it) },
-    private val randomFn: () -> Double = Math::random
+    private val randomFn: () -> Double = Math::random,
+    /**
+     * R248: 최종 실패 시 `execution.error` 메트릭을 기록할 수집기. 기본값 NoOp으로 backward compat.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector,
+    /**
+     * R248: [recordError]가 사용할 stage. 현재 RetryExecutor의 유일한 호출자인
+     * `SpringAiAgentExecutor`는 LLM 호출을 래핑하므로 `LLM_CALL`이 기본값. 다른 경로에서
+     * RetryExecutor를 사용하면 적절한 stage로 override한다.
+     */
+    private val errorStage: ExecutionStage = ExecutionStage.LLM_CALL
 ) {
 
     /**
@@ -56,6 +77,8 @@ internal class RetryExecutor(
 
                     // 비일시적 에러이거나 마지막 시도이면 즉시 던짐
                     if (!isTransientError(e) || attempt == maxAttempts - 1) {
+                        // R248: 최종 실패 기록 (중간 재시도는 기록하지 않음 — 로그로 충분)
+                        evaluationMetricsCollector.recordError(errorStage, e)
                         throw e
                     }
 
@@ -79,6 +102,8 @@ internal class RetryExecutor(
                 @Suppress("UNCHECKED_CAST")
                 checkNotNull(result) { "재시도 완료되었으나 결과가 null" } as T
             } else {
+                // R248: 이 경로는 repeat 블록이 throw 없이 빠져나간 극단 케이스 (이론상 도달 불가)
+                // 이미 위의 catch 블록에서 기록되었으므로 여기서는 throw만.
                 throw lastException ?: IllegalStateException("재시도 횟수 소진")
             }
         }

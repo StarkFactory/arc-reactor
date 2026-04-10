@@ -16860,3 +16860,197 @@ topk(5, sum by (exception) (rate(arc_reactor_eval_execution_error_total[5m])))
 #### 📊 R247 요약
 
 🔌 **ArcToolCallbackAdapter 4곳 자동 배선 완료** — R246이 남긴 마지막 공백(생성 지점 기본값 사용)을 해소. `ArcReactorExecutorConfiguration`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 추가 → `SpringAiAgentExecutor` 생성자로 전달 → Executor가 내부 생성하는 `ToolPreparationPlanner`/`ToolCallOrchestrator`/강제 Workspace Tool adapter 3곳에 전파. 각 계층의 신규 파라미터는 기본값 `NoOpEvaluationMetricsCollector`로 backward compat 유지. `ObjectProvider.getIfAvailable { NoOpEvaluationMetricsCollector }` 패턴으로 빈 미등록 시 fallback. 계층적 전파 구조: Configuration → Executor → Planner/Orchestrator/Workspace → ArcToolCallbackAdapter (4개 생성 지점). 재-resolving 오버헤드 없이 단일 resolve 후 plain 인스턴스로 전파. 기존 파일 4개 수정 (Planner +6 / Orchestrator +8 / Executor +13 / Configuration +7), 테스트 1개 확장 (Planner R247 통합 테스트 2개 +70줄). 신규 테스트 **2 PASS** (Planner 8 total): (1) 주입된 collector가 adapter까지 전파되어 실제로 예외가 기록되는지 end-to-end 검증, (2) 기본 NoOp 경로 backward compat. 기존 `com.arc.reactor.agent.impl.*` + `com.arc.reactor.agent.metrics.*` 전체 회귀 없음. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 — 메트릭 기록은 오직 **예외 catch 블록**에만 삽입되고 정상 경로는 불변. Directive 진행: **4/5 + R224~R247**. swagger-mcp 8181 **78 라운드 연속**. **R245→R246→R247 3단계 완결**: R245 API 정의 → R246 adapter 파라미터 + catch 자동 기록 → R247 생성 지점 4곳 자동 배선. 이제 사용자는 `arc.reactor.evaluation.metrics.enabled=true` 단 한 줄로 도구 호출 예외(MCP 서버 장애, 네트워크 타임아웃, 파싱 실패)가 Prometheus `execution.error{stage="tool_call", exception=...}`에 즉시 노출된다. Alertmanager 규칙(`ToolCallTimeoutSurge`)과 Grafana 도구별 예외 분포 쿼리가 실제로 동작 가능.
+
+### Round 248 — 🔁 2026-04-11T17:00+09:00 — RetryExecutor LLM_CALL 예외 자동 기록
+
+**작업 종류**: Directive 심화 — 2번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R245~R247 확장)
+**완료 태스크**: #123
+
+#### 작업 배경
+
+R245~R247은 `ExecutionStage.TOOL_CALL` 자동 기록을 완성했지만, 나머지 8개 stage는 API만 존재하고 생산 경로에 연결되지 않은 상태였다. 도구 호출 다음으로 예외 빈도가 높은 경로는 **LLM 호출**(`ChatClient.call()`, streaming, retries)이며, Arc Reactor에서 이 경로는 `RetryExecutor`를 거치는 **단일 진입점**을 가진다.
+
+R248은 `RetryExecutor`에 `evaluationMetricsCollector`를 주입하여 LLM 호출 예외를 `execution.error{stage="llm_call", exception=...}` 메트릭으로 자동 기록한다. 중앙 집중 지점이 확실하므로 코드 변경 범위가 작으면서도 운영 관측의 큰 공백을 채운다.
+
+#### 설계 원칙
+
+1. **중간 재시도는 기록하지 않음** — transient 에러로 인한 중간 재시도는 로그로 충분하며, 메트릭에 기록하면 단일 요청이 여러 카운트를 생성해 왜곡
+2. **최종 실패만 기록** — (a) 비일시적 에러 즉시 throw, (b) 재시도 소진 후 throw — 두 지점 모두 기록
+3. **중간 성공 시 기록 없음** — 1회 실패 후 2회째 성공하면 `execution.error` 카운터 증가 없음 (유저가 실제로 경험한 오류만 카운트)
+4. **`errorStage` 파라미터화** — 기본값 `LLM_CALL`이지만 다른 경로에서 RetryExecutor를 쓸 경우 override 가능
+5. **Backward compat** — 기본값 `NoOpEvaluationMetricsCollector`로 기존 테스트 전부 무수정 동작
+
+#### 신규 API
+
+**`RetryExecutor` 생성자 확장**:
+```kotlin
+internal class RetryExecutor(
+    private val retry: RetryProperties,
+    private val circuitBreaker: CircuitBreaker?,
+    private val isTransientError: (Exception) -> Boolean,
+    private val delayFn: suspend (Long) -> Unit = { delay(it) },
+    private val randomFn: () -> Double = Math::random,
+    /** R248: 최종 실패 시 execution.error 메트릭 기록 수집기. 기본 NoOp. */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector,
+    /** R248: recordError가 사용할 stage. RetryExecutor 주 용도인 LLM_CALL 기본. */
+    private val errorStage: ExecutionStage = ExecutionStage.LLM_CALL
+)
+```
+
+**catch 블록 변경**:
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    lastException = e
+
+    if (!isTransientError(e) || attempt == maxAttempts - 1) {
+        // R248: 최종 실패 기록 (중간 재시도는 로그로 충분)
+        evaluationMetricsCollector.recordError(errorStage, e)
+        throw e
+    }
+
+    // ... 재시도 로직 (기록 없음) ...
+}
+```
+
+**`SpringAiAgentExecutor` 전달**:
+```kotlin
+private val retryExecutor = RetryExecutor(
+    retry = properties.retry,
+    circuitBreaker = circuitBreaker,
+    isTransientError = agentErrorPolicy::isTransient,
+    evaluationMetricsCollector = evaluationMetricsCollector  // R247에서 이미 주입받음
+    // errorStage는 기본값 LLM_CALL 사용
+)
+```
+
+#### 기록 경로 매트릭스
+
+| 시나리오 | 기록됨? | 이유 |
+|---------|---------|------|
+| 첫 시도에서 비일시적 에러 throw | ✓ | `!isTransientError` → 즉시 catch 블록에서 기록 + throw |
+| 재시도 소진 (모든 시도 실패) | ✓ | `attempt == maxAttempts - 1` → 마지막 실패 기록 + throw |
+| 중간 재시도 성공 | ✗ | 블록이 `result = block()` → `completed = true` → catch 블록 진입 없음 |
+| CancellationException | ✗ | `throwIfCancellation()`에서 재throw → catch 블록 진입 없음 |
+| Circuit breaker 거부 | ? | retryBlock 밖에서 throw되므로 기록 안 됨 (추후 별도 Round에서 처리 가능) |
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../RetryExecutor.kt` | import 4개 + 생성자 파라미터 2개 + catch 블록 기록 1줄 (+15줄) |
+| `main/.../SpringAiAgentExecutor.kt` | RetryExecutor 생성 시 `evaluationMetricsCollector` 전달 (+3줄 / -1줄) |
+| `test/.../RetryExecutorTest.kt` | import 5개 + R248 테스트 6개 추가 (+140줄) |
+
+#### 테스트 결과
+
+**RetryExecutorTest — R248 신규 6 tests PASS** (총 9 tests):
+```
+- R248 비일시적 에러가 즉시 throw되면 LLM_CALL stage로 기록
+  → isTransientError { false } + IllegalArgumentException
+  → counter{stage=llm_call, exception=IllegalArgumentException}.count() == 1.0
+- R248 재시도 소진 후 최종 throw 시 기록
+  → 3회 시도 후 모두 실패 → 1회만 기록 (각 시도마다 기록하지 않음)
+- R248 중간 재시도 성공 시 기록하지 않음
+  → 1회 실패 → 2회째 성공 → counter == null
+- R248 기본 NoOp collector 정상 동작 (backward compat)
+  → 파라미터 생략 → 예외 없이 반환
+- R248 errorStage override로 다른 stage 사용 가능
+  → ExecutionStage.PARSING 주입 → counter{stage=parsing}
+- R248 NoOp 수집기 명시 주입도 backward compat
+  → NoOpEvaluationMetricsCollector 주입 → 예외 없음
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.agent.impl.*` PASS (R247 adapter 테스트 포함)
+- `RetryExecutorMatrixTest` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ `ChatClient.call()` 호출 경로 불변 (정상 경로는 그대로)
+- ✅ atlassian-mcp-server 응답 경로 미접근
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ 추가된 것은 **catch 블록에서의 메트릭 기록**뿐 — 정상 LLM 호출 성공 경로 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ 메트릭 수집은 캐시 키/값 무관
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | API | 자동 기록 |
+|-------|-----|-----------|
+| `TOOL_CALL` | ✓ R245 | ✓ R246/R247 (adapter 4곳) |
+| **`LLM_CALL`** | ✓ R245 | **✓ R248 (RetryExecutor)** |
+| `GUARD` | ✓ R245 | ⏸️ Guard 체인 catch 지점 필요 |
+| `HOOK` | ✓ R245 | ⏸️ HookExecutor catch 지점 필요 |
+| `OUTPUT_GUARD` | ✓ R245 | ⏸️ OutputGuardPipeline catch 지점 필요 |
+| `PARSING` | ✓ R245 | ⏸️ 수동 기록 (override로 사용 가능) |
+| `MEMORY` | ✓ R245 | ⏸️ MemoryStore catch 지점 필요 |
+| `CACHE` | ✓ R245 | ⏸️ ResponseCache catch 지점 필요 |
+| `OTHER` | ✓ R245 | ⏸️ 분류 불가 예외용 |
+
+R248 이후 2/9 stage가 자동 기록 완성. 나머지 7개 stage는 각각 해당 경로의 catch 블록을 찾아 수동 주입이 필요하다.
+
+#### 운영 시나리오 예시
+
+**시나리오 1: Gemini API 장애 감지**
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="llm_call",exception="HttpClientErrorException"}[5m])
+```
+- R245 이전: 메트릭 없음
+- R248 이후: 재시도 소진 후 throw 시 자동 기록 → 5분 평균 요청률 기준 알림 가능
+
+**시나리오 2: Rate limit 집계**
+```promql
+sum by (exception) (
+  rate(arc_reactor_eval_execution_error_total{stage="llm_call"}[1h])
+)
+```
+- `TooManyRequestsException`, `ResourceExhaustedException` 등 rate limit 관련 예외 분포
+- transient으로 분류되어 재시도되지만 최종 실패는 기록됨
+
+**시나리오 3: tool_call vs llm_call 비교 대시보드**
+```promql
+sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
+```
+- 두 stage가 모두 자동 기록되므로 "도구 vs LLM 어느 쪽이 더 불안정한가?" 직관적 비교 가능
+
+#### 연속 지표
+
+| 지표 | R247 | R248 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 78 | **79** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R247 | **4/5 + R224~R248** | - |
+| 자동 기록 stage 수 | 1/9 (TOOL_CALL) | **2/9 (+LLM_CALL)** | 증가 |
+
+#### 다음 Round 후보
+
+- **R249+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션 (R246~R248 자동 기록 실측)
+  2. **Guard/Hook/OutputGuard 체인 자동 기록** — 나머지 stage 자동 연결
+  3. **ManualReActLoopExecutor 파싱 실패 자동 기록** — `PARSING` stage
+  4. **ApprovalController REST 엔드포인트** — R240 포맷터 + Content Negotiation
+  5. **`ExecutionStage` enum 확장** — `RAG`, `TOOL_SELECTION`, `HTTP` 추가
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R248 요약
+
+🔁 **RetryExecutor LLM_CALL 예외 자동 기록 완료** — R245~R247이 완성한 `TOOL_CALL` 자동 기록 패턴을 2번째 가장 중요한 경로인 LLM 호출에 확장. `RetryExecutor`는 `ChatClient.call()`을 재시도로 감싸는 Arc Reactor의 **LLM 호출 중앙 집중점**이므로 여기 한 곳만 수정해도 모든 LLM 예외가 자동 추적된다. 신규 생성자 파라미터 2개: `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` (R247 패턴과 일치) + `errorStage: ExecutionStage = ExecutionStage.LLM_CALL` (override 가능하여 다른 경로에서 RetryExecutor 재사용 여지). catch 블록의 최종 throw 직전 `evaluationMetricsCollector.recordError(errorStage, e)` 1줄 추가 — 중간 재시도는 기록하지 않고 (a) 비일시적 에러 즉시 throw, (b) 재시도 소진 후 throw 두 지점만 기록. 중간 재시도 성공 시 카운터 증가 없음 (사용자가 실제 경험한 오류만 카운트). `SpringAiAgentExecutor`의 `retryExecutor` 생성 지점에 R247에서 이미 주입받은 `evaluationMetricsCollector`를 전달 — 별도 배선 작업 불필요. 수정 파일 2개 (RetryExecutor +15 / Executor +3), 테스트 1개 확장 (RetryExecutor +140줄). 신규 테스트 **6 PASS** (9 tests total): 비일시적 즉시 throw 기록 / 재시도 소진 후 기록 / 중간 재시도 성공 시 미기록 / 기본 NoOp backward compat / errorStage override (PARSING으로 대체) / NoOp 명시 주입. 전체 `com.arc.reactor.agent.impl.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 — 메트릭 기록은 오직 catch 블록에만 삽입되고 정상 LLM 호출 경로는 불변. Directive 진행: **4/5 + R224~R248**. swagger-mcp 8181 **79 라운드 연속**. **자동 기록 stage 2/9 달성** (TOOL_CALL + LLM_CALL). 이제 tool vs llm 예외 분포를 같은 대시보드에서 비교할 수 있고, Gemini API 장애 (`stage="llm_call", exception="HttpClientErrorException"`), rate limit 소진 (`ResourceExhaustedException`), 네트워크 문제 (`SocketTimeoutException`)를 각각 추적 가능. Circuit breaker 거부 경로는 retryBlock 바깥에서 throw되므로 현재 기록 안 됨 (별도 Round에서 처리 가능).

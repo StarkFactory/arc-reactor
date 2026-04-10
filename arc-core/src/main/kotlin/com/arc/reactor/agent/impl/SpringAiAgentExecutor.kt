@@ -222,10 +222,13 @@ class SpringAiAgentExecutor(
         evaluationMetricsCollector = evaluationMetricsCollector
     )
     // LLM 호출 재시도 실행기 — CircuitBreaker 연동
+    // R248: evaluationMetricsCollector로 최종 실패 시 execution.error{stage=llm_call} 자동 기록
     private val retryExecutor = RetryExecutor(
         retry = properties.retry,
         circuitBreaker = circuitBreaker,
-        isTransientError = agentErrorPolicy::isTransient
+        isTransientError = agentErrorPolicy::isTransient,
+        evaluationMetricsCollector = evaluationMetricsCollector
+        // errorStage는 기본값 LLM_CALL 사용 (RetryExecutor의 유일한 용도)
     )
     // 수동 ReAct 루프 실행기 — LLM 호출 -> Tool 실행 -> 반복 루프 본체
     private val manualReActLoopExecutor = ManualReActLoopExecutor(
