@@ -57,6 +57,116 @@ data class DoctorReport(
             .joinToString(", ") { "${it.name} ${byStatus[it]}" }
         return "$total 섹션 — $counts"
     }
+
+    /**
+     * R239: 전체 진단 보고서를 사람이 읽을 수 있는 **멀티라인 한국어 텍스트**로 렌더링한다.
+     *
+     * ## 용도
+     *
+     * - 애플리케이션 기동 시 `logger.info { report.toHumanReadable() }`
+     * - 관리자 CLI/REPL 출력
+     * - 정기 cron으로 진단 결과를 파일에 dump
+     *
+     * ## 형식
+     *
+     * ```
+     * === Arc Reactor Doctor Report ===
+     * 생성 시각: 2026-04-11T12:00:00Z
+     * 요약: 5 섹션 — OK 3, WARN 1, SKIPPED 1
+     * 전체 상태: 경고 포함
+     *
+     * [OK] Approval Context Resolver
+     *      활성 (RedactedApprovalContextResolver)
+     *      [OK] resolver bean: 등록됨: RedactedApprovalContextResolver
+     *      [OK] PII 마스킹 (R228): 활성
+     *      [OK] sample resolve: 정상 응답
+     *
+     * [WARN] Tool Response Summarizer
+     *      활성 (DefaultToolResponseSummarizer)
+     *      [OK] summarizer bean: 등록됨: DefaultToolResponseSummarizer
+     *      [WARN] PII 마스킹 (R231): 비활성 — 요약 결과에 PII 노출 위험
+     *      [OK] sample summarize: 정상 응답
+     * ```
+     *
+     * @param includeDetails `true`이면 각 섹션의 개별 check 상세 포함 (기본값)
+     * @param lineSeparator 줄바꿈 문자 (기본 `\n`)
+     */
+    fun toHumanReadable(
+        includeDetails: Boolean = true,
+        lineSeparator: String = "\n"
+    ): String = buildString {
+        append("=== Arc Reactor Doctor Report ===").append(lineSeparator)
+        append("생성 시각: ").append(generatedAt).append(lineSeparator)
+        append("요약: ").append(summary()).append(lineSeparator)
+        append("전체 상태: ").append(overallStatusLabel()).append(lineSeparator)
+        append(lineSeparator)
+
+        for ((index, section) in sections.withIndex()) {
+            append('[').append(section.status.shortCode()).append("] ")
+            append(section.name).append(lineSeparator)
+            append("     ").append(section.message).append(lineSeparator)
+            if (includeDetails) {
+                for (check in section.checks) {
+                    append("     [").append(check.status.shortCode()).append("] ")
+                    append(check.name).append(": ").append(check.detail).append(lineSeparator)
+                }
+            }
+            if (index < sections.size - 1) {
+                append(lineSeparator)
+            }
+        }
+    }
+
+    /**
+     * R239: Slack 메시지용 **축약 마크다운** 포맷.
+     *
+     * Slack의 mrkdwn 문법(`*bold*`, `_italic_`, `>quote`)을 사용하며, 섹션별 상태 라인만
+     * 포함한다. 상세 check는 생략하여 Slack 메시지 길이 제한을 여유롭게 유지한다.
+     *
+     * ## 형식 예시
+     *
+     * ```
+     * *Arc Reactor Doctor Report*
+     * > 5 섹션 — OK 3, WARN 1, SKIPPED 1
+     *
+     * `[OK]` *Approval Context Resolver* — 활성 (RedactedApprovalContextResolver)
+     * `[WARN]` *Tool Response Summarizer* — 활성 (DefaultToolResponseSummarizer)
+     * `[SKIP]` *Evaluation Metrics Collector* — 비활성
+     * `[OK]` *Response Cache* — 활성 (RedisSemanticResponseCache, tier=semantic)
+     * `[OK]` *Prompt Layer Registry* — 무결성 확인됨
+     * ```
+     *
+     * ## 사용 예
+     *
+     * ```kotlin
+     * if (report.hasWarningsOrErrors()) {
+     *     slackClient.postMessage(channel = "#ops", text = report.toSlackMarkdown())
+     * }
+     * ```
+     */
+    fun toSlackMarkdown(): String = buildString {
+        append("*Arc Reactor Doctor Report*\n")
+        append("> ").append(summary()).append('\n')
+        append('\n')
+        for (section in sections) {
+            append('`').append('[').append(section.status.shortCode()).append(']').append('`')
+            append(" *").append(section.name).append("* — ")
+            append(section.message).append('\n')
+        }
+    }.trimEnd()
+
+    /**
+     * 전체 진단의 overall 상태 라벨을 반환한다.
+     *
+     * - `hasErrors()` → "오류 포함"
+     * - `hasWarningsOrErrors()` → "경고 포함"
+     * - 그 외 → "정상"
+     */
+    fun overallStatusLabel(): String = when {
+        hasErrors() -> "오류 포함"
+        hasWarningsOrErrors() -> "경고 포함"
+        else -> "정상"
+    }
 }
 
 /**
@@ -101,5 +211,29 @@ enum class DoctorStatus {
     WARN,
 
     /** 오류 — 기능이 등록되었으나 제대로 동작하지 않음. */
-    ERROR
+    ERROR;
+
+    /**
+     * 사람이 읽을 수 있는 한국어 라벨.
+     *
+     * R239: 로그, Slack 메시지, 대시보드 등에서 사용.
+     */
+    fun koreanLabel(): String = when (this) {
+        OK -> "정상"
+        SKIPPED -> "비활성"
+        WARN -> "경고"
+        ERROR -> "오류"
+    }
+
+    /**
+     * 로그 프리픽스용 짧은 코드 (4자 이내).
+     *
+     * R239: `[OK]`, `[SKIP]`, `[WARN]`, `[ERR]` 형태로 프리픽스에 사용.
+     */
+    fun shortCode(): String = when (this) {
+        OK -> "OK"
+        SKIPPED -> "SKIP"
+        WARN -> "WARN"
+        ERROR -> "ERR"
+    }
 }

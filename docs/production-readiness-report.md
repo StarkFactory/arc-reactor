@@ -14502,3 +14502,271 @@ $ curl -sH "Authorization: Bearer $TOKEN" \
 #### 📊 R238 요약
 
 💾 **R236 DoctorDiagnostics 확장: Response Cache 섹션 추가 완료**. 5번째 섹션으로 캐시 백엔드 구성을 진단 — NoOp(SKIPPED) / Caffeine(WARN, 프로세스 로컬) / SemanticResponseCache 구현체(OK, 프로덕션 권장) 3-tier 분류. 인터페이스 기반 분류로 사용자 커스텀 의미적 캐시 구현체(Elasticsearch/Milvus/Qdrant 등)도 자동 인식. NoOp 캐시의 경우 "semantic search" 체크가 의미 없으므로 **early-return**으로 혼란 방지. `DoctorDiagnostics` 생성자에 `responseCacheProvider: ObjectProvider<ResponseCache>` 추가, autoconfig 업데이트, 기존 13개 테스트 생성자 호출에 `emptyProvider()` 일괄 추가 (`replace_all`), 섹션 수 기대값 4→5 업데이트, 신규 `ResponseCacheSection` 테스트 그룹 4 tests 추가. 수정 과정에서 발견한 이슈 3개(NoOp early-return 필요, Caffeine `ttlMinutes` 오타, SemanticResponseCache stub 시그니처) 모두 해결. 신규 파일 0개, **기존 파일 3개 수정** (DoctorDiagnostics +116줄 / autoconfig +4줄 / 테스트). 테스트 **23 PASS** (R236 19 + 신규 4, 총 9 @Nested 그룹). 기존 R219~R237 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R238**. swagger-mcp 8181 **69 라운드 연속** 안정. 이제 사용자는 `curl .../api/admin/doctor` 한 번으로 "내 캐시 백엔드가 Redis인지 Caffeine인지 NoOp인지"를 즉시 확인할 수 있어, R231 이후 핵심 성능 축인 Redis 의미적 캐시의 잘못된 구성으로 인한 비용 급증을 사전에 경고받을 수 있다.
+
+### Round 239 — 📝 2026-04-11T12:30+09:00 — DoctorReport 한국어 출력 포맷터
+
+**작업 종류**: Directive 심화 — 관측성 UX 개선 (QA 측정 없음)
+**Directive 패턴**: Observability 축 연속
+**완료 태스크**: #114
+
+#### 작업 배경
+
+R236~R238이 도입한 `DoctorDiagnostics` + `DoctorController`는 **JSON 구조화 출력**에 최적화되어 있어서 Grafana, Prometheus, 프로그래밍 방식 소비에 적합하다. 그러나 다음 시나리오에서는 **사람이 직접 읽는 텍스트 포맷**이 더 유용하다:
+
+1. **애플리케이션 기동 로그**: `logger.info { report.toHumanReadable() }` — 배포 직후 관측
+2. **Slack 알림**: Ops 채널에 진단 결과를 쉽게 공유
+3. **관리자 CLI/REPL**: 터미널에서 직접 읽기
+4. **정기 dump**: cron으로 진단 결과를 파일에 기록
+
+R239는 `DoctorReport`에 두 가지 사람이 읽을 수 있는 포맷터를 추가하여 JSON vs 사람용 출력 사이의 간극을 메운다.
+
+#### 설계 원칙
+
+1. **Korean-first**: 모든 라벨은 한국어 ("정상", "비활성", "경고", "오류")
+2. **Emoji 없음**: 프로젝트 규칙상 코드에 이모지를 넣지 않고 `[OK]` / `[SKIP]` / `[WARN]` / `[ERR]` 같은 텍스트 브래킷 사용
+3. **Opt-in 상세도**: `toHumanReadable(includeDetails: Boolean = true)` — 필요 시 개별 check 생략
+4. **Slack 축약**: `toSlackMarkdown()`은 섹션별 한 줄, check 생략 (Slack 메시지 길이 제한 대응)
+5. **Backward compat**: 기존 `summary()`, `allHealthy()`, `hasErrors()` API 유지
+
+#### 신규 API
+
+**`DoctorStatus` enum 메서드**:
+```kotlin
+enum class DoctorStatus {
+    OK, SKIPPED, WARN, ERROR;
+
+    fun koreanLabel(): String   // 정상 / 비활성 / 경고 / 오류
+    fun shortCode(): String     // OK / SKIP / WARN / ERR (4자 이내)
+}
+```
+
+**`DoctorReport` 메서드**:
+```kotlin
+data class DoctorReport(...) {
+    // ... 기존 메서드 ...
+
+    fun toHumanReadable(
+        includeDetails: Boolean = true,
+        lineSeparator: String = "\n"
+    ): String
+
+    fun toSlackMarkdown(): String
+
+    fun overallStatusLabel(): String  // "정상" / "경고 포함" / "오류 포함"
+}
+```
+
+#### `toHumanReadable()` 출력 예시
+
+```
+=== Arc Reactor Doctor Report ===
+생성 시각: 2026-04-11T12:00:00Z
+요약: 5 섹션 — OK 3, WARN 1, SKIPPED 1
+전체 상태: 경고 포함
+
+[OK] Approval Context Resolver
+     활성 (RedactedApprovalContextResolver)
+     [OK] resolver bean: 등록됨: RedactedApprovalContextResolver
+     [OK] PII 마스킹 (R228): 활성 — 감사 로그에 이메일/토큰 노출 없음
+     [OK] sample resolve: 정상 응답 — reversibility=REVERSIBLE
+
+[WARN] Tool Response Summarizer
+     활성 (DefaultToolResponseSummarizer)
+     [OK] summarizer bean: 등록됨: DefaultToolResponseSummarizer
+     [WARN] PII 마스킹 (R231): 비활성 — 요약 결과에 PII 노출 위험
+     [OK] sample summarize: 정상 응답 — kind=LIST_TOP_N
+
+[SKIP] Evaluation Metrics Collector
+     비활성 — arc.reactor.evaluation.metrics.enabled=true 설정 시 활성화
+     [SKIP] collector bean: NoOp 또는 미등록 — 평가 메트릭 비활성 (R222 기본)
+
+[WARN] Response Cache
+     활성 (CaffeineResponseCache, tier=caffeine)
+     [OK] cache bean: 등록됨: CaffeineResponseCache
+     [WARN] cache tier: Caffeine in-memory 캐시 — 프로세스 로컬만...
+     [WARN] semantic search: 비활성 — 정확한 키 매칭만...
+
+[OK] Prompt Layer Registry
+     무결성 확인됨 (38개 메서드 / 6개 계층)
+     [OK] classified methods: 38개 메서드 분류됨 (main 33 / planning 5)
+     [OK] layer coverage: 6개 계층 모두 1개 이상 메서드 할당됨
+     [OK] path independence: 메인/계획 경로 겹침 없음
+```
+
+#### `toSlackMarkdown()` 출력 예시
+
+```
+*Arc Reactor Doctor Report*
+> 5 섹션 — OK 3, WARN 1, SKIPPED 1
+
+`[OK]` *Approval Context Resolver* — 활성 (RedactedApprovalContextResolver)
+`[WARN]` *Tool Response Summarizer* — 활성 (DefaultToolResponseSummarizer)
+`[SKIP]` *Evaluation Metrics Collector* — 비활성
+`[WARN]` *Response Cache* — 활성 (CaffeineResponseCache, tier=caffeine)
+`[OK]` *Prompt Layer Registry* — 무결성 확인됨 (38개 메서드 / 6개 계층)
+```
+
+Slack mrkdwn 문법: `*bold*`, `` `code` ``, `> quote`.
+
+#### 사용 예
+
+**배포 직후 기동 로그**:
+```kotlin
+@Component
+class StartupDoctorLogger(private val doctor: DoctorDiagnostics) : ApplicationRunner {
+    override fun run(args: ApplicationArguments?) {
+        val report = doctor.runDiagnostics()
+        logger.info { "\n" + report.toHumanReadable() }
+        if (report.hasWarningsOrErrors()) {
+            logger.warn { "Doctor 경고/오류 감지 — ${report.overallStatusLabel()}" }
+        }
+    }
+}
+```
+
+**Slack 알림**:
+```kotlin
+if (report.hasWarningsOrErrors()) {
+    slackClient.postMessage(
+        channel = "#ops-alerts",
+        text = report.toSlackMarkdown()
+    )
+}
+```
+
+**정기 cron dump**:
+```kotlin
+@Scheduled(cron = "0 0 * * * *")  // 매 정시
+fun dumpDoctor() {
+    val report = doctor.runDiagnostics()
+    Files.writeString(
+        Path.of("/var/log/arc-reactor/doctor.log"),
+        report.toHumanReadable() + "\n\n",
+        StandardOpenOption.APPEND
+    )
+}
+```
+
+#### 구현 핵심
+
+**`toHumanReadable()`**: `buildString { append... }` 패턴으로 효율적 문자열 생성. 섹션 사이에 빈 줄로 구분, 마지막 섹션 뒤에는 빈 줄 없음 (`index < sections.size - 1` 체크).
+
+**`toSlackMarkdown()`**: `.trimEnd()`로 후행 공백/줄바꿈 제거하여 Slack 메시지에 여백 없이 전송.
+
+**`overallStatusLabel()`**: 기존 `hasErrors()` / `hasWarningsOrErrors()` API를 재사용하여 우선순위 결정 (ERROR > WARN > OK).
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `test/.../DoctorReportFormatterTest.kt` | 335 | 28 tests (5 `@Nested` 그룹) |
+
+**기존 파일 수정 1개**: `diagnostics/DoctorReport.kt`
+- `DoctorStatus` enum에 `koreanLabel()` / `shortCode()` 추가
+- `DoctorReport`에 `toHumanReadable()` / `toSlackMarkdown()` / `overallStatusLabel()` 추가
+- 기존 `summary()` / `allHealthy()` / `hasErrors()` / `hasWarningsOrErrors()` 시그니처 불변
+
+**R236 `DoctorDiagnosticsTest.kt`, R237 `DoctorControllerTest.kt` 영향 없음** (순수 추가).
+
+#### 테스트 결과
+
+```
+DoctorReportFormatterTest                      → 28 tests PASS
+  @Nested DoctorStatusLabels (4)
+    - koreanLabel 4개 상태별
+    - shortCode 4개 상태별
+    - 모든 shortCode 4자 이내
+    - 모든 koreanLabel 비어있지 않음
+  @Nested OverallStatusLabel (5)
+    - 모두 OK → 정상
+    - OK + SKIPPED → 정상 (healthy)
+    - WARN 포함 → 경고 포함
+    - ERROR 포함 → 오류 포함
+    - WARN + ERROR → 오류 포함 우선
+  @Nested HumanReadableFormat (9)
+    - 헤더 4요소 (생성 시각, 요약, 전체 상태, 타이틀)
+    - fixedTime 출력
+    - 각 섹션 shortCode + 이름
+    - 섹션 메시지
+    - includeDetails=true check 포함
+    - includeDetails=false check 생략
+    - 커스텀 lineSeparator
+    - 전체 상태 라벨이 헤더에 포함
+    - 빈 섹션 리스트 처리
+  @Nested SlackMarkdownFormat (7)
+    - bold 타이틀 *Arc Reactor Doctor Report*
+    - quote > summary
+    - 각 섹션 shortCode + 이름 + message
+    - em dash 구분자
+    - 상세 check 제외 (축약)
+    - 후행 공백 없음
+    - 빈 섹션 리스트 처리
+  @Nested RealisticScenarios (3)
+    - 프로덕션 정상 상태 (Approval + ResponseCache 둘 다 OK)
+    - PII 마스킹 누락 경고 (R228)
+    - 5개 섹션 혼합 (R238 가능 상태)
+```
+
+**기존 R219~R238 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 불변
+- R236 `DoctorDiagnosticsTest` 23 tests PASS
+- R237 `DoctorControllerTest` 17 tests PASS
+- 전체 16 tasks 컴파일 PASS
+
+#### 수정 과정에서 발견한 이슈 2개
+
+**1. `\r\n` / `\n\r` 혼동 테스트 오류**: 커스텀 `lineSeparator = "\r\n"` 테스트에서 "역순 아님"(`!contains("\n\r")`) 체크가 실패했다. 원인은 CRLF가 여러 줄에 걸쳐 있으면 `"...text\r\n...text\r\n..."`처럼 되어 중간에 `"n\r"` 부분 문자열이 생성됨 (사실 `"\r\n"` 두 개 사이가 아니라 `"\n"` 바로 뒤 다음 줄 `"\r"`). 의미 없는 assertion이라 제거하고 대신 `"===\r\n"` 라인 구분자가 일관되게 적용되는지 검증으로 교체.
+
+**2. `[OK]` 카운트 assertion 오류**: 5개 섹션 혼합 시나리오 테스트에서 `split("[OK]").size - 1 == 3` 기대했지만, 각 섹션에는 `check b`가 항상 `OK`여서 실제로는 더 많은 `[OK]` 발생 (섹션 헤더 3 + check b 5 + OK 섹션의 check a 3 = 11). 기대를 변경하지 않고 각 섹션 헤더의 shortCode를 개별 검증하는 방식으로 수정 (`contains("[OK] Section 0")` 등).
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ 포맷터는 pure string manipulation
+- ✅ `DoctorDiagnostics` 로직 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+
+#### DoctorDiagnostics 축 진화
+
+| 라운드 | 섹션 수 | 변경 내용 |
+|--------|---------|----------|
+| R236 | 4 | Foundation (JSON 출력) |
+| R237 | 4 | REST 컨트롤러 (arc-admin) |
+| R238 | 5 | + Response Cache 섹션 |
+| **R239** | **5** | **+ 한국어 포맷터 (toHumanReadable / toSlackMarkdown)** |
+
+R239는 섹션 수를 바꾸지 않지만 **출력 형식 축을 확장**한다. 이제 같은 `DoctorReport`가 JSON(REST), 한국어 멀티라인 텍스트(로그), Slack 마크다운(알림) 3가지 컨텍스트에 맞춰 렌더링된다.
+
+#### 연속 지표
+
+| 지표 | R238 | R239 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 69 | **70 🎯** | **70 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R238 | **4/5 + R224~R239** | - |
+
+#### 다음 Round 후보
+
+- **R240+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션 (R220~R239 누적 효과 정량 비교)
+  2. **DoctorDiagnostics 추가 섹션** — MCP Manager / HookExecutor / RequestGuard
+  3. **ApplicationRunner 기반 Startup Doctor Logger** — R239 포맷터를 기본 로깅으로 자동 적용
+  4. **새 Directive 축 탐색**
+
+#### 📊 R239 요약
+
+📝 **DoctorReport 한국어 출력 포맷터 완료**. R236 `DoctorReport`에 사람이 읽을 수 있는 두 가지 포맷터 메서드 추가: `toHumanReadable(includeDetails, lineSeparator)` 멀티라인 로그 포맷 + `toSlackMarkdown()` Slack mrkdwn 축약 포맷. `DoctorStatus` enum에 `koreanLabel()` (정상/비활성/경고/오류) + `shortCode()` (OK/SKIP/WARN/ERR, 4자 이내) 추가. `DoctorReport`에 `overallStatusLabel()` (정상 / 경고 포함 / 오류 포함) 추가. Project 규칙상 이모지 대신 `[OK]`/`[SKIP]` 텍스트 브래킷 사용. `toHumanReadable`는 헤더(생성 시각/요약/전체 상태) + 섹션별 shortCode + 메시지 + 개별 check 상세 (옵션). `toSlackMarkdown`은 섹션별 한 줄 축약 (상세 check 생략, Slack 메시지 길이 제한 대응). 신규 파일 1개 (테스트 335줄), 기존 파일 1개 수정 (`DoctorReport.kt` +110줄). 신규 테스트 **28 PASS** (5 @Nested 그룹: DoctorStatusLabels 4 / OverallStatusLabel 5 / HumanReadableFormat 9 / SlackMarkdownFormat 7 / RealisticScenarios 3). 수정 과정에서 발견한 이슈 2개(CRLF 테스트 assertion 오류, `[OK]` 카운트 assertion 오류) 모두 해결. 기존 R236 `DoctorDiagnosticsTest` 23 + R237 `DoctorControllerTest` 17 tests 영향 없음 (순수 추가). R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R239**. swagger-mcp 8181 **🎯 70 라운드 마일스톤 달성**. R236→R237→R238→R239로 Doctor 축이 **"서비스 → REST → 추가 섹션 → 포맷터"** 4단계 성숙 완성. 이제 같은 `DoctorReport` 객체가 JSON(REST 컨슈머), 한국어 멀티라인 텍스트(로그), Slack mrkdwn(알림) **3가지 컨텍스트에 자동 적응**한다.
