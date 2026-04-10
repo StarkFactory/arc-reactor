@@ -20,9 +20,9 @@ class EvaluationMetricsCatalogTest {
     inner class BasicInvariants {
 
         @Test
-        fun `ALL 리스트는 7개 메트릭을 포함해야 한다`() {
-            assertEquals(7, EvaluationMetricsCatalog.ALL.size) {
-                "R222 6개 + R224 1개 = 7개"
+        fun `ALL 리스트는 8개 메트릭을 포함해야 한다`() {
+            assertEquals(8, EvaluationMetricsCatalog.ALL.size) {
+                "R222 6개 + R224 1개 + R242 1개 = 8개"
             }
         }
 
@@ -90,15 +90,20 @@ class EvaluationMetricsCatalogTest {
         }
 
         @Test
-        fun `DISTRIBUTION_SUMMARY 유형은 1개여야 한다`() {
+        fun `DISTRIBUTION_SUMMARY 유형은 2개여야 한다`() {
             val summaries = EvaluationMetricsCatalog.filterByType(
                 EvaluationMetricsCatalog.MetricType.DISTRIBUTION_SUMMARY
             )
-            assertEquals(1, summaries.size) { "TOOL_CALLS 한 개" }
-            assertEquals(
-                EvaluationMetricsCatalog.TOOL_CALLS.name,
-                summaries[0].name
-            )
+            assertEquals(2, summaries.size) {
+                "R222 TOOL_CALLS + R242 TOOL_RESPONSE_COMPRESSION"
+            }
+            val names = summaries.map { it.name }.toSet()
+            assertTrue(names.contains(EvaluationMetricsCatalog.TOOL_CALLS.name)) {
+                "TOOL_CALLS 포함"
+            }
+            assertTrue(names.contains(EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION.name)) {
+                "TOOL_RESPONSE_COMPRESSION 포함"
+            }
         }
     }
 
@@ -139,6 +144,10 @@ class EvaluationMetricsCatalogTest {
                 MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_KIND,
                 EvaluationMetricsCatalog.TOOL_RESPONSE_KIND.name
             )
+            assertEquals(
+                MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION,
+                EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION.name
+            )
         }
 
         @Test
@@ -155,6 +164,16 @@ class EvaluationMetricsCatalogTest {
                 listOf("kind", "tool"),
                 EvaluationMetricsCatalog.TOOL_RESPONSE_KIND.tags
             )
+        }
+
+        @Test
+        fun `TOOL_RESPONSE_COMPRESSION 태그는 tool만이어야 한다`() {
+            assertEquals(
+                listOf("tool"),
+                EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION.tags
+            ) {
+                "R242 압축률은 도구별로만 집계"
+            }
         }
 
         @Test
@@ -180,6 +199,7 @@ class EvaluationMetricsCatalogTest {
             collector.recordHumanOverride(HumanOverrideOutcome.APPROVED, "test_tool")
             collector.recordSafetyRejection(SafetyRejectionStage.GUARD, "injection")
             collector.recordToolResponseKind("list_top_n", "jira_search")
+            collector.recordToolResponseCompression(75, "jira_search")
 
             // 카탈로그의 각 메트릭이 registry에 존재하는지 확인
             EvaluationMetricsCatalog.ALL.forEach { metric ->
@@ -242,6 +262,14 @@ class EvaluationMetricsCatalogTest {
         @Test
         fun `TOOL_CALLS 단위는 calls여야 한다`() {
             assertEquals("calls", EvaluationMetricsCatalog.TOOL_CALLS.unit)
+        }
+
+        @Test
+        fun `TOOL_RESPONSE_COMPRESSION 단위는 percent여야 한다`() {
+            assertEquals(
+                "percent",
+                EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION.unit
+            )
         }
 
         @Test

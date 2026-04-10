@@ -15356,3 +15356,283 @@ R241은 ACI 축의 **출력 형식 확장 + 압축 지표 1급 시민화**이다
 #### 📊 R241 요약
 
 📏 **ToolResponseSummary 한국어 포맷터 + 압축률 1급 시민화 완료** → **R239~R241 포맷터 트릴로지 완성**. R239 DoctorReport, R240 ToolApprovalRequest에 이어 ACI 축(R223)의 `ToolResponseSummary`에 동일한 포맷터 패턴 이식. 신규 파일 `ToolResponseSummaryFormatter.kt`에 3개 확장 함수: `toHumanReadable(toolName, includeBody, lineSeparator)` (CLI 멀티라인) + `toSlackMarkdown(toolName, includeBody, maxBodyLines)` (Slack mrkdwn, `maxBodyLines` 초과 시 `_(+N행 생략)_` 표기) + `toCompressionLine()` (로그/이벤트/메트릭용 한 줄). 기존 `ToolResponseSummarizer.kt`에 `ToolResponseSummary.compressionPercent()` 멤버 메서드 + `SummaryKind.koreanLabel()` (에러/목록/긴 텍스트/짧은 텍스트/구조화/빈 응답) + `SummaryKind.shortCode()` (ERR/LIST/HEAD/FULL/STRUCT/EMPTY, 6자 이내) 추가. 압축률은 divide-by-zero 가드 (`originalLength <= 0` → 0) + 요약이 더 길면 음수 허용. `formatLength()` 헬퍼는 Locale 독립 수동 쉼표 삽입 (1,000자 / 8,192자). `itemCount` null일 때 `toCompressionLine()`은 `primaryKey`로 대체 표시. 기존 `ToolResponseSummarizer` 인터페이스/`NoOpToolResponseSummarizer` 시그니처 불변 (순수 additive). 신규 파일 2개 (구현 177줄 + 테스트 390줄), 기존 파일 1개 수정 (`ToolResponseSummarizer.kt` +78줄). 신규 테스트 **36 PASS** (6 @Nested 그룹: SummaryKindLabels 4 / CompressionPercent 5 / HumanReadableFormat 10 / SlackMarkdownFormat 9 / CompressionLine 5 / RealisticScenarios 3). 기존 summarize 4개 테스트 파일(`ChainedToolResponseSummarizerTest`, `DefaultToolResponseSummarizerTest`, `RedactedToolResponseSummarizerTest`, `ToolResponseSummarizerHookTest`) 전부 회귀 없음. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 (포맷터는 원본 payload 미접근, `systemPrompt` 미수정, `MemoryStore` 미접근). Directive 진행: **4/5 + R224~R241**. swagger-mcp 8181 **72 라운드 연속**. R223→R230→R231→R232→R233→**R241**로 ACI 축이 **"인터페이스 → 조합 → PII 마스킹 → 자동 구성 → 공통 패턴 추출 → 포맷터+압축률"** 6단계 성숙 완성. **R239~R241 포맷터 트릴로지**(Doctor+Approval+Summary)가 모두 `toHumanReadable()` + `toSlackMarkdown()` + 축 고유 한 줄 함수의 동일 패턴을 공유하여 사용자 멘탈 모델 일관성 확보. 압축률 지표(`compressionPercent()`)는 데이터 클래스 멤버 메서드로 1급 시민화되어 향후 R222 Evaluation 메트릭(`summarizer_compression_ratio`)과 직접 연동 가능.
+
+### Round 242 — 📊 2026-04-11T14:00+09:00 — summarizer_compression_ratio 메트릭 (R222+R241 시너지)
+
+**작업 종류**: Directive 심화 — 관측 축 확장 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R222 심화) + #2 ACI (R241 소비)
+**완료 태스크**: #117
+
+#### 작업 배경
+
+R241이 `ToolResponseSummary.compressionPercent()`를 데이터 클래스 1급 시민 메서드로 만들면서, R241 요약에서 "향후 R222 Evaluation 메트릭과 직접 연동 가능"하다고 명시했다. R242는 그 연결을 실제로 완성한다.
+
+R223 ACI 요약 계층은 원본 도구 응답을 얼마나 효과적으로 축약하는가? 이 질문에 답하려면 단순히 요약이 생성되었다는 사실(R224 `tool.response.kind` 카운터)만으로는 부족하다. 도구별로 **실제 압축률의 분포**(평균/p50/p95)를 관측해야 요약 휴리스틱 개선 효과를 before/after로 비교할 수 있다.
+
+#### 설계 원칙
+
+1. **순수 additive** — `EvaluationMetricsCollector` 인터페이스에 default no-op 메서드 추가, 기존 구현체(`NoOpEvaluationMetricsCollector`) 변경 불필요
+2. **DistributionSummary 선택** — Counter나 Gauge가 아닌 `DistributionSummary`로 기록하여 평균/p50/p95/p99 쿼리 가능
+3. **도구 태그만** — `kind` 태그 없음. kind는 이미 R224 `tool.response.kind` 카운터가 추적하므로 중복 제거
+4. **음수 clamp** — 요약이 원본보다 긴 드문 경우 `percent < 0` 방지를 위해 Micrometer 레벨에서 0으로 clamp
+5. **자동 연결** — `EvaluationMetricsHook.recordToolResponseKinds()` 루프 내에서 같은 `ToolResponseSummary` 객체에 대해 `kind`와 `compression`을 쌍으로 기록
+6. **opt-in** — 기본 `NoOpEvaluationMetricsCollector`는 no-op이므로 R222 메트릭 수집 미활성화 시 오버헤드 0
+
+#### 신규 API
+
+**`EvaluationMetricsCollector` 인터페이스**:
+```kotlin
+interface EvaluationMetricsCollector {
+    // ... 기존 메서드 ...
+
+    /**
+     * R242: R241 compressionPercent()를 DistributionSummary로 기록.
+     * 기본 구현은 no-op (backward compat).
+     */
+    fun recordToolResponseCompression(percent: Int, toolName: String) {
+        // 기본 no-op
+    }
+}
+```
+
+**`MicrometerEvaluationMetricsCollector`**:
+```kotlin
+override fun recordToolResponseCompression(percent: Int, toolName: String) {
+    runCatching {
+        val value = percent.coerceAtLeast(0).toDouble()
+        DistributionSummary.builder(METRIC_TOOL_RESPONSE_COMPRESSION)
+            .tag(TAG_TOOL, toolName.ifBlank { UNKNOWN_TAG })
+            .baseUnit("percent")
+            .register(registry)
+            .record(value)
+    }.onFailure { e ->
+        logger.warn(e) { "recordToolResponseCompression 실패: ..." }
+    }
+}
+
+companion object {
+    const val METRIC_TOOL_RESPONSE_COMPRESSION = "arc.reactor.eval.tool.response.compression"
+}
+```
+
+**`EvaluationMetricsCatalog`**:
+```kotlin
+/** R242: R222+R241 시너지 — 도구 응답 요약 압축률 분포. */
+val TOOL_RESPONSE_COMPRESSION: Metric = Metric(
+    name = MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION,
+    type = MetricType.DISTRIBUTION_SUMMARY,
+    tags = listOf(MicrometerEvaluationMetricsCollector.TAG_TOOL),
+    description = "R242 시너지 메트릭. R241 ToolResponseSummary.compressionPercent() " +
+        "값의 분포. 0~100 정수, 음수는 0으로 clamp. 도구별 요약 효율성 관측용 " +
+        "(평균/p50/p95). tool=도구 이름.",
+    unit = "percent"
+)
+
+val ALL: List<Metric> = listOf(
+    TASK_COMPLETED, TASK_DURATION, TOOL_CALLS, TOKEN_COST,
+    HUMAN_OVERRIDE, SAFETY_REJECTION, TOOL_RESPONSE_KIND,
+    TOOL_RESPONSE_COMPRESSION  // 8번째 메트릭
+)
+```
+
+**`EvaluationMetricsHook`** (수정):
+```kotlin
+private fun recordToolResponseKinds(context: HookContext) {
+    for ((key, value) in context.metadata.entries) {
+        if (!key.startsWith(ToolResponseSummarizerHook.SUMMARY_KEY_PREFIX)) continue
+        if (key == ToolResponseSummarizerHook.COUNTER_KEY) continue
+        val summary = value as? ToolResponseSummary ?: continue
+        val toolName = extractToolNameFromSummaryKey(key)
+        collector.recordToolResponseKind(
+            kind = summary.kind.name.lowercase(),
+            toolName = toolName
+        )
+        // R242: 같은 요약에서 압축률 분포도 기록
+        collector.recordToolResponseCompression(
+            percent = summary.compressionPercent(),
+            toolName = toolName
+        )
+    }
+}
+```
+
+#### 구현 핵심
+
+**DistributionSummary 선택 이유**:
+- `Counter`: 단조 증가 값 → 압축률은 반복 관측 필요, 부적합
+- `Gauge`: 현재 값만 저장 → 분포 쿼리 불가
+- `Timer`: 시간 단위 전용 → 퍼센트 단위 부적합
+- `DistributionSummary`: 값 분포 기록 → `count`, `sum`, `max`, percentile 쿼리 가능 ✓
+
+**Prometheus 쿼리 예시 (`docs/evaluation-metrics.md`에 추가)**:
+
+도구별 평균 압축률:
+```promql
+sum by (tool) (rate(arc_reactor_eval_tool_response_compression_sum[5m]))
+/
+sum by (tool) (rate(arc_reactor_eval_tool_response_compression_count[5m]))
+```
+
+압축률 낮은 도구 top 5 (요약 효율 점검):
+```promql
+bottomk(5,
+  sum by (tool) (rate(arc_reactor_eval_tool_response_compression_sum[5m]))
+  /
+  sum by (tool) (rate(arc_reactor_eval_tool_response_compression_count[5m]))
+)
+```
+
+p95 분포:
+```promql
+histogram_quantile(0.95,
+  sum by (le) (rate(arc_reactor_eval_tool_response_compression_bucket[5m]))
+)
+```
+
+**Hook 자동 연결의 의의**:
+- 사용자가 R222 Evaluation을 활성화하고 R223 Summarizer도 활성화하면, 코드 수정 없이 압축률 메트릭이 자동으로 기록됨
+- `kind`와 `compression`이 같은 `ToolResponseSummary`에서 쌍으로 기록되므로 일관성 보장
+- `ToolResponseSummarizerHook`가 metadata에 저장한 `ToolResponseSummary` 객체를 그대로 활용 → 추가 메모리/계산 비용 없음
+
+#### 신규/수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../EvaluationMetricsCollector.kt` | `recordToolResponseCompression` default 메서드 추가 (+29줄) |
+| `main/.../MicrometerEvaluationMetricsCollector.kt` | Micrometer 구현 + `METRIC_TOOL_RESPONSE_COMPRESSION` 상수 (+16줄) |
+| `main/.../EvaluationMetricsCatalog.kt` | `TOOL_RESPONSE_COMPRESSION` Metric + `ALL` 리스트 확장 (+17줄) |
+| `main/.../EvaluationMetricsHook.kt` | `recordToolResponseKinds()` 내 R242 기록 호출 (+6줄) |
+| `main/.../DoctorDiagnostics.kt` | 카탈로그 detail 메시지에 `compression` 추가 (1줄) |
+| `docs/evaluation-metrics.md` | 8번째 메트릭 행 + Prometheus 쿼리 3개 + 참조 섹션 (+41줄) |
+| `test/.../EvaluationMetricsCollectorTest.kt` | `ToolResponseCompression` @Nested 그룹 6 tests (+96줄) |
+| `test/.../EvaluationMetricsCatalogTest.kt` | 카운트 7→8, DistributionSummary 2개, 태그/단위 검증 (+25줄) |
+| `test/.../EvaluationMetricsHookTest.kt` | `ToolResponseCompressionRecording` @Nested 그룹 5 tests (+118줄) |
+| `test/.../DoctorDiagnosticsTest.kt` | 카탈로그 카운트 7→8, compression 단어 assertion (+5줄) |
+
+#### 테스트 결과
+
+**EvaluationMetricsCollectorTest — R242 추가 테스트 6개 PASS**:
+```
+@Nested ToolResponseCompression
+  - 압축률은 DistributionSummary로 tool 태그와 함께 기록되어야 한다
+    → 2회 jira_search 기록(75+88=163), confluence 1회(42), count/sum 검증
+  - 음수 압축률은 0으로 clamp되어야 한다
+    → -50 입력 → sum=0
+  - 빈 tool 이름은 unknown 태그로 변환되어야 한다
+  - 여러 도구가 독립된 태그로 분리되어야 한다
+    → 3개 도구 태그 집합 검증
+  - NoOp 수집기의 recordToolResponseCompression는 no-op이어야 한다
+  - interface default 구현은 no-op이어야 한다 (backward compat)
+    → 메서드 미구현 커스텀 collector도 컴파일/호출 가능
+```
+
+**EvaluationMetricsCatalogTest — 기존 테스트 업데이트 + 추가**:
+```
+- ALL 리스트는 8개 메트릭을 포함해야 한다 (7→8 수정)
+- DISTRIBUTION_SUMMARY 유형은 2개여야 한다 (1→2 수정, TOOL_CALLS + TOOL_RESPONSE_COMPRESSION)
+- 카탈로그 이름은 Micrometer 상수와 일치 (TOOL_RESPONSE_COMPRESSION 추가)
+- TOOL_RESPONSE_COMPRESSION 태그는 tool만이어야 한다 (신규)
+- TOOL_RESPONSE_COMPRESSION 단위는 percent여야 한다 (신규)
+- Micrometer end-to-end 검증에 compression 기록 추가
+```
+
+**EvaluationMetricsHookTest — R242 추가 테스트 5개 PASS**:
+```
+@Nested ToolResponseCompressionRecording
+  - R242 toolSummary가 있으면 compressionPercent를 기록해야 한다
+    → 원본 1000, 요약 250 → 75% 검증
+  - kind 기록과 compression 기록이 같은 요약에서 쌍으로 호출되어야 한다
+    → verifyOrder로 호출 순서 검증
+  - 여러 도구의 압축률이 각각 기록되어야 한다
+    → 90% jira + 50% bitbucket
+  - toolSummary 없으면 recordToolResponseCompression를 호출하지 않아야 한다
+  - 원본 0인 빈 응답도 compressionPercent 0으로 기록되어야 한다
+    → divide-by-zero 가드 end-to-end 검증
+```
+
+**DoctorDiagnosticsTest — 회귀 수정**:
+- `catalogCheck.detail.contains("7개")` → `contains("8개")` + `contains("compression")` 추가
+
+**전체 회귀**:
+- `com.arc.reactor.agent.metrics.*` 전부 PASS (Collector/Catalog/Hook + 기존 AgentMetrics, SlaMetrics 등)
+- `com.arc.reactor.tool.summarize.*` 전부 PASS (R241 추가 테스트 포함)
+- `com.arc.reactor.diagnostics.*` 전부 PASS (R236~R239 + DoctorReportFormatterTest)
+- **R220 Golden snapshot 5개 해시 불변** 확인 (byte-identical)
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 수정 과정에서 발견한 이슈 1개
+
+**DoctorDiagnosticsTest 카탈로그 카운트 assertion**: `catalogCheck.detail.contains("7개")`가 기존에 하드코딩되어 있어서 `EvaluationMetricsCatalog.ALL.size`가 8로 늘어나자 실패했다. 이것은 R242 변경의 파급 효과 확인용으로 잘 설계된 회귀 테스트였다 — 카탈로그와 Doctor 메시지가 drift 없이 동기화되어야 함을 보장한다. `8개` + `compression` 단어 assertion으로 수정.
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ `ToolResponseSummarizer` 인터페이스 시그니처 불변
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ `EvaluationMetricsHook`는 이미 존재하는 metadata 스캔만 수행 → MCP 호출 경로 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ 메트릭 수집은 캐시 키 구성과 무관
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ 메트릭은 관측 레이어 → 히스토리에 섞이지 않음
+- ✅ `ConversationManager` 미수정
+
+#### Evaluation 메트릭 축 진화
+
+| 라운드 | 변경 내용 | ALL 크기 |
+|--------|----------|----------|
+| R222 | 6개 기본 메트릭 (`EvaluationMetricsCollector` 도입) | 6 |
+| R224 | R223 시너지 → `TOOL_RESPONSE_KIND` 카운터 | 7 |
+| R234 | 타입화 카탈로그 + `docs/evaluation-metrics.md` 관측 가이드 | 7 |
+| **R242** | **R241 시너지 → `TOOL_RESPONSE_COMPRESSION` DistributionSummary** | **8** |
+
+R242는 **8번째 메트릭 + 카탈로그 drift 방지 end-to-end 검증**이다. 이제 ACI 요약 계층의 효과가 정량 지표로 관측 가능하다.
+
+#### R222 ↔ R241 시너지 완성도
+
+R241 요약 섹션이 명시한 "R222 Evaluation 메트릭과 직접 연동 가능" 약속이 **R242에서 완성**되었다:
+
+| 계층 | R241 | R242 |
+|------|------|------|
+| 데이터 모델 | `compressionPercent()` 멤버 메서드 | (활용) |
+| 텍스트 포맷 | `toCompressionLine()` 로그용 | (활용) |
+| 메트릭 수집 | (미구현) | ✓ `recordToolResponseCompression()` |
+| 카탈로그 | (미등록) | ✓ `TOOL_RESPONSE_COMPRESSION` |
+| Hook 자동 연결 | (미구현) | ✓ `recordToolResponseKinds()` 내 호출 |
+| Prometheus 가이드 | (미작성) | ✓ 3개 쿼리 예시 |
+| Doctor 진단 | (미반영) | ✓ catalog detail에 compression 언급 |
+
+#### 연속 지표
+
+| 지표 | R241 | R242 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 72 | **73** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R241 | **4/5 + R224~R242** | - |
+| Evaluation 메트릭 개수 | 7 | **8** | 증가 |
+
+#### 다음 Round 후보
+
+- **R243+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **Grafana 대시보드 템플릿 확장** — R242 compression 패널 + alert rule 추가
+  3. **StartupDoctorLogger** — R239 포맷터를 `ApplicationRunner`로 기본 로깅 적용
+  4. **ApprovalController REST 엔드포인트** — R240 포맷터를 관리자 화면에 노출
+  5. **`EvaluationMetricsCollector` 에러 메트릭** — `recordError(stage, exception)` 추가
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R242 요약
+
+📊 **summarizer_compression_ratio 메트릭 추가 완료** — R222 Evaluation 축에 **8번째 메트릭** 연결 완성. R241에서 1급 시민화된 `ToolResponseSummary.compressionPercent()`를 Micrometer `DistributionSummary`(도구별 태그)로 기록한다. 신규 인터페이스 메서드 `EvaluationMetricsCollector.recordToolResponseCompression(percent, toolName)` — default no-op으로 backward compat 유지. `MicrometerEvaluationMetricsCollector`에 `METRIC_TOOL_RESPONSE_COMPRESSION` 상수 + `DistributionSummary.record()` 구현 (음수 `coerceAtLeast(0)` clamp + `UNKNOWN_TAG` fallback). `EvaluationMetricsCatalog.TOOL_RESPONSE_COMPRESSION` Metric 추가로 `ALL.size`가 7→8이 됨 (2개 DistributionSummary: TOOL_CALLS + TOOL_RESPONSE_COMPRESSION). `EvaluationMetricsHook.recordToolResponseKinds()` 루프 내에서 같은 `ToolResponseSummary` 객체에 대해 `recordToolResponseKind`와 `recordToolResponseCompression`을 쌍으로 호출 → 사용자는 코드 수정 없이 양쪽 모두 자동 기록. `DoctorDiagnostics` 카탈로그 detail 메시지에 `compression` 단어 추가로 진단 출력에도 반영. `docs/evaluation-metrics.md`에 8번째 메트릭 행 + Prometheus 3개 쿼리(도구별 평균 / 낮은 top 5 / p95) + 참조 섹션 업데이트. 기존 파일 5개 수정 (Collector +29줄 / Micrometer +16줄 / Catalog +17줄 / Hook +6줄 / Doctor 1줄), 문서 1개 수정 (+41줄), 테스트 4개 수정/확장 (Collector +96줄 / Catalog +25줄 / Hook +118줄 / Doctor +5줄). 신규 테스트 **11 PASS** (Collector R242 6 tests + Hook R242 5 tests) + 기존 7개 테스트 assertion 업데이트. 전체 Metrics/Summarize/Diagnostics 패키지 PASS. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R242**. swagger-mcp 8181 **73 라운드 연속**. 수정 과정에서 `DoctorDiagnosticsTest`가 `"7개"` 하드코딩 assertion으로 회귀 실패 → 카탈로그-Doctor drift 방지 보장이 잘 설계되어 있음을 확인, `"8개"` + `"compression"` assertion으로 수정. **R222 ↔ R241 시너지 연결 7단계 완성** (데이터모델/텍스트포맷/메트릭수집/카탈로그/Hook자동/Prometheus가이드/Doctor진단). 이제 ACI 요약 계층의 효과(도구별 평균 압축률, p50/p95 분포, 낮은 압축률 top 5)를 정량 지표로 관측하여 R223 휴리스틱 개선 효과를 before/after 비교 가능.

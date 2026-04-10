@@ -340,7 +340,7 @@ class DoctorDiagnostics(
                 name = "metric catalog (R234)",
                 status = DoctorStatus.OK,
                 detail = "${EvaluationMetricsCatalog.ALL.size}개 메트릭 등록 " +
-                    "(task/duration/tool.calls/cost/override/safety/kind)"
+                    "(task/duration/tool.calls/cost/override/safety/kind/compression)"
             )
         )
 

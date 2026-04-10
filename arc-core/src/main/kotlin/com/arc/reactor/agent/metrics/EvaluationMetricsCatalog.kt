@@ -22,7 +22,7 @@ package com.arc.reactor.agent.metrics
  * 사용자가 이 카탈로그를 실제 대시보드/알림으로 활용하는 방법은 `docs/evaluation-metrics.md`
  * 를 참조한다. 각 메트릭의 Prometheus 쿼리 예시와 Grafana 패널 정의가 포함되어 있다.
  *
- * ## R222+R224 7개 메트릭
+ * ## R222+R224+R242 8개 메트릭
  *
  * | Enum | Name | 유형 | 태그 |
  * |------|------|------|------|
@@ -33,6 +33,7 @@ package com.arc.reactor.agent.metrics
  * | [HUMAN_OVERRIDE] | `arc.reactor.eval.human.override` | COUNTER | outcome, tool |
  * | [SAFETY_REJECTION] | `arc.reactor.eval.safety.rejection` | COUNTER | stage, reason |
  * | [TOOL_RESPONSE_KIND] | `arc.reactor.eval.tool.response.kind` | COUNTER | kind, tool |
+ * | [TOOL_RESPONSE_COMPRESSION] | `arc.reactor.eval.tool.response.compression` | DISTRIBUTION_SUMMARY | tool |
  *
  * @see MicrometerEvaluationMetricsCollector 실제 Micrometer 구현체
  * @see EvaluationMetricsCollector 수집기 인터페이스
@@ -148,6 +149,17 @@ object EvaluationMetricsCatalog {
             "text_full)별 카운터. kind=요약 분류, tool=도구 이름."
     )
 
+    /** R242: R222+R241 시너지 — 도구 응답 요약 압축률 분포. */
+    val TOOL_RESPONSE_COMPRESSION: Metric = Metric(
+        name = MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION,
+        type = MetricType.DISTRIBUTION_SUMMARY,
+        tags = listOf(MicrometerEvaluationMetricsCollector.TAG_TOOL),
+        description = "R242 시너지 메트릭. R241 ToolResponseSummary.compressionPercent() " +
+            "값의 분포. 0~100 정수, 음수는 0으로 clamp. 도구별 요약 효율성 관측용 " +
+            "(평균/p50/p95). tool=도구 이름.",
+        unit = "percent"
+    )
+
     /**
      * 전체 메트릭 리스트 — 카탈로그의 single source of truth.
      * 새 메트릭 추가 시 여기에도 추가해야 한다.
@@ -159,7 +171,8 @@ object EvaluationMetricsCatalog {
         TOKEN_COST,
         HUMAN_OVERRIDE,
         SAFETY_REJECTION,
-        TOOL_RESPONSE_KIND
+        TOOL_RESPONSE_KIND,
+        TOOL_RESPONSE_COMPRESSION
     )
 
     /**

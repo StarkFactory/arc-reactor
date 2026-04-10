@@ -233,7 +233,12 @@ class DoctorDiagnosticsTest {
             assertEquals(DoctorStatus.OK, evaluation.status)
 
             val catalogCheck = evaluation.checks.find { it.name == "metric catalog (R234)" }!!
-            assertTrue(catalogCheck.detail.contains("7개")) { "7개 메트릭 언급" }
+            assertTrue(catalogCheck.detail.contains("8개")) {
+                "R222 6개 + R224 1개 + R242 1개 = 8개 메트릭 언급"
+            }
+            assertTrue(catalogCheck.detail.contains("compression")) {
+                "R242 compression 메트릭 언급"
+            }
 
             val sampleCheck = evaluation.checks.find { it.name == "sample record" }!!
             assertEquals(DoctorStatus.OK, sampleCheck.status)

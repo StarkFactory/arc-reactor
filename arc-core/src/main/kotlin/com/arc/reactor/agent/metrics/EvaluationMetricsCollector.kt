@@ -102,6 +102,34 @@ interface EvaluationMetricsCollector {
     fun recordToolResponseKind(kind: String, toolName: String) {
         // 기본 no-op (backward compat)
     }
+
+    /**
+     * R242: 도구 응답 요약의 압축률 분포 기록 (R222+R241 시너지).
+     *
+     * R241이 1급 시민화한 `ToolResponseSummary.compressionPercent()`를 Micrometer
+     * `DistributionSummary`에 기록하여 평균/중앙값/p95 분포를 관측한다. 이를 통해:
+     *
+     * - ACI 요약 계층(R223)이 얼마나 효과적으로 원본을 축소하는지 정량 측정
+     * - 특정 도구의 요약 효율이 낮다면 (`compressionPercent < 30`) 요약 전략 재검토
+     * - 도구별 태그로 Jira vs Confluence vs Bitbucket 요약 효율 비교
+     * - 시계열 모니터링으로 R223 휴리스틱 개선 효과 before/after 비교
+     *
+     * **기본 구현은 no-op** 이다. [NoOpEvaluationMetricsCollector]를 포함한 기존 구현체가
+     * 변경 없이 동작하도록 하기 위함이다.
+     *
+     * ## 음수 압축률 처리
+     *
+     * 요약이 원본보다 긴 경우(드물지만 `STRUCTURED` 등에서 가능) `percent`가 음수로 전달된다.
+     * 구현체는 이 값을 그대로 기록하거나 0으로 clamp할 수 있다. Micrometer 기본은 0 clamp.
+     *
+     * @param percent 압축률(%) — 0~100 정수가 일반적, 음수 가능
+     * @param toolName 대상 도구 이름
+     *
+     * @see com.arc.reactor.tool.summarize.ToolResponseSummary.compressionPercent
+     */
+    fun recordToolResponseCompression(percent: Int, toolName: String) {
+        // 기본 no-op (backward compat)
+    }
 }
 
 /**

@@ -117,6 +117,20 @@ class MicrometerEvaluationMetricsCollector(
         }
     }
 
+    override fun recordToolResponseCompression(percent: Int, toolName: String) {
+        runCatching {
+            // 음수 압축률(요약이 원본보다 긴 드문 경우)은 0으로 clamp하여 Micrometer 분포에 반영
+            val value = percent.coerceAtLeast(0).toDouble()
+            DistributionSummary.builder(METRIC_TOOL_RESPONSE_COMPRESSION)
+                .tag(TAG_TOOL, toolName.ifBlank { UNKNOWN_TAG })
+                .baseUnit("percent")
+                .register(registry)
+                .record(value)
+        }.onFailure { e ->
+            logger.warn(e) { "recordToolResponseCompression 실패: percent=$percent, tool=$toolName" }
+        }
+    }
+
     companion object {
         const val METRIC_TASK_COMPLETED = "arc.reactor.eval.task.completed"
         const val METRIC_TASK_DURATION = "arc.reactor.eval.task.duration"
@@ -127,6 +141,9 @@ class MicrometerEvaluationMetricsCollector(
 
         /** R224: 도구 응답 요약 분류별 카운터 (R222+R223 시너지). */
         const val METRIC_TOOL_RESPONSE_KIND = "arc.reactor.eval.tool.response.kind"
+
+        /** R242: 도구 응답 요약 압축률 분포 (R222+R241 시너지). */
+        const val METRIC_TOOL_RESPONSE_COMPRESSION = "arc.reactor.eval.tool.response.compression"
 
         const val TAG_RESULT = "result"
         const val TAG_ERROR_CODE = "error_code"

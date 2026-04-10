@@ -7,6 +7,7 @@ import com.arc.reactor.tool.summarize.ToolResponseSummary
 import com.arc.reactor.tool.summarize.ToolResponseSummarizerHook
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Nested
@@ -495,6 +496,134 @@ class EvaluationMetricsHookTest {
                 collector.recordToolResponseKind(
                     kind = "empty",
                     toolName = "confluence_search_by_text"
+                )
+            }
+        }
+    }
+
+    @Nested
+    inner class ToolResponseCompressionRecording {
+
+        @Test
+        fun `R242 toolSummary가 있으면 compressionPercent를 기록해야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            // 원본 1000자 → 요약 250자 = 75% 압축
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] =
+                ToolResponseSummary(
+                    text = "x".repeat(250),
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 1000,
+                    itemCount = 3
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseCompression(
+                    percent = 75,
+                    toolName = "jira_search"
+                )
+            }
+        }
+
+        @Test
+        fun `kind 기록과 compression 기록이 같은 요약에서 쌍으로 호출되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "confluence_get_page")] =
+                ToolResponseSummary(
+                    text = "요약",
+                    kind = SummaryKind.TEXT_HEAD_TAIL,
+                    originalLength = 500
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verifyOrder {
+                collector.recordToolResponseKind(
+                    kind = "text_head_tail",
+                    toolName = "confluence_get_page"
+                )
+                collector.recordToolResponseCompression(
+                    percent = 99, // (500-6)/500 → 98.8 → 98 (truncated)
+                    toolName = "confluence_get_page"
+                )
+            }
+        }
+
+        @Test
+        fun `여러 도구의 압축률이 각각 기록되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            // 도구 A: 90% 압축
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] =
+                ToolResponseSummary(
+                    text = "x".repeat(100),
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 1000
+                )
+            // 도구 B: 50% 압축
+            context.metadata[ToolResponseSummarizerHook.buildKey(1, "bitbucket_list_prs")] =
+                ToolResponseSummary(
+                    text = "x".repeat(500),
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 1000
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseCompression(percent = 90, toolName = "jira_search")
+            }
+            verify(exactly = 1) {
+                collector.recordToolResponseCompression(percent = 50, toolName = "bitbucket_list_prs")
+            }
+        }
+
+        @Test
+        fun `toolSummary 없으면 recordToolResponseCompression를 호출하지 않아야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            val response = AgentResponse(
+                success = true,
+                toolsUsed = listOf("jira_search"),
+                totalDurationMs = 100L
+            )
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 0) {
+                collector.recordToolResponseCompression(any(), any())
+            }
+        }
+
+        @Test
+        fun `원본 0인 빈 응답도 compressionPercent 0으로 기록되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "empty_tool")] =
+                ToolResponseSummary(
+                    text = "",
+                    kind = SummaryKind.EMPTY,
+                    originalLength = 0
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseCompression(
+                    percent = 0,
+                    toolName = "empty_tool"
                 )
             }
         }

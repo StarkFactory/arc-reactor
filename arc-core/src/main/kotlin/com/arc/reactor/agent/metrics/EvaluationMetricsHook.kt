@@ -148,13 +148,16 @@ class EvaluationMetricsHook(
     }
 
     /**
-     * R224: R223 ACI 요약 계층이 생성한 `toolSummary_{callIndex}_{toolName}` 메타데이터를
-     * 스캔하여 요약 분류별 카운터를 기록한다.
+     * R224+R242: R223 ACI 요약 계층이 생성한 `toolSummary_{callIndex}_{toolName}` 메타데이터를
+     * 스캔하여 요약 분류별 카운터(R224)와 압축률 분포(R242)를 기록한다.
      *
      * 양쪽 기능이 모두 opt-in 이므로:
      * - R223 요약기 미활성 → 메타데이터 비어있음 → 루프 바디 실행 없음 → 오버헤드 0
      * - R222 Evaluation 미활성 → [collector]가 NoOp → 루프는 돌지만 실제 기록 없음
-     * - 양쪽 활성 → 실제 메트릭 기록
+     * - 양쪽 활성 → 실제 메트릭 기록 (kind + compression 함께)
+     *
+     * R242: 같은 `ToolResponseSummary` 객체에서 `compressionPercent()`를 호출하여
+     * R241의 1급 시민화된 압축률 지표를 도구별 분포로 기록한다.
      */
     private fun recordToolResponseKinds(context: HookContext) {
         for ((key, value) in context.metadata.entries) {
@@ -164,6 +167,11 @@ class EvaluationMetricsHook(
             val toolName = extractToolNameFromSummaryKey(key)
             collector.recordToolResponseKind(
                 kind = summary.kind.name.lowercase(),
+                toolName = toolName
+            )
+            // R242: 같은 요약에서 압축률 분포도 기록
+            collector.recordToolResponseCompression(
+                percent = summary.compressionPercent(),
                 toolName = toolName
             )
         }

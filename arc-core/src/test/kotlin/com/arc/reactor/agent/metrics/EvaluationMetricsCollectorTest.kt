@@ -321,4 +321,103 @@ class EvaluationMetricsCollectorTest {
             assertTrue(true) { "default no-op 구현이 backward compat를 유지해야 한다" }
         }
     }
+
+    @Nested
+    inner class ToolResponseCompression {
+
+        private fun newCollector(): Pair<SimpleMeterRegistry, MicrometerEvaluationMetricsCollector> {
+            val registry = SimpleMeterRegistry()
+            return registry to MicrometerEvaluationMetricsCollector(registry)
+        }
+
+        @Test
+        fun `압축률은 DistributionSummary로 tool 태그와 함께 기록되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordToolResponseCompression(75, "jira_search")
+            collector.recordToolResponseCompression(88, "jira_search")
+            collector.recordToolResponseCompression(42, "confluence_get_page")
+
+            val jiraSummary = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_TOOL, "jira_search")
+                .summary()
+            assertNotNull(jiraSummary) { "jira_search 압축률 DistributionSummary 등록 확인" }
+            assertEquals(2L, jiraSummary!!.count()) { "jira_search 2번 기록" }
+            assertEquals(163.0, jiraSummary.totalAmount()) { "75 + 88 = 163" }
+
+            val confluenceSummary = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_TOOL, "confluence_get_page")
+                .summary()
+            assertNotNull(confluenceSummary) { "confluence_get_page DistributionSummary 등록" }
+            assertEquals(1L, confluenceSummary!!.count())
+            assertEquals(42.0, confluenceSummary.totalAmount())
+        }
+
+        @Test
+        fun `음수 압축률은 0으로 clamp되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordToolResponseCompression(-50, "weird_tool")
+
+            val summary = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_TOOL, "weird_tool")
+                .summary()
+            assertNotNull(summary) { "음수도 summary 등록" }
+            assertEquals(0.0, summary!!.totalAmount()) {
+                "음수는 0으로 clamp되어야 한다"
+            }
+        }
+
+        @Test
+        fun `빈 tool 이름은 unknown 태그로 변환되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordToolResponseCompression(50, "")
+
+            val summary = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_TOOL, MicrometerEvaluationMetricsCollector.UNKNOWN_TAG)
+                .summary()
+            assertNotNull(summary) { "빈 tool → unknown 태그" }
+        }
+
+        @Test
+        fun `여러 도구가 독립된 태그로 분리되어야 한다`() {
+            val (registry, collector) = newCollector()
+            listOf(
+                90 to "jira_search",
+                85 to "jira_search",
+                60 to "confluence_get_page",
+                10 to "bitbucket_get_pr"
+            ).forEach { (percent, tool) ->
+                collector.recordToolResponseCompression(percent, tool)
+            }
+
+            val tools = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_COMPRESSION)
+                .summaries()
+                .mapNotNull { it.id.getTag(MicrometerEvaluationMetricsCollector.TAG_TOOL) }
+                .toSet()
+            assertEquals(
+                setOf("jira_search", "confluence_get_page", "bitbucket_get_pr"),
+                tools
+            ) { "3개 독립 tool 태그가 생성되어야 한다" }
+        }
+
+        @Test
+        fun `NoOp 수집기의 recordToolResponseCompression는 no-op이어야 한다`() {
+            NoOpEvaluationMetricsCollector.recordToolResponseCompression(75, "jira_search")
+            NoOpEvaluationMetricsCollector.recordToolResponseCompression(-100, "")
+            assertTrue(true) { "NoOp 수집기의 새 메서드는 예외 없이 반환해야 한다" }
+        }
+
+        @Test
+        fun `interface default 구현은 no-op이어야 한다 (backward compat)`() {
+            val customCollector = object : EvaluationMetricsCollector {
+                override fun recordTaskCompleted(success: Boolean, durationMs: Long, errorCode: String?) {}
+                override fun recordToolCallCount(count: Int, toolNames: List<String>) {}
+                override fun recordTokenCost(costUsd: Double, model: String) {}
+                override fun recordHumanOverride(outcome: HumanOverrideOutcome, toolName: String) {}
+                override fun recordSafetyRejection(stage: SafetyRejectionStage, reason: String) {}
+                // recordToolResponseKind + recordToolResponseCompression 구현 생략 → default no-op
+            }
+            customCollector.recordToolResponseCompression(75, "tool")
+            assertTrue(true) { "default no-op 구현이 backward compat를 유지해야 한다" }
+        }
+    }
 }

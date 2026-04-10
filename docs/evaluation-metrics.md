@@ -1,6 +1,6 @@
 # Arc Reactor Evaluation Metrics — 관측 가이드
 
-R222~R224 `EvaluationMetricsCollector`가 기록하는 7개 핵심 메트릭의 활성화, Prometheus 쿼리, Grafana 대시보드 가이드.
+R222~R242 `EvaluationMetricsCollector`가 기록하는 8개 핵심 메트릭의 활성화, Prometheus 쿼리, Grafana 대시보드 가이드.
 
 ## 목차
 
@@ -13,7 +13,7 @@ R222~R224 `EvaluationMetricsCollector`가 기록하는 7개 핵심 메트릭의 
 
 ## 활성화
 
-`application.yml`에 다음 속성을 추가하면 모든 7개 메트릭이 자동으로 수집된다:
+`application.yml`에 다음 속성을 추가하면 모든 8개 메트릭이 자동으로 수집된다:
 
 ```yaml
 arc:
@@ -27,7 +27,7 @@ arc:
 
 - `MeterRegistry` 빈이 존재하면 `MicrometerEvaluationMetricsCollector`가 자동 주입됨
 - `EvaluationMetricsHook`(AfterAgentCompleteHook)이 등록되어 각 작업 완료 시 메트릭 기록
-- R223 `ToolResponseSummarizer`가 활성화되어 있으면 R224 `tool.response.kind` 메트릭도 함께 수집됨
+- R223 `ToolResponseSummarizer`가 활성화되어 있으면 R224 `tool.response.kind` 메트릭과 R242 `tool.response.compression` 메트릭도 함께 수집됨
 
 ### 의존성 요구사항
 
@@ -37,7 +37,7 @@ arc:
 
 ## 메트릭 카탈로그
 
-R222 6개 + R224 1개 = **총 7개 메트릭**. 타입화된 카탈로그는 `com.arc.reactor.agent.metrics.EvaluationMetricsCatalog`에서 프로그래밍 방식으로 조회 가능하다.
+R222 6개 + R224 1개 + R242 1개 = **총 8개 메트릭**. 타입화된 카탈로그는 `com.arc.reactor.agent.metrics.EvaluationMetricsCatalog`에서 프로그래밍 방식으로 조회 가능하다.
 
 | # | 메트릭 이름 | 유형 | 태그 | 단위 | Round |
 |---|------------|------|------|------|-------|
@@ -48,6 +48,7 @@ R222 6개 + R224 1개 = **총 7개 메트릭**. 타입화된 카탈로그는 `co
 | 5 | `arc.reactor.eval.human.override` | Counter | `outcome`, `tool` | — | R222 |
 | 6 | `arc.reactor.eval.safety.rejection` | Counter | `stage`, `reason` | — | R222 |
 | 7 | `arc.reactor.eval.tool.response.kind` | Counter | `kind`, `tool` | — | R224 |
+| 8 | `arc.reactor.eval.tool.response.compression` | DistributionSummary | `tool` | percent | R242 |
 
 ### 태그 값 사전
 
@@ -153,6 +154,40 @@ topk(5,
 ```promql
 rate(arc_reactor_eval_safety_rejection_total{stage="guard",reason="injection"}[5m])
 ```
+
+### 도구별 평균 압축률 (R242 시너지)
+
+```promql
+sum by (tool) (rate(arc_reactor_eval_tool_response_compression_sum[5m]))
+/
+sum by (tool) (rate(arc_reactor_eval_tool_response_compression_count[5m]))
+```
+
+### 압축률이 낮은 도구 top 5 (요약 효율 점검)
+
+```promql
+bottomk(5,
+  sum by (tool) (
+    rate(arc_reactor_eval_tool_response_compression_sum[5m])
+  )
+  /
+  sum by (tool) (
+    rate(arc_reactor_eval_tool_response_compression_count[5m])
+  )
+)
+```
+
+낮은 값이 나오는 도구는 요약 휴리스틱 재검토가 필요하다. 예를 들어 구조화 필드가 많은데 `STRUCTURED` 전략이 주요 필드만 잘 추출하지 못하면 압축률이 낮게 측정된다.
+
+### 압축률 p95 분포
+
+```promql
+histogram_quantile(0.95,
+  sum by (le) (rate(arc_reactor_eval_tool_response_compression_bucket[5m]))
+)
+```
+
+p95가 30% 미만이면 ACI 요약 계층의 효과가 미미하다고 볼 수 있다.
 
 ## Grafana 대시보드 템플릿
 
@@ -364,6 +399,8 @@ groups:
 - **R224** — Round 224 섹션: R223 SummaryKind 통합 (7번째 메트릭)
 - **R233** — Round 233 섹션: 공통 `PiiPatterns.kt` 추출 (관련 보안 개선)
 - **R234** — Round 234 섹션 (이 문서): 사용자 관측 가이드
+- **R241** — Round 241 섹션: `ToolResponseSummary.compressionPercent()` 1급 시민화
+- **R242** — Round 242 섹션: R241 압축률 1급 지표 → `tool.response.compression` DistributionSummary (8번째 메트릭)
 - **소스**:
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/EvaluationMetricsCollector.kt`
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/MicrometerEvaluationMetricsCollector.kt`
