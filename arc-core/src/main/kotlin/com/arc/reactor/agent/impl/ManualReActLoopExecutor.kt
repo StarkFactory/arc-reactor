@@ -786,10 +786,34 @@ internal class ManualReActLoopExecutor(
     /**
      * LLM이 tool_calls를 구조적으로 생성하지 않고 텍스트로만 도구 호출 의도를 표현했는지 감지한다.
      * 예: "confluence_search_by_text(keyword='온보딩')" 또는 "잠시만 기다려 주세요" 패턴.
+     *
+     * R204: 완결된 응답(💡 인사이트 / 출처 / 구조화된 본문 포함)은 false positive로 간주하여
+     * intent가 아님으로 판단. 이미 유의미한 답변을 생성했으면 retry가 오히려 역효과.
      */
     private fun looksLikeUnexecutedToolIntent(text: String?): Boolean {
         if (text.isNullOrBlank()) return false
+        if (looksLikeCompletedAnswer(text)) return false
         return UNEXECUTED_TOOL_INTENT_PATTERN.containsMatchIn(text)
+    }
+
+    /**
+     * R204: 텍스트가 "완결된 답변"인지 판단한다.
+     * 본문 길이가 충분하고 (>= 300자) 다음 중 하나라도 포함하면 완결된 것으로 본다:
+     * - `💡` 인사이트 마커
+     * - `**` 마크다운 강조 (구조화된 답변)
+     * - 2개 이상의 불릿 포인트 (`- ` 또는 `* `)
+     * - "출처" 섹션 또는 http URL
+     *
+     * 완결 판정 시 retry를 하지 않아 false positive 방지 + 응답시간 절감.
+     */
+    private fun looksLikeCompletedAnswer(text: String): Boolean {
+        if (text.length < COMPLETED_ANSWER_MIN_LENGTH) return false
+        if (text.contains("💡") || text.contains(":bulb:")) return true
+        if (text.contains("**")) return true
+        if (text.contains("http://") || text.contains("https://")) return true
+        val bulletCount = BULLET_LINE_PATTERN.findAll(text).count()
+        if (bulletCount >= 2) return true
+        return false
     }
 
     companion object {
@@ -827,5 +851,11 @@ internal class ManualReActLoopExecutor(
                 "BEGIN TOOL CALL",
             RegexOption.IGNORE_CASE
         )
+
+        /** R204: 완결된 답변 최소 길이 임계치 — 이 값 미만이면 intent로 간주할 수 있다. */
+        private const val COMPLETED_ANSWER_MIN_LENGTH = 300
+
+        /** R204: 불릿 라인 감지 패턴 (`- ` 또는 `* ` 또는 `1. ` 등). */
+        private val BULLET_LINE_PATTERN = Regex("(?m)^\\s*(?:[-*]\\s|\\d+\\.\\s)")
     }
 }
