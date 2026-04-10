@@ -1,5 +1,7 @@
 package com.arc.reactor.tool.summarize
 
+import com.arc.reactor.support.PiiPatterns
+
 /**
  * [ToolResponseSummarizer] 데코레이터 — 결과 [ToolResponseSummary]의 텍스트 필드에서
  * 민감 정보(PII)를 정규식 기반으로 마스킹한다.
@@ -161,21 +163,14 @@ class RedactedToolResponseSummarizer(
         const val SAFE_FALLBACK: String = "[REDACTED]"
 
         /**
-         * 기본 PII 패턴 목록 (R228 `RedactedApprovalContextResolver`와 동일).
+         * 기본 PII 패턴 목록.
          *
-         * 두 데코레이터가 독립된 패턴 리스트를 유지하는 이유:
-         * 1. Approval 컨텍스트와 도구 응답 요약은 서로 다른 PII 우려를 가질 수 있다
-         * 2. 한쪽 패턴 변경이 다른 쪽에 의도치 않은 영향을 주지 않도록 격리
-         * 3. 향후 공통 유틸(`arc-core/.../support/PiiPatterns.kt`)로 추출 여지를 남김
+         * R233 이후 [PiiPatterns.DEFAULT]를 참조하여 R228
+         * `RedactedApprovalContextResolver.DEFAULT_PATTERNS`와 동일한 리스트를 공유한다.
+         * 두 데코레이터가 하나의 source of truth를 가지므로 패턴 drift가 불가능하다.
+         * 이 상수의 공개 타입/값은 그대로 유지되어 기존 테스트와 사용자 코드의 호환성이
+         * 보장된다.
          */
-        val DEFAULT_PATTERNS: List<Regex> = listOf(
-            Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+"""),
-            Regex("""Bearer\s+[A-Za-z0-9\-_.=]+""", RegexOption.IGNORE_CASE),
-            Regex("""ATATT3xFfGF0[A-Za-z0-9\-_=]+"""),
-            Regex("""xox[baprs]-[A-Za-z0-9-]+"""),
-            Regex("""01[0-9]-\d{3,4}-\d{4}"""),
-            Regex("""\+?82-10-\d{3,4}-\d{4}"""),
-            Regex("""\d{6}-[1-4]\d{6}""")
-        )
+        val DEFAULT_PATTERNS: List<Regex> = PiiPatterns.DEFAULT
     }
 }

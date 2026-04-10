@@ -1,5 +1,7 @@
 package com.arc.reactor.approval
 
+import com.arc.reactor.support.PiiPatterns
+
 /**
  * [ApprovalContextResolver] 데코레이터 — 결과 [ApprovalContext]의 텍스트 필드에서
  * 민감 정보(PII: Personally Identifiable Information)를 정규식 기반으로 마스킹한다.
@@ -149,23 +151,13 @@ class RedactedApprovalContextResolver(
         /**
          * 기본 PII 패턴 목록.
          *
+         * R233 이후 [PiiPatterns.DEFAULT]를 참조하여 R231
+         * `RedactedToolResponseSummarizer.DEFAULT_PATTERNS`와 동일한 리스트를 공유한다.
+         * 이 상수의 공개 타입/값은 그대로 유지되어 기존 테스트와 사용자 코드의 호환성이
+         * 보장된다.
+         *
          * 각 패턴은 독립적으로 적용되므로, 여러 패턴이 동일 문자열에 매칭되면 모두 대체된다.
          */
-        val DEFAULT_PATTERNS: List<Regex> = listOf(
-            // 이메일 — 일반적인 형식 (국내 도메인 포함)
-            Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+"""),
-            // Bearer 토큰 (JWT 포함)
-            Regex("""Bearer\s+[A-Za-z0-9\-_.=]+""", RegexOption.IGNORE_CASE),
-            // Atlassian API 토큰 (granular 토큰 prefix, R220 Atlassian API Auth 메모 참조)
-            Regex("""ATATT3xFfGF0[A-Za-z0-9\-_=]+"""),
-            // Slack 토큰 (bot/user/app/refresh/service)
-            Regex("""xox[baprs]-[A-Za-z0-9-]+"""),
-            // 한국 휴대폰 번호 (하이픈 포함)
-            Regex("""01[0-9]-\d{3,4}-\d{4}"""),
-            // 국제 표기 한국 휴대폰 (+82-10-xxxx-xxxx)
-            Regex("""\+?82-10-\d{3,4}-\d{4}"""),
-            // 주민등록번호 (오탐 최소화를 위해 생년월일 + 첫 자리 1-4만)
-            Regex("""\d{6}-[1-4]\d{6}""")
-        )
+        val DEFAULT_PATTERNS: List<Regex> = PiiPatterns.DEFAULT
     }
 }

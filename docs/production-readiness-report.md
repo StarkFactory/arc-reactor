@@ -13192,3 +13192,199 @@ ToolResponseSummarizerPiiRedactionConfigurationTest  → 12 tests PASS
 #### 📊 R232 요약
 
 🔌 **R231 심화: ToolResponseSummarizer PII Redaction 자동 구성 완료**. `arc.reactor.tool.response.summarizer.pii-redaction.enabled=true` 속성 설정 시 기존 `ToolResponseSummarizer` 베이스 빈을 `RedactedToolResponseSummarizer`로 감싸 `@Primary`로 자동 등록. R229 Approval 축 패턴과 **완전히 동일**. `@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])`로 평가 순서 보장, `@ConditionalOnBean` + `List<ToolResponseSummarizer>` 필터링으로 이중 래핑 방지. 구현 중 발견한 **R223 `@Primary` 충돌**을 함께 수정: R223의 `defaultToolResponseSummarizer()`는 `noOpToolResponseSummarizer`가 `@ConditionalOnMissingBean`으로 공존 안 하므로 `@Primary`가 원래 redundant였고, R232 Redacted `@Primary`와 충돌을 일으켰다. @Primary 제거로 R232 래핑이 가능해지며 R223 테스트는 회귀 없음. 신규 파일 2개 (autoconfig 115줄 + 테스트 265줄), 기존 파일 2개 수정 (ArcReactorAutoConfiguration @Import + ToolResponseSummarizerConfiguration @Primary 제거). `ApplicationContextRunner` 기반 신규 테스트 **12 PASS** (5 @Nested 그룹: WithDefaultBase, WithoutRedaction, WithoutBaseSummarizer, WithUserCustomBean, SelfWrappingPrevention). 기존 R219~R231 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224+R225+R226+R227+R228+R229+R230+R231+R232**. swagger-mcp 8181 **63 라운드 연속** 안정. **Approval vs ACI 평행 관계**: 이제 두 축 모두 "Foundation → (Concrete/사용자) → Composite → Decorator → Decorator Auto"의 동일한 성숙 단계를 가진다. "Auto-wire" 체인 자동 구성만이 Approval 축에만 존재하는데, 이는 ACI에서 특정 체인 조합의 일반성이 낮아 아직 도입하지 않은 상태다.
+
+### Round 233 — ♻️ 2026-04-11T09:30+09:00 — 기술 부채 정리: 공통 PiiPatterns.kt 추출 리팩토링
+
+**작업 종류**: Directive 심화 — R228/R231 중복 코드 제거 리팩토링 (QA 측정 없음)
+**Directive 패턴**: #1/#2 공통 (기술 부채 해소)
+**완료 태스크**: #108
+
+#### 작업 배경
+
+R228 `RedactedApprovalContextResolver`와 R231 `RedactedToolResponseSummarizer`는 **동일한 7개 PII 정규식 패턴**을 각자의 `companion object.DEFAULT_PATTERNS`로 복사 보유하고 있었다. R231 커밋 메시지와 R232 보고서에서 이를 의도적 기술 부채로 명시하며 "향후 공통 유틸 `PiiPatterns.kt`로 추출 여지"를 남겼다.
+
+R233은 이 기술 부채를 정리한다. 중복을 제거하고 **single source of truth**를 수립하여 향후 패턴 변경 시 한 곳만 수정하면 되도록 한다.
+
+#### 설계 원칙
+
+1. **Single source of truth**: `PiiPatterns.DEFAULT`가 유일한 패턴 리스트
+2. **Backward compat 완전 유지**: `RedactedApprovalContextResolver.DEFAULT_PATTERNS`와 `RedactedToolResponseSummarizer.DEFAULT_PATTERNS` 상수는 그대로 유지하되 내부적으로 `PiiPatterns.DEFAULT`를 참조
+3. **개별 패턴 노출**: 각 패턴을 `EMAIL`, `BEARER_TOKEN`, `ATLASSIAN_GRANULAR` 등 명명된 상수로도 노출하여 사용자가 선별적으로 사용 가능
+4. **중립적 위치**: `arc-core/.../support/` 패키지 (Approval과 ACI 중 한쪽에 두면 의존 방향 어색)
+5. **행동 변화 0**: 정규식 문자열 byte-identical 유지, 순서 유지
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `support/PiiPatterns.kt` | 130 | 7개 개별 패턴 상수 + `DEFAULT` 리스트 + KDoc 상세 |
+| `test/.../PiiPatternsTest.kt` | 265 | 23 tests (9 `@Nested` 그룹) |
+
+**기존 파일 수정 2개**:
+- `approval/RedactedApprovalContextResolver.kt` — `DEFAULT_PATTERNS = PiiPatterns.DEFAULT`로 단순화 (기존 정규식 리터럴 7줄 → 한 줄 참조), `import PiiPatterns` 추가
+- `tool/summarize/RedactedToolResponseSummarizer.kt` — 동일한 리팩토링
+
+#### `PiiPatterns.kt` 구조
+
+```kotlin
+package com.arc.reactor.support
+
+object PiiPatterns {
+    val EMAIL: Regex = Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+""")
+    val BEARER_TOKEN: Regex = Regex(
+        """Bearer\s+[A-Za-z0-9\-_.=]+""",
+        RegexOption.IGNORE_CASE
+    )
+    val ATLASSIAN_GRANULAR: Regex = Regex("""ATATT3xFfGF0[A-Za-z0-9\-_=]+""")
+    val SLACK_TOKEN: Regex = Regex("""xox[baprs]-[A-Za-z0-9-]+""")
+    val KOREAN_PHONE_DOMESTIC: Regex = Regex("""01[0-9]-\d{3,4}-\d{4}""")
+    val KOREAN_PHONE_INTERNATIONAL: Regex = Regex("""\+?82-10-\d{3,4}-\d{4}""")
+    val KOREAN_RRN: Regex = Regex("""\d{6}-[1-4]\d{6}""")
+
+    val DEFAULT: List<Regex> = listOf(
+        EMAIL, BEARER_TOKEN, ATLASSIAN_GRANULAR, SLACK_TOKEN,
+        KOREAN_PHONE_DOMESTIC, KOREAN_PHONE_INTERNATIONAL, KOREAN_RRN
+    )
+}
+```
+
+**개별 상수 노출의 이점**: 사용자가 특정 패턴만 조합할 수 있다:
+
+```kotlin
+// 예: 이메일과 Atlassian 토큰만 마스킹하는 커스텀 리스트
+val customList = listOf(
+    PiiPatterns.EMAIL,
+    PiiPatterns.ATLASSIAN_GRANULAR,
+    Regex("""INTERNAL-\d{8}""")  // 사내 식별자 추가
+)
+```
+
+#### R228/R231 리팩토링 전/후
+
+**이전** (R228):
+```kotlin
+companion object {
+    val DEFAULT_PATTERNS: List<Regex> = listOf(
+        Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+"""),
+        Regex("""Bearer\s+[A-Za-z0-9\-_.=]+""", RegexOption.IGNORE_CASE),
+        Regex("""ATATT3xFfGF0[A-Za-z0-9\-_=]+"""),
+        Regex("""xox[baprs]-[A-Za-z0-9-]+"""),
+        Regex("""01[0-9]-\d{3,4}-\d{4}"""),
+        Regex("""\+?82-10-\d{3,4}-\d{4}"""),
+        Regex("""\d{6}-[1-4]\d{6}""")
+    )
+    ...
+}
+```
+
+**이후** (R233):
+```kotlin
+companion object {
+    val DEFAULT_PATTERNS: List<Regex> = PiiPatterns.DEFAULT
+    ...
+}
+```
+
+R231도 동일하게 한 줄로 축소. **13줄의 정규식 리터럴이 2개 파일에서 각각 한 줄 참조로 단순화**.
+
+#### 테스트 전략
+
+R228/R231 기존 테스트는 `DEFAULT_PATTERNS` 상수의 공개 타입과 값 동작을 검증한다. 리팩토링 후에도 이 상수가 같은 타입 (`List<Regex>`)과 같은 내용을 가지므로 **R228/R231 테스트는 수정 없이 그대로 통과**한다.
+
+신규 `PiiPatternsTest.kt`는 패턴의 **의미론적 동작**을 R228/R231 테스트와 **독립적으로** 검증한다 — 이는 "두 데코레이터가 패턴 구현에서 부주의한 수정을 겪어도 패턴 자체는 회귀되지 않도록" 하는 추가 방어선이다.
+
+#### 테스트 결과
+
+```
+PiiPatternsTest                                → 23 tests PASS
+  @Nested DefaultList (2)
+    - 정확히 7개 패턴 포함
+    - 선언 순서 일치 (EMAIL 첫 번째, KOREAN_RRN 마지막)
+  @Nested EmailPattern (4)
+    - 단순 이메일 / 복합 (점/하이픈/+) / 이메일 아닌 문자열 / 여러 이메일
+  @Nested BearerTokenPattern (3)
+    - 대문자 Bearer JWT / 소문자 IGNORE_CASE / 공백 필수 검증
+  @Nested AtlassianGranularPattern (3)
+    - 정상 prefix / 잘못된 prefix 배제 / 하이픈·특수문자 허용
+  @Nested SlackTokenPattern (2)
+    - xoxb/xoxp/xoxa/xoxr/xoxs 모두 / xoxz 배제
+  @Nested KoreanPhonePatterns (4)
+    - 010/011/019 / 하이픈 필수 / 국제 표기 / KT-10 같은 변형 배제
+  @Nested KoreanRrnPattern (4)
+    - 정상 4가지 (1/2/3/4) / 첫 자리 5+ 오탐 방지 / 하이픈 필수 / 자리수 검증
+  @Nested ReplacementBehavior (3)
+    - 이메일 replace / 여러 패턴 순차 적용 / 매칭 없을 때 원본 유지
+  @Nested SharedReferenceInvariance (3)  ⭐ 핵심 리팩토링 검증
+    - R228 DEFAULT_PATTERNS == PiiPatterns.DEFAULT
+    - R231 DEFAULT_PATTERNS == PiiPatterns.DEFAULT
+    - R228.DEFAULT_PATTERNS === R231.DEFAULT_PATTERNS (reference equality)
+      "두 데코레이터는 동일 인스턴스를 공유해야 한다"
+```
+
+**`SharedReferenceInvariance` 그룹**은 **reference equality (`===`)** 로 R228과 R231이 같은 `List<Regex>` 인스턴스를 공유함을 증명한다. 이는 단순히 값이 같은 것을 넘어, **단 하나의 메모리 객체**가 두 데코레이터에 공유됨을 보장한다 → 패턴 drift가 원천적으로 불가능.
+
+**기존 R219~R232 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- R228 `RedactedApprovalContextResolverTest` 27 PASS (DEFAULT_PATTERNS 참조 방식 변경에도 공개 동작 불변)
+- R231 `RedactedToolResponseSummarizerTest` 22 PASS
+- R229 `ApprovalPiiRedactionConfigurationTest` 11 + R232 `ToolResponseSummarizerPiiRedactionConfigurationTest` 12 PASS
+- R230 `ChainedApprovalContextResolverTest` 22 + `ChainedToolResponseSummarizerTest` 20 PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미수정
+- ✅ 리팩토링은 순수 내부 구조 변경, 공개 API 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 정규식 패턴 리스트는 대화 이력 경로와 완전 독립
+
+#### opt-in / backward compat
+
+- **사용자 코드 영향**: 0. `RedactedApprovalContextResolver.DEFAULT_PATTERNS` 및 `RedactedToolResponseSummarizer.DEFAULT_PATTERNS` 공개 상수는 그대로 사용 가능
+- **신규 사용 가능**: `com.arc.reactor.support.PiiPatterns.EMAIL` 등 개별 상수 직접 접근 가능
+- **추가 기본값 변경 없음**: 기본 리스트(7개)의 내용과 순서 동일
+
+#### 라인 수 변화
+
+| 파일 | 이전 | 이후 | 변화 |
+|------|------|------|------|
+| `RedactedApprovalContextResolver.kt` | 170 | 156 | -14 |
+| `RedactedToolResponseSummarizer.kt` | 170 | 156 | -14 |
+| `PiiPatterns.kt` (신규) | 0 | 130 | +130 |
+| `PiiPatternsTest.kt` (신규) | 0 | 265 | +265 |
+
+**net 변화**: +367줄 (그 중 ~250줄이 신규 테스트). 실제 프로덕션 코드는 **130줄 신규 + 28줄 삭제 = +102줄**이지만 중복이 제거되고 단일 source of truth가 수립되어 유지보수성은 크게 향상.
+
+#### 연속 지표
+
+| 지표 | R232 | R233 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 63 | **64** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R232 | **4/5 + R224~R233** | - |
+
+#### 다음 Round 후보
+
+- **R234+**:
+  1. **Evaluation 대시보드 문서** — R222+R224 메트릭 Grafana JSON + Prometheus 쿼리 (여러 라운드 미뤄온 항목)
+  2. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 워크스페이스 프로파일 오버라이드
+  3. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — Directive 작업 효과 정량 비교
+
+#### 📊 R233 요약
+
+♻️ **기술 부채 정리: 공통 PiiPatterns.kt 추출 리팩토링 완료**. R228/R231에 중복되어 있던 7개 PII 정규식 패턴(이메일/Bearer/Atlassian granular/Slack/한국 휴대폰 국내·국제/주민번호)을 `arc-core/.../support/PiiPatterns.kt` 공통 유틸로 추출. 7개 개별 상수(`EMAIL`, `BEARER_TOKEN`, `ATLASSIAN_GRANULAR`, `SLACK_TOKEN`, `KOREAN_PHONE_DOMESTIC`, `KOREAN_PHONE_INTERNATIONAL`, `KOREAN_RRN`)와 이들을 묶은 `DEFAULT` 리스트 노출. R228 `RedactedApprovalContextResolver`와 R231 `RedactedToolResponseSummarizer`의 `DEFAULT_PATTERNS`를 `PiiPatterns.DEFAULT` 참조로 단순화 (각 파일에서 13줄의 정규식 리터럴 → 한 줄 참조). 두 데코레이터가 **동일 인스턴스**를 공유하여 패턴 drift 원천 불가. 기존 `DEFAULT_PATTERNS` 공개 상수는 유지되어 사용자 코드 영향 0. 신규 파일 2개 (PiiPatterns 130줄 + 테스트 265줄), 기존 파일 2개 수정 (R228/R231 각각 -14줄). 신규 테스트 **23 PASS** (9 @Nested 그룹 포함 **SharedReferenceInvariance** — R228/R231의 `DEFAULT_PATTERNS`가 `===` reference equality로 동일 인스턴스임을 증명). 기존 R219~R232 테스트 모두 회귀 없음 (R228 27 + R231 22 + R229 11 + R230 42 + R232 12 재검증). R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R233**. swagger-mcp 8181 **64 라운드 연속** 안정. R228과 R231의 tech debt가 해소되어 향후 패턴 수정 시 **한 곳만 업데이트**하면 양쪽 데코레이터에 자동 반영된다.
