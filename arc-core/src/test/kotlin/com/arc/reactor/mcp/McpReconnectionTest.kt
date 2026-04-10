@@ -235,8 +235,9 @@ class McpReconnectionTest {
             val props = McpReconnectionProperties()
 
             assertTrue(props.enabled) { "Reconnection should be enabled by default" }
-            assertEquals(5, props.maxAttempts) { "Default maxAttempts should be 5" }
-            assertEquals(5000, props.initialDelayMs) { "Default initialDelayMs should be 5000" }
+            // R173: MCP 시작 시 늦게 올라오는 환경 대응 — maxAttempts 5→10, initialDelay 5s→2s
+            assertEquals(10, props.maxAttempts) { "Default maxAttempts should be 10 (R173)" }
+            assertEquals(2000, props.initialDelayMs) { "Default initialDelayMs should be 2000 (R173)" }
             assertEquals(2.0, props.multiplier) { "Default multiplier should be 2.0" }
             assertEquals(60_000, props.maxDelayMs) { "Default maxDelayMs should be 60000" }
         }

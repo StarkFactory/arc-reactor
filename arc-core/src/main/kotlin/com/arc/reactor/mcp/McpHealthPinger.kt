@@ -120,32 +120,51 @@ class McpHealthPinger(
     }
 
     /**
-     * 모든 CONNECTED 서버에 대해 헬스체크를 수행한다.
+     * 모든 서버를 점검하고 필요 시 재연결을 시도한다.
      *
-     * 서버 상태가 CONNECTED이지만 도구 콜백이 비어있으면 연결이 끊어진 것으로 간주하고
-     * 재연결을 시도한다.
+     * 점검 대상:
+     * - CONNECTED + 도구 콜백 비어있음 → 조용히 끊어진 연결로 판단, 재연결
+     * - FAILED → 일시적 장애 후 자동 복구 시도 (쿨다운 적용)
+     * - PENDING → 시작 시 등록만 되고 connect 안 된 상태, 첫 연결 시도
+     *
+     * 쿨다운: [reconnectCooldownMs] 간격으로만 재시도하여 소켓 고갈 방지.
      */
     internal suspend fun pingAllConnectedServers() {
         val servers = mcpManager.listServers()
         for (server in servers) {
             val status = mcpManager.getStatus(server.name)
-            if (status != McpServerStatus.CONNECTED) continue
-
-            try {
-                val tools = mcpManager.getToolCallbacks(server.name)
-                if (tools.isEmpty()) {
-                    logger.warn {
-                        "MCP 서버 '${server.name}'가 CONNECTED이나 도구 없음 — 재연결 시도"
+            when (status) {
+                McpServerStatus.CONNECTED -> checkConnectedHealth(server.name)
+                McpServerStatus.FAILED, McpServerStatus.PENDING -> {
+                    logger.info {
+                        "MCP 서버 '${server.name}' 상태=$status — 자동 재연결 시도 (쿨다운 적용)"
                     }
                     attemptReconnectWithCooldown(server.name)
                 }
-            } catch (e: Exception) {
-                e.throwIfCancellation()
-                logger.warn(e) {
-                    "MCP 서버 '${server.name}' 헬스체크 중 오류 — 재연결 시도"
-                }
-                attemptReconnectWithCooldown(server.name)
+                else -> Unit
             }
+        }
+    }
+
+    /**
+     * CONNECTED 상태 서버의 도구 콜백 가용성을 점검한다.
+     * 도구가 비었거나 조회 실패 시 재연결을 시도한다.
+     */
+    private suspend fun checkConnectedHealth(serverName: String) {
+        try {
+            val tools = mcpManager.getToolCallbacks(serverName)
+            if (tools.isEmpty()) {
+                logger.warn {
+                    "MCP 서버 '$serverName'가 CONNECTED이나 도구 없음 — 재연결 시도"
+                }
+                attemptReconnectWithCooldown(serverName)
+            }
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) {
+                "MCP 서버 '$serverName' 헬스체크 중 오류 — 재연결 시도"
+            }
+            attemptReconnectWithCooldown(serverName)
         }
     }
 }

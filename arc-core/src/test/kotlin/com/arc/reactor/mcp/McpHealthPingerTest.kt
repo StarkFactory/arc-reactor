@@ -91,10 +91,12 @@ class McpHealthPingerTest {
     }
 
     @Test
-    fun `FAILED 상태의 서버는 건너뛴다`() = runTest {
+    fun `FAILED 상태의 서버는 자동 재연결을 시도한다`() = runTest {
+        // R173: FAILED/PENDING 서버도 헬스체크에서 재연결 시도 (쿨다운 적용)
         val serverA = server("serverA")
         every { mcpManager.listServers() } returns listOf(serverA)
         every { mcpManager.getStatus("serverA") } returns McpServerStatus.FAILED
+        coEvery { mcpManager.ensureConnected("serverA") } returns true
 
         val pinger = McpHealthPinger(
             mcpManager = mcpManager,
@@ -105,15 +107,18 @@ class McpHealthPingerTest {
 
         advanceTimeBy(6_000)
 
+        // FAILED 상태에서 ensureConnected 호출되어야 한다 (도구 콜백 조회는 안 함)
         verify(exactly = 0) { mcpManager.getToolCallbacks("serverA") }
-        coVerify(exactly = 0) { mcpManager.ensureConnected(any()) }
+        coVerify(atLeast = 1) { mcpManager.ensureConnected("serverA") }
     }
 
     @Test
-    fun `PENDING 상태의 서버는 건너뛴다`() = runTest {
+    fun `PENDING 상태의 서버는 자동 재연결을 시도한다`() = runTest {
+        // R173: PENDING 서버도 헬스체크에서 재연결 시도
         val serverA = server("serverA")
         every { mcpManager.listServers() } returns listOf(serverA)
         every { mcpManager.getStatus("serverA") } returns McpServerStatus.PENDING
+        coEvery { mcpManager.ensureConnected("serverA") } returns true
 
         val pinger = McpHealthPinger(
             mcpManager = mcpManager,
@@ -125,6 +130,7 @@ class McpHealthPingerTest {
         advanceTimeBy(6_000)
 
         verify(exactly = 0) { mcpManager.getToolCallbacks("serverA") }
+        coVerify(atLeast = 1) { mcpManager.ensureConnected("serverA") }
     }
 
     @Test

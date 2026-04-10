@@ -444,11 +444,18 @@ data class McpReconnectionProperties(
     /** 실패한 MCP 서버에 대한 자동 재연결 활성화. */
     val enabled: Boolean = true,
 
-    /** 최대 재연결 시도 횟수. */
-    val maxAttempts: Int = 5,
+    /**
+     * 최대 재연결 시도 횟수.
+     * R173: 5 → 10으로 확대 — 시작 시 MCP 서버가 늦게 올라오는 환경에서
+     * 더 오래 재시도. McpHealthPinger의 주기적 재시도가 이후를 책임진다.
+     */
+    val maxAttempts: Int = 10,
 
-    /** 재연결 시도 간 초기 지연 (밀리초). */
-    val initialDelayMs: Long = 5000,
+    /**
+     * 재연결 시도 간 초기 지연 (밀리초).
+     * R173: 5000 → 2000 — 시작 시 첫 재시도까지 너무 오래 걸리는 문제 완화.
+     */
+    val initialDelayMs: Long = 2000,
 
     /** 후속 시도에 대한 백오프 승수. */
     val multiplier: Double = 2.0,
