@@ -4061,3 +4061,47 @@ BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard REJECTED, 성능 avg 1,
 BUILD/TEST PASS, Hardening/Safety PASS, HEALTH UP, Guard REJECTED, 성능 avg 1,049ms (837~1,306ms)
 
 **R77-167 (91 Round): 65 fixes + 2,318 tests — 안정**
+
+### Round 168 — 2026-04-10T15:00+09:00 (자체 측정 + Bitbucket 인사이트 구현)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP, atlassian-mcp UP (54 tools), DB/Redis healthy
+**MCP**: swagger-mcp-server CONNECTED (11 tools) + atlassian-mcp-server CONNECTED (43 tools)
+**BUILD/TEST**: arc-core PASS, atlassian-mcp-server PASS
+
+#### 자체 QA 측정 (20 시나리오 병렬, `/tmp/qa_test.py`)
+| 메트릭 | 초기 (pre-fix) | R168 | 개선 |
+|--------|----------------|------|------|
+| 중복 도구 호출 | 7건 | **0건** | **-100%** |
+| 평균 도구 호출/시나리오 | 1.2개 | **0.8개** | -33% |
+| 평균 응답시간 | 6366ms | 5505ms | -14% |
+| A 인사이트 포함률 | 1/4 | 2/4 | +100% |
+| B 인사이트 포함률 | 2/5 | 2/5 | 유지 |
+| C 인사이트 포함률 | 3/4 | 3/4 | 유지 |
+| 전체 성공 | 20/20 | 20/20 | - |
+
+#### 코드 수정 (커밋 `275ef491`)
+1. **arc-core/agent/impl/ManualReActLoopExecutor.kt**: `splitDuplicateToolCalls` 사전 차단 — 이전 iteration 캐시 + same-iter placeholder 마커
+2. **arc-core/agent/impl/StreamingReActLoopExecutor.kt**: 동일한 사전 차단 로직 적용
+3. **arc-core/agent/impl/ToolCallOrchestrator.kt**: 캐시 히트 시 `trackAsUsed=false` — LLM 중복 요청이 사용자 메트릭에 카운트되지 않도록
+4. **arc-core/agent/impl/AgentExecutionCoordinator.kt**: `finalizeExecution` 전 `toolsUsed.distinct()`
+5. **arc-web/controller/ChatController.kt**: `toChatResponse`에서 최종 `distinct` (3중 방어)
+6. **.claude/prompts/qa-verification-loop.md**: 2대 핵심축, 관찰 이슈, Root Cause First 원칙 강화
+
+#### 코드 수정 (이번 라운드 추가)
+7. **atlassian-mcp-server/tool/bitbucket/BitbucketPRInsights.kt** (신규): PR 목록 서버측 자동 인사이트 계산
+   - 24시간+ 미업데이트 PR 수, 7일+ stale 수, 리뷰어 미지정 수, 고논의 PR 수, 평균 수명
+8. **atlassian-mcp-server/tool/bitbucket/BitbucketPRTool.kt**: `list_prs`, `review_queue`, `my_authored_prs`, `stale_prs` 응답에 `insights` 필드 추가
+9. **arc-core/src/test/.../StreamingReActTest.kt**: `maxToolCalls=1/2` 테스트에서 호출마다 고유 args 사용 — 사전 중복 차단 로직(R168 커밋)과 호환
+10. **arc-core/src/test/.../SystemPromptBuilderTest.kt**: `add required personal focus instruction` 테스트를 커밋 184cd26e(A4 근본 해결) 이후 구조에 맞게 업데이트 — `work_personal_focus_plan`이 fallback으로 등장하는 것도 허용
+
+#### 조사 결과 (근본 원인)
+- **중복 호출 원인**: ReAct 루프의 사후 감지만 있고 사전 차단 부재 + `succeededToolResults` 캐시 맵 부재
+- **사용자 매핑**: admin@arc.io는 Atlassian 계정 미매핑 → 개인화 도구 실패. `ToolCallOrchestrator.autoInjectRequesterParam`이 `metadata["requesterEmail"]`을 주입하지만 admin@arc.io는 `ihunet@hunet.co.kr`로 매핑 필요 (후속 과제)
+- **D4 "BB30 저장소" tools=0**: LLM이 "BB30"을 Jira 프로젝트 키로 해석해 Bitbucket 도구를 호출하지 않음. 프롬프트에 "모호한 이름은 list 도구로 먼저 확인" 지침 추가 필요 (후속 과제)
+- **E 카테고리 일시 0ms**: rate limit 후 일시적 현상, 단건 재테스트 시 정상 응답 확인
+
+#### 남은 과제 (Task #4 연속)
+- Bitbucket insights 필드가 LLM content에 반영되지 않음 — 시스템 프롬프트에 "insights 필드를 응답에 활용하라" 지침 추가 필요
+- D 카테고리 인사이트 포함률 0/4는 실제 PR 데이터가 빈 상태인 것도 영향 (테스트 대상 레포에 OPEN PR 없음)
+
+**R168 요약**: ReAct 중복 호출 완전 제거 (-100%), 평균 응답시간 -14%, Bitbucket 서버측 인사이트 인프라 구축. 전체 20/20 PASS.

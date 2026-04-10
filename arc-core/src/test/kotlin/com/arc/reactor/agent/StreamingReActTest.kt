@@ -411,12 +411,16 @@ class StreamingReActTest {
 
         @Test
         fun `maxToolCalls=2일 때 도구가 정확히 2번만 호출되어야 한다`() = runTest {
-            val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
+            // 각 호출은 다른 args를 사용해야 한다 — 동일 서명 반복은 사전 중복 차단 로직이 잡는다.
+            // 이 테스트의 목적은 maxToolCalls 경계 검증이므로 서명을 구별한다.
+            val call1 = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{\"n\":1}")
+            val call2 = AssistantMessage.ToolCall("call-2", "function", "my_tool", "{\"n\":2}")
+            val call3 = AssistantMessage.ToolCall("call-3", "function", "my_tool", "{\"n\":3}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
-                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 1
-                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 2
-                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 3 (제한 도달)
+                Flux.just(toolCallChunk(listOf(call1))),  // 라운드 1
+                Flux.just(toolCallChunk(listOf(call2))),  // 라운드 2
+                Flux.just(toolCallChunk(listOf(call3))),  // 라운드 3 (제한 도달)
                 Flux.just(textChunk("최종 응답"))  // 라운드 4
             )
 
@@ -438,11 +442,14 @@ class StreamingReActTest {
 
         @Test
         fun `maxToolCalls=1일 때 도구가 정확히 1번만 호출되어야 한다`() = runTest {
-            val toolCall = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{}")
+            // 서로 다른 args로 구분 — 동일 서명 반복은 사전 중복 차단이 잡기 때문에
+            // maxToolCalls 경계 검증에는 고유 서명이 필요하다.
+            val call1 = AssistantMessage.ToolCall("call-1", "function", "my_tool", "{\"n\":1}")
+            val call2 = AssistantMessage.ToolCall("call-2", "function", "my_tool", "{\"n\":2}")
 
             every { fixture.streamResponseSpec.chatResponse() } returnsMany listOf(
-                Flux.just(toolCallChunk(listOf(toolCall))),  // 라운드 1
-                Flux.just(toolCallChunk(listOf(toolCall))),  // Round 2 (limit reached)
+                Flux.just(toolCallChunk(listOf(call1))),  // 라운드 1
+                Flux.just(toolCallChunk(listOf(call2))),  // Round 2 (limit reached)
                 Flux.just(textChunk("끝"))
             )
 

@@ -222,8 +222,11 @@ class SystemPromptBuilderTest {
             userPrompt = "오늘 개인 focus plan을 근거 정보와 함께 만들어줘."
         )
 
-        assertTrue(prompt.contains("MUST call `work_personal_focus_plan`")) {
-            "Personal focus prompts should require the personal focus tool"
+        // A4 "오늘 할 일" 6회 연속 실패 근본 해결(커밋 184cd26e) 이후 work_prepare_standup_update가
+        // primary가 되었고 work_personal_focus_plan은 fallback 경로로 강등되었다.
+        // 테스트는 두 도구 중 하나가 포함되면 성공으로 본다 — focus 도구 활용 유도가 핵심 의도이기 때문이다.
+        assertTrue(prompt.contains("work_personal_focus_plan")) {
+            "Personal focus prompts should mention the personal focus tool (primary or fallback)"
         }
     }
 
