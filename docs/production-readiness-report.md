@@ -11549,3 +11549,182 @@ arc.reactor.eval.tool.response.kind{kind=list_top_n, tool=jira_search}
 #### 📊 R224 요약
 
 🔗 **R222+R223 시너지 실현**. `EvaluationMetricsCollector`에 `recordToolResponseKind(kind, toolName)` **default no-op 메서드**를 추가하여 기존 구현체/테스트 모두 backward compat. `MicrometerEvaluationMetricsCollector`가 override하여 `arc.reactor.eval.tool.response.kind{kind, tool}` 신규 카운터 기록. `EvaluationMetricsHook.afterAgentComplete`가 종료 시점에 `HookContext.metadata`의 `toolSummary_*` 엔트리를 스캔하여 `SummaryKind`별 카운터 기록. R223의 `ToolResponseSummarizerHook`과 독립 (cross-hook 없음). 신규 파일 0개, 기존 파일 5개 수정 (가장 작은 변경 규모). 신규 테스트 **9 PASS** (collector 3 + hook 6), 기존 R219/R220/R221/R222/R223 테스트 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 심화 연결**. swagger-mcp 8181 **🎯 55 라운드 마일스톤 달성**. R222+R223 조합 시 도구 응답 품질 분포(예: "jira_search의 empty 비율", "bitbucket_list_prs의 error 비율")를 Prometheus 쿼리로 정량 관측 가능.
+
+### Round 225 — 🔧 2026-04-11T05:30+09:00 — R221 심화: AtlassianApprovalContextResolver (프로덕션 구현체)
+
+**작업 종류**: Directive 심화 — R221 Tool Approval 인프라의 atlassian-mcp-server 전용 구체 구현 (QA 측정 없음)
+**Directive 패턴**: #1 Tool Approval UX 강화 (연속)
+**완료 태스크**: #100
+
+#### 작업 배경
+
+R221에서 `ApprovalContextResolver` 인터페이스와 범용 `HeuristicApprovalContextResolver`를 도입했다. 그러나 Arc Reactor의 실질적 주 도구 세트는 **atlassian-mcp-server**이므로, 이 특정 MCP 서버의 도구 이름과 인수 구조를 알고 있는 프로덕션급 구현체가 필요하다.
+
+R225는 `AtlassianApprovalContextResolver`를 도입하여:
+1. `jira_*`, `confluence_*`, `bitbucket_*` prefix를 실제 카테고리로 분류
+2. 각 카테고리 특유의 인수 키(`issueKey`, `pageId`, `pullRequestId` 등) 우선순위 기반 `impactScope` 추출
+3. 사람이 읽을 수 있는 `action` 문자열 생성 (예: `"jira_get_issue(HRFW-5695)"`, `"bitbucket_list_prs(web-labs)"`)
+
+#### 실제 atlassian-mcp-server 도구 세트 전수 조사
+
+arc-reactor 루프를 통해 atlassian-mcp-server가 현재 노출하는 도구 세트를 grep으로 확인:
+
+| 카테고리 | 도구 수 | 주요 도구 |
+|----------|---------|-----------|
+| Jira | 13개 | `jira_get_issue`, `jira_search_issues`, `jira_search_by_text`, `jira_my_open_issues`, `jira_daily_briefing`, `jira_blocker_digest`, `jira_list_projects`, `jira_get_transitions` 등 |
+| Confluence | 9개 | `confluence_search`, `confluence_answer_question`, `confluence_get_page`, `confluence_list_spaces`, `confluence_generate_weekly_auto_summary_draft` 등 |
+| Bitbucket | 10개 | `bitbucket_list_prs`, `bitbucket_get_pr`, `bitbucket_my_authored_prs`, `bitbucket_review_queue`, `bitbucket_stale_prs`, `bitbucket_list_repositories` 등 |
+
+**핵심 관찰**: 현재 atlassian-mcp-server는 **완전히 읽기 전용**이다. 쓰기 도구(create/update/delete/transition/comment)는 전혀 노출되지 않는다. 이는 `AtlassianApprovalContextResolver`가 모든 도구를 `Reversibility.REVERSIBLE`로 분류하도록 설계한 근거다. 향후 쓰기 도구가 추가되면 별도 분류 로직을 확장할 수 있다.
+
+#### 리졸버가 유용한 시나리오
+
+읽기 전용 도구는 기본적으로 승인이 필요 없지만, 다음 상황에서 리졸버의 컨텍스트 생성이 가치 있다:
+
+1. **스트릭트 정책**: 민감 프로젝트(예: HR 전용 Jira), 보안 저장소(예: `internal-auth`)에 승인 요구 정책을 적용한 경우
+2. **비용 가시화**: `bitbucket_review_queue`처럼 전체 저장소를 스캔하는 도구의 영향 범위 노출
+3. **감사 추적**: 승인 필요 여부와 무관하게 `ToolApprovalRequest.context`를 통한 사후 분석
+4. **미래 확장성**: 향후 쓰기 도구(`jira_create_issue`, `confluence_update_page`, `bitbucket_merge_pr` 등) 추가 시 기반
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `approval/AtlassianApprovalContextResolver.kt` | 170 | 리졸버 구현 + `AtlassianCategory` enum |
+| `autoconfigure/AtlassianApprovalResolverConfiguration.kt` | 62 | `@AutoConfiguration` + opt-in 프로퍼티 기반 빈 등록 |
+| `test/.../AtlassianApprovalContextResolverTest.kt` | 345 | 33 tests (7 `@Nested` 그룹) |
+
+**기존 파일 1개 수정**: `ArcReactorAutoConfiguration.kt`의 `@Import`에 한 줄 추가.
+
+#### 카테고리 분류 로직
+
+```kotlin
+internal fun categorize(toolName: String): AtlassianCategory? {
+    return when {
+        toolName.startsWith("jira_") -> AtlassianCategory.JIRA
+        toolName.startsWith("confluence_") -> AtlassianCategory.CONFLUENCE
+        toolName.startsWith("bitbucket_") -> AtlassianCategory.BITBUCKET
+        else -> null  // atlassian-mcp-server 외 도구는 null (위임)
+    }
+}
+```
+
+`null` 반환 시 `resolve()`도 null을 반환하여 다른 리졸버가 처리할 수 있다. 체인 구성 예시:
+
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = ApprovalContextResolver { tool, args ->
+    AtlassianApprovalContextResolver().resolve(tool, args)
+        ?: HeuristicApprovalContextResolver().resolve(tool, args)
+}
+```
+
+#### 카테고리별 impactScope 추출 우선순위
+
+| 카테고리 | 우선순위 (높음 → 낮음) |
+|----------|------------------------|
+| **Jira** | `issueKey` → `project` → `projectKey` → `jql` → `keyword` → `assigneeAccountId` → `requesterEmail` |
+| **Confluence** | `pageId` → `spaceKey` → `space` → `query` → `keyword` → `question` |
+| **Bitbucket** | `pullRequestId` → `prId` → `repoSlug` → `repo` → `repository` → `workspace` → `branch` |
+
+매우 긴 JQL이나 query는 `IMPACT_SCOPE_MAX_LEN=120`자에서 자른다 (UI 노출용).
+
+#### 실제 생성 예시
+
+| 도구 + 인수 | 생성된 `ApprovalContext` |
+|-------------|--------------------------|
+| `jira_get_issue(issueKey=HRFW-5695)` | `reason="Jira 읽기 작업: jira_get_issue"`, `action="jira_get_issue(HRFW-5695)"`, `impactScope="HRFW-5695"`, `reversibility=REVERSIBLE` |
+| `jira_search_issues(jql="project = HRFW AND status = 'In Progress'")` | `action="jira_search_issues(project = HRFW AND status = 'In Progress')"`, `impactScope` 동일 |
+| `confluence_answer_question(question="배포 가이드")` | `action="confluence_answer_question(배포 가이드)"`, `impactScope="배포 가이드"` |
+| `bitbucket_list_prs(workspace="ihunet", repoSlug="web-labs", state="OPEN")` | `action="bitbucket_list_prs(web-labs)"`, `impactScope="web-labs"` — `repoSlug`가 `workspace`보다 우선 |
+| `bitbucket_get_pr(pullRequestId="42")` | `action="bitbucket_get_pr(42)"`, `impactScope="42"` — PR ID가 최우선 |
+| `jira_list_projects()` | `action="jira_list_projects"`, `impactScope=null` — 인수 없는 경우도 처리 |
+
+#### 자동 구성 동작
+
+**기본 상태**: 빈 등록 안 됨. 사용자가 `@Bean ApprovalContextResolver`를 직접 제공해야 enrichment가 일어남 (R221 기본 상태 유지).
+
+**`arc.reactor.approval.atlassian-resolver.enabled=true` 설정 시**:
+- 사용자 커스텀 `ApprovalContextResolver` 빈이 **없을 때만** `AtlassianApprovalContextResolver`가 자동 주입됨 (`@ConditionalOnMissingBean`)
+- 사용자가 자체 리졸버를 제공하면 그것이 우선
+
+이는 R221의 "opt-in 기본, 사용자 커스텀 우선" 원칙을 그대로 유지하면서 atlassian-mcp-server 사용자에게 즉시 사용 가능한 기본 제공 옵션을 추가한 것이다.
+
+#### 테스트 결과
+
+```
+AtlassianApprovalContextResolverTest            → 33 tests PASS
+  @Nested Categorization (4)
+    - jira_/confluence_/bitbucket_ prefix 분류
+    - 알 수 없는 prefix → null
+  @Nested JiraScopeExtraction (8)
+    - issueKey/project/jql/keyword 우선순위
+    - 긴 JQL 자르기 (IMPACT_SCOPE_MAX_LEN)
+    - 빈 맵/빈 문자열 처리
+  @Nested ConfluenceScopeExtraction (4)
+    - pageId/spaceKey/query/question 우선순위
+  @Nested BitbucketScopeExtraction (3)
+    - pullRequestId/repoSlug/workspace 우선순위
+  @Nested EndToEndResolve (7)
+    - 전체 플로우: 실제 도구 이름 + 실제 인수 → 완전한 컨텍스트
+  @Nested RealAtlassianToolNames (4)
+    - 실제 atlassian-mcp-server 도구 이름 전수 회귀 테스트 (13 Jira + 9 Confluence + 10 Bitbucket)
+  @Nested ReasonTextSanity (4)
+    - reason에 카테고리 키워드와 원본 도구 이름 포함 검증
+```
+
+**기존 R219/R220/R221/R222/R223/R224 테스트 모두 회귀 없음**.
+
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+- R220 Golden snapshot 5개 해시 재확인 완료 (byte-identical 유지)
+- 전체 arc-core 테스트 실행 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성 (최우선)**:
+- ✅ atlassian-mcp-server 도구의 **인수를 전혀 수정하지 않음** — 오직 읽기만
+- ✅ 도구 description/파라미터 스키마/SSE 경로 미수정
+- ✅ 리졸버는 `ApprovalContext` 생성만 수행, tool invocation 경로와 독립
+- ✅ `AtlassianApprovalContextResolverTest` 내 `RealAtlassianToolNames` 그룹이 실제 도구 이름 전수 검증
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 SHA-256 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 리졸버 출력은 `ToolApprovalRequest.context`에만 저장, 대화 이력에 섞이지 않음
+
+#### opt-in / 기본값
+
+- **기본 상태**: `AtlassianApprovalContextResolverConfiguration`은 빈을 등록하지 않음 → R221 동작 그대로 (enrichment 없음)
+- **활성화 방법 1**: `arc.reactor.approval.atlassian-resolver.enabled=true` 프로퍼티 설정
+- **활성화 방법 2**: 사용자가 `@Bean AtlassianApprovalContextResolver()` 직접 등록
+- **기존 사용자 영향**: 0 (backward compat)
+
+#### 연속 지표
+
+| 지표 | R224 | R225 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 55 🎯 | **56** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224 | **4/5 + R224 + R225** | - |
+
+#### 다음 Round 후보
+
+- **R226+**:
+  1. **Prompt Layer 심화** (#94 연속): `PromptLayerRegistry` 활용한 워크스페이스 프로파일 오버라이드 + byte-identical 유지
+  2. **Evaluation 대시보드 문서**: R222+R224 메트릭을 위한 Grafana JSON 템플릿 + Prometheus 쿼리 예시 (`docs/evaluation-metrics.md` 신규)
+  3. **ApprovalContextResolver 체인 지원** (#95 연속): 여러 리졸버를 순서대로 시도하는 `ChainedApprovalContextResolver` 유틸
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개**: Directive 작업들의 효과 정량 비교 측정 수행
+
+#### 📊 R225 요약
+
+🔧 **R221 심화: AtlassianApprovalContextResolver 구현 완료**. atlassian-mcp-server의 실제 도구 이름(Jira 13개 + Confluence 9개 + Bitbucket 10개, 전수 조사 기반) prefix로 카테고리 분류, 각 카테고리별 인수 키 우선순위(`issueKey` > `project` > `jql` 등)로 `impactScope` 추출, 사람이 읽을 수 있는 `action` 문자열 생성. 모두 read-only이므로 `Reversibility.REVERSIBLE` 고정. 옵트인 자동 구성 (`arc.reactor.approval.atlassian-resolver.enabled=true`) + `@ConditionalOnMissingBean`으로 사용자 커스텀 리졸버 우선. 신규 파일 3개 (리졸버 170줄 + 자동 구성 62줄 + 테스트 345줄), 기존 파일 1줄 수정(`@Import`). 신규 테스트 **33 PASS** (7 @Nested 그룹, 실제 도구 이름 전수 회귀 검증 포함), 기존 R219/R220/R221/R222/R223/R224 테스트 회귀 없음, R220 Golden snapshot 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 + R225 심화**. swagger-mcp 8181 **56 라운드 연속** 안정. 리졸버가 유용한 시나리오: 민감 프로젝트 스트릭트 정책, 대량 스캔 비용 가시화, 감사 추적, 미래 쓰기 도구 대비.

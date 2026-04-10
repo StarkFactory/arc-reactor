@@ -70,6 +70,7 @@ import org.springframework.context.annotation.Import
     SlaMetricsConfiguration::class,
     EvaluationMetricsConfiguration::class,
     ToolResponseSummarizerConfiguration::class,
+    AtlassianApprovalResolverConfiguration::class,
     ToolDependencyConfiguration::class,
     SloAlertConfiguration::class,
     CostAnomalyConfiguration::class,
