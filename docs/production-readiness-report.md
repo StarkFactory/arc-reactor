@@ -12368,3 +12368,199 @@ RedactedApprovalContextResolverTest            → 27 tests PASS
 #### 📊 R228 요약
 
 🛡️ **R225 심화: RedactedApprovalContextResolver (PII 마스킹 데코레이터) 완료**. 기존 `ApprovalContextResolver`를 감싸 반환된 `ApprovalContext`의 `reason`/`action`/`impactScope` 텍스트 필드에서 이메일/Bearer 토큰/Atlassian 토큰/Slack 토큰/한국 휴대폰/주민번호 등 **7개 기본 PII 패턴**을 정규식 기반으로 마스킹. 사용자 정의 추가 패턴과 `replacement` 문자열 커스터마이징 지원. Fail-safe: 정규식 예외 시 원본 유지가 아닌 `"[REDACTED]"` 전체 대체 (보안 기본값). `Reversibility` enum과 null 필드는 pass-through. 신규 파일 2개 (데코레이터 170줄 + 테스트 325줄), **기존 파일 수정 0건**. 신규 테스트 **27 PASS** (10 @Nested 그룹: NullPassthrough, EmailRedaction, TokenRedaction, PhoneNumberRedaction, KoreanResidentNumberRedaction, CustomPatterns, CustomReplacement, ReversibilityPreservation, ChainIntegration, AtlassianIntegration, PublicConstants). 기존 R219~R227 테스트 모두 회귀 없음, R220 Golden snapshot 해시 불변, R225 33 tests + R226 22 tests + R227 14 tests 재검증 완료. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R228 심화**. swagger-mcp 8181 **59 라운드 연속** 안정. R225→R226→R227→R228 4라운드로 "Concrete → Composite → Auto → Decorator" 성숙 단계가 완성되어, 이제 사용자는 GDPR 등 개인정보 보호 요구사항을 충족하면서 감사 로그의 유용성을 유지할 수 있다.
+
+### Round 229 — 🔌 2026-04-11T07:30+09:00 — R228 심화: Approval PII Redaction 자동 구성
+
+**작업 종류**: Directive 심화 — R228 데코레이터 자동 적용 (QA 측정 없음)
+**Directive 패턴**: #1 Tool Approval UX 강화 (연속)
+**완료 태스크**: #104
+
+#### 작업 배경
+
+R228에서 `RedactedApprovalContextResolver` 데코레이터를 도입했으나, 사용자가 활성화하려면 여전히 `@Bean` 메서드를 직접 작성해야 했다:
+
+```kotlin
+@Bean
+fun approvalContextResolver(): ApprovalContextResolver = RedactedApprovalContextResolver(
+    ChainedApprovalContextResolver(
+        AtlassianApprovalContextResolver(),
+        HeuristicApprovalContextResolver()
+    )
+)
+```
+
+R227이 base resolver(Atlassian + Chain) 자동 구성을 제공한 것처럼, R229는 **데코레이터도 속성 하나로 자동 적용**되도록 확장한다:
+
+```yaml
+arc:
+  reactor:
+    approval:
+      atlassian-resolver: {enabled: true}
+      heuristic-fallback: {enabled: true}
+      pii-redaction: {enabled: true}   # R229 신규
+```
+
+이제 YAML 3줄로 "Chain + PII 마스킹" 전체 스택이 자동 구성된다.
+
+#### 설계 원칙
+
+1. **@Primary 패턴**: 기존 베이스 빈을 대체하지 않고 옆에 Redacted 빈을 추가하되 `@Primary`로 표시 → `ObjectProvider<ApprovalContextResolver>.ifAvailable`이 Redacted를 주입
+2. **원본 보존**: 원본 베이스 빈도 컨텍스트에 그대로 남아 디버깅/테스트 가능 + 사용자가 `@Qualifier`로 직접 접근 가능
+3. **@AutoConfigureAfter**: `AtlassianApprovalResolverConfiguration` 뒤에 평가 → 베이스 빈이 먼저 등록되도록 보장
+4. **@ConditionalOnBean**: 베이스 빈이 없으면 Redacted도 등록하지 않음 → "래핑할 대상이 없는데 빈을 만드는" 오류 방지
+5. **이중 래핑 방지**: `baseResolvers.firstOrNull { it !is RedactedApprovalContextResolver }` 필터로 자기 자신 재귀 방지
+6. **에러 명확성**: 매우 드문 엣지 케이스(사용자가 직접 `RedactedApprovalContextResolver`를 @Bean으로 등록 + `pii-redaction.enabled=true`)에서 명확한 에러 메시지
+
+#### 핵심 구현
+
+```kotlin
+@AutoConfiguration(after = [AtlassianApprovalResolverConfiguration::class])
+class ApprovalPiiRedactionConfiguration {
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        prefix = "arc.reactor.approval.pii-redaction",
+        name = ["enabled"],
+        havingValue = "true"
+    )
+    @ConditionalOnBean(ApprovalContextResolver::class)
+    fun redactedApprovalContextResolver(
+        baseResolvers: List<ApprovalContextResolver>
+    ): ApprovalContextResolver {
+        val base = baseResolvers.firstOrNull { it !is RedactedApprovalContextResolver }
+            ?: throw IllegalStateException(
+                "PII redaction 활성화(pii-redaction.enabled=true)되었지만 " +
+                    "non-redacted ApprovalContextResolver 베이스 빈이 없습니다."
+            )
+        return RedactedApprovalContextResolver(base)
+    }
+}
+```
+
+#### @Primary 패턴 vs BeanPostProcessor
+
+두 가지 접근을 고려했다:
+
+| 측면 | @Primary 패턴 (채택) | BeanPostProcessor |
+|------|---------------------|-------------------|
+| 원본 빈 접근 | 가능 (컨텍스트에 남음) | 불가 (교체됨) |
+| 디버깅 | 쉬움 | 어려움 |
+| 예측 가능성 | 표준 Spring 메커니즘 | 마법처럼 보임 |
+| 사용자 재정의 | `@Primary` 새 빈으로 덮어쓰기 가능 | 더 복잡 |
+| 복잡성 | 낮음 | 중간 |
+
+**@Primary 패턴 선택 이유**: 원본 빈이 컨텍스트에 그대로 남아 있어 개발자가 `@Qualifier`로 원본 접근 가능하며, Spring 표준 메커니즘이라 이해하기 쉽다.
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `autoconfigure/ApprovalPiiRedactionConfiguration.kt` | 98 | `@AutoConfiguration` + `@Primary` 빈 팩토리 |
+| `test/.../ApprovalPiiRedactionConfigurationTest.kt` | 290 | 11 tests (5 `@Nested` 그룹) |
+
+**기존 파일 1줄 수정**: `ArcReactorAutoConfiguration.kt`의 `@Import`에 `ApprovalPiiRedactionConfiguration::class` 추가.
+
+#### 4가지 활성화 조합 (R225~R229 전체)
+
+| # | atlassian-resolver | heuristic-fallback | pii-redaction | Primary 빈 |
+|---|-------|-------|-------|-----------|
+| 1 | `true` | `true` | `true` | `Redacted(Chained(Atlassian, Heuristic))` |
+| 2 | `true` | 미설정 | `true` | `Redacted(Atlassian)` |
+| 3 | `true` | `true` | 미설정 | `Chained(Atlassian, Heuristic)` (R227 동작) |
+| 4 | `true` | 미설정 | 미설정 | `Atlassian` (R225 동작) |
+
+`pii-redaction.enabled=true`만 설정하고 베이스 빈이 없는 경우 `@ConditionalOnBean` 실패로 Redacted도 등록 안 됨 → 빈 없음.
+
+#### 테스트 결과
+
+```
+ApprovalPiiRedactionConfigurationTest          → 11 tests PASS
+  @Nested WithAtlassianBase (3)
+    - pii-redaction=true → Redacted로 자동 래핑
+    - Primary 빈이 이메일 마스킹 실제 수행 (alice@company.com)
+    - 두 빈 (원본 + Redacted) 모두 컨텍스트에 존재
+  @Nested WithChainedBase (2)
+    - Chain 베이스 + Redacted → Primary는 Redacted, 원본 Chained 존재
+    - jira_search_my_issues_by_text 이메일 마스킹
+  @Nested WithoutRedaction (2)
+    - pii-redaction 미설정 → 원본 그대로 (Atlassian)
+    - pii-redaction=false → 원본 그대로
+  @Nested WithoutBaseResolver (2)
+    - 베이스 없음 + pii-redaction=true → @ConditionalOnBean 실패 → 빈 없음
+    - 아무 속성 없음 → 빈 없음
+  @Nested WithUserCustomBean (2)
+    - 사용자 @Bean + pii-redaction=true → 사용자 빈 래핑
+    - 사용자 @Bean 단독 (redaction 미설정) → 사용자 빈 그대로
+  @Nested SelfWrappingPrevention (1)
+    - 사용자가 이미 Redacted 빈 등록 + pii-redaction=true → startup 실패 (명확한 에러)
+```
+
+**`SelfWrappingPrevention` 엣지 케이스**: 사용자가 직접 `RedactedApprovalContextResolver`를 `@Bean`으로 등록한 상태에서 `pii-redaction.enabled=true`까지 설정하면 자동 구성이 "non-redacted 베이스"를 못 찾고 `IllegalStateException` 발생. 에러 메시지는 "non-redacted" + "베이스" 키워드를 포함하여 사용자가 원인을 쉽게 파악할 수 있도록 했다. 테스트는 `context.startupFailure`에서 cause chain 전체를 수집해 검증.
+
+**기존 R219~R228 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- R225 33 + R226 22 + R227 14 + R228 27 tests 전부 PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: 전체 16 tasks PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 도구 인수/응답 전혀 미수정
+- ✅ 자동 구성 전용 — 리졸버 로직 자체는 R225/R226/R228 그대로
+- ✅ `@Primary` 전환은 순수 DI 레이어
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 마스킹된 컨텍스트는 `ToolApprovalRequest.context`에만 저장
+
+#### opt-in / 기본값
+
+- **기본 상태**: `pii-redaction.enabled=true` 속성 미설정 → 자동 구성이 빈을 등록하지 않음 → R225~R228 동작 그대로
+- **활성화**: 단일 속성 추가 → 자동 래핑
+- **R228 사용자와의 호환성**: R228에서 수동으로 `@Bean RedactedApprovalContextResolver(...)` 등록한 사용자가 `pii-redaction.enabled=true`까지 설정하면 `SelfWrappingPrevention` 가드가 명확한 에러 메시지로 알려줌 — 둘 중 하나만 쓰라는 의미
+
+#### R225~R229 5라운드 진화 (Approval UX 강화 시리즈)
+
+| 라운드 | 역할 | 패턴 | YAML 부담 |
+|--------|------|------|-----------|
+| R221 | 모델 + 인터페이스 | Foundation | — |
+| R225 | Atlassian 구체 구현 | Concrete | 1줄 |
+| R226 | 조합 유틸 (수동) | Composite | @Bean 작성 |
+| R227 | 자동 체이닝 | Auto-wire | 2줄 |
+| R228 | PII 마스킹 (수동) | Decorator | @Bean 작성 |
+| **R229** | **PII 자동 래핑** | **Decorator Auto-wire** | **3줄** |
+
+R225~R229 5라운드로 "구현 → 조합 → 자동 → 보안 → 보안 자동"의 완전한 성숙 단계가 완성되었다. 이제 사용자는 **YAML 3줄로 Atlassian 우선 + Heuristic fallback + PII 마스킹 전체 스택**을 활성화할 수 있다.
+
+#### 연속 지표
+
+| 지표 | R228 | R229 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 59 | **60 🎯** | **60 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R228 | **4/5 + R224~R229** | - |
+
+#### 다음 Round 후보
+
+- **R230+**:
+  1. **Evaluation 대시보드 문서** — R222+R224 메트릭 Grafana JSON 템플릿 + Prometheus 쿼리 예시 (`docs/evaluation-metrics-dashboard.md` 신규)
+  2. **Prompt Layer 심화** (#94 연속) — `PromptLayerRegistry` 활용 워크스페이스 프로파일 오버라이드 (byte-identical 엄수)
+  3. **ToolResponseSummarizer 자동 체이닝** — R223에 R227+R228+R229 패턴 적용 (체인 + 데코레이터)
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+
+#### 📊 R229 요약
+
+🔌 **R228 심화: Approval PII Redaction 자동 구성 완료**. `arc.reactor.approval.pii-redaction.enabled=true` 속성 설정 시 기존 `ApprovalContextResolver` 베이스 빈(Atlassian/Chain/사용자 커스텀)을 자동으로 `RedactedApprovalContextResolver`로 감싸 `@Primary`로 등록. `@AutoConfiguration(after = [AtlassianApprovalResolverConfiguration::class])`로 평가 순서 보장, `@ConditionalOnBean(ApprovalContextResolver::class)`으로 베이스 빈 존재 검증, `List<ApprovalContextResolver>` 주입 후 `firstOrNull { it !is RedactedApprovalContextResolver }` 필터로 이중 래핑 방지. 원본 베이스 빈은 컨텍스트에 그대로 남아 디버깅/테스트 가능 (BeanPostProcessor 대신 @Primary 패턴 채택 이유). 신규 파일 2개 (autoconfig 98줄 + 테스트 290줄), 기존 파일 1줄 수정 (@Import). `ApplicationContextRunner` 기반 신규 테스트 **11 PASS** (5 @Nested 그룹: WithAtlassianBase, WithChainedBase, WithoutRedaction, WithoutBaseResolver, WithUserCustomBean, SelfWrappingPrevention). 기존 R219~R228 테스트 모두 회귀 없음, R220 Golden snapshot 해시 불변, R225 33+R226 22+R227 14+R228 27 tests 재검증 완료. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224+R225+R226+R227+R228+R229**. swagger-mcp 8181 **🎯 60 라운드 마일스톤 달성**. R225→R229 5라운드로 Approval UX 강화 시리즈 완성 — 이제 YAML 3줄(`atlassian-resolver.enabled=true` + `heuristic-fallback.enabled=true` + `pii-redaction.enabled=true`)로 Atlassian 우선 + Heuristic fallback + PII 마스킹 전체 스택이 자동 활성화된다.
