@@ -17303,3 +17303,195 @@ sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
 #### 📊 R249 요약
 
 🪝 **HookExecutor HOOK 예외 자동 기록 완료** — R245~R248이 구축한 자동 기록 패턴을 fail-open Hook 계층에 확장. Hook은 프로젝트 규칙상 예외를 catch하여 로그만 남기고 swallowing하므로 task는 성공으로 끝나지만 Hook만 조용히 실패하는 **관측 공백**이 존재했는데, R249가 정확히 이 공백을 채운다. `HookExecutor` 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp으로 backward compat). 3개 catch 블록 전부에 `evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)` 1줄씩 추가: (1) `executeHooks()` — Before hooks 공통 로직 (BeforeAgentStart + BeforeToolCall 재사용), (2) `executeAfterToolCall()`, (3) `executeAfterAgentComplete()`. 모든 4가지 Hook 타입이 커버됨. Fail-open 원칙 보존 — 기록은 기존 `logger.error` 로깅과 병렬로 추가되고 `failOnError` 분기 로직은 불변. `CancellationException`은 `throwIfCancellation()`이 먼저 재throw하므로 자동 미기록. `ArcReactorHookAndMcpConfiguration.hookExecutor()`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 추가 + `getIfAvailable { NoOpEvaluationMetricsCollector }` fallback으로 Spring 자동 주입 완성. 수정 파일 2개 (HookExecutor +13 / HookAndMcpConfiguration +8), 테스트 1개 확장 (HookExecutorTest +200줄). 신규 테스트 **8 PASS** (R249ExecutionErrorRecording @Nested): BeforeAgentStart / BeforeToolCall / AfterToolCall / AfterAgentComplete / failOnError=true 기록 + 재throw / CancellationException 미기록 / 성공 Hook 미기록 / NoOp backward compat. 전체 `com.arc.reactor.hook.*` + `com.arc.reactor.agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R249**. swagger-mcp 8181 **🎯 80 라운드 마일스톤 달성**. **자동 기록 stage 3/9 달성** (TOOL_CALL + LLM_CALL + HOOK). 이제 Hook 실패가 더 이상 로그에만 묻히지 않고 Prometheus `execution.error{stage="hook"}`에 즉시 노출되어 Grafana 대시보드 / Alertmanager 규칙으로 실시간 감지 가능. 특히 EvaluationMetricsHook 자체, WebhookNotificationHook, 감사 로깅 Hook 등 fail-open 관측 계층의 조용한 실패를 drill-down 가능하다. 운영 시나리오: `topk(5, sum by (exception))` 쿼리로 가장 불안정한 Hook 식별, `rate{stage="hook"} > 1.0` 기반 `HookFailureSurge` 알람, tool_call/llm_call/hook 3개 stage 스택 차트로 전체 장애 도메인 분포 시각화.
+
+### Round 250 — 🏆 2026-04-11T18:00+09:00 — OutputGuardPipeline OUTPUT_GUARD 예외 자동 기록 (R250 마일스톤)
+
+**작업 종류**: Directive 심화 — 4번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R245~R249 확장)
+**완료 태스크**: #125
+
+#### 작업 배경
+
+R245~R249가 `TOOL_CALL`, `LLM_CALL`, `HOOK` 3개 stage 자동 기록을 완성했다. 다음 가장 관측 가치 높은 경로는 **OutputGuardPipeline**이다.
+
+OutputGuard는 fail-open이 아닌 **fail-close**이지만, 예외가 발생해도 운영 관점에서는 여전히 메트릭 공백이 존재한다:
+- Fail-close이므로 사용자는 `Rejected(SYSTEM_ERROR)`를 받는다
+- 하지만 `execution.error` 메트릭 없이는 **PII 마스킹 로직 자체가 터지는지, 정책 위반으로 막히는지** 구분할 수 없다
+- `task.completed{result=failure}`만으로는 "guard 자체 버그" vs "정상적인 정책 차단"을 구분할 수 없다
+
+R250은 OutputGuardPipeline의 fail-close catch 블록에서 `execution.error{stage="output_guard", exception=<class>}`를 기록하여 이 구분을 명확히 한다. `Rejected`는 정상 정책 동작(`safety.rejection` 메트릭에 집계), `execution.error`는 시스템 레벨 이상을 별도 추적.
+
+#### 설계 원칙
+
+1. **fail-close 동작 보존** — `Rejected(SYSTEM_ERROR)` 반환 로직 불변
+2. **Rejected vs execution.error 구분** — `OutputGuardResult.Rejected` 정상 반환은 기록 안 됨, throw된 예외만 기록
+3. **첫 실패만 기록** — fail-close로 첫 stage 예외 후 즉시 Rejected 반환, 이후 stage 실행 안 됨 → 자연스럽게 첫 예외만 기록됨
+4. **CancellationException 제외** — `throwIfCancellation()` 먼저 동작
+5. **Backward compat** — 생성자 기본값 NoOp
+
+#### 신규 API
+
+**`OutputGuardPipeline` 생성자 확장**:
+```kotlin
+class OutputGuardPipeline(
+    stages: List<OutputGuardStage>,
+    private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null,
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /** R250: fail-close catch 블록에서 시스템 레벨 이상을 별도 기록 */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+)
+```
+
+**catch 블록 한 줄 추가**:
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R250: Output guard stage 예외를 execution.error 메트릭에 기록
+    evaluationMetricsCollector.recordError(ExecutionStage.OUTPUT_GUARD, e)
+    logger.error(e) { "OutputGuardStage '${stage.stageName}' failed, rejecting (fail-close)" }
+    // ... 기존 Rejected 반환 로직 ...
+}
+```
+
+**`ArcReactorOutputGuardConfiguration.outputGuardPipeline()`** 자동 주입:
+```kotlin
+@Bean
+@ConditionalOnMissingBean
+fun outputGuardPipeline(
+    stages: List<OutputGuardStage>,
+    agentMetrics: AgentMetrics,
+    arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+    evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>  // R250
+): OutputGuardPipeline =
+    OutputGuardPipeline(
+        stages = stages,
+        onStageComplete = { stage, action, reason ->
+            agentMetrics.recordOutputGuardAction(stage, action, reason)
+        },
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+        evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+            NoOpEvaluationMetricsCollector
+        }
+    )
+```
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../guard/output/OutputGuardPipeline.kt` | import 4개 + 생성자 파라미터 + catch 블록 기록 1줄 (+11줄) |
+| `main/.../autoconfigure/ArcReactorOutputGuardConfiguration.kt` | import 2개 + ObjectProvider 파라미터 + fallback (+6줄) |
+| `test/.../guard/output/OutputGuardPipelineTest.kt` | `throwingStage` 헬퍼 + `R250ExecutionErrorRecording` @Nested 6 tests (+135줄) |
+
+#### 테스트 결과
+
+**OutputGuardPipelineTest — R250 신규 6 tests PASS**:
+```
+- stage 예외가 OUTPUT_GUARD stage로 기록 (fail-close Rejected 반환도 확인)
+- 여러 stage 중 첫 실패만 기록 (이후 stage 실행 안 됨)
+- 정상 실행은 기록 안 함
+- Rejected 반환은 기록 안 함 (정책 위반 ≠ 예외)
+- CancellationException 재throw + 미기록
+- 기본 NoOp collector backward compat
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.guard.output.*` PASS (18 tests: 기존 12 + R250 6)
+- 전체 `com.arc.reactor.agent.metrics.*` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 응답 경로 미접근
+- ✅ OutputGuard는 LLM 응답 post-processing이므로 MCP tool 호출과 독립
+- ✅ fail-close 동작 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | 자동 기록 Round |
+|-------|-----------------|
+| `TOOL_CALL` | R246/R247 |
+| `LLM_CALL` | R248 |
+| `HOOK` | R249 |
+| **`OUTPUT_GUARD`** | **R250** |
+| `GUARD` | ⏸️ GuardChain catch 지점 필요 |
+| `PARSING` | ⏸️ ManualReActLoopExecutor |
+| `MEMORY` | ⏸️ MemoryStore |
+| `CACHE` | ⏸️ ResponseCache |
+| `OTHER` | ⏸️ 분류 불가 |
+
+**R250 이후 4/9 stage 자동 기록 완성** — 절반에 근접.
+
+#### Fail-open vs Fail-close 관점 통합
+
+| 계층 | 정책 | Rejected 집계 | 예외 집계 (R250) |
+|------|------|----------------|------------------|
+| RequestGuard (입력) | fail-close | `safety.rejection{stage=guard}` | ⏸️ GUARD 별도 Round |
+| Hook (Before/After) | fail-open | — (swallowing) | ✓ R249 HOOK |
+| OutputGuard | fail-close | `safety.rejection{stage=output_guard}` | **✓ R250 OUTPUT_GUARD** |
+| Tool Policy | fail-close | `safety.rejection{stage=tool_policy}` | ⏸️ |
+| ToolCallback | (없음) | — | ✓ R246/R247 TOOL_CALL |
+| LLM Call | (없음) | — | ✓ R248 LLM_CALL |
+
+R250 이후, fail-close 계층에서 **"정책에 의한 거부"와 "시스템 레벨 이상"이 명확히 분리 관측**된다:
+- **사용자 의도 위반**: `safety.rejection{reason="pii_detected"}` — 정책이 정상 동작
+- **구현 버그**: `execution.error{stage="output_guard", exception="PatternSyntaxException"}` — regex 오류 같은 시스템 이상
+
+#### R250 마일스톤 — 누적 성과 회고
+
+**Round 250 달성!** R1부터 R250까지의 주요 이정표:
+
+- **R1~R100**: 기반 구조 구축 (ReAct 루프, Guard/Hook, MCP 통합, 메모리 시스템)
+- **R100~R200**: 프로덕션 강화 (JDBC 스토어, 승인 플로우, 관찰성 인프라, 보안 가드)
+- **R200~R220**: QA 측정 기반 반복 루프 (Gemini 평가셋, 점수 개선)
+- **R220~R250**: Directive 기반 코드 개선 루프 (30 라운드 연속)
+  - **R220~R235**: Prompt Layer, Approval 4단계 컨텍스트, Evaluation 메트릭, PII 마스킹 통합, ACI 요약 계층
+  - **R236~R244**: Doctor 진단 시스템 (서비스 → REST → 섹션 → 포맷터 → Startup 자동화 → Content Negotiation)
+  - **R245~R250**: execution.error 메트릭 도입 + 4개 stage 자동 배선 (TOOL_CALL → LLM_CALL → HOOK → OUTPUT_GUARD)
+
+**R250 시점 완성도**:
+- 31개 태스크(R94~R125) 완료, 1개 보류(R98 Patch-First)
+- 9개 Evaluation 메트릭 + 자동 배선 4/9 stage
+- Doctor 축 6단계 통합 완성
+- 포맷터 트릴로지(Doctor/Approval/Summary) 완성
+- 80 라운드 연속 빌드 PASS 마일스톤 유지
+
+#### 연속 지표
+
+| 지표 | R249 | R250 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 80 🎯 | **81** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R249 | **4/5 + R224~R250** | - |
+| 자동 기록 stage 수 | 3/9 | **4/9** (+OUTPUT_GUARD) | 증가 |
+| **누적 라운드** | **249** | **🏆 250** | **마일스톤** |
+
+#### 다음 Round 후보
+
+- **R251+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **RequestGuard GUARD stage 자동 기록** — fail-close 입력 guard (OutputGuard와 평행)
+  3. **ManualReActLoopExecutor PARSING 자동 기록** — JSON 파싱 실패
+  4. **MemoryStore MEMORY 자동 기록** — JDBC 저장/조회 실패
+  5. **ResponseCache CACHE 자동 기록** — Redis/Caffeine 실패
+  6. **ApprovalController REST 엔드포인트** — R240 포맷터
+  7. **새 Directive 축 탐색** (#98 Patch-First)
+
+#### 📊 R250 요약
+
+🏆 **R250 마일스톤 + OutputGuardPipeline OUTPUT_GUARD 예외 자동 기록 완료** — R245~R249의 자동 기록 패턴을 fail-close Output Guard 계층에 확장. **4번째 stage 자동 배선**(TOOL_CALL/LLM_CALL/HOOK에 이어). OutputGuard는 fail-close지만 `Rejected(SYSTEM_ERROR)`만으로는 "정책 차단" vs "구현 버그"를 구분할 수 없었는데, R250이 `execution.error{stage="output_guard", exception=<class>}` 메트릭으로 이 구분을 명확히 한다. 정상 `Rejected`(정책 위반)는 `safety.rejection`에 집계되고, throw된 시스템 이상(regex 컴파일 오류, NPE 등)은 `execution.error`에 별도 집계. `OutputGuardPipeline` 생성자에 `evaluationMetricsCollector` 파라미터 추가 (기본 NoOp), fail-close catch 블록에서 `recordError(OUTPUT_GUARD, e)` 1줄 추가. fail-close 동작 불변 — 기록은 기존 Rejected 반환 로직과 병렬. `ArcReactorOutputGuardConfiguration.outputGuardPipeline()`에 `ObjectProvider<EvaluationMetricsCollector>` 주입 추가 + `getIfAvailable { NoOp }` fallback으로 Spring 자동 배선. 수정 파일 2개 (Pipeline +11 / Configuration +6), 테스트 1개 확장 (PipelineTest +135줄). 신규 테스트 **6 PASS** (R250ExecutionErrorRecording @Nested): 일반 예외 기록 + Rejected 반환 동시 확인 / 여러 stage 첫 실패만 기록 / 정상 실행 미기록 / Rejected 반환 미기록 (정책 ≠ 예외) / CancellationException 미기록 + 재throw / 기본 NoOp backward compat. 전체 `com.arc.reactor.guard.output.*` + `com.arc.reactor.agent.metrics.*` 회귀 없음 (Pipeline 18 tests total). R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R250**. swagger-mcp 8181 **81 라운드 연속**. **🏆 Round 250 마일스톤 달성** — R220~R250 30 라운드 연속 Directive 기반 코드 개선 루프 완주. **자동 기록 stage 4/9 달성** (절반 임박: TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD). Fail-open (Hook) vs Fail-close (OutputGuard) 두 가지 정책의 관측 모델이 모두 수립되어, 이제 `safety.rejection`(정책 차단)과 `execution.error`(시스템 이상)를 분리하여 드릴다운 가능. R251부터는 RequestGuard (GUARD)와 나머지 stage 자동 배선, 또는 QA 측정 루프 재개 등 새로운 축으로 진행 가능.

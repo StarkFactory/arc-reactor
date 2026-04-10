@@ -1,6 +1,9 @@
 package com.arc.reactor.guard.output
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.agent.model.AgentCommand
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested
@@ -268,6 +271,154 @@ class OutputGuardPipelineTest {
         override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
             tracker.add(name)
             return OutputGuardResult.Allowed.DEFAULT
+        }
+    }
+
+    private fun throwingStage(name: String, exception: Throwable, order: Int = 100) =
+        object : OutputGuardStage {
+            override val stageName = name
+            override val order = order
+            override suspend fun check(content: String, context: OutputGuardContext): OutputGuardResult {
+                throw exception
+            }
+        }
+
+    // ========================================================================
+    // R250: OUTPUT_GUARD stage 자동 기록 테스트
+    // ========================================================================
+
+    @Nested
+    inner class R250ExecutionErrorRecording {
+
+        private fun newCollector(): Pair<SimpleMeterRegistry, EvaluationMetricsCollector> {
+            val registry = SimpleMeterRegistry()
+            return registry to MicrometerEvaluationMetricsCollector(registry)
+        }
+
+        @Test
+        fun `R250 stage 예외가 OUTPUT_GUARD stage로 기록되어야 한다`() = runTest {
+            val (registry, collector) = newCollector()
+            val stage = throwingStage("PiiMasking", IllegalStateException("regex compile failed"))
+            val pipeline = OutputGuardPipeline(
+                stages = listOf(stage),
+                evaluationMetricsCollector = collector
+            )
+
+            val result = pipeline.check("some content", defaultContext)
+
+            // fail-close → Rejected(SYSTEM_ERROR)
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result) {
+                "fail-close → Rejected 반환"
+            }
+            val rejected = result as OutputGuardResult.Rejected
+            assertEquals(OutputRejectionCategory.SYSTEM_ERROR, rejected.category)
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "output_guard")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+                .counter()
+            assertNotNull(counter) {
+                "Output guard 예외가 OUTPUT_GUARD stage로 기록되어야 한다"
+            }
+            assertEquals(1.0, counter!!.count())
+        }
+
+        @Test
+        fun `R250 여러 stage 중 첫 실패만 기록 (이후 stage 실행 안 됨)`() = runTest {
+            val (registry, collector) = newCollector()
+            val stage1 = throwingStage("Stage1", NullPointerException("boom"), order = 1)
+            val stage2 = throwingStage("Stage2", RuntimeException("never reached"), order = 2)
+            val pipeline = OutputGuardPipeline(
+                stages = listOf(stage1, stage2),
+                evaluationMetricsCollector = collector
+            )
+
+            pipeline.check("content", defaultContext)
+
+            val firstCounter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "output_guard")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "NullPointerException")
+                .counter()
+            assertNotNull(firstCounter) { "첫 stage 예외는 기록" }
+            assertEquals(1.0, firstCounter!!.count())
+
+            val secondCounter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "output_guard")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "RuntimeException")
+                .counter()
+            assertNull(secondCounter) {
+                "fail-close로 첫 실패 후 즉시 Rejected 반환 → 두 번째 stage 실행 안 됨"
+            }
+        }
+
+        @Test
+        fun `R250 정상 실행은 기록하지 않음`() = runTest {
+            val (registry, collector) = newCollector()
+            val stage = allowingStage("AllowAll")
+            val pipeline = OutputGuardPipeline(
+                stages = listOf(stage),
+                evaluationMetricsCollector = collector
+            )
+
+            pipeline.check("content", defaultContext)
+
+            val meter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counter()
+            assertNull(meter) { "정상 경로는 기록 안 됨" }
+        }
+
+        @Test
+        fun `R250 Rejected 반환은 기록하지 않음 (예외 아닌 정상 거부)`() = runTest {
+            val (registry, collector) = newCollector()
+            val stage = rejectingStage("PolicyBlock", "blocked by policy")
+            val pipeline = OutputGuardPipeline(
+                stages = listOf(stage),
+                evaluationMetricsCollector = collector
+            )
+
+            val result = pipeline.check("content", defaultContext)
+
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result)
+            val meter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counter()
+            assertNull(meter) {
+                "정책에 의한 거부는 예외가 아니므로 execution.error에 기록 안 됨"
+            }
+        }
+
+        @Test
+        fun `R250 CancellationException은 기록하지 않고 재throw`() = runTest {
+            val (registry, collector) = newCollector()
+            val stage = throwingStage("CancellingStage", CancellationException("cancelled"))
+            val pipeline = OutputGuardPipeline(
+                stages = listOf(stage),
+                evaluationMetricsCollector = collector
+            )
+
+            try {
+                pipeline.check("content", defaultContext)
+                fail("Expected CancellationException")
+            } catch (_: CancellationException) {
+                // 예상
+            }
+
+            val meter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .counter()
+            assertNull(meter) {
+                "CancellationException은 execution.error에 기록하지 않음"
+            }
+        }
+
+        @Test
+        fun `R250 기본 NoOp collector backward compat 유지`() = runTest {
+            val stage = throwingStage("failing", IllegalStateException("boom"))
+            // evaluationMetricsCollector 생략 → NoOp 기본값
+            val pipeline = OutputGuardPipeline(stages = listOf(stage))
+
+            val result = pipeline.check("content", defaultContext)
+
+            // fail-close 동작은 그대로
+            assertInstanceOf(OutputGuardResult.Rejected::class.java, result)
         }
     }
 }

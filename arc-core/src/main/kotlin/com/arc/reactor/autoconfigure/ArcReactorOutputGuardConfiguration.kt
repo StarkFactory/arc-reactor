@@ -2,6 +2,8 @@ package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.guard.output.OutputGuardPipeline
 import com.arc.reactor.guard.output.OutputGuardStage
 import com.arc.reactor.guard.output.impl.DynamicRuleOutputGuard
@@ -70,13 +72,17 @@ class OutputGuardConfiguration {
     fun outputGuardPipeline(
         stages: List<OutputGuardStage>,
         agentMetrics: AgentMetrics,
-        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+        evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
     ): OutputGuardPipeline =
         OutputGuardPipeline(
             stages = stages,
             onStageComplete = { stage, action, reason ->
                 agentMetrics.recordOutputGuardAction(stage, action, reason)
             },
-            tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+            tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+            evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+                NoOpEvaluationMetricsCollector
+            }
         )
 }

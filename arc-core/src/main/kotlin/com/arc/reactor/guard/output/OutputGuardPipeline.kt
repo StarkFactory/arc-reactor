@@ -1,5 +1,9 @@
 package com.arc.reactor.guard.output
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tracing.ArcReactorTracer
 import com.arc.reactor.tracing.NoOpArcReactorTracer
@@ -34,7 +38,13 @@ private val logger = KotlinLogging.logger {}
 class OutputGuardPipeline(
     stages: List<OutputGuardStage>,
     private val onStageComplete: ((stage: String, action: String, reason: String) -> Unit)? = null,
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /**
+     * R250: Output Guard stage 예외를 `execution.error{stage="output_guard"}` 메트릭에 기록.
+     * 기본값 NoOp으로 backward compat. Fail-close 경로의 예외도 관측 대상 — PII 마스킹
+     * 로직 자체가 터지는 경우를 운영자가 인지해야 하기 때문.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
 
     /** 활성화된 단계만 order 기준 정렬하여 보관 */
@@ -65,6 +75,9 @@ class OutputGuardPipeline(
                     stage.check(currentContent, context)
                 } catch (e: Exception) {
                     e.throwIfCancellation()
+                    // R250: Output guard stage 예외를 execution.error 메트릭에 기록
+                    // fail-close로 Rejected가 반환되지만 시스템 레벨 이상을 별도 관측한다
+                    evaluationMetricsCollector.recordError(ExecutionStage.OUTPUT_GUARD, e)
                     logger.error(e) {
                         "OutputGuardStage '${stage.stageName}' failed, rejecting (fail-close)"
                     }
