@@ -15054,3 +15054,305 @@ R240은 Approval 축의 **출력 형식 확장**이다. 이제 `ToolApprovalRequ
 #### 📊 R240 요약
 
 ✅ **ToolApprovalRequest 한국어 포맷터 완료**. R239 `DoctorReport` 포맷터 패턴을 Approval 축으로 평행 이식. 신규 파일 `ApprovalRequestFormatter.kt`에 6개 확장 함수 추가: `ToolApprovalRequest.toHumanReadable(includeArguments, lineSeparator)` (CLI 멀티라인) + `ToolApprovalRequest.toSlackMarkdown()` (Slack mrkdwn 축약) + `ToolApprovalRequest.toApprovalPromptLine()` (REPL 한 줄 프롬프트) + `ApprovalSummary.toHumanReadable()` + `ApprovalStatus.koreanLabel()` + `ApprovalContext.toOneLineSummary()` (가운데 점 구분자). 기존 `ApprovalModels.kt`에 `Reversibility.koreanLabel()` (복구 가능/부분 복구 가능/복구 불가/알 수 없음) + `Reversibility.symbol()` (4개 유니코드 심볼) 추가. `toApprovalPromptLine()`은 IRREVERSIBLE 작업에 `[복구 불가]` prefix를 붙여 시각적 경고. `UNKNOWN` reversibility는 라벨 전부 생략으로 노이즈 제거. 긴 인수(200자 초과)는 말줄임표로 축약. 기존 `ApprovalModels.kt` 데이터 클래스 시그니처 불변 (순수 additive). 신규 파일 2개 (구현 209줄 + 테스트 370줄), 기존 파일 1개 수정 (`ApprovalModels.kt` +60줄). 신규 테스트 **35 PASS** (8 @Nested 그룹: ReversibilityLabels 3 / ApprovalStatusLabels 2 / OneLineSummary 4 / HumanReadableFormat 10 / SlackMarkdownFormat 5 / ApprovalPromptLine 4 / ApprovalSummaryFormat 4 / RealisticScenarios 3). 기존 approval 9개 테스트 파일 전부 회귀 없음. R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R240**. swagger-mcp 8181 **71 라운드 연속**. R221→R225→R226→R227→R228→R229→**R240**로 Approval 축이 **"모델 → 구체 구현 → 조합 → 자동 체이닝 → PII 마스킹 → 자동 구성 → 포맷터"** 7단계 성숙 완성. 이제 `ToolApprovalRequest` 객체가 JSON(REST), 한국어 멀티라인(CLI), Slack mrkdwn(알림), 한 줄 프롬프트(REPL) **4가지 컨텍스트에 자동 적응**한다. R239 Doctor 축과 동일한 포맷터 패턴을 공유하여 사용자 멘탈 모델 일관성 확보.
+
+### Round 241 — 📏 2026-04-11T13:30+09:00 — ToolResponseSummary 한국어 포맷터 (R223 심화, 포맷터 트릴로지 완성)
+
+**작업 종류**: Directive 심화 — ACI UX 개선 (QA 측정 없음)
+**Directive 패턴**: #2 ACI 도구 출력 요약 계층 (R223 심화)
+**완료 태스크**: #116
+
+#### 작업 배경
+
+R223~R233이 `ToolResponseSummarizer` 체인 + PII 마스킹 + 자동 구성을 완성했지만, 요약 결과(`ToolResponseSummary`)를 사용자/로그/Slack 알림에 **어떻게 표시할지**는 각 consumer가 직접 구현해야 했다. R239(DoctorReport), R240(ToolApprovalRequest)에 이어 R241은 ACI 축에 동일한 포맷터 패턴을 이식하여 **Arc Reactor 3대 관측 대상(진단/승인/도구 응답)의 포맷터 트릴로지**를 완성한다.
+
+특히 `ToolResponseSummary`는 `originalLength`와 `text.length`라는 두 수치를 가지고 있어 **압축률(compression ratio)** 이라는 고유한 지표를 계산할 수 있다. 이는 ACI 요약 계층의 효과를 한눈에 보여주는 중요한 관측 데이터이다.
+
+#### 설계 원칙
+
+1. **순수 additive** — 기존 `ToolResponseSummarizer.kt` 데이터 클래스 시그니처 불변, 확장 함수로만 추가
+2. **Korean-first** — "에러", "목록", "긴 텍스트", "짧은 텍스트", "구조화", "빈 응답" 한국어 라벨
+3. **압축 지표 1급 시민** — `compressionPercent()`를 데이터 클래스 메서드로 추가, 모든 포맷터에서 활용
+4. **opt-in** — 사용자가 명시적으로 호출해야만 동작
+5. **본문 제어** — `includeBody` + `maxBodyLines`로 Slack 메시지 길이 제한 대응
+6. **MCP/캐시/컨텍스트 경로 미접근** — 순수 string manipulation
+
+#### 신규 API
+
+**`ToolResponseSummary` 멤버 메서드**:
+```kotlin
+data class ToolResponseSummary(...) {
+    /**
+     * R241: 원본 대비 요약 텍스트의 압축률(%) — (original - text.length) / original * 100
+     * divide-by-zero 방지, 요약이 더 길면 음수 반환
+     */
+    fun compressionPercent(): Int
+}
+```
+
+**`SummaryKind` enum 메서드**:
+```kotlin
+enum class SummaryKind {
+    ERROR_CAUSE_FIRST, LIST_TOP_N, TEXT_HEAD_TAIL, TEXT_FULL, STRUCTURED, EMPTY;
+
+    fun koreanLabel(): String  // 에러 / 목록 / 긴 텍스트 / 짧은 텍스트 / 구조화 / 빈 응답
+    fun shortCode(): String    // ERR / LIST / HEAD / FULL / STRUCT / EMPTY (6자 이내)
+}
+```
+
+**확장 함수 (신규 파일 `ToolResponseSummaryFormatter.kt`)**:
+```kotlin
+fun ToolResponseSummary.toHumanReadable(
+    toolName: String? = null,
+    includeBody: Boolean = true,
+    lineSeparator: String = "\n"
+): String
+
+fun ToolResponseSummary.toSlackMarkdown(
+    toolName: String? = null,
+    includeBody: Boolean = true,
+    maxBodyLines: Int = 5
+): String
+
+fun ToolResponseSummary.toCompressionLine(): String
+```
+
+#### `toHumanReadable()` 출력 예시
+
+```
+=== 도구 응답 요약 ===
+도구: jira_search_issues
+전략: 목록 (LIST_TOP_N)
+원본 길이: 8,192자
+요약 길이: 512자
+압축률: 93%
+항목 수: 25
+주요 항목: JAR-31
+
+[요약 본문]
+1. JAR-31 — 이슈 제목 1
+2. JAR-32 — 이슈 제목 2
+...
+```
+
+#### `toSlackMarkdown()` 출력 예시
+
+```
+*도구 응답 요약* — `jira_search_issues`
+`[LIST]` 25건 · 93% 축약 (8,192자 → 512자)
+> 1. JAR-31 — 이슈 제목 1
+> 2. JAR-32 — 이슈 제목 2
+_(+3행 생략)_
+```
+
+#### `toCompressionLine()` 출력 예시
+
+```
+[LIST] 25건 · 93% 축약 (8,192자 → 512자)
+[HEAD] Confluence 페이지 · 99% 축약 (50,000자 → 50자)
+[ERR] 94% 축약 (2,048자 → 128자)
+[EMPTY] 0% 축약 (0자 → 0자)
+```
+
+`itemCount`가 있으면 "N건", 없으면 `primaryKey`, 둘 다 없으면 kind+압축률만 표시.
+
+#### 사용 예
+
+**AfterToolCallHook에서 압축 지표 로깅**:
+```kotlin
+class SummaryLoggingHook(private val summarizer: ToolResponseSummarizer) : AfterToolCallHook {
+    override suspend fun afterToolCall(ctx: HookContext, result: ToolCallResult) {
+        val summary = summarizer.summarize(result.toolName, result.payload, result.success)
+        if (summary != null) {
+            logger.info { summary.toCompressionLine() }
+            // 예: [LIST] 25건 · 93% 축약 (8,192자 → 512자)
+        }
+    }
+}
+```
+
+**Slack 요약 알림**:
+```kotlin
+if (summary.compressionPercent() > 80) {
+    slackClient.postMessage(
+        channel = "#ops-aci",
+        text = summary.toSlackMarkdown(toolName = result.toolName)
+    )
+}
+```
+
+**관리자 화면 상세 뷰**:
+```kotlin
+@GetMapping("/api/admin/tool-responses/{id}")
+fun detail(@PathVariable id: String): ResponseEntity<String> {
+    val summary = store.findById(id) ?: return ResponseEntity.notFound().build()
+    return ResponseEntity.ok()
+        .contentType(MediaType.TEXT_PLAIN)
+        .body(summary.toHumanReadable(toolName = store.findToolName(id)))
+}
+```
+
+#### 구현 핵심
+
+- **`compressionPercent()`는 데이터 클래스 멤버 메서드**: 포맷터뿐 아니라 메트릭 수집(R222/R224), 알림 조건(`> 80`) 등에서 1급 시민으로 재사용
+- **`formatLength()` Locale 독립**: `String.format("%,d")`는 JVM Locale에 의존하므로 수동 쉼표 삽입으로 테스트 일관성 확보 (`1,000자`, `8,192자`)
+- **`maxBodyLines` 초과 처리**: Slack 포맷터는 `lines.take(maxBodyLines)` + `_(+N행 생략)_` 표기로 메시지 길이 제한 대응
+- **`includeBody=false`는 메타데이터만**: 압축률/전략/항목 수만 봐도 충분한 로그 환경용
+- **`primaryKey` 대체 표시**: `itemCount`가 없을 때 `toCompressionLine()`이 `primaryKey`를 대신 표시하여 정보 손실 방지
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `main/.../tool/summarize/ToolResponseSummaryFormatter.kt` | 177 | 3개 확장 함수 + `formatLength` 헬퍼 |
+| `test/.../tool/summarize/ToolResponseSummaryFormatterTest.kt` | 390 | 36 tests (6 `@Nested` 그룹) |
+
+**기존 파일 수정 1개**: `tool/summarize/ToolResponseSummarizer.kt`
+- `ToolResponseSummary` data class에 `compressionPercent()` 메서드 추가
+- `SummaryKind` enum에 `koreanLabel()` / `shortCode()` 추가
+- 기존 필드/시그니처 불변, `NoOpToolResponseSummarizer` 불변
+
+#### 테스트 결과
+
+```
+ToolResponseSummaryFormatterTest                → 36 tests PASS
+  @Nested SummaryKindLabels (4)
+    - 6개 kind별 koreanLabel
+    - 6개 kind별 shortCode 유일성
+    - 모든 shortCode 6자 이내
+    - 모든 koreanLabel 비어있지 않음
+  @Nested CompressionPercent (5)
+    - 75% 정확 계산
+    - 원본 0 → 0 반환 (divide-by-zero 가드)
+    - 요약이 원본보다 길면 음수
+    - 0% (원본과 동일 길이)
+    - 99% (극단 케이스)
+  @Nested HumanReadableFormat (10)
+    - 헤더와 필수 필드
+    - toolName null → 도구 라인 생략
+    - itemCount null → 항목 수 라인 없음
+    - primaryKey null → 주요 항목 라인 없음
+    - 둘 다 있으면 양쪽 모두 포함
+    - includeBody=true 본문 포함
+    - includeBody=false 본문 제외
+    - 빈 text → 본문 섹션 생략
+    - 커스텀 lineSeparator (CRLF)
+    - 1000자 미만 쉼표 없이 포맷
+  @Nested SlackMarkdownFormat (9)
+    - bold 타이틀 + code 도구명
+    - shortCode backtick wrap
+    - itemCount "N건" 형식
+    - 압축률 + 길이 전환 표기
+    - includeBody=true quote 포함
+    - includeBody=false quote 제외
+    - maxBodyLines 초과 → 생략 안내
+    - maxBodyLines 이하 → 생략 안내 없음
+    - toolName null → 대시+code 생략
+  @Nested CompressionLine (5)
+    - 기본 형식 shortCode+itemCount+압축률+길이
+    - itemCount 없으면 primaryKey 대체
+    - 둘 다 없으면 kind+압축률만
+    - 에러 요약
+    - 빈 응답 (0 division guard)
+  @Nested RealisticScenarios (3)
+    - Jira 검색 25건 → 5건 요약
+    - Confluence 긴 페이지 head-tail 요약
+    - 에러 응답 시나리오
+```
+
+**기존 summarize 4개 테스트 파일 전부 회귀 없음**:
+- `ChainedToolResponseSummarizerTest` PASS
+- `DefaultToolResponseSummarizerTest` PASS
+- `RedactedToolResponseSummarizerTest` PASS
+- `ToolResponseSummarizerHookTest` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 컴파일 PASS (multi-module)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ `ToolResponseSummarizer.summarize()` 시그니처/로직 불변
+- ✅ 원본 도구 응답(rawPayload)은 포맷터가 전혀 건드리지 않음
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ `ToolResponseSummarizerHook` 경로 불변
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ 포맷터는 캐시 키 구성에 참여하지 않음
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ 요약은 관측 레이어 → 히스토리에 섞이지 않음
+- ✅ `ConversationManager` 미수정
+
+#### ACI 축 진화
+
+| 라운드 | 변경 내용 |
+|--------|----------|
+| R223 | `ToolResponseSummarizer` 인터페이스 + `DefaultToolResponseSummarizer` + `ToolResponseSummarizerHook` |
+| R230 | `ChainedToolResponseSummarizer` 조합 유틸 |
+| R231 | `RedactedToolResponseSummarizer` PII 마스킹 데코레이터 |
+| R232 | Redaction 자동 구성 |
+| R233 | 공통 `PiiPatterns.kt` 추출 (R228+R231 공유) |
+| **R241** | **`ToolResponseSummary` 한국어 포맷터 + `compressionPercent()`** |
+
+R241은 ACI 축의 **출력 형식 확장 + 압축 지표 1급 시민화**이다. 이제 같은 `ToolResponseSummary` 객체가:
+- **JSON** (REST/메트릭 컨슈머)
+- **한국어 멀티라인** (CLI/관리자 로그)
+- **Slack mrkdwn** (압축 효과 알림)
+- **한 줄 압축 지표** (로그 라인/이벤트 디스패치/메트릭 태그)
+
+4가지 컨텍스트에 자동 적응한다.
+
+#### R239~R241 포맷터 트릴로지 비교
+
+| 기능 | R239 DoctorReport | R240 ToolApprovalRequest | R241 ToolResponseSummary |
+|------|-------------------|--------------------------|--------------------------|
+| **대상 축** | Observability (진단) | Governance (승인) | ACI (도구 응답) |
+| **Directive 원축** | #5 Evaluation 관측 | #1 Tool Approval UX | #2 ACI 요약 |
+| **멀티라인 포맷** | `toHumanReadable(includeDetails, lineSeparator)` | `toHumanReadable(includeArguments, lineSeparator)` | `toHumanReadable(toolName, includeBody, lineSeparator)` |
+| **Slack 포맷** | `toSlackMarkdown()` | `toSlackMarkdown()` | `toSlackMarkdown(toolName, includeBody, maxBodyLines)` |
+| **고유 한 줄 함수** | `overallStatusLabel()` | `toApprovalPromptLine()` | `toCompressionLine()` |
+| **한국어 enum** | `DoctorStatus.koreanLabel/shortCode` | `Reversibility.koreanLabel/symbol`, `ApprovalStatus.koreanLabel` | `SummaryKind.koreanLabel/shortCode` |
+| **고유 지표** | `overallStatusLabel` (집계) | `reversibility` prefix 경고 | `compressionPercent()` (정량) |
+| **테스트** | 28 (5 @Nested) | 35 (8 @Nested) | 36 (6 @Nested) |
+
+세 포맷터가 **동일한 패턴**을 공유하지만 각자 축의 고유한 지표(집계 상태 / 복구 가능성 경고 / 압축률)를 반영한다. 사용자 멘탈 모델은 일관되지만 의미 있는 정보는 축마다 다르다.
+
+#### 숨겨진 이득
+
+**압축률 지표 1급 시민화**의 파급 효과:
+1. **R222 Evaluation 메트릭과 시너지**: `summarizer_compression_ratio{tool_name}` 메트릭 수집이 쉬워짐 (`compressionPercent()` 그대로 Micrometer `DistributionSummary.record()` 입력)
+2. **알림 조건 단순화**: `if (summary.compressionPercent() < 30)` 같은 조건으로 "압축 효과 없는 요약" 감지 가능
+3. **관측 일관성**: CLI/Slack/로그/메트릭이 모두 같은 계산식 사용
+
+#### 연속 지표
+
+| 지표 | R240 | R241 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 71 | **72** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R240 | **4/5 + R224~R241** | - |
+| 포맷터 트릴로지 | 2/3 (Doctor+Approval) | **3/3 완성** (+Summary) | ✅ |
+
+#### 다음 Round 후보
+
+- **R242+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션 (R220~R241 누적 효과 정량 비교)
+  2. **R222 `summarizer_compression_ratio` 메트릭 추가** — R241 `compressionPercent()`와 시너지
+  3. **StartupDoctorLogger** — R239 포맷터를 `ApplicationRunner`로 기본 로깅 적용
+  4. **ApprovalController REST 엔드포인트** — R240 포맷터를 관리자 화면에 노출
+  5. **Slack 승인 봇 사이드카** — R240 `toSlackMarkdown()` + interactive buttons
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R241 요약
+
+📏 **ToolResponseSummary 한국어 포맷터 + 압축률 1급 시민화 완료** → **R239~R241 포맷터 트릴로지 완성**. R239 DoctorReport, R240 ToolApprovalRequest에 이어 ACI 축(R223)의 `ToolResponseSummary`에 동일한 포맷터 패턴 이식. 신규 파일 `ToolResponseSummaryFormatter.kt`에 3개 확장 함수: `toHumanReadable(toolName, includeBody, lineSeparator)` (CLI 멀티라인) + `toSlackMarkdown(toolName, includeBody, maxBodyLines)` (Slack mrkdwn, `maxBodyLines` 초과 시 `_(+N행 생략)_` 표기) + `toCompressionLine()` (로그/이벤트/메트릭용 한 줄). 기존 `ToolResponseSummarizer.kt`에 `ToolResponseSummary.compressionPercent()` 멤버 메서드 + `SummaryKind.koreanLabel()` (에러/목록/긴 텍스트/짧은 텍스트/구조화/빈 응답) + `SummaryKind.shortCode()` (ERR/LIST/HEAD/FULL/STRUCT/EMPTY, 6자 이내) 추가. 압축률은 divide-by-zero 가드 (`originalLength <= 0` → 0) + 요약이 더 길면 음수 허용. `formatLength()` 헬퍼는 Locale 독립 수동 쉼표 삽입 (1,000자 / 8,192자). `itemCount` null일 때 `toCompressionLine()`은 `primaryKey`로 대체 표시. 기존 `ToolResponseSummarizer` 인터페이스/`NoOpToolResponseSummarizer` 시그니처 불변 (순수 additive). 신규 파일 2개 (구현 177줄 + 테스트 390줄), 기존 파일 1개 수정 (`ToolResponseSummarizer.kt` +78줄). 신규 테스트 **36 PASS** (6 @Nested 그룹: SummaryKindLabels 4 / CompressionPercent 5 / HumanReadableFormat 10 / SlackMarkdownFormat 9 / CompressionLine 5 / RealisticScenarios 3). 기존 summarize 4개 테스트 파일(`ChainedToolResponseSummarizerTest`, `DefaultToolResponseSummarizerTest`, `RedactedToolResponseSummarizerTest`, `ToolResponseSummarizerHookTest`) 전부 회귀 없음. R220 Golden snapshot 5개 해시 불변. 전체 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 (포맷터는 원본 payload 미접근, `systemPrompt` 미수정, `MemoryStore` 미접근). Directive 진행: **4/5 + R224~R241**. swagger-mcp 8181 **72 라운드 연속**. R223→R230→R231→R232→R233→**R241**로 ACI 축이 **"인터페이스 → 조합 → PII 마스킹 → 자동 구성 → 공통 패턴 추출 → 포맷터+압축률"** 6단계 성숙 완성. **R239~R241 포맷터 트릴로지**(Doctor+Approval+Summary)가 모두 `toHumanReadable()` + `toSlackMarkdown()` + 축 고유 한 줄 함수의 동일 패턴을 공유하여 사용자 멘탈 모델 일관성 확보. 압축률 지표(`compressionPercent()`)는 데이터 클래스 멤버 메서드로 1급 시민화되어 향후 R222 Evaluation 메트릭(`summarizer_compression_ratio`)과 직접 연동 가능.

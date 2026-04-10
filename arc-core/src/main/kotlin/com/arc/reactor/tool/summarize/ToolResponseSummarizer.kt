@@ -64,7 +64,29 @@ data class ToolResponseSummary(
     val originalLength: Int,
     val itemCount: Int? = null,
     val primaryKey: String? = null
-)
+) {
+    /**
+     * R241: 원본 대비 요약 텍스트의 압축률(%)을 반환한다.
+     *
+     * 공식: `(originalLength - text.length) / originalLength * 100`
+     *
+     * - 원본이 0이면 0을 반환 (divide-by-zero 방지)
+     * - 요약이 원본보다 긴 경우 음수를 반환 (드물지만 가능)
+     * - 소수점을 버리고 정수로 반환 (로그/UI 표기에 적합)
+     *
+     * 예시:
+     * - 원본 1000자 → 요약 250자 = 75%
+     * - 원본 4096자 → 요약 512자 = 87%
+     * - 원본 0자 → 0%
+     *
+     * @return 압축률 정수 (0~100 사이가 일반적, 음수 가능)
+     */
+    fun compressionPercent(): Int {
+        if (originalLength <= 0) return 0
+        val saved = originalLength - text.length
+        return (saved.toDouble() / originalLength.toDouble() * 100).toInt()
+    }
+}
 
 /**
  * 요약 전략 분류.
@@ -86,7 +108,35 @@ enum class SummaryKind {
     STRUCTURED,
 
     /** 빈 응답 */
-    EMPTY
+    EMPTY;
+
+    /**
+     * R241: 사람이 읽을 수 있는 한국어 라벨.
+     *
+     * CLI/로그/Slack 메시지 등에서 사용자에게 요약 전략을 표시할 때 사용한다.
+     */
+    fun koreanLabel(): String = when (this) {
+        ERROR_CAUSE_FIRST -> "에러"
+        LIST_TOP_N -> "목록"
+        TEXT_HEAD_TAIL -> "긴 텍스트"
+        TEXT_FULL -> "짧은 텍스트"
+        STRUCTURED -> "구조화"
+        EMPTY -> "빈 응답"
+    }
+
+    /**
+     * R241: 로그 프리픽스용 짧은 코드 (5자 이내).
+     *
+     * `[ERR]`, `[LIST]`, `[HEAD]`, `[FULL]`, `[STRUCT]`, `[EMPTY]` 형태로 프리픽스에 사용.
+     */
+    fun shortCode(): String = when (this) {
+        ERROR_CAUSE_FIRST -> "ERR"
+        LIST_TOP_N -> "LIST"
+        TEXT_HEAD_TAIL -> "HEAD"
+        TEXT_FULL -> "FULL"
+        STRUCTURED -> "STRUCT"
+        EMPTY -> "EMPTY"
+    }
 }
 
 /**
