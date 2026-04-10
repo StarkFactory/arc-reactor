@@ -69,8 +69,35 @@ data class ToolPolicyProperties(
      */
     val dynamic: ToolPolicyDynamicProperties = ToolPolicyDynamicProperties(),
 
-    /** "쓰기"(부작용이 있는) 도구 이름 목록. */
-    val writeToolNames: Set<String> = emptySet(),
+    /**
+     * "쓰기"(부작용이 있는) 도구 이름 목록.
+     *
+     * R181: 빈 셋 기본값 → 19개 알려진 쓰기 도구를 디폴트로 채움.
+     * 이전: application.yml의 write-tool-names 설정이 일부 환경에서 바인딩 안 될 경우
+     * 모든 쓰기 도구가 정책 우회 가능 (보안 fail-open). 안전한 fail-closed 기본값 보장.
+     * 외부 yml 설정이 있으면 그 값으로 덮어쓰기 가능.
+     */
+    val writeToolNames: Set<String> = setOf(
+        "jira_create_issue",
+        "jira_add_comment",
+        "jira_update_issue",
+        "jira_transition_issue",
+        "jira_assign_issue",
+        "jira_link_issues",
+        "jira_create_subtask",
+        "confluence_create_page",
+        "confluence_update_page",
+        "confluence_create_runbook",
+        "confluence_create_incident_postmortem",
+        "confluence_create_sprint_summary",
+        "confluence_create_meeting_notes",
+        "confluence_create_weekly_status_report",
+        "confluence_create_weekly_auto_summary_page",
+        "bitbucket_approve_pr",
+        "bitbucket_add_pr_comment",
+        "work_action_items_to_jira",
+        "work_release_readiness_pack"
+    ),
 
     /** 쓰기 도구가 거부되는 채널 (fail-closed). */
     val denyWriteChannels: Set<String> = setOf("slack"),
