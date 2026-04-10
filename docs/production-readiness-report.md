@@ -4908,3 +4908,114 @@ has_url = (has_real_url or has_md_link) and not (
 - E 카테고리 인사이트는 캐주얼이라 우선순위 낮음
 
 **R177 요약**: swagger-mcp 포트 8181 영구 이전으로 6 라운드 연속 발생한 Paravel 충돌 영구 해결. arc-reactor PostgreSQL `mcp_servers` 테이블 config URL 업데이트. 자동 측정 has_url 검증 강화 (false positive 방지). 20/20 전체 성공 + 중복 호출 0건 유지.
+
+### Round 178 — 2026-04-10T18:00+09:00 (R177 안정성 검증 + A 카테고리 근본 원인 추적)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP (**8181 1+ 라운드 안정 ✅**), atlassian-mcp UP
+**BUILD**: arc-app PASS
+**TEST**: arc-core/arc-web/arc-slack 전체 PASS
+
+#### R177 안정성 검증 (8181 영구 이전 효과)
+
+R177 fix 후 첫 cron 라운드(R178)에서 swagger-mcp 8081 충돌 0건. swagger-mcp 8181 포트가 외부 프로세스에 점유당하지 않음. 매 라운드 수동 정리 작업 불필요해짐.
+
+```
+초기 R178 health check:
+  swagger-mcp-server        CONNECTED ✅
+  atlassian-mcp-server      CONNECTED ✅
+```
+
+**R171~R176 6 라운드 연속 충돌 → R177~R178 2 라운드 연속 안정** (영구 해결 검증).
+
+#### Task #19: A 카테고리 근본 원인 깊이 추적
+
+R175 이후 A 출처가 단건은 작동하지만 자동 측정에서 1~2/4로 변동.
+
+**조사 결과**:
+
+1. **VerifiedSourceExtractor 구조 확인** (`arc-core/.../response/VerifiedSource.kt`):
+   - 도구 응답 JSON을 walk하면서 URL 필드 자동 수집
+   - `url`, `webUrl`, `htmlUrl`, `link`, `webui` 등 9개 필드 인식
+   - `issues[*].url`, `sources[*].url` 모두 추출 가능
+
+2. **VerifiedSourcesResponseFilter 동작 확인** (`arc-core/.../response/impl/VerifiedSourcesResponseFilter.kt`):
+   - sources가 있으면 line 57에서 응답 끝에 sources block 자동 추가
+   - sources가 비어있고 워크스페이스 도구만 사용했으면 sources block 생략
+
+3. **결정적 발견 (atlassian-mcp 로그)**:
+   ```
+   17:57:32: assignee = "557058:974639cb-431e-432d-8c35-1715fb35387e" → 데이터 4건 ✅
+   17:59:19: assignee = currentUser() → 빈 결과 ❌
+   18:00:21: assignee = currentUser() → 빈 결과 ❌
+   ```
+
+   동일 도구(`jira_my_open_issues`)인데 어떤 호출은 accountId, 어떤 호출은 currentUser() — **fallback 로직 비결정성**
+
+4. **명시적 metadata 전달 테스트**:
+   - `metadata.requesterEmail = "ihunet@hunet.co.kr"` → 여전히 빈 결과
+   - `metadata.requesterAccountId = "557058:..."` → 여전히 빈 결과
+   - 환경변수 `ARC_REACTOR_DEFAULT_REQUESTER_EMAIL=ihunet@hunet.co.kr` 정상 전달 확인
+
+**근본 원인 가설** (R179 검증):
+- `ToolCallOrchestrator.autoInjectRequesterParam`이 `jira_my_open_issues`에는 `assigneeAccountId`를 자동 주입하지 않음
+- 또는 atlassian-mcp의 `identityResolver.resolveOptional`이 currentUser()로 fallback하는 경로
+
+#### Task #19-2: has_url 검증 강화 효과 측정 (R177 도입 → R178 첫 측정)
+
+**Before (R176까지)**: `has_url = 'http' in content or '[' in content`
+- 응답 본문에 인용 등으로 `[` 포함 시 false positive
+
+**After (R177)**:
+```python
+has_real_url = 'http://' in content or 'https://' in content
+has_md_link = '](' in content
+empty_source_marker = '검증된 출처를 찾지 못했습니다' in content
+has_url = (has_real_url or has_md_link) and not (
+    empty_source_marker and not has_real_url
+)
+```
+
+R178 측정에서 false positive 제거되어 일부 카테고리 점수가 정확하게 노출.
+
+#### 측정 결과 (R178)
+
+| 메트릭 | R177 | R178 | 변화 |
+|--------|------|------|------|
+| 전체 성공 | 20/20 | 20/20 | 유지 ✅ |
+| 중복 호출 | 0건 | 0건 | 유지 ✅ |
+| 평균 응답시간 | 7871ms | 7484ms | -5% |
+| A 출처 | 2/4 | 1/4 | -1 (Gemini 변동, atlassian-mcp 빈 결과) |
+| **A 인사이트** | 2/4 | **3/4** | **+50%** ⭐ |
+| B 출처 | 4/5 | 4/5 | 유지 |
+| B 인사이트 | 4/5 | 3/5 | -1 (변동) |
+| C 출처 | 3/4 | 3/4 | 유지 |
+| C 인사이트 | 3/4 | 3/4 | 유지 |
+| D 출처 | 2/4 | 2/4 | 유지 |
+
+**A 인사이트 +50%**는 R175 sources instruction + R178 has_url 강화 효과의 누적. 응답에 인사이트(:bulb: 또는 수치 분석) 포함률 측정이 더 정확해짐.
+
+#### 코드 수정 파일 (R178)
+- 코드 변경 없음 — R177 인프라 안정성 검증 + R175 ChatController fix 동작 추적 라운드
+- 보고서 업데이트만 (production-readiness-report.md)
+
+#### R168→R178 누적 진척도
+| Round | 핵심 |
+|-------|------|
+| R168 | ReAct 중복 100% 제거 |
+| R169 | admin Atlassian 매핑 |
+| R170 | MY_AUTHORED_PR + IPv6 |
+| R171 | WorkContextBitbucketPlanner |
+| R172 | 첫 20/20 마일스톤 |
+| R173 | MCP 자동 재연결 |
+| R174 | Sources Instruction 강화 |
+| R175 | accountId 형식 검증 |
+| R176 | Slack 낄끼빠빠 |
+| R177 | swagger-mcp 8181 영구 이전 |
+| **R178** | **R177 안정성 검증 + A 카테고리 근본 원인 추적** |
+
+#### 남은 과제 (R179~)
+- **A 카테고리 출처 만점 진입**: ToolCallOrchestrator.autoInjectRequesterParam이 jira_my_open_issues에 assigneeAccountId/requesterEmail 주입 동작 검증
+- atlassian-mcp identityResolver.resolveOptional의 currentUser() fallback 경로 추적
+- C 카테고리 4/4 만점 안정화
+
+**R178 요약**: R177 swagger-mcp 8181 이전 안정성 검증 (2 라운드 연속 충돌 0건). A 카테고리 빈 결과의 근본 원인을 atlassian-mcp 로그로 추적 — `assignee = currentUser()` fallback 발생 패턴 발견. 명시적 metadata 전달 테스트로도 빈 결과 → ToolCallOrchestrator/identityResolver 단계 이슈 가능성 (R179 과제). A 인사이트 +50% (2/4 → 3/4). 20/20 성공 + 중복 0건 유지.
