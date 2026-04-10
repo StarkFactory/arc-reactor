@@ -248,7 +248,9 @@ class SpringAiAgentExecutor(
         callWithRetry = { block -> retryExecutor.execute(block) },
         buildChatOptions = ::createChatOptions,
         systemPromptBuilder = systemPromptBuilder,
-        toolApprovalPolicy = toolApprovalPolicy
+        toolApprovalPolicy = toolApprovalPolicy,
+        // R254: JSON 계획 파싱 실패 → PARSING stage 자동 기록
+        evaluationMetricsCollector = evaluationMetricsCollector
     )
     // 스트리밍 ReAct 루프 실행기 — 실시간 청크 전송 버전
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(

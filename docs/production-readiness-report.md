@@ -18136,3 +18136,218 @@ rate(arc_reactor_eval_execution_error_total{stage="cache"}[5m])
 #### 📊 R253 요약
 
 📦 **AgentExecutionCoordinator CACHE 예외 자동 기록 완료** — R252 MEMORY 평행으로 7번째 stage 추가. `ResponseCache` 인터페이스는 건드리지 않고 **호출자(`AgentExecutionCoordinator`)의 2개 catch 블록**에서 기록하는 "호출자 wrapping" 전략 채택 — 3개 내장 구현체(`NoOp`/`Caffeine`/`RedisSemantic`) 모두 불변 유지. 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp backward compat). `storeInCache()`의 fail-open catch(응답 캐시 저장 실패)와 `resolveCache()`의 fail-open catch(캐시 조회 실패) 두 지점에서 `recordError(CACHE, e)` 1줄씩 추가. `SpringAiAgentExecutor`의 `agentExecutionCoordinator` 생성 지점에 R247에서 이미 주입받은 `evaluationMetricsCollector`를 전달 — 별도 배선 작업 불필요. 수정 파일 2개 (Coordinator +12 / Executor +2), 테스트 1개 확장 (CoordinatorTest +170줄). 신규 테스트 **4 PASS** (23 tests total): 캐시 조회 예외 기록 + fail-open 계속 / 캐시 저장 예외 기록 + fail-open 반환 / 정상 경로 미기록 / NoOp backward compat. 수정 과정 이슈 1개: 초기 테스트가 "live" (4자) 응답 사용했으나 `MIN_CACHEABLE_CONTENT_LENGTH=30` 제약으로 `storeInCache` early-return → 60자 응답으로 수정. 전체 `com.arc.reactor.agent.impl.*` + `cache.*` + `agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. **캐시 계층을 직접 건드린 라운드**이지만 Redis 의미적 캐시 제약 엄격 준수 — `SystemPromptBuilder`, `CacheKeyBuilder`, `RedisSemanticResponseCache.getSemantic/putSemantic`, `CachedResponse`, TTL/eviction 정책 모두 불변. 메트릭 기록은 기존 catch 블록 내부에 `logger.warn`과 병렬 추가. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R253**. swagger-mcp 8181 **84 라운드 연속**. **자동 기록 stage 7/9 달성 — 78%** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD + MEMORY + CACHE). **스토리지 계층 fail-open 관측 트리오 완성** (Hook R249 + Memory R252 + Cache R253): 세 계층 모두 task는 성공으로 끝나지만 부가 기능이 조용히 실패하는 공통 패턴을 이제 Grafana 대시보드로 통합 드릴다운 가능. `sum by (stage) (rate{stage=~"memory|cache|hook"}[5m])` 한 쿼리로 모든 fail-open 실패 관측, Redis 인프라 장애 시 `stage=memory`와 `stage=cache` 양쪽이 동시에 급증하는 패턴으로 즉시 확진 가능. 나머지 2개 stage(PARSING + OTHER) 완성 시 9/9 100% 달성 가능 — 다음 자연스러운 타겟은 `ManualReActLoopExecutor`의 JSON 파싱 경로.
+
+### Round 254 — 🧩 2026-04-11T20:00+09:00 — ToolArgumentParser + PlanExecuteStrategy PARSING 예외 자동 기록 (8번째 stage)
+
+**작업 종류**: Directive 심화 — 8번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R253 직접 연장)
+**완료 태스크**: #129
+
+#### 작업 배경
+
+R253까지 7개 stage 자동 기록 완성(78%). R254는 **8번째 stage PARSING**을 추가하여 86%에 도달한다.
+
+Arc Reactor에는 LLM 응답의 JSON 파싱 경로가 여러 곳 존재하는데, 모두 fail-open으로 실패를 swallowing한다:
+1. **`ToolArgumentParser.parseToolArguments()`** — LLM이 생성한 tool call 인자 JSON → 파싱 실패 시 빈 맵 반환
+2. **`PlanExecuteStrategy.parsePlan()`** — PLAN_EXECUTE 모드에서 LLM이 생성한 JSON 계획 배열 → 파싱 실패 시 빈 리스트 반환
+
+두 경로 모두 `logger.warn` 만 남기고 메트릭에는 기록되지 않아, "LLM이 유효하지 않은 JSON을 자주 생성하는지" 운영 관점에서 추적이 불가능했다. R254가 이 공백을 해소한다.
+
+**운영 관점의 가치**:
+- Tool argument 파싱 실패율이 급증 = LLM 모델 품질 저하 또는 프롬프트 변경 후 regression
+- Plan 파싱 실패율이 급증 = PLAN_EXECUTE 프롬프트의 JSON 스키마 설명이 모델에 잘 전달 안 됨
+- 두 지표를 추적하면 **프롬프트 엔지니어링 regression**을 즉시 탐지 가능
+
+#### 2개 파싱 지점 매트릭스
+
+| 위치 | 함수 | 용도 | fail-open 동작 |
+|------|------|------|----------------|
+| `ToolArgumentParser.parseToolArguments()` | tool call JSON → Map | `ArcToolCallbackAdapter.call()`에서 호출 | 빈 맵 반환 |
+| `PlanExecuteStrategy.parsePlan()` | PLAN_EXECUTE JSON 배열 → List<PlanStep> | PLAN_EXECUTE 모드 실행 | 빈 리스트 반환 |
+
+#### 신규 API
+
+**`parseToolArguments` 확장** (top-level function with optional parameter):
+```kotlin
+internal fun parseToolArguments(
+    json: String?,
+    evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector  // R254
+): Map<String, Any?> {
+    if (json.isNullOrBlank()) return emptyMap()
+    return try {
+        objectMapper.readValue(json, mapTypeRef)
+    } catch (e: Exception) {
+        // R254: PARSING stage로 JSON 인자 파싱 실패 기록
+        evaluationMetricsCollector.recordError(ExecutionStage.PARSING, e)
+        logger.warn(e) { "JSON 인자 파싱 실패" }
+        emptyMap()
+    }
+}
+```
+
+**`ArcToolCallbackAdapter` 호출 업데이트**:
+```kotlin
+override fun call(toolInput: String): String {
+    // R254: JSON 파싱 실패를 PARSING stage 메트릭에 자동 기록
+    val parsedArguments = parseToolArguments(toolInput, evaluationCollector)  // R246 collector 재활용
+    // ... 기존 tool 실행 로직 ...
+}
+```
+
+**`PlanExecuteStrategy` 생성자 확장**:
+```kotlin
+internal class PlanExecuteStrategy(
+    // ... 기존 7개 파라미터 ...
+    private val toolApprovalPolicy: ToolApprovalPolicy? = null,
+    /** R254: JSON 계획 파싱 실패를 PARSING stage로 자동 기록 */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+) {
+    internal fun parsePlan(text: String): List<PlanStep> {
+        // ... 기존 로직 ...
+        return try {
+            objectMapper.readValue<List<PlanStep>>(jsonText)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            // R254: PLAN_EXECUTE JSON 계획 파싱 실패를 PARSING stage로 기록
+            evaluationMetricsCollector.recordError(ExecutionStage.PARSING, e)
+            logger.warn(e) { "PLAN_EXECUTE: JSON 파싱 실패" }
+            emptyList()
+        }
+    }
+}
+```
+
+**`SpringAiAgentExecutor`에서 전달**:
+```kotlin
+private val planExecuteStrategy = PlanExecuteStrategy(
+    // ... 기존 파라미터 ...
+    toolApprovalPolicy = toolApprovalPolicy,
+    // R254: JSON 계획 파싱 실패 → PARSING stage 자동 기록
+    evaluationMetricsCollector = evaluationMetricsCollector
+)
+```
+
+#### 설계 선택: Top-level 함수 확장 vs 클래스화
+
+`parseToolArguments`는 top-level function인데, 클래스로 바꾸는 대신 **optional parameter 추가** 방식을 선택했다. 이유:
+
+1. **Backward compat**: 기존 호출자들(`ArcToolCallbackAdapter`, `ToolCallOrchestrator`)의 함수 시그니처 불변
+2. **선택적 통합**: collector를 가진 호출자는 명시적으로 전달, 없으면 NoOp
+3. **Kotlin 관용적**: default parameter가 가장 idiomatic한 방식
+
+`ToolCallOrchestrator.parseToolArguments` 생성자 파라미터(라인 66)는 38개 테스트가 명시적으로 lambda를 주입하고 있어 시그니처 변경 시 전파 비용이 크다. R254는 **Adapter 경로만** 완전 배선하고, Orchestrator 경로는 별도 Round에서 필요 시 처리한다.
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../ToolArgumentParser.kt` | import 4개 + optional parameter + catch 블록 기록 (+13줄) |
+| `main/.../ArcToolCallbackAdapter.kt` | `parseToolArguments(toolInput, evaluationCollector)` 호출 (+1줄) |
+| `main/.../PlanExecuteStrategy.kt` | import 4개 + 생성자 파라미터 + catch 블록 기록 (+11줄) |
+| `main/.../SpringAiAgentExecutor.kt` | `planExecuteStrategy` 생성 시 `evaluationMetricsCollector` 전달 (+2줄) |
+| `test/.../ToolArgumentParserR254Test.kt` | 신규 파일 7 tests (+110줄) |
+
+#### 테스트 결과
+
+**ToolArgumentParserR254Test — 7 tests PASS**:
+```
+- 유효한 JSON 파싱 + 기록 없음
+- 유효하지 않은 JSON → PARSING stage 기록 + 빈 맵 반환
+- null/blank JSON → early return + 기록 없음
+- 여러 파싱 실패 누적 카운트 (3.0)
+- 기본 파라미터(NoOp) backward compat
+- NoOp 명시 주입 backward compat
+- 배열 JSON (Map 타입 불일치) → 파싱 실패 기록
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.agent.impl.*` PASS (기존 + R254 신규)
+- R220 Golden snapshot 5개 해시 불변
+- 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ `ArcToolCallbackAdapter` 인터페이스 계약 불변 (R246 적용 이후 안정)
+- ✅ atlassian-mcp-server 응답 경로 미접근
+- ✅ `parseToolArguments` 시그니처는 optional parameter 추가만 (backward compat)
+- ✅ `McpToolRegistry` 미수정
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | 자동 기록 Round |
+|-------|-----------------|
+| `TOOL_CALL` | R246/R247 |
+| `LLM_CALL` | R248 |
+| `HOOK` | R249 |
+| `OUTPUT_GUARD` | R250 |
+| `GUARD` | R251 |
+| `MEMORY` | R252 |
+| `CACHE` | R253 |
+| **`PARSING`** | **R254** |
+| `OTHER` | ⏸️ 분류 불가 |
+
+**R254 이후 8/9 stage 자동 기록 완성** — **89% 달성**. 나머지 1개(`OTHER`) 완성 시 100%.
+
+#### 운영 시나리오 — 프롬프트 엔지니어링 Regression 탐지
+
+**시나리오 1: LLM 모델 업그레이드 후 tool call 파싱 실패율 급증**
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="parsing"}[5m])
+```
+- 모델 업그레이드 직후 이 rate가 급증하면 새 모델의 JSON 생성 품질 저하 가능성
+- 롤백 결정에 즉시 활용 가능
+
+**시나리오 2: PLAN_EXECUTE 모드 프롬프트 변경 후 regression**
+```promql
+# PLAN_EXECUTE 파싱 실패 (exception은 Jackson 계열)
+rate(arc_reactor_eval_execution_error_total{stage="parsing",exception=~"Mismatched.*|Unrecognized.*|InvalidDefinition.*"}[5m])
+```
+- 프롬프트의 JSON 스키마 설명이 변경되면 이 지표가 증가할 수 있음
+
+**시나리오 3: Tool argument 파싱 실패 top 5 예외 분포**
+```promql
+topk(5,
+  sum by (exception) (rate(arc_reactor_eval_execution_error_total{stage="parsing"}[1h]))
+)
+```
+- `JsonParseException`, `MismatchedInputException`, `UnrecognizedPropertyException` 등 분포
+- 가장 빈발하는 유형부터 프롬프트 개선
+
+#### 연속 지표
+
+| 지표 | R253 | R254 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 84 | **85** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R253 | **4/5 + R224~R254** | - |
+| 자동 기록 stage 수 | 7/9 (78%) | **8/9 (89%)** | 증가 |
+
+#### 다음 Round 후보
+
+- **R255+**:
+  1. **OTHER stage 자동 기록 — 9/9 100% 달성** — `ExecutionResultFinalizer` 또는 상위 catch-all 지점
+  2. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  3. **execution.error 운영 가이드 문서 확장** — `docs/evaluation-metrics.md`에 Grafana 대시보드 JSON + Alertmanager 규칙 + 9개 stage 운영 플레이북 추가
+  4. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — 38개 테스트 마이그레이션 포함
+  5. **ApprovalController REST 엔드포인트** — R240 포맷터
+  6. **새 Directive 축 탐색**
+
+#### 📊 R254 요약
+
+🧩 **ToolArgumentParser + PlanExecuteStrategy PARSING 예외 자동 기록 완료** — 8번째 stage 자동 기록, **89% 달성**. 두 개의 fail-open JSON 파싱 경로를 `execution.error{stage="parsing"}` 메트릭에 연결: (1) `parseToolArguments()` top-level 함수에 optional `evaluationMetricsCollector` 파라미터 추가 — `ArcToolCallbackAdapter.call()`이 R246에서 이미 보유한 `evaluationCollector`를 명시 전달하여 LLM tool call JSON 파싱 실패를 기록, (2) `PlanExecuteStrategy` 생성자에 `evaluationMetricsCollector` 파라미터 추가 — `parsePlan()` catch 블록에서 PLAN_EXECUTE 모드 JSON 계획 배열 파싱 실패를 기록. 두 경로 모두 기본값 NoOp으로 backward compat 유지. Top-level 함수는 optional parameter 방식 채택 — 기존 호출자 시그니처 불변, Kotlin idiomatic. `ToolCallOrchestrator.parseToolArguments` 생성자 파라미터는 38개 테스트가 명시 주입하고 있어 시그니처 변경 비용이 크므로 별도 Round에서 처리 (Adapter 경로 완전 배선으로 주요 공백 해소). `SpringAiAgentExecutor.planExecuteStrategy` 생성 지점에 R247에서 주입받은 collector 전달 — 별도 배선 불필요. 수정 파일 4개 (Parser +13 / Adapter +1 / PlanStrategy +11 / Executor +2), 신규 테스트 파일 1개 (R254Test, 7 tests, 110줄). 신규 테스트 **7 PASS**: 유효 JSON 파싱 / 유효하지 않은 JSON 기록 / null-blank early return / 3회 누적 카운트 / 기본 NoOp backward compat / NoOp 명시 backward compat / 배열 JSON 타입 불일치 기록. 전체 `com.arc.reactor.agent.impl.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R254**. swagger-mcp 8181 **85 라운드 연속**. **자동 기록 stage 8/9 달성 — 89%** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD + MEMORY + CACHE + PARSING). **운영 가치**: LLM 모델 업그레이드 또는 프롬프트 변경 후 tool call/plan 파싱 실패율을 `rate(execution.error{stage="parsing"})`로 즉시 모니터링 가능. Jackson 계열 예외 분포(JsonParseException, MismatchedInputException, UnrecognizedPropertyException 등) 드릴다운으로 가장 빈발하는 규칙 위반 유형 파악 가능. 이는 **프롬프트 엔지니어링 regression 탐지**의 핵심 축으로 작동 — "새 모델 배포 후 tool call 실패율이 2배 증가"같은 문제를 민원 발생 전에 선제 탐지. 나머지 1개 stage(`OTHER`)만 남으면 9/9 100% 달성.

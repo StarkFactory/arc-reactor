@@ -2,6 +2,10 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.budget.BudgetStatus
 import com.arc.reactor.agent.budget.StepBudgetTracker
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
@@ -49,7 +53,13 @@ internal class PlanExecuteStrategy(
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
     private val systemPromptBuilder: SystemPromptBuilder = SystemPromptBuilder(),
     private val planValidator: PlanValidator = DefaultPlanValidator(),
-    private val toolApprovalPolicy: ToolApprovalPolicy? = null
+    private val toolApprovalPolicy: ToolApprovalPolicy? = null,
+    /**
+     * R254: JSON 계획 파싱 실패를 `execution.error{stage="parsing"}`에 자동 기록.
+     * 기본값 NoOp으로 backward compat. `parsePlan()`이 fail-open으로 빈 리스트를 반환하는데,
+     * 이 메트릭 없이는 LLM이 유효하지 않은 JSON 계획을 자주 생성해도 관측이 어렵다.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
 
     /**
@@ -177,6 +187,8 @@ internal class PlanExecuteStrategy(
             objectMapper.readValue<List<PlanStep>>(jsonText)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R254: PLAN_EXECUTE JSON 계획 파싱 실패를 PARSING stage로 기록
+            evaluationMetricsCollector.recordError(ExecutionStage.PARSING, e)
             logger.warn(e) { "PLAN_EXECUTE: JSON 파싱 실패" }
             emptyList()
         }

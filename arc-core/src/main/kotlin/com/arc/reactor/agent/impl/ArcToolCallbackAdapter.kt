@@ -60,7 +60,8 @@ internal class ArcToolCallbackAdapter(
      * 무기한 대기를 방지한다. 에러 시 "Error: ..." 문자열을 반환한다.
      */
     override fun call(toolInput: String): String {
-        val parsedArguments = parseToolArguments(toolInput)
+        // R254: JSON 파싱 실패를 PARSING stage 메트릭에 자동 기록
+        val parsedArguments = parseToolArguments(toolInput, evaluationCollector)
         return try {
             // Spring AI 콜백 API가 블로킹이므로 도구 수준 타임아웃을 적용하여 무기한 대기를 방지
             blockingInvoker.invokeWithTimeout(arcCallback, parsedArguments)
