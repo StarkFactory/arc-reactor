@@ -1,6 +1,8 @@
 package com.arc.reactor.autoconfigure
 
 import com.arc.reactor.agent.config.AgentProperties
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.AfterToolCallHook
 import com.arc.reactor.hook.BeforeAgentStartHook
@@ -78,6 +80,9 @@ class ArcReactorHookAndMcpConfiguration {
 
     /**
      * 훅 실행기
+     *
+     * R249: `evaluationMetricsCollectorProvider`를 통해 Hook 실행 실패를
+     * `execution.error{stage="hook"}` 메트릭으로 자동 기록한다. 빈 미등록 시 NoOp fallback.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -86,13 +91,17 @@ class ArcReactorHookAndMcpConfiguration {
         beforeToolCallHooks: List<BeforeToolCallHook>,
         afterToolCallHooks: List<AfterToolCallHook>,
         afterCompleteHooks: List<AfterAgentCompleteHook>,
-        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>
+        arcReactorTracerProvider: ObjectProvider<ArcReactorTracer>,
+        evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
     ): HookExecutor = HookExecutor(
         beforeStartHooks = beforeStartHooks,
         beforeToolCallHooks = beforeToolCallHooks,
         afterToolCallHooks = afterToolCallHooks,
         afterCompleteHooks = afterCompleteHooks,
-        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() }
+        tracer = arcReactorTracerProvider.getIfAvailable { NoOpArcReactorTracer() },
+        evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+            NoOpEvaluationMetricsCollector
+        }
     )
 
     /**

@@ -17054,3 +17054,252 @@ sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
 #### 📊 R248 요약
 
 🔁 **RetryExecutor LLM_CALL 예외 자동 기록 완료** — R245~R247이 완성한 `TOOL_CALL` 자동 기록 패턴을 2번째 가장 중요한 경로인 LLM 호출에 확장. `RetryExecutor`는 `ChatClient.call()`을 재시도로 감싸는 Arc Reactor의 **LLM 호출 중앙 집중점**이므로 여기 한 곳만 수정해도 모든 LLM 예외가 자동 추적된다. 신규 생성자 파라미터 2개: `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` (R247 패턴과 일치) + `errorStage: ExecutionStage = ExecutionStage.LLM_CALL` (override 가능하여 다른 경로에서 RetryExecutor 재사용 여지). catch 블록의 최종 throw 직전 `evaluationMetricsCollector.recordError(errorStage, e)` 1줄 추가 — 중간 재시도는 기록하지 않고 (a) 비일시적 에러 즉시 throw, (b) 재시도 소진 후 throw 두 지점만 기록. 중간 재시도 성공 시 카운터 증가 없음 (사용자가 실제 경험한 오류만 카운트). `SpringAiAgentExecutor`의 `retryExecutor` 생성 지점에 R247에서 이미 주입받은 `evaluationMetricsCollector`를 전달 — 별도 배선 작업 불필요. 수정 파일 2개 (RetryExecutor +15 / Executor +3), 테스트 1개 확장 (RetryExecutor +140줄). 신규 테스트 **6 PASS** (9 tests total): 비일시적 즉시 throw 기록 / 재시도 소진 후 기록 / 중간 재시도 성공 시 미기록 / 기본 NoOp backward compat / errorStage override (PARSING으로 대체) / NoOp 명시 주입. 전체 `com.arc.reactor.agent.impl.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 — 메트릭 기록은 오직 catch 블록에만 삽입되고 정상 LLM 호출 경로는 불변. Directive 진행: **4/5 + R224~R248**. swagger-mcp 8181 **79 라운드 연속**. **자동 기록 stage 2/9 달성** (TOOL_CALL + LLM_CALL). 이제 tool vs llm 예외 분포를 같은 대시보드에서 비교할 수 있고, Gemini API 장애 (`stage="llm_call", exception="HttpClientErrorException"`), rate limit 소진 (`ResourceExhaustedException`), 네트워크 문제 (`SocketTimeoutException`)를 각각 추적 가능. Circuit breaker 거부 경로는 retryBlock 바깥에서 throw되므로 현재 기록 안 됨 (별도 Round에서 처리 가능).
+
+### Round 249 — 🪝 2026-04-11T17:30+09:00 — HookExecutor HOOK 예외 자동 기록
+
+**작업 종류**: Directive 심화 — 3번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R245~R248 확장)
+**완료 태스크**: #124
+
+#### 작업 배경
+
+R248까지 `TOOL_CALL`과 `LLM_CALL` stage 자동 기록이 완료됐다. 다음 가장 중요한 경로는 **Hook 체인**이다. 프로젝트의 Hook 계층은 **fail-open 원칙**을 따라 예외를 catch하고 로그만 남기고 swallowing한다:
+
+```kotlin
+// HookExecutor.kt 원본
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    logger.error(e) { "Hook 실행 실패: ${hook::class.simpleName}" }  // 로그만, 관측 공백
+    if (hook.failOnError) { ... }
+    // Fail-Open: 오류 로깅 후 다음 Hook 계속
+}
+```
+
+이 구조는 Hook 실패가 에이전트 실행을 중단하지 않도록 보호하지만, **예외가 메트릭에 전혀 기록되지 않는** 관측 공백을 만든다. R245의 `execution.error` 메트릭은 정확히 이 공백을 채우기 위해 설계되었다 — 로그는 남지만 메트릭이 없던 fail-open catch 블록.
+
+R249는 `HookExecutor`의 3개 catch 지점(Before hooks 공통, AfterToolCall, AfterAgentComplete)에서 `recordError(HOOK, e)`를 호출하여 Hook 실행 실패를 자동 관측한다.
+
+#### 설계 원칙
+
+1. **Fail-open 원칙 보존** — 기록은 catch 블록의 기존 로깅과 병렬로 추가. `failOnError` 분기 로직 불변
+2. **CancellationException 제외** — `throwIfCancellation()`이 먼저 재throw하므로 catch 블록 진입 없음 → 자동 미기록
+3. **중앙 집중 + 보완** — Before hooks는 공통 `executeHooks()` 한 곳, After hooks는 각자 2곳 (타입 시그니처가 다르기 때문)
+4. **Configuration 패턴 일치** — `ArcReactorHookAndMcpConfiguration.hookExecutor()`에 `ObjectProvider<EvaluationMetricsCollector>` 추가, `getIfAvailable { NoOp }` fallback
+5. **Backward compat** — 생성자 파라미터 기본값 `NoOpEvaluationMetricsCollector`. 기존 HookExecutorTest 전부 무수정
+
+#### 신규 API
+
+**`HookExecutor` 생성자 확장**:
+```kotlin
+class HookExecutor(
+    beforeStartHooks: List<BeforeAgentStartHook> = emptyList(),
+    beforeToolCallHooks: List<BeforeToolCallHook> = emptyList(),
+    afterToolCallHooks: List<AfterToolCallHook> = emptyList(),
+    afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList(),
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /** R249: fail-open Hook 예외를 execution.error{stage=hook}로 자동 기록 */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+)
+```
+
+**3개 catch 블록 기록 추가**:
+
+1. **Before hooks 공통** (`executeHooks()`):
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R249: Before Hook 예외도 execution.error{stage=hook} 메트릭에 기록
+    evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
+    logger.error(e) { "Hook 실행 실패: ${hook::class.simpleName}" }
+    if (hook.failOnError) { ... }
+}
+```
+
+2. **AfterToolCall** (`executeAfterToolCall()`):
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R249
+    evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
+    logger.error(e) { "AfterToolCallHook 실행 실패: ${hook::class.simpleName}" }
+    // ...
+}
+```
+
+3. **AfterAgentComplete** (`executeAfterAgentComplete()`):
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R249
+    evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
+    logger.error(e) { "AfterAgentCompleteHook 실행 실패: ${hook::class.simpleName}" }
+    // ...
+}
+```
+
+**`ArcReactorHookAndMcpConfiguration.hookExecutor()`** 자동 주입:
+```kotlin
+@Bean
+@ConditionalOnMissingBean
+fun hookExecutor(
+    // ... 기존 파라미터 ...
+    evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
+): HookExecutor = HookExecutor(
+    // ...
+    evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+        NoOpEvaluationMetricsCollector
+    }
+)
+```
+
+#### 4가지 Hook 타입 커버리지
+
+| Hook 타입 | 실행 메서드 | Catch 위치 | R249 기록 |
+|-----------|------------|-----------|-----------|
+| `BeforeAgentStartHook` | `executeBeforeAgentStart` → `executeHooks` | executeHooks 공통 | ✓ |
+| `BeforeToolCallHook` | `executeBeforeToolCall` → `executeHooks` | executeHooks 공통 (재사용) | ✓ |
+| `AfterToolCallHook` | `executeAfterToolCall` | 전용 catch | ✓ |
+| `AfterAgentCompleteHook` | `executeAfterAgentComplete` | 전용 catch | ✓ |
+
+4가지 모든 Hook 타입의 예외가 `execution.error{stage="hook", exception=<class>}`에 기록된다.
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../hook/HookExecutor.kt` | import 4개 + 생성자 파라미터 + 3개 catch 블록 기록 (+13줄) |
+| `main/.../autoconfigure/ArcReactorHookAndMcpConfiguration.kt` | import 2개 + `ObjectProvider<EvaluationMetricsCollector>` 파라미터 + fallback (+8줄) |
+| `test/.../hook/HookExecutorTest.kt` | import 3개 + `R249ExecutionErrorRecording` @Nested 8 tests (+200줄) |
+
+#### 테스트 결과
+
+**HookExecutorTest — R249 신규 8 tests PASS** (`R249ExecutionErrorRecording` @Nested):
+```
+- Before Hook 예외가 HOOK stage로 기록 (fail-open)
+  → failOnError=false, BeforeAgentStartHook throws IllegalStateException
+  → Continue 반환 + counter{stage=hook, exception=IllegalStateException} == 1.0
+- BeforeToolCall Hook 예외도 HOOK stage로 기록
+  → executeHooks 공통 로직 재사용 확인
+- AfterToolCall Hook 예외 기록
+  → NullPointerException → counter{stage=hook, exception=NullPointerException} == 1.0
+- AfterAgentComplete Hook 예외 기록
+  → RuntimeException → counter{stage=hook, exception=RuntimeException} == 1.0
+- failOnError=true 경우에도 기록 후 재throw
+  → IllegalStateException caught 후 counter 증가 확인 + IllegalStateException 재throw 확인
+- CancellationException은 기록하지 않고 재throw
+  → throwIfCancellation()이 먼저 동작 → counter == null
+- 성공한 Hook은 기록하지 않음
+  → HookResult.Continue 정상 반환 → counter == null
+- 기본 NoOp collector backward compat
+  → 파라미터 생략 → fail-open 동작 그대로
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.hook.*` PASS (기존 HookExecutorTest 9 + HookExecutorAfterHooksGapTest + R249 신규 8)
+- 전체 `com.arc.reactor.agent.metrics.*` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 응답 경로 전혀 미접근
+- ✅ `BeforeToolCallHook` / `AfterToolCallHook`의 fail-open 동작 불변
+- ✅ `failOnError` 분기 로직 불변 (기록은 로깅과 병렬로 추가)
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | API (R245) | 자동 기록 Round |
+|-------|-----|-----------------|
+| `TOOL_CALL` | ✓ | R246/R247 (adapter 4곳) |
+| `LLM_CALL` | ✓ | R248 (RetryExecutor) |
+| **`HOOK`** | ✓ | **R249 (HookExecutor 3 catch)** |
+| `GUARD` | ✓ | ⏸️ GuardExecutor catch 지점 필요 |
+| `OUTPUT_GUARD` | ✓ | ⏸️ OutputGuardPipeline catch 지점 필요 |
+| `PARSING` | ✓ | ⏸️ ManualReActLoopExecutor 파싱 catch |
+| `MEMORY` | ✓ | ⏸️ MemoryStore catch 지점 필요 |
+| `CACHE` | ✓ | ⏸️ ResponseCache catch 지점 필요 |
+| `OTHER` | ✓ | ⏸️ 분류 불가 예외용 |
+
+R249 이후 **3/9 stage 자동 기록 완성**. 나머지 6개 stage 중 Guard와 OutputGuard는 fail-close 원칙이라 기존에도 에러가 throw/reject로 처리되어 관측 공백이 적지만, Hook처럼 fail-open 패턴을 쓰는 계층이 있다면 그쪽이 우선순위가 높다.
+
+#### Fail-open 패턴의 관측 가치
+
+R249의 가장 중요한 insight는 **fail-open 계층이 메트릭 공백을 만든다**는 것이다:
+
+- **Fail-close 계층**: 예외가 throw로 이어져 `task.completed{result=failure}` 등에 자연스럽게 집계됨
+- **Fail-open 계층** (Hook, WebhookNotifier, AfterCompleteLogger 등): 예외를 swallowing하므로 task는 성공으로 끝나지만 **Hook만 조용히 실패**
+
+R249 이전에는 Hook 실패를 알아채려면 로그를 grep해야 했다. R249 이후에는:
+```promql
+rate(arc_reactor_eval_execution_error_total{stage="hook"}[5m])
+```
+한 쿼리로 모든 Hook 실패를 집계할 수 있다. 특히:
+- 메트릭 수집 Hook 자체의 실패 탐지 (`EvaluationMetricsHook` 실패)
+- Webhook 알림 Hook 실패
+- 감사 로깅 Hook 실패
+
+#### 운영 시나리오 예시
+
+**시나리오 1: 특정 Hook이 조용히 실패**
+```promql
+topk(5,
+  sum by (exception) (rate(arc_reactor_eval_execution_error_total{stage="hook"}[1h]))
+)
+```
+- Hook 예외 상위 5개 → 어떤 Hook이 가장 불안정한지 즉시 파악
+
+**시나리오 2: 전체 stage 분포 대시보드**
+```promql
+sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
+```
+- R246~R249 이후: tool_call, llm_call, hook 3개 stage가 모두 기록되어 실시간 분포 확인
+
+**시나리오 3: Alertmanager 규칙 — Hook 폭주**
+```yaml
+- alert: HookFailureSurge
+  expr: rate(arc_reactor_eval_execution_error_total{stage="hook"}[5m]) > 1.0
+  for: 5m
+  annotations:
+    summary: "Hook 실패율 급증 — 특정 Hook 구현체 점검 필요"
+```
+
+#### 연속 지표
+
+| 지표 | R248 | R249 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 79 | **80 🎯** | **80 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R248 | **4/5 + R224~R249** | - |
+| 자동 기록 stage 수 | 2/9 | **3/9** (+HOOK) | 증가 |
+
+#### 다음 Round 후보
+
+- **R250+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **ManualReActLoopExecutor PARSING stage 자동 기록** — JSON 계획 / tool arg 파싱 실패
+  3. **OutputGuardPipeline OUTPUT_GUARD stage 자동 기록** — PII 마스킹 등
+  4. **MemoryStore MEMORY stage 자동 기록** — JDBC/InMemory 저장 실패
+  5. **ResponseCache CACHE stage 자동 기록** — Redis/Caffeine 캐시 실패
+  6. **ApprovalController REST 엔드포인트** — R240 포맷터 + Content Negotiation
+  7. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R249 요약
+
+🪝 **HookExecutor HOOK 예외 자동 기록 완료** — R245~R248이 구축한 자동 기록 패턴을 fail-open Hook 계층에 확장. Hook은 프로젝트 규칙상 예외를 catch하여 로그만 남기고 swallowing하므로 task는 성공으로 끝나지만 Hook만 조용히 실패하는 **관측 공백**이 존재했는데, R249가 정확히 이 공백을 채운다. `HookExecutor` 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp으로 backward compat). 3개 catch 블록 전부에 `evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)` 1줄씩 추가: (1) `executeHooks()` — Before hooks 공통 로직 (BeforeAgentStart + BeforeToolCall 재사용), (2) `executeAfterToolCall()`, (3) `executeAfterAgentComplete()`. 모든 4가지 Hook 타입이 커버됨. Fail-open 원칙 보존 — 기록은 기존 `logger.error` 로깅과 병렬로 추가되고 `failOnError` 분기 로직은 불변. `CancellationException`은 `throwIfCancellation()`이 먼저 재throw하므로 자동 미기록. `ArcReactorHookAndMcpConfiguration.hookExecutor()`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 추가 + `getIfAvailable { NoOpEvaluationMetricsCollector }` fallback으로 Spring 자동 주입 완성. 수정 파일 2개 (HookExecutor +13 / HookAndMcpConfiguration +8), 테스트 1개 확장 (HookExecutorTest +200줄). 신규 테스트 **8 PASS** (R249ExecutionErrorRecording @Nested): BeforeAgentStart / BeforeToolCall / AfterToolCall / AfterAgentComplete / failOnError=true 기록 + 재throw / CancellationException 미기록 / 성공 Hook 미기록 / NoOp backward compat. 전체 `com.arc.reactor.hook.*` + `com.arc.reactor.agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R249**. swagger-mcp 8181 **🎯 80 라운드 마일스톤 달성**. **자동 기록 stage 3/9 달성** (TOOL_CALL + LLM_CALL + HOOK). 이제 Hook 실패가 더 이상 로그에만 묻히지 않고 Prometheus `execution.error{stage="hook"}`에 즉시 노출되어 Grafana 대시보드 / Alertmanager 규칙으로 실시간 감지 가능. 특히 EvaluationMetricsHook 자체, WebhookNotificationHook, 감사 로깅 Hook 등 fail-open 관측 계층의 조용한 실패를 drill-down 가능하다. 운영 시나리오: `topk(5, sum by (exception))` 쿼리로 가장 불안정한 Hook 식별, `rate{stage="hook"} > 1.0` 기반 `HookFailureSurge` 알람, tool_call/llm_call/hook 3개 stage 스택 차트로 전체 장애 도메인 분포 시각화.

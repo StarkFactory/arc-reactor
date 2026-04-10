@@ -1,5 +1,9 @@
 package com.arc.reactor.hook
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.hook.model.HookResult
@@ -46,7 +50,13 @@ class HookExecutor(
     beforeToolCallHooks: List<BeforeToolCallHook> = emptyList(),
     afterToolCallHooks: List<AfterToolCallHook> = emptyList(),
     afterCompleteHooks: List<AfterAgentCompleteHook> = emptyList(),
-    private val tracer: ArcReactorTracer = NoOpArcReactorTracer()
+    private val tracer: ArcReactorTracer = NoOpArcReactorTracer(),
+    /**
+     * R249: Hook 실행 실패 시 `execution.error{stage="hook"}` 메트릭을 기록할 수집기.
+     * 기본값 NoOp이므로 backward compat 완전 유지. Hook이 fail-open 원칙을 따르므로
+     * 예외가 로그로만 남고 관측되지 않던 공백을 채운다.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
 
     // 활성화된 Hook만 order 기준 정렬하여 보관
@@ -104,6 +114,8 @@ class HookExecutor(
                     hook.afterToolCall(context, result)
                 } catch (e: Exception) {
                     e.throwIfCancellation()
+                    // R249: Hook 예외를 execution.error{stage=hook} 메트릭에 기록
+                    evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
                     logger.error(e) { "AfterToolCallHook 실행 실패: ${hook::class.simpleName}" }
                     span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
                     if (hook.failOnError) throw e
@@ -136,6 +148,8 @@ class HookExecutor(
                     hook.afterAgentComplete(context, response)
                 } catch (e: Exception) {
                     e.throwIfCancellation()
+                    // R249: Hook 예외를 execution.error{stage=hook} 메트릭에 기록
+                    evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
                     logger.error(e) { "AfterAgentCompleteHook 실행 실패: ${hook::class.simpleName}" }
                     span.setAttribute("hook.failed", hook::class.simpleName.orEmpty())
                     if (hook.failOnError) throw e
@@ -207,6 +221,8 @@ class HookExecutor(
             } catch (e: Exception) {
                 // CancellationException은 반드시 먼저 처리하여 재던진다
                 e.throwIfCancellation()
+                // R249: Before Hook 예외도 execution.error{stage=hook} 메트릭에 기록
+                evaluationMetricsCollector.recordError(ExecutionStage.HOOK, e)
                 logger.error(e) { "Hook 실행 실패: ${hook::class.simpleName}" }
                 if (hook.failOnError) {
                     // Fail-Close: 중요한 Hook 실패 시 실행 중단
