@@ -17913,3 +17913,226 @@ sum by (stage) (
 #### 📊 R252 요약
 
 💾 **ConversationManager MEMORY 예외 자동 기록 완료** — R251까지 5개 stage 자동 기록 이후 6번째 stage 추가. `DefaultConversationManager`의 **5개 catch 지점 전부**를 `execution.error{stage="memory"}` 메트릭에 연결: (1) `loadHistory()` rethrow 전, (2) `loadFromHistory()` takeLast 폴백 전, (3) `verifySessionOwnership()` rethrow 전, (4) `triggerAsyncSummarization()` background swallowing 전, (5) `saveMessages()` fail-open return 0 전. 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp으로 backward compat). `ArcReactorCoreBeansConfiguration.conversationManager()`에 `ObjectProvider<EvaluationMetricsCollector>` 파라미터 + `getIfAvailable { NoOp }` fallback으로 Spring 자동 배선. **메모리 계층은 hybrid 패턴** — 일부 fail-open(saveMessages), 일부 fail-close(소유권 검증), 일부 fallback(계층적 메모리)이지만 R252가 모든 경로를 커버. 특히 `saveMessages` fail-open은 "사용자는 정상 응답을 받지만 대화 이력이 날아가는" 치명적 조용한 실패 패턴인데, R252 이후 Grafana 알람으로 즉시 탐지 가능. 수정 파일 2개 (Manager +14 / Configuration +8), 신규 테스트 파일 1개 (R252ExecutionErrorTest, 4 @Nested, 260줄). 신규 테스트 **7 PASS** (SaveMessagesFailure 2 + LoadHistoryFailure 1 + SessionOwnershipVerificationFailure 2 + HappyPath 2): saveMessages/saveStreamingHistory JDBC 실패 기록 / loadHistory store 예외 기록 + rethrow / getSessionOwner NPE 기록 + fail-close 빈 리스트 / slack 세션 소유권 검증 스킵 확인 / happy path 미기록 / NoOp backward compat. 전체 `com.arc.reactor.memory.*` + `agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. **컨텍스트 관리 계층을 직접 건드린 라운드**이지만 MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수 — sessionId 포맷, MemoryStore 계약, 소유권 검증 로직, 계층적 메모리 구조 불변. Directive 진행: **4/5 + R224~R252**. swagger-mcp 8181 **83 라운드 연속**. **자동 기록 stage 6/9 달성 — 67%** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD + MEMORY). R252 이후 운영자는 `rate(execution.error{stage="memory"})` 알람으로 Redis/JDBC 장애 시 "사용자가 이전 대화를 기억 못 한다"는 민원 발생 전에 선제 대응 가능. `topk(5, sum by (exception))` 드릴다운으로 SQLException/JedisConnectionException/SerializationException 분포 추적. 나머지 3개 stage(PARSING/CACHE/OTHER) 중 CACHE가 다음 자연스러운 타겟 — ResponseCache는 fail-open 패턴이라 동일한 관측 공백 존재.
+
+### Round 253 — 📦 2026-04-11T19:30+09:00 — AgentExecutionCoordinator CACHE 예외 자동 기록 (7번째 stage)
+
+**작업 종류**: Directive 심화 — 7번째 stage 자동 기록 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation 상세 메트릭 (R252 직접 연장)
+**완료 태스크**: #128
+
+#### 작업 배경
+
+R252가 `ConversationManager`의 MEMORY stage를 완성했고, R253은 그 직접 평행인 **`ResponseCache` 계층의 CACHE stage**를 추가한다. 두 계층은 모두 외부 스토리지(Redis/Caffeine/JDBC)에 의존하며 fail-open으로 예외를 swallowing하는 패턴이 동일하다.
+
+**설계 선택**: `ResponseCache` 인터페이스 자체를 수정하지 않고, **호출자(`AgentExecutionCoordinator`)의 2개 catch 블록**에서 기록한다. 이유:
+1. `ResponseCache`는 사용자 확장 포인트 — 시그니처 변경은 breaking change
+2. 3개 내장 구현체(`NoOp`, `Caffeine`, `RedisSemantic`) 각각을 수정하면 drift 위험
+3. 호출자는 이미 try/catch로 감싸고 있어 **단일 공통 지점**에서 모든 구현체의 실패를 캡처
+
+R253 이전에는 Redis 장애 시:
+- `storeInCache()` put 실패 → `logger.warn` + fail-open → 사용자는 응답 받지만 캐시 miss 누적
+- `resolveCache()` get 실패 → `logger.warn` + fall-through → 다음 요청에서도 반복
+
+R253 이후에는 `execution.error{stage="cache"}` 메트릭으로 이 두 실패 경로를 Grafana에서 즉시 탐지 가능.
+
+#### 2개 catch 지점 매트릭스
+
+| 위치 | 함수 | 처리 방식 | R253 기록 |
+|------|------|----------|-----------|
+| line 355 | `storeInCache()` | `logger.warn` + swallow (fail-open) | ✓ 기록 추가 |
+| line 377 | `resolveCache()` | `logger.warn` + `recordCacheMiss()` + 계속 진행 | ✓ 기록 추가 |
+
+두 catch 블록 모두에서 `evaluationMetricsCollector.recordError(ExecutionStage.CACHE, e)` 1줄씩 추가.
+
+#### 신규 API
+
+**`AgentExecutionCoordinator` 생성자 확장**:
+```kotlin
+internal class AgentExecutionCoordinator(
+    // ... 기존 파라미터 30+ ...
+    private val nowMs: () -> Long = System::currentTimeMillis,
+    private val nowNanos: () -> Long = System::nanoTime,
+    /**
+     * R253: 캐시 저장/조회 실패를 execution.error{stage="cache"}에 자동 기록.
+     * 기본값 NoOp으로 backward compat.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+)
+```
+
+**`storeInCache()` catch 블록**:
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R253: 캐시 저장 실패 기록 (fail-open swallowing 전)
+    evaluationMetricsCollector.recordError(ExecutionStage.CACHE, e)
+    logger.warn(e) { "응답 캐시 저장 실패" }
+}
+```
+
+**`resolveCache()` catch 블록**:
+```kotlin
+} catch (e: Exception) {
+    e.throwIfCancellation()
+    // R253: 캐시 조회 실패 기록 (fail-open 폴스루 전)
+    evaluationMetricsCollector.recordError(ExecutionStage.CACHE, e)
+    logger.warn(e) { "캐시 조회 실패, 캐시 없이 계속 진행" }
+}
+```
+
+**`SpringAiAgentExecutor` 전달**:
+```kotlin
+private val agentExecutionCoordinator = AgentExecutionCoordinator(
+    // ... 기존 파라미터 ...
+    resolveIntent = { ... },
+    // R253: R247에서 이미 주입받은 collector를 CACHE stage에 전달
+    evaluationMetricsCollector = evaluationMetricsCollector
+)
+```
+
+#### 수정 과정에서 발견한 이슈
+
+**`MIN_CACHEABLE_CONTENT_LENGTH = 30` 제약 (isLowQualityResponse)**: 초기 테스트에서 `"live"` (4자)를 응답으로 사용했으나, `storeInCache()`가 30자 미만 응답을 저품질로 판단하여 early-return하므로 `put()` catch 블록에 도달하지 못해 테스트 실패. `"This is a cacheable response content with sufficient length."` (60자)로 수정하여 해결. 이는 실제 프로덕션에서도 30자 미만 짧은 응답은 캐시되지 않으므로 테스트가 실제 시나리오를 반영한다는 좋은 부작용.
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../AgentExecutionCoordinator.kt` | import 4개 + 생성자 파라미터 + 2개 catch 블록 기록 (+12줄) |
+| `main/.../SpringAiAgentExecutor.kt` | `AgentExecutionCoordinator` 생성 시 `evaluationMetricsCollector` 전달 (+2줄) |
+| `test/.../AgentExecutionCoordinatorTest.kt` | import 3개 + R253 테스트 4개 (+170줄) |
+
+#### 테스트 결과
+
+**AgentExecutionCoordinatorTest — R253 신규 4 tests PASS** (23 tests total):
+```
+- R253 캐시 조회 예외가 CACHE stage로 기록되고 fail-open으로 계속 진행
+  → cache.get() IllegalStateException → counter + tool 실행 계속
+- R253 캐시 저장 예외가 CACHE stage로 기록되고 fail-open으로 반환
+  → cache.put() RuntimeException → counter + 정상 응답 반환
+- R253 정상 캐시 경로는 execution_error 기록하지 않음
+  → get null + put success → counter == null
+- R253 기본 NoOp collector backward compat 유지
+  → 파라미터 생략 → 기존 fail-open 동작 그대로
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.agent.impl.*` PASS (기존 19 + R253 4)
+- 전체 `com.arc.reactor.cache.*` PASS
+- 전체 `com.arc.reactor.agent.metrics.*` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 전체 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 미접근
+- ✅ `ResponseCache` 인터페이스 시그니처 불변 — 사용자 확장 호환
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry` 미수정
+- ✅ 3개 내장 구현체(NoOp/Caffeine/RedisSemantic) 모두 변경 없음
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ **이 라운드는 캐시 계층을 직접 건드렸으므로 특히 중요** — `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+- ✅ `RedisSemanticResponseCache.getSemantic/putSemantic` 경로 불변
+- ✅ `CachedResponse` 데이터 클래스 불변
+- ✅ TTL/eviction 정책 불변
+- ✅ 캐시 hit/miss 로직 불변 — 기록은 기존 catch 블록에 병렬 추가만
+
+**캐시 영향: 0** (기록 추가는 catch 블록 내부, 정상 경로 불변)
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정 (R252 변경은 이 라운드에서 더 건드리지 않음)
+
+#### ExecutionStage 자동 기록 진행 매트릭스
+
+| Stage | 자동 기록 Round |
+|-------|-----------------|
+| `TOOL_CALL` | R246/R247 |
+| `LLM_CALL` | R248 |
+| `HOOK` | R249 |
+| `OUTPUT_GUARD` | R250 |
+| `GUARD` | R251 |
+| `MEMORY` | R252 |
+| **`CACHE`** | **R253** |
+| `PARSING` | ⏸️ ManualReActLoopExecutor |
+| `OTHER` | ⏸️ 분류 불가 |
+
+**R253 이후 7/9 stage 자동 기록 완성** — **78% 달성**.
+
+#### 스토리지 계층 fail-open 관측 트리오 완성
+
+R249 Hook + R252 Memory + R253 Cache로 **Arc Reactor의 3대 fail-open swallowing 계층**이 모두 관측 가능해졌다:
+
+| 계층 | Round | 실패 시 동작 | 메트릭 |
+|------|-------|-------------|--------|
+| Hook (사용자 확장) | R249 | swallow + `logger.error` | `execution.error{stage=hook}` |
+| **Memory (대화 이력)** | R252 | swallow + `return 0` | `execution.error{stage=memory}` |
+| **Cache (응답 캐시)** | R253 | swallow + `logger.warn` | `execution.error{stage=cache}` |
+
+**공통 특징**: 세 계층 모두 task는 성공으로 끝나지만 부가 기능이 조용히 실패하는 패턴. 운영자 입장에서는 "사용자 경험은 정상 같지만 내부적으로 어디가 터지는지" 드릴다운이 필요한 영역이다. R253 이후 이 관측 공백이 완전히 해소된다.
+
+#### 운영 시나리오 예시
+
+**시나리오 1: 스토리지 계층 통합 대시보드**
+```promql
+sum by (stage) (
+  rate(arc_reactor_eval_execution_error_total{stage=~"memory|cache|hook"}[5m])
+)
+```
+- 세 fail-open 계층을 한 차트에 쌓아서 "조용한 실패" 전체 패턴 관측
+
+**시나리오 2: Redis 장애 탐지 (Memory + Cache 동시)**
+```promql
+rate(arc_reactor_eval_execution_error_total{stage=~"memory|cache",exception="JedisConnectionException"}[5m]) > 0.1
+```
+- Redis가 양쪽 계층에서 모두 터지면 인프라 전체 장애 확정
+
+**시나리오 3: 캐시 효율성 감사**
+```promql
+# Hit rate (정상)
+sum(rate(arc_reactor_agent_cache_hit_total[5m])) /
+sum(rate(arc_reactor_agent_cache_request_total[5m]))
+
+# 시스템 오류율 (이상)
+rate(arc_reactor_eval_execution_error_total{stage="cache"}[5m])
+```
+- 두 메트릭을 나란히 보면 "캐시 miss가 전략 문제인가 vs 시스템 장애인가" 구분 가능
+
+**시나리오 4: Alertmanager — 캐시 인프라 급증 알람**
+```yaml
+- alert: CacheStorageErrorSurge
+  expr: rate(arc_reactor_eval_execution_error_total{stage="cache"}[5m]) > 0.5
+  for: 3m
+  annotations:
+    summary: "응답 캐시 스토리지 실패 급증 — Redis/Caffeine 점검 필요"
+```
+
+#### 연속 지표
+
+| 지표 | R252 | R253 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 83 | **84** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R252 | **4/5 + R224~R253** | - |
+| 자동 기록 stage 수 | 6/9 (67%) | **7/9 (78%)** | 증가 |
+
+#### 다음 Round 후보
+
+- **R254+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ManualReActLoopExecutor PARSING stage 자동 기록** — JSON 계획/tool arg 파싱 실패 (8번째 stage)
+  3. **ExecutionResultFinalizer OTHER stage 자동 기록** — 분류 불가 예외 (9번째 stage, 100% 완성)
+  4. **execution.error 운영 가이드 문서** — `docs/evaluation-metrics.md`에 Alertmanager 규칙 + Grafana 대시보드 JSON 추가
+  5. **ApprovalController REST 엔드포인트** — R240 포맷터
+  6. **새 Directive 축 탐색**
+
+#### 📊 R253 요약
+
+📦 **AgentExecutionCoordinator CACHE 예외 자동 기록 완료** — R252 MEMORY 평행으로 7번째 stage 추가. `ResponseCache` 인터페이스는 건드리지 않고 **호출자(`AgentExecutionCoordinator`)의 2개 catch 블록**에서 기록하는 "호출자 wrapping" 전략 채택 — 3개 내장 구현체(`NoOp`/`Caffeine`/`RedisSemantic`) 모두 불변 유지. 생성자에 `evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector` 파라미터 추가 (기본값 NoOp backward compat). `storeInCache()`의 fail-open catch(응답 캐시 저장 실패)와 `resolveCache()`의 fail-open catch(캐시 조회 실패) 두 지점에서 `recordError(CACHE, e)` 1줄씩 추가. `SpringAiAgentExecutor`의 `agentExecutionCoordinator` 생성 지점에 R247에서 이미 주입받은 `evaluationMetricsCollector`를 전달 — 별도 배선 작업 불필요. 수정 파일 2개 (Coordinator +12 / Executor +2), 테스트 1개 확장 (CoordinatorTest +170줄). 신규 테스트 **4 PASS** (23 tests total): 캐시 조회 예외 기록 + fail-open 계속 / 캐시 저장 예외 기록 + fail-open 반환 / 정상 경로 미기록 / NoOp backward compat. 수정 과정 이슈 1개: 초기 테스트가 "live" (4자) 응답 사용했으나 `MIN_CACHEABLE_CONTENT_LENGTH=30` 제약으로 `storeInCache` early-return → 60자 응답으로 수정. 전체 `com.arc.reactor.agent.impl.*` + `cache.*` + `agent.metrics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. **캐시 계층을 직접 건드린 라운드**이지만 Redis 의미적 캐시 제약 엄격 준수 — `SystemPromptBuilder`, `CacheKeyBuilder`, `RedisSemanticResponseCache.getSemantic/putSemantic`, `CachedResponse`, TTL/eviction 정책 모두 불변. 메트릭 기록은 기존 catch 블록 내부에 `logger.warn`과 병렬 추가. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R253**. swagger-mcp 8181 **84 라운드 연속**. **자동 기록 stage 7/9 달성 — 78%** (TOOL_CALL + LLM_CALL + HOOK + OUTPUT_GUARD + GUARD + MEMORY + CACHE). **스토리지 계층 fail-open 관측 트리오 완성** (Hook R249 + Memory R252 + Cache R253): 세 계층 모두 task는 성공으로 끝나지만 부가 기능이 조용히 실패하는 공통 패턴을 이제 Grafana 대시보드로 통합 드릴다운 가능. `sum by (stage) (rate{stage=~"memory|cache|hook"}[5m])` 한 쿼리로 모든 fail-open 실패 관측, Redis 인프라 장애 시 `stage=memory`와 `stage=cache` 양쪽이 동시에 급증하는 패턴으로 즉시 확진 가능. 나머지 2개 stage(PARSING + OTHER) 완성 시 9/9 100% 달성 가능 — 다음 자연스러운 타겟은 `ManualReActLoopExecutor`의 JSON 파싱 경로.

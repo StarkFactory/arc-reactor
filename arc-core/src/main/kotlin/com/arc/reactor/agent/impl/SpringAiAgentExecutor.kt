@@ -355,7 +355,9 @@ class SpringAiAgentExecutor(
             )
         },
         checkGuardAndHooks = preExecutionResolver::checkGuardAndHooks,
-        resolveIntent = { command, hookContext -> preExecutionResolver.resolveIntent(command, hookContext) }
+        resolveIntent = { command, hookContext -> preExecutionResolver.resolveIntent(command, hookContext) },
+        // R253: R247에서 이미 주입받은 collector를 CACHE stage 자동 기록에 전달
+        evaluationMetricsCollector = evaluationMetricsCollector
     )
 
     /**

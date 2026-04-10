@@ -5,6 +5,8 @@ import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.agent.routing.ModelSelection
 import com.arc.reactor.cache.CacheKeyBuilder
@@ -16,6 +18,7 @@ import com.arc.reactor.rag.model.RagContext
 import com.arc.reactor.rag.model.RetrievedDocument
 import com.arc.reactor.resilience.FallbackStrategy
 import com.arc.reactor.tool.ToolCallback
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -23,6 +26,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -916,5 +920,194 @@ class AgentExecutionCoordinatorTest {
         override val name: String = name
         override val description: String = "test-$name"
         override suspend fun call(arguments: Map<String, Any?>): Any = "ok"
+    }
+
+    // ========================================================================
+    // R253: CACHE stage 자동 기록 테스트
+    // ========================================================================
+
+    @Test
+    fun `R253 캐시 조회 예외가 CACHE stage로 기록되고 fail-open으로 계속 진행`() = runTest {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val responseCache = mockk<ResponseCache>()
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+
+        // get() 호출 시 예외 throw
+        coEvery { responseCache.get(any()) } throws IllegalStateException("redis down")
+
+        var executeCalled = false
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ ->
+                executeCalled = true
+                AgentResult.success("live response")
+            },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { c, _ -> c },
+            evaluationMetricsCollector = collector
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        // fail-open — 캐시 조회 실패해도 실행 계속
+        assertTrue(result.success) { "fail-open으로 정상 실행 계속" }
+        assertEquals("live response", result.content)
+        assertTrue(executeCalled) { "캐시 miss로 tool 실행 호출됨" }
+
+        val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "cache")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+            .counter()
+        assertNotNull(counter) {
+            "CACHE stage 예외가 기록되어야 한다"
+        }
+        assertEquals(1.0, counter!!.count())
+    }
+
+    @Test
+    fun `R253 캐시 저장 예외가 CACHE stage로 기록되고 fail-open으로 반환`() = runTest {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val responseCache = mockk<ResponseCache>()
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+
+        // get은 null 반환 (cache miss), put은 예외 throw
+        coEvery { responseCache.get(any()) } returns null
+        coEvery { responseCache.put(any(), any()) } throws RuntimeException("redis write timeout")
+
+        // MIN_CACHEABLE_CONTENT_LENGTH=30 이상이어야 storeInCache가 put을 호출
+        val cacheableContent = "This is a cacheable response content with sufficient length."
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success(cacheableContent) },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { c, _ -> c },
+            evaluationMetricsCollector = collector
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        // fail-open — put 실패해도 성공 결과 반환
+        assertTrue(result.success) { "fail-open으로 응답 반환" }
+        assertEquals(cacheableContent, result.content)
+
+        val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "cache")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "RuntimeException")
+            .counter()
+        assertNotNull(counter) {
+            "put 실패가 CACHE stage로 기록되어야 한다"
+        }
+        assertEquals(1.0, counter!!.count())
+    }
+
+    @Test
+    fun `R253 정상 캐시 경로는 execution_error 기록하지 않음`() = runTest {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+        val responseCache = mockk<ResponseCache>()
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+
+        coEvery { responseCache.get(any()) } returns null
+        coEvery { responseCache.put(any(), any()) } returns Unit
+
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { c, _ -> c },
+            evaluationMetricsCollector = collector
+        )
+
+        coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        val meter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .counter()
+        assertNull(meter) {
+            "정상 캐시 경로(miss + put 성공)에서는 CACHE counter 등록 없음"
+        }
+    }
+
+    @Test
+    fun `R253 기본 NoOp collector backward compat 유지`() = runTest {
+        val responseCache = mockk<ResponseCache>()
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
+
+        coEvery { responseCache.get(any()) } throws IllegalStateException("boom")
+
+        // evaluationMetricsCollector 생략 → NoOp 기본값
+        val coordinator = AgentExecutionCoordinator(
+            responseCache = responseCache,
+            cacheableTemperature = 0.0,
+            defaultTemperature = 0.3,
+            fallbackStrategy = null,
+            agentMetrics = mockk(relaxed = true),
+            toolCallbacks = listOf(testTool("tool")),
+            mcpToolCallbacks = { emptyList() },
+            conversationManager = mockk(relaxed = true),
+            selectAndPrepareTools = { emptyList() },
+            retrieveRagContext = { null },
+            executeWithTools = { _, _, _, _, _, _ -> AgentResult.success("live") },
+            finalizeExecution = { result, _, _, _, _ -> result },
+            checkGuardAndHooks = { _, _, _ -> null },
+            resolveIntent = { c, _ -> c }
+        )
+
+        val result = coordinator.execute(
+            command = command,
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = mutableListOf(),
+            startTime = 1_000L
+        )
+
+        // fail-open 동작은 그대로
+        assertTrue(result.success) { "NoOp collector에서도 fail-open으로 정상 반환" }
     }
 }

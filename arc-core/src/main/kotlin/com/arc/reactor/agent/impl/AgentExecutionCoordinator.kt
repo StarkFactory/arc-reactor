@@ -5,6 +5,10 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentMode
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import com.arc.reactor.agent.routing.AgentModeResolver
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.cache.CacheKeyBuilder
@@ -85,7 +89,13 @@ internal class AgentExecutionCoordinator(
     private val checkGuardAndHooks: suspend (AgentCommand, HookContext, Long) -> AgentResult?,
     private val resolveIntent: suspend (AgentCommand, HookContext) -> AgentCommand,
     private val nowMs: () -> Long = System::currentTimeMillis,
-    private val nowNanos: () -> Long = System::nanoTime
+    private val nowNanos: () -> Long = System::nanoTime,
+    /**
+     * R253: 캐시 저장/조회 실패를 `execution.error{stage="cache"}`에 자동 기록.
+     * 기본값 NoOp으로 backward compat. 캐시는 fail-open으로 swallowing되므로
+     * 이 메트릭 없이는 Redis/Caffeine 장애가 조용히 발생한다.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
 
     /**
@@ -354,6 +364,8 @@ internal class AgentExecutionCoordinator(
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R253: 캐시 저장 실패를 CACHE stage로 기록 (fail-open swallowing 전)
+            evaluationMetricsCollector.recordError(ExecutionStage.CACHE, e)
             logger.warn(e) { "응답 캐시 저장 실패" }
         }
     }
@@ -376,6 +388,8 @@ internal class AgentExecutionCoordinator(
             if (hit != null) return cacheHitResult(key, hit, startTime, toolNames)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R253: 캐시 조회 실패를 CACHE stage로 기록 (fail-open 폴스루 전)
+            evaluationMetricsCollector.recordError(ExecutionStage.CACHE, e)
             logger.warn(e) { "캐시 조회 실패, 캐시 없이 계속 진행" }
         }
         agentMetrics.recordCacheMiss(key)
