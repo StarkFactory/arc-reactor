@@ -289,8 +289,31 @@ data class BoundaryProperties(
  * @see com.arc.reactor.agent.impl.ToolCallOrchestrator 도구 실행 시 파라미터 보강
  */
 data class ToolEnrichmentProperties(
-    /** 요청자 ID로 보강되어야 하는 도구 이름 목록. */
-    val requesterAwareToolNames: Set<String> = emptySet()
+    /**
+     * 요청자 ID로 보강되어야 하는 도구 이름 목록.
+     *
+     * R179: 빈 셋 기본값 → 14개 개인화 도구를 디폴트로 채움.
+     * 이전: application.yml의 requester-aware-tool-names 설정이 일부 환경에서 바인딩 안 되어
+     * enrichToolParamsForRequesterAwareTools가 항상 early-return → 자동 주입 미동작.
+     * 개인화 Jira/Bitbucket/Work 도구는 모두 requesterEmail/assigneeAccountId 필요하므로
+     * 안전 기본값으로 포함한다. 외부 yml 설정이 있으면 그 값으로 덮어쓰기 가능.
+     */
+    val requesterAwareToolNames: Set<String> = setOf(
+        "jira_my_open_issues",
+        "jira_due_soon_issues",
+        "jira_blocker_digest",
+        "jira_daily_briefing",
+        "jira_search_my_issues_by_text",
+        "bitbucket_review_queue",
+        "bitbucket_review_sla_alerts",
+        "bitbucket_my_authored_prs",
+        "work_personal_focus_plan",
+        "work_personal_learning_digest",
+        "work_personal_interrupt_guard",
+        "work_personal_end_of_day_wrapup",
+        "work_prepare_standup_update",
+        "work_personal_document_search"
+    )
 )
 
 /**
