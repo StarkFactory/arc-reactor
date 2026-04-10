@@ -10582,3 +10582,157 @@ R218 시작 시각: 02:27+09:00
 #### 📊 R218 요약
 
 ⚠️ **인프라 장애 라운드**: Gemini API 429 쿼터 소진으로 20 시나리오 중 **8개만 정상 측정**. 8/8 ALL-MAX 37 라운드 기록은 **유지 (측정 불가)** 상태. B4는 1654자로 R210 이후 **최장 Confluence 응답** 기록. Spring AI retry + 45s 타임아웃 + graceful degradation 모두 기대대로 동작 확인. arc-reactor 프로세스는 18회 연속 429에도 정상 UP — **쿼터 소진 상황 내성 검증됨**. 외부 API 쿼터에 대한 multi-key/multi-model fallback이 R219+ 핵심 과제. R210 이후 **10 라운드 연속 코드 무변경** 유지.
+
+### Round 219 — 🛠️ 2026-04-11T02:45+09:00 — R218 후속: 429 에러 분류 버그 수정 + cause 체인 전체 검사
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP, atlassian-mcp UP — **Gemini API 429 여전히 소진 상태** (probe 확인)
+
+#### Task #92: 429 쿼터 소진 분류 버그 수정
+
+##### 🔍 R218이 노출한 실제 버그
+
+R218 보고서 작성 이후 시스템 동작을 재검증하면서 **R218이 단순한 외부 인프라 장애가 아니라, 에러 분류 버그를 가리고 있었음**을 발견했다.
+
+**R219 R1 probe 결과**:
+```
+POST /api/chat (message: "ping")
+→ success: False
+→ errorCode: **UNKNOWN**  ← 🚨 RATE_LIMITED가 아님
+→ durationMs: 15423
+```
+
+**문제**:
+`AgentErrorPolicy.classify(e)`는 `e.message`만 검사한다. 그런데 Spring AI는 Google GenAI 예외를 다음과 같이 래핑한다:
+
+```
+java.lang.RuntimeException: Failed to generate content
+  Caused by: com.google.genai.errors.ClientException: 429 . Resource has been exhausted (e.g. check quota).
+```
+
+최상위 `e.message`는 `"Failed to generate content"` — 여기에는 `"rate limit"`, `"429"`, `"timeout"` 어느 것도 포함되지 않는다. 결과적으로 `classify()`는 모든 429 케이스를 **UNKNOWN**으로 잘못 분류했다.
+
+사용자 경험:
+- "Rate limit exceeded. Please try again later." (RATE_LIMITED) ✅ 명확
+- "An unknown error occurred." (UNKNOWN) ❌ 모호
+
+또한 `defaultTransientErrorClassifier`도 동일한 `e.message` 검사만 하므로, retry 로직이 **왜** 어떤 429는 재시도하고 어떤 것은 포기하는지 불일치 발생 가능성이 있었다.
+
+#### 🛠️ 코드 수정
+
+**파일**: `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/AgentErrorPolicy.kt`
+
+**1. `Throwable.fullMessageChain()` 확장 함수 추가**
+
+cause 체인을 최대 10단계까지 재귀적으로 추적하며 모든 메시지를 소문자로 연결. 순환 참조 방지 가드 포함.
+
+```kotlin
+internal fun Throwable.fullMessageChain(): String {
+    val builder = StringBuilder()
+    var current: Throwable? = this
+    var depth = 0
+    while (current != null && depth < 10) {
+        current.message?.let { builder.append(it).append(' ') }
+        if (current.cause === current) break
+        current = current.cause
+        depth++
+    }
+    return builder.toString().lowercase()
+}
+```
+
+**2. `standaloneStatusPattern` 정규식 추가**
+
+Google GenAI SDK는 `"429 . Resource has been exhausted"`처럼 prefix 없이 상태 코드를 노출한다. 기존 `httpStatusPattern`은 `(status|http|error|code)` prefix가 필요해 이 패턴을 놓쳤다.
+
+```kotlin
+private val standaloneStatusPattern = Regex("(?:^|\\s)(429|500|502|503|504)(?:\\s|$|\\.)")
+```
+
+**3. `defaultTransientErrorClassifier` 강화**
+
+- cause 체인 전체 검사
+- 새 키워드 추가: `quota`, `resource has been exhausted`, `resource_exhausted`, `too many requests`
+- standalone 상태 코드 패턴 매칭
+
+**4. `classify()` 분류기 강화**
+
+- cause 체인 전체 검사
+- RATE_LIMITED 분류에 쿼터/exhausted 키워드 추가
+- 우선순위: CircuitBreakerOpen → RATE_LIMITED (429/quota) → TIMEOUT → CONTEXT_TOO_LONG → TOOL_ERROR → UNKNOWN
+
+#### 🧪 테스트 추가
+
+**파일**: `arc-core/src/test/kotlin/com/arc/reactor/agent/impl/AgentErrorPolicyTest.kt`
+
+R218이 관찰한 실제 예외 패턴을 재현하는 테스트 **7개 신규 추가**:
+
+1. `cause 체인에 있는 Gemini 429 쿼터 예외를 RATE_LIMITED로 분류한다` — R218 실제 패턴
+2. `cause 체인에 있는 429 쿼터 예외를 transient로 분류한다` — retry 일관성
+3. `standalone 429 메시지를 RATE_LIMITED로 분류한다` — prefix 없는 케이스
+4. `quota 키워드를 transient로 분류한다`
+5. `resource exhausted 키워드를 RATE_LIMITED로 분류한다`
+6. `fullMessageChain은 cause를 재귀적으로 연결한다`
+7. `fullMessageChain은 순환 참조를 안전하게 처리한다`
+
+**테스트 결과**: 모두 PASS (AgentErrorPolicyTest 15개 + AgentErrorPolicyMatrixTest).
+
+#### 🎯 기대 효과
+
+| 측면 | Before (R218) | After (R219) |
+|------|---------------|--------------|
+| Gemini 429 errorCode | `UNKNOWN` ❌ | `RATE_LIMITED` ✅ |
+| 사용자 에러 메시지 | "An unknown error occurred." | "Rate limit exceeded. Please try again later." |
+| Retry 일관성 | 메시지에 따라 변동 | cause 체인 기반 일관됨 |
+| `errorMessageResolver` i18n | 적용 불가 | 적용 가능 |
+
+**쿼터 회복 후 검증 가능 항목**:
+- R219 수정 반영된 상태에서 의도적 429 트리거 시 `errorCode=RATE_LIMITED` 확인
+- Admin 대시보드에서 RATE_LIMITED 카운터 정확성
+
+#### Admin / 보안 / 빌드
+
+- **Admin**: 8/8 PASS (R218과 동일 — 비-LLM 경로 영향 없음)
+- **빌드**: PASS (`./gradlew compileKotlin compileTestKotlin` 전 모듈 성공, 16 tasks)
+- **테스트**: `AgentErrorPolicyTest` PASS (15 tests), `AgentErrorPolicyMatrixTest` PASS (matrix tag)
+- **swagger-mcp 8181**: 50 라운드 연속 안정 (🎯 50 라운드 마일스톤)
+
+#### R219 측정 상태
+
+- **전체 20 시나리오 측정**: **SKIP** — Gemini 쿼터 소진 상태 그대로 (R218과 동일). 측정해도 동일 결과 반복이므로 리소스 낭비. Probe 1건으로 쿼터 상태만 확인.
+- **8/8 ALL-MAX 37 라운드**: **유지** (측정 불가 → 유지)
+- **C 출처 45 라운드**: **유지** (측정 불가 → 유지)
+- **R210 이후 코드 무변경**: **중단** — R219에서 AgentErrorPolicy 수정 (10 라운드 만에 첫 코드 변경)
+
+#### 연속 지표 상태
+
+| 지표 | R218 | R219 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 49 | **50** 🎯 | 안정 |
+| 중복 호출 0건 | 유지 | 유지 | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| 코드 무변경 연속 | 10 라운드 | **중단** (R219 수정) | — |
+
+#### R219 특이점
+
+R218 보고서에서 "외부 인프라 장애, 코드 수정 대상 없음"이라고 기록했으나, **R219에서 재조사하면서 실제 코드 버그를 발견**했다:
+
+1. **R218 보고서의 부분 정확성**: Gemini 쿼터 소진 자체는 외부 문제로 코드로 해결 불가. 그러나 **쿼터 소진 에러가 UNKNOWN으로 분류되는 것은 코드 버그**.
+2. **Root cause analysis 원칙 준수**: 표면 증상(`errorCode=UNKNOWN`)을 재확인하면서 `e.message` vs cause chain 불일치라는 근본 원인 발견.
+3. **R218이 없었다면 놓칠 버그**: 정상 운영 중에는 429가 거의 발생하지 않으므로 UNKNOWN 분류 버그는 숨어 있었을 것. R218의 quota 소진이 버그를 노출시킨 역할.
+
+이는 CLAUDE.md의 "**Root Cause First**" 원칙 — "같은 문제가 2회 이상 반복 → 표면 대응 금지, 근본 원인 수정 필수" — 의 적용 사례.
+
+#### 다음 Round 과제 (R220+)
+
+- **R219 수정 효과 검증**: 쿼터 회복 후 일부러 과도 요청 → errorCode=RATE_LIMITED 확인
+- **R218 개선 제안 계속**:
+  - Multi-key fallback (`GEMINI_API_KEY_FALLBACK` 환경변수)
+  - Multi-model fallback chain (SpringAI ChatModel 주입)
+  - 일일 호출 카운터 + 80% 도달 시 비필수 거부
+- **전체 20 시나리오 재측정**: 쿼터 회복 후 실제 8/8 38 라운드 달성 여부 확인
+
+#### 📊 R219 요약
+
+🛠️ **R218 후속 버그 수정 라운드**: Gemini API 쿼터 여전히 소진 상태. R218에서 관찰한 `errorCode=UNKNOWN` 증상을 재조사하면서 **AgentErrorPolicy의 cause 체인 미검사 버그** 발견. `Throwable.fullMessageChain()` 확장 함수 추가로 cause 체인 최대 10단계 추적. `standaloneStatusPattern` 정규식으로 prefix 없는 429 감지. `classify()`와 `defaultTransientErrorClassifier` 모두 cause 체인 전체 검사 + 쿼터/exhausted 키워드 추가. 테스트 **7개 신규** (15 tests 전체 PASS), 빌드 PASS. 기대 효과: Gemini 429 → `RATE_LIMITED` 정확 분류, 사용자 메시지 "Rate limit exceeded. Please try again later." 노출, i18n resolver 적용 가능. R210 이후 10 라운드 연속 코드 무변경 기록은 **중단** (R219 수정), 그러나 이는 **R218이 노출시킨 진짜 버그를 고치는 의미 있는 변경**. swagger-mcp 8181 **50 라운드 마일스톤 🎯**. 8/8 37 및 C 45 라운드는 측정 불가로 유지.
