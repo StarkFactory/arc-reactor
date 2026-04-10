@@ -11195,3 +11195,191 @@ EvaluationMetricsHookTest                     → 17 tests PASS
 #### 📊 R222 요약
 
 🛠️ **Directive #5 Evaluation 상세 메트릭 추가 완료**. `EvaluationMetricsCollector` 인터페이스 + `NoOpEvaluationMetricsCollector`(기본) + `MicrometerEvaluationMetricsCollector`(opt-in) + `EvaluationMetricsHook`(AfterAgentCompleteHook 어댑터) + `EvaluationMetricsConfiguration`(자동 구성) 추가. 6개 핵심 지표(task success, latency, tool calls, token cost, human override, safety rejection)를 Hook 기반으로 수집. 기존 핫 패스 전혀 미수정, `arc.reactor.evaluation.metrics.enabled=true` 속성으로만 활성화. 신규 테스트 **30 PASS** (collector 13 + hook 17), 기존 R219/R220/R221 테스트 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **3/5 완료 (#94 Prompt Layer, #95 Tool Approval, #96 Evaluation)**. swagger-mcp 8181 **53 라운드 연속** 안정. "측정 없는 개선 금지" 원칙을 이행하기 위한 기반이 마련되어 R223+ 작업의 효과를 정량 비교할 수 있게 되었다.
+
+### Round 223 — 🛠️ 2026-04-11T04:30+09:00 — Directive #2: ACI 도구 출력 요약 계층 (opt-in, Hook 기반)
+
+**작업 종류**: Directive 기반 코드 개선 (QA 측정 없음)
+**Directive 패턴**: #2 Agent-Computer Interface 정비
+**완료 태스크**: #97
+
+#### 작업 배경
+
+`docs/agent-work-directive.md` §3.2는 도구 출력을 **agent 친화적**으로 가공하는 계층을 요구한다. 기존 `ToolResponsePayloadNormalizer`는 단순히 엄격한 JSON 프로바이더(Gemini/Vertex)를 위해 `{"result": "..."}` 형태로 래핑하는 정도이며, 긴 응답/에러/리스트에 대한 의미적 요약은 전혀 없었다.
+
+R223은 **관측 전용** 요약 계층을 추가하여 다음 3가지 목적을 달성한다:
+
+1. **분석/감사 가시성**: 각 도구 호출의 요약을 `HookContext.metadata`에 저장하여 사후 분석 가능
+2. **Evaluation 메트릭과 시너지**: R222 평가 메트릭이 요약 정보를 참조할 수 있는 기반 (예: 리스트 응답 비율, 에러 원인 분포)
+3. **미래 LLM 전달 경로의 기반**: 현재는 관측 전용이지만, 추후 필요 시 LLM 컨텍스트 절감을 위해 요약을 LLM에 전달하는 분기를 추가 가능
+
+#### 설계 원칙
+
+1. **원본 불변 (MCP 호환성 최우선)**: 도구 응답 페이로드는 **절대 수정하지 않는다**. 요약은 `HookContext.metadata`의 별도 키에만 저장
+2. **Hook 기반 통합**: `AfterToolCallHook`으로 주입하여 `ToolCallOrchestrator` 본체는 전혀 수정하지 않음
+3. **opt-in 기본**: `NoOpToolResponseSummarizer` 기본값, `arc.reactor.tool.response.summarizer.enabled=true` 프로퍼티로만 활성화
+4. **Fail-open**: 요약기 예외와 Hook 예외 모두 삼킴
+5. **Redis 캐시 영향 0**: `systemPrompt`/`scopeFingerprint` 미수정, R220 Golden snapshot 5개 해시 불변
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `tool/summarize/ToolResponseSummarizer.kt` | 109 | 인터페이스 + `NoOpToolResponseSummarizer` + `ToolResponseSummary` 데이터 + `SummaryKind` enum (6 값) |
+| `tool/summarize/DefaultToolResponseSummarizer.kt` | 240 | 휴리스틱 구현체 + `ToolResponseSummarizerConfig` |
+| `tool/summarize/ToolResponseSummarizerHook.kt` | 114 | `AfterToolCallHook` 어댑터 (order=160, fail-open) |
+| `autoconfigure/ToolResponseSummarizerConfiguration.kt` | 90 | 자동 구성 (no-op 기본, 프로퍼티로 Hook 활성화) |
+| `test/.../DefaultToolResponseSummarizerTest.kt` | 252 | 20 tests (6 분류 × 여러 케이스) |
+| `test/.../ToolResponseSummarizerHookTest.kt` | 229 | 14 tests (저장 + 카운터 + fail-open) |
+
+**총 6개 신규 파일 1034줄. 기존 파일 1개 수정** (`ArcReactorAutoConfiguration.kt`에 `@Import` 한 줄만 추가).
+
+#### 6개 요약 분류 (SummaryKind)
+
+| 분류 | 판별 기준 | 출력 예시 |
+|------|-----------|-----------|
+| `EMPTY` | 빈 payload | "응답 없음" |
+| `ERROR_CAUSE_FIRST` | `success=false` 또는 `error` 필드 존재 | "에러: Repository not found" |
+| `LIST_TOP_N` | 루트 배열 또는 알려진 리스트 필드(issues/pullRequests 등) | "issues: 3건 [HRFW-5695, HRFW-5696, HRFW-5697]" |
+| `STRUCTURED` | 객체 + 알려진 리스트 필드 없음 | "필드(4): id, summary, status, assignee" |
+| `TEXT_HEAD_TAIL` | 긴 텍스트 (> 200자 기본) | "앞부분 ... [1000자 중 250자 발췌] ... 뒷부분" |
+| `TEXT_FULL` | 짧은 텍스트 (≤ 200자) | 원본 그대로 |
+
+#### 휴리스틱 분류 흐름 (DefaultToolResponseSummarizer)
+
+```
+trim → 빈 문자열? → EMPTY
+     ↓
+success=false OR error 필드? → ERROR_CAUSE_FIRST
+     ↓
+JSON 파싱 성공?
+  ├── 루트 배열 → LIST_TOP_N
+  ├── 객체 + 알려진 리스트 필드 → LIST_TOP_N (필드명 레이블)
+  ├── 객체 (기타) → STRUCTURED (필드명 미리보기)
+  └── 원시값 → 텍스트 경로
+     ↓
+파싱 실패 → 텍스트 경로
+  ├── ≤ 200자 → TEXT_FULL
+  └── > 200자 → TEXT_HEAD_TAIL
+```
+
+**알려진 리스트 필드 (우선순위 순)**:
+`issues`, `pages`, `pullRequests`, `prs`, `repositories`, `repos`, `results`, `items`, `data`, `records`, `list`
+
+**식별자 필드 (우선순위 순)**:
+`key`, `id`, `issueKey`, `prId`, `pullRequestId`, `title`, `name`, `summary`, `slug`
+
+이 필드 이름은 atlassian-mcp-server의 Jira/Confluence/Bitbucket 응답 구조를 반영하여 실제로 의미 있는 식별자를 추출할 수 있도록 선정했다.
+
+#### Hook 동작
+
+```
+AfterToolCall 호출
+  ↓
+ToolResponseSummarizerHook.afterToolCall(context, result)
+  ↓
+summarizer.summarize(toolName, result.output, result.success)
+  ↓ (null이 아니면)
+context.agentContext.metadata["toolSummary_{callIndex}_{toolName}"] = summary
+context.agentContext.metadata["toolSummaryCount"] += 1
+  ↓
+예외 시 logger.warn만 남기고 return (fail-open)
+```
+
+**동일 도구 여러 호출 대응**: callIndex를 키에 포함하여 충돌 방지. 3번 호출 시:
+- `toolSummary_0_jira_search`
+- `toolSummary_1_jira_search`
+- `toolSummary_2_jira_search`
+- `toolSummaryCount = 3`
+
+#### 자동 구성 동작
+
+**기본 (`enabled=false`)**:
+- `NoOpToolResponseSummarizer` 주입 → `summarize()` 항상 null → 메타데이터 저장 없음
+- `ToolResponseSummarizerHook` 빈 등록 안 됨
+
+**`enabled=true`**:
+- `DefaultToolResponseSummarizer`가 `@Primary`로 no-op을 대체
+- `ToolResponseSummarizerHook` 빈이 등록되어 `AfterToolCallHook` 체인에 자동 참여
+
+**사용자 커스텀**:
+```kotlin
+@Bean
+fun myCustomSummarizer(): ToolResponseSummarizer = MySummarizer()
+```
+→ 기본값을 대체. `enabled=true`도 함께 설정하면 Hook 등록됨.
+
+#### 테스트 결과
+
+```
+DefaultToolResponseSummarizerTest              → 20 tests PASS
+  - EmptyResponse (2)
+  - ErrorResponse (4)
+  - ListResponse (6)
+  - StructuredResponse (2)
+  - TextResponse (3)
+  - ErrorHandling (1)
+  - NoOpBehavior (1)
+  - (+ 경계값 테스트 1)
+ToolResponseSummarizerHookTest                 → 14 tests PASS
+  - BasicRecording (4)
+  - ErrorPayload (2)
+  - FailOpen (3)
+  - KeyGeneration (3)
+  - (+ 통합 2)
+```
+
+**기존 R219 `AgentErrorPolicyTest`, R220 `SystemPromptBuilderGoldenSnapshotTest`, R221 `ApprovalContextTest` / `HeuristicApprovalContextResolverTest`, R222 `EvaluationMetricsCollectorTest` / `EvaluationMetricsHookTest` 모두 회귀 없음**.
+
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+- **R220 Golden snapshot 5개 SHA-256 해시 재확인 완료** — `systemPrompt` 출력 byte-identical 유지
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 응답 원본 payload 전혀 미수정 (요약은 metadata 키에만 저장)
+- ✅ 도구 description/파라미터/SSE 경로 미수정
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry`, `ToolResponsePayloadNormalizer` 미수정
+- ✅ 도구가 LLM에 전달되는 경로 그대로 (요약은 LLM context에 주입되지 않음)
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재실행 확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+- ✅ 요약이 LLM에 전달되지 않으므로 scopeFingerprint 이외의 값도 불변
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationManager`, `ConversationMessageTrimmer` 미수정
+- ✅ Slack 스레드 경로 미수정
+- ✅ **요약이 대화 이력에 섞이지 않음** — `HookContext.metadata`에만 저장, `MemoryStore.save()` 경로와 독립
+
+#### opt-in / 성능 오버헤드
+
+- **기본 오버헤드**: 0 (NoOp 요약기는 즉시 null 반환, Hook 등록 안 됨)
+- **활성화 시 오버헤드**: 도구 호출당 JSON 파싱 1회 + 메타데이터 저장 1회 (밀리초 미만)
+- **메모리**: 요약당 수백 바이트, HookContext 수명과 동일
+
+#### 연속 지표
+
+| 지표 | R222 | R223 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 53 | **54** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 3/5 | **4/5** | #94, #95, #96, #97 |
+
+#### 다음 Round 후보
+
+- **R224+**: Directive 5개 중 4개가 완료되었다. 남은 것은 `#98 Patch-First Editing Loop (보류)`인데, 이는 코드 수정 에이전트 시나리오가 명확해질 때까지 의도적으로 보류 중이다.
+- **대안 방향**:
+  1. 기존 완료 태스크의 심화 작업 (예: `#94 Prompt Layer`에 워크스페이스 프로파일 오버라이드 추가, `#96 Evaluation`의 메트릭을 R222 Hook 자동 등록 + 대시보드)
+  2. R222 평가 메트릭 + R223 요약 계층 조합 — 요약 분류(SummaryKind) 별 카운터를 Evaluation collector에 연결해 추가 지표 노출
+  3. Gemini 쿼터 회복 후 QA 측정 루프 재개로 Directive 작업 효과를 정량 비교
+
+#### 📊 R223 요약
+
+🛠️ **Directive #2 ACI 도구 출력 요약 계층 완료**. `ToolResponseSummarizer` 인터페이스 + `DefaultToolResponseSummarizer` 휴리스틱 구현체(에러/리스트/구조화/텍스트/빈 응답 분류) + `ToolResponseSummarizerHook`(AfterToolCallHook 어댑터) + `ToolResponseSummarizerConfiguration`(자동 구성) 신규 추가. 기존 `ToolCallOrchestrator`, `ToolResponsePayloadNormalizer`, MCP 경로 전혀 미수정. 요약은 `HookContext.metadata["toolSummary_{callIndex}_{toolName}"]`에만 저장되어 원본 응답과 LLM 전달 경로에 영향 없음. `arc.reactor.tool.response.summarizer.enabled=true` 프로퍼티로만 활성화. 알려진 리스트 필드(issues/pullRequests/pages/repositories 등)와 식별자 필드(key/id/issueKey 등)는 atlassian-mcp-server 응답 구조를 반영. 신규 테스트 **34 PASS** (summarizer 20 + hook 14), 기존 R219/R220/R221/R222 테스트 회귀 없음, R220 Golden snapshot 5개 해시 재확인. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 완료 (#94 Prompt Layer, #95 Tool Approval, #96 Evaluation, #97 ACI 요약)**. swagger-mcp 8181 **54 라운드 연속** 안정.
