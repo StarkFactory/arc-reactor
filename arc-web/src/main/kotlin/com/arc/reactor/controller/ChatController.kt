@@ -296,16 +296,34 @@ class ChatController(
      * 로컬 계정(admin@arc.io 등)은 Atlassian 계정과 매핑되지 않아 개인화 도구가 실패하므로,
      * `ARC_REACTOR_DEFAULT_REQUESTER_EMAIL` 환경변수로 fallback email을 지정할 수 있다.
      * 이 fallback은 로컬 계정 이메일이 admin@arc.io / anonymous 또는 '.local' 도메인일 때만 적용된다.
+     *
+     * R175: accountId도 Atlassian 형식이 아니면(`{site}:{uuid}` 패턴 미일치) 주입을 건너뛴다.
+     * JwtAuthWebFilter는 jwt에 accountId가 없으면 로컬 userId(UUID)를 fallback으로 사용하므로,
+     * 그대로 전달하면 atlassian-mcp가 잘못된 assignee로 검색하여 0건 반환된다.
      */
     private fun resolveRequesterIdentity(base: Map<String, Any>, exchange: ServerWebExchange): Map<String, Any> {
         if (containsRequesterIdentity(base)) return base
         val rawEmail = resolveRequesterEmailFromExchange(exchange)
         val email = applyLocalAccountEmailFallback(rawEmail)
-        val accountId = resolveRequesterAccountIdFromExchange(exchange)
+        val rawAccountId = resolveRequesterAccountIdFromExchange(exchange)
+        val accountId = rawAccountId?.takeIf { isAtlassianAccountIdFormat(it) }
         val withAccount = if (accountId == null) base else base + mapOf(
             "requesterAccountId" to accountId, "accountId" to accountId
         )
         return email?.let { withAccount + mapOf("requesterEmail" to it, "userEmail" to it) } ?: withAccount
+    }
+
+    /**
+     * Atlassian accountId 형식인지 검증한다.
+     * Atlassian Cloud accountId 패턴: `{site}:{uuid}` (예: `557058:974639cb-431e-432d-8c35-1715fb35387e`)
+     * 로컬 user UUID(`e1a40088-663e-...`)는 콜론이 없어 false 반환.
+     */
+    private fun isAtlassianAccountIdFormat(accountId: String): Boolean {
+        // 콜론으로 구분된 두 부분이 있고 두 번째 부분이 UUID 형태이면 Atlassian 형식
+        val parts = accountId.split(":")
+        if (parts.size != 2) return false
+        val uuidPart = parts[1]
+        return uuidPart.length in 30..40 && uuidPart.contains("-")
     }
 
     /**

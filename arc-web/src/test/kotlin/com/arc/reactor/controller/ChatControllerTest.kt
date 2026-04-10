@@ -240,19 +240,52 @@ class ChatControllerTest {
 
         @Test
         fun `metadata not explicitly provided일 때 inject accountId from exchange해야 한다`() = runTest {
+            // R175: accountId가 Atlassian 형식({site}:{uuid})일 때만 주입되도록 변경
+            // 로컬 user UUID는 잘못된 assignee로 검색되어 0건 반환 문제 발생
             val exchangeWithAccount = mockExchange(
-                attributes = mutableMapOf("resolvedTenantId" to "default", "userAccountId" to "acct-001")
+                attributes = mutableMapOf(
+                    "resolvedTenantId" to "default",
+                    "userAccountId" to "557058:974639cb-431e-432d-8c35-1715fb35387e"
+                )
             )
             val commandSlot = slot<AgentCommand>()
             coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
 
             controller.chat(ChatRequest(message = "안녕"), exchangeWithAccount)
 
-            assertEquals("acct-001", commandSlot.captured.metadata["requesterAccountId"]) {
-                "requesterAccountId should be injected from authenticated exchange context"
+            assertEquals(
+                "557058:974639cb-431e-432d-8c35-1715fb35387e",
+                commandSlot.captured.metadata["requesterAccountId"]
+            ) {
+                "requesterAccountId should be injected when in Atlassian format"
             }
-            assertEquals("acct-001", commandSlot.captured.metadata["accountId"]) {
-                "accountId should be injected from authenticated exchange context"
+            assertEquals(
+                "557058:974639cb-431e-432d-8c35-1715fb35387e",
+                commandSlot.captured.metadata["accountId"]
+            ) {
+                "accountId should be injected when in Atlassian format"
+            }
+        }
+
+        @Test
+        fun `로컬 user UUID는 accountId로 주입되지 않아야 한다`() = runTest {
+            // R175: 로컬 user UUID(콜론 없음)는 Atlassian assignee로 사용 불가하므로 주입 안 됨
+            val exchangeWithLocalId = mockExchange(
+                attributes = mutableMapOf(
+                    "resolvedTenantId" to "default",
+                    "userAccountId" to "e1a40088-663e-4c1c-b598-89222726cd2a"
+                )
+            )
+            val commandSlot = slot<AgentCommand>()
+            coEvery { agentExecutor.execute(capture(commandSlot)) } returns AgentResult.success("ok")
+
+            controller.chat(ChatRequest(message = "안녕"), exchangeWithLocalId)
+
+            assertNull(commandSlot.captured.metadata["requesterAccountId"]) {
+                "Local user UUID should not be injected as Atlassian accountId"
+            }
+            assertNull(commandSlot.captured.metadata["accountId"]) {
+                "Local user UUID should not be injected as accountId"
             }
         }
 
