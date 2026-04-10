@@ -384,10 +384,16 @@ class SpringAiAgentExecutor(
                     agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                 }
             }
-            // 빈 응답 자동 재시도 (1회) — Gemini 간헐적 빈 응답 대응
-            val isEmptyResponse = !result.success && result.content?.contains("응답을 생성하지 못했습니다") == true
-            if (isEmptyResponse) {
-                logger.info { "빈 응답 감지, 1회 재시도 (runId=${hookContext.runId})" }
+            // R206: 빈 응답 자동 재시도 (최대 2회) — Gemini 간헐적 빈 응답 대응
+            // 이전: 1회 재시도 → B4 "개발 환경 세팅 방법" 등 ~50% 실패 유지
+            // 개선: 최대 2회로 증가 → 연속 3회 실패 확률 대폭 감소
+            for (retryAttempt in 1..EMPTY_RESPONSE_MAX_RETRIES) {
+                val isEmptyResponse = !result.success &&
+                    result.content?.contains("응답을 생성하지 못했습니다") == true
+                if (!isEmptyResponse) break
+                logger.info {
+                    "빈 응답 감지, 재시도 $retryAttempt/$EMPTY_RESPONSE_MAX_RETRIES (runId=${hookContext.runId})"
+                }
                 // 이전 실행에서 설정된 상태를 정리하여 재시도 오염을 방지한다.
                 hookContext.metadata.remove("blockReason")
                 (hookContext.verifiedSources as? MutableList)?.clear()
@@ -762,5 +768,14 @@ class SpringAiAgentExecutor(
             softLimitPercent = budget.softLimitPercent,
             meterRegistry = meterRegistry
         )
+    }
+
+    companion object {
+        /**
+         * R206: 빈 응답 자동 재시도 최대 횟수.
+         * Gemini가 간헐적으로 empty content를 반환하는 variance를 커버하기 위해 2회로 증가.
+         * (R199 이전: 1회) B4 "개발 환경 세팅 방법" 같은 시나리오에서 ~50% 실패율 개선 목적.
+         */
+        private const val EMPTY_RESPONSE_MAX_RETRIES = 2
     }
 }

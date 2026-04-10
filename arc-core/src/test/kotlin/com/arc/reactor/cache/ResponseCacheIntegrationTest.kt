@@ -129,12 +129,16 @@ class ResponseCacheIntegrationTest {
             val fixture = AgentTestFixture()
             every { fixture.requestSpec.options(any<ChatOptions>()) } returns fixture.requestSpec
 
-            // 첫 번째 호출은 빈 응답 (재시도도 빈 응답), 세 번째 호출은 유효한 응답 반환.
-            // 빈 응답 자동 재시도(1회)가 두 번째 빈 응답을 소비하므로 3개 필요.
+            // R206: 빈 응답 자동 재시도가 2회로 증가했으므로 첫 번째 execute() 시 3번의 empty call이 필요.
+            // 첫 번째 execute(): empty1 → retry1 empty2 → retry2 empty3 → OUTPUT_TOO_SHORT 에러 반환.
+            // 두 번째 execute(): validCallSpec 반환 (empty 캐시되지 않음 증명).
             val emptyCallSpec1 = fixture.mockFinalResponse("")
             val emptyCallSpec2 = fixture.mockFinalResponse("")
+            val emptyCallSpec3 = fixture.mockFinalResponse("")
             val validCallSpec = fixture.mockFinalResponse("Valid answer")
-            every { fixture.requestSpec.call() } returnsMany listOf(emptyCallSpec1, emptyCallSpec2, validCallSpec)
+            every { fixture.requestSpec.call() } returnsMany listOf(
+                emptyCallSpec1, emptyCallSpec2, emptyCallSpec3, validCallSpec
+            )
 
             val cache = CaffeineResponseCache()
             val executor = SpringAiAgentExecutor(
@@ -151,7 +155,7 @@ class ResponseCacheIntegrationTest {
                 temperature = 0.0
             )
 
-            // First call — empty response → OUTPUT_TOO_SHORT 에러, 캐시 미저장
+            // First call — empty response 3회 연속 → OUTPUT_TOO_SHORT 에러, 캐시 미저장
             val result1 = executor.execute(command)
             assertFalse(result1.success) { "빈 응답은 실패로 처리되어야 한다" }
 
@@ -159,8 +163,8 @@ class ResponseCacheIntegrationTest {
             val result2 = executor.execute(command)
             assertEquals("Valid answer", result2.content) { "Second call should get valid response, not cached empty" }
 
-            // LLM이 세 번 호출되었는지 확인 (빈 응답 2회 + 유효 응답 1회, 빈 응답은 캐시되지 않음)
-            verify(exactly = 3) { fixture.requestSpec.call() }
+            // R206: LLM이 네 번 호출되었는지 확인 (빈 응답 3회 + 유효 응답 1회)
+            verify(exactly = 4) { fixture.requestSpec.call() }
         }
     }
 
