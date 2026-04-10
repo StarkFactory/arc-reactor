@@ -105,6 +105,18 @@ class MicrometerEvaluationMetricsCollector(
         }
     }
 
+    override fun recordToolResponseKind(kind: String, toolName: String) {
+        runCatching {
+            Counter.builder(METRIC_TOOL_RESPONSE_KIND)
+                .tag(TAG_KIND, kind.ifBlank { UNKNOWN_TAG })
+                .tag(TAG_TOOL, toolName.ifBlank { UNKNOWN_TAG })
+                .register(registry)
+                .increment()
+        }.onFailure { e ->
+            logger.warn(e) { "recordToolResponseKind 실패: kind=$kind, tool=$toolName" }
+        }
+    }
+
     companion object {
         const val METRIC_TASK_COMPLETED = "arc.reactor.eval.task.completed"
         const val METRIC_TASK_DURATION = "arc.reactor.eval.task.duration"
@@ -113,6 +125,9 @@ class MicrometerEvaluationMetricsCollector(
         const val METRIC_HUMAN_OVERRIDE = "arc.reactor.eval.human.override"
         const val METRIC_SAFETY_REJECTION = "arc.reactor.eval.safety.rejection"
 
+        /** R224: 도구 응답 요약 분류별 카운터 (R222+R223 시너지). */
+        const val METRIC_TOOL_RESPONSE_KIND = "arc.reactor.eval.tool.response.kind"
+
         const val TAG_RESULT = "result"
         const val TAG_ERROR_CODE = "error_code"
         const val TAG_MODEL = "model"
@@ -120,6 +135,9 @@ class MicrometerEvaluationMetricsCollector(
         const val TAG_TOOL = "tool"
         const val TAG_STAGE = "stage"
         const val TAG_REASON = "reason"
+
+        /** R224: 도구 응답 요약 분류 태그. */
+        const val TAG_KIND = "kind"
 
         const val RESULT_SUCCESS = "success"
         const val RESULT_FAILURE = "failure"

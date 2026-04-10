@@ -241,6 +241,48 @@ class EvaluationMetricsCollectorTest {
             assertNotNull(counter) { "unknown 태그로 카운터가 등록되어야 한다" }
         }
 
+        @Test
+        fun `도구 응답 분류는 kind와 tool 태그로 기록되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordToolResponseKind("list_top_n", "jira_search")
+            collector.recordToolResponseKind("list_top_n", "jira_search")
+            collector.recordToolResponseKind("error_cause_first", "bitbucket_list_prs")
+            collector.recordToolResponseKind("structured", "jira_get_issue")
+
+            val listCounter = counterValue(registry, MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_KIND,
+                listOf(
+                    MicrometerEvaluationMetricsCollector.TAG_KIND to "list_top_n",
+                    MicrometerEvaluationMetricsCollector.TAG_TOOL to "jira_search"
+                ))
+            val errorCounter = counterValue(registry, MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_KIND,
+                listOf(
+                    MicrometerEvaluationMetricsCollector.TAG_KIND to "error_cause_first",
+                    MicrometerEvaluationMetricsCollector.TAG_TOOL to "bitbucket_list_prs"
+                ))
+            val structuredCounter = counterValue(registry, MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_KIND,
+                listOf(
+                    MicrometerEvaluationMetricsCollector.TAG_KIND to "structured",
+                    MicrometerEvaluationMetricsCollector.TAG_TOOL to "jira_get_issue"
+                ))
+
+            assertEquals(2.0, listCounter) { "list_top_n + jira_search 카운터는 2여야 한다" }
+            assertEquals(1.0, errorCounter) { "error_cause_first + bitbucket_list_prs 카운터는 1" }
+            assertEquals(1.0, structuredCounter) { "structured + jira_get_issue 카운터는 1" }
+        }
+
+        @Test
+        fun `빈 kind와 tool은 unknown으로 변환되어야 한다`() {
+            val (registry, collector) = newCollector()
+            collector.recordToolResponseKind("", "")
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_TOOL_RESPONSE_KIND)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_KIND, MicrometerEvaluationMetricsCollector.UNKNOWN_TAG)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_TOOL, MicrometerEvaluationMetricsCollector.UNKNOWN_TAG)
+                .counter()
+            assertNotNull(counter) { "빈 문자열은 unknown 태그로 등록되어야 한다" }
+            assertEquals(1.0, counter!!.count()) { "unknown 카운터는 1" }
+        }
+
         private fun counterValue(
             registry: SimpleMeterRegistry,
             name: String,
@@ -249,6 +291,34 @@ class EvaluationMetricsCollectorTest {
             val search = tags.fold(registry.find(name)) { s, (k, v) -> s.tag(k, v) }
             val counter: Counter? = search.counter()
             return counter?.count() ?: 0.0
+        }
+    }
+
+    @Nested
+    inner class NoOpToolResponseKind {
+
+        @Test
+        fun `NoOp 수집기의 recordToolResponseKind는 no-op이어야 한다`() {
+            // 기본 no-op 구현이 예외 없이 실행되어야 한다
+            NoOpEvaluationMetricsCollector.recordToolResponseKind("list_top_n", "jira_search")
+            NoOpEvaluationMetricsCollector.recordToolResponseKind("", "")
+            assertTrue(true) { "NoOp 수집기의 새 메서드는 예외 없이 반환해야 한다" }
+        }
+
+        @Test
+        fun `기본 구현은 interface default no-op이어야 한다 (backward compat)`() {
+            // 사용자가 recordToolResponseKind를 구현하지 않은 커스텀 collector도 작동해야 한다
+            val customCollector = object : EvaluationMetricsCollector {
+                override fun recordTaskCompleted(success: Boolean, durationMs: Long, errorCode: String?) {}
+                override fun recordToolCallCount(count: Int, toolNames: List<String>) {}
+                override fun recordTokenCost(costUsd: Double, model: String) {}
+                override fun recordHumanOverride(outcome: HumanOverrideOutcome, toolName: String) {}
+                override fun recordSafetyRejection(stage: SafetyRejectionStage, reason: String) {}
+                // recordToolResponseKind 구현 생략 → default no-op
+            }
+            // 기본 구현이 있어야 컴파일 + 호출이 가능하다
+            customCollector.recordToolResponseKind("list_top_n", "tool")
+            assertTrue(true) { "default no-op 구현이 backward compat를 유지해야 한다" }
         }
     }
 }

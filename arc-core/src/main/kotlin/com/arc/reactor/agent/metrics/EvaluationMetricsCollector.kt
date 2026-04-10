@@ -83,6 +83,25 @@ interface EvaluationMetricsCollector {
      * @param reason 거부 사유 분류 (예: "injection", "rate_limit", "pii", "unauthorized")
      */
     fun recordSafetyRejection(stage: SafetyRejectionStage, reason: String)
+
+    /**
+     * R224: 도구 응답 요약 분류 기록 (R223 ACI 요약 계층과의 시너지).
+     *
+     * 각 도구 호출의 응답이 어떤 [kind]로 분류되었는지 누적하여, 도구 응답 품질의 분포를
+     * 관측한다. 예를 들어 `list_top_n` 비율이 낮고 `error_cause_first`가 많으면 해당 도구의
+     * 신뢰성이 낮다고 추정할 수 있다.
+     *
+     * **기본 구현은 no-op** 이다. [NoOpEvaluationMetricsCollector]를 포함한 기존 구현체가
+     * 변경 없이 동작하도록 하기 위함이다.
+     *
+     * @param kind 요약 분류 문자열 (예: "error_cause_first", "list_top_n", "structured",
+     *   "text_head_tail", "text_full", "empty"). [com.arc.reactor.tool.summarize.SummaryKind]의
+     *   소문자 name이 기본 포맷.
+     * @param toolName 대상 도구 이름
+     */
+    fun recordToolResponseKind(kind: String, toolName: String) {
+        // 기본 no-op (backward compat)
+    }
 }
 
 /**

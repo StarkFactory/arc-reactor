@@ -2,6 +2,9 @@ package com.arc.reactor.agent.metrics
 
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
+import com.arc.reactor.tool.summarize.SummaryKind
+import com.arc.reactor.tool.summarize.ToolResponseSummary
+import com.arc.reactor.tool.summarize.ToolResponseSummarizerHook
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
@@ -344,6 +347,156 @@ class EvaluationMetricsHookTest {
         fun `Hook order는 150이어야 한다`() {
             val hook = EvaluationMetricsHook(NoOpEvaluationMetricsCollector)
             assertEquals(150, hook.order) { "Hook order는 표준 Hook 범위 내(100-199)에 있어야 한다" }
+        }
+    }
+
+    @Nested
+    inner class ToolResponseKindRecording {
+
+        @Test
+        fun `R223 toolSummary 메타데이터가 있으면 SummaryKind별 카운터를 기록해야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] =
+                ToolResponseSummary(
+                    text = "issues: 3건 [HRFW-1, HRFW-2, HRFW-3]",
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 500,
+                    itemCount = 3,
+                    primaryKey = "HRFW-1"
+                )
+            context.metadata[ToolResponseSummarizerHook.buildKey(1, "confluence_search")] =
+                ToolResponseSummary(
+                    text = "필드(4): id, title, body, version",
+                    kind = SummaryKind.STRUCTURED,
+                    originalLength = 300
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseKind(
+                    kind = "list_top_n",
+                    toolName = "jira_search"
+                )
+            }
+            verify(exactly = 1) {
+                collector.recordToolResponseKind(
+                    kind = "structured",
+                    toolName = "confluence_search"
+                )
+            }
+        }
+
+        @Test
+        fun `동일 도구의 여러 호출은 각각 기록되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] =
+                ToolResponseSummary(
+                    text = "issues: 2건",
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 100
+                )
+            context.metadata[ToolResponseSummarizerHook.buildKey(1, "jira_search")] =
+                ToolResponseSummary(
+                    text = "issues: 5건",
+                    kind = SummaryKind.LIST_TOP_N,
+                    originalLength = 200
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 2) {
+                collector.recordToolResponseKind(
+                    kind = "list_top_n",
+                    toolName = "jira_search"
+                )
+            }
+        }
+
+        @Test
+        fun `toolSummary 엔트리가 없으면 recordToolResponseKind를 호출하지 않아야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            // toolSummary_* 없음
+            val response = AgentResponse(
+                success = true,
+                toolsUsed = listOf("jira_search"),
+                totalDurationMs = 100L
+            )
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 0) {
+                collector.recordToolResponseKind(any(), any())
+            }
+        }
+
+        @Test
+        fun `toolSummaryCount 카운터는 recordToolResponseKind 대상이 아니어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            context.metadata[ToolResponseSummarizerHook.COUNTER_KEY] = 3
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] =
+                ToolResponseSummary(
+                    text = "test",
+                    kind = SummaryKind.TEXT_FULL,
+                    originalLength = 4
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseKind(kind = "text_full", toolName = "jira_search")
+            }
+        }
+
+        @Test
+        fun `ToolResponseSummary가 아닌 값은 무시되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            // 잘못된 타입의 값
+            context.metadata[ToolResponseSummarizerHook.buildKey(0, "jira_search")] = "raw string"
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 0) {
+                collector.recordToolResponseKind(any(), any())
+            }
+        }
+
+        @Test
+        fun `underscore 포함 도구 이름이 올바르게 파싱되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "u", userPrompt = "p")
+            // 도구 이름에 언더스코어가 여러 개 포함
+            context.metadata[ToolResponseSummarizerHook.buildKey(2, "confluence_search_by_text")] =
+                ToolResponseSummary(
+                    text = "empty",
+                    kind = SummaryKind.EMPTY,
+                    originalLength = 0
+                )
+            val response = AgentResponse(success = true, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordToolResponseKind(
+                    kind = "empty",
+                    toolName = "confluence_search_by_text"
+                )
+            }
         }
     }
 }

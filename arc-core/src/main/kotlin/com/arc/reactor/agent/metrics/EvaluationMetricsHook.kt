@@ -4,6 +4,8 @@ import com.arc.reactor.hook.AfterAgentCompleteHook
 import com.arc.reactor.hook.model.AgentResponse
 import com.arc.reactor.hook.model.HookContext
 import com.arc.reactor.support.throwIfCancellation
+import com.arc.reactor.tool.summarize.ToolResponseSummary
+import com.arc.reactor.tool.summarize.ToolResponseSummarizerHook
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -59,6 +61,7 @@ class EvaluationMetricsHook(
             recordCost(context)
             recordHumanOverrides(context)
             recordSafetyRejections(context, response)
+            recordToolResponseKinds(context)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.warn(e) { "EvaluationMetricsHook 기록 실패 (무시): runId=${context.runId}" }
@@ -142,6 +145,42 @@ class EvaluationMetricsHook(
         }
         val reason = blockReason ?: errorCode ?: MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
         collector.recordSafetyRejection(stage, reason)
+    }
+
+    /**
+     * R224: R223 ACI 요약 계층이 생성한 `toolSummary_{callIndex}_{toolName}` 메타데이터를
+     * 스캔하여 요약 분류별 카운터를 기록한다.
+     *
+     * 양쪽 기능이 모두 opt-in 이므로:
+     * - R223 요약기 미활성 → 메타데이터 비어있음 → 루프 바디 실행 없음 → 오버헤드 0
+     * - R222 Evaluation 미활성 → [collector]가 NoOp → 루프는 돌지만 실제 기록 없음
+     * - 양쪽 활성 → 실제 메트릭 기록
+     */
+    private fun recordToolResponseKinds(context: HookContext) {
+        for ((key, value) in context.metadata.entries) {
+            if (!key.startsWith(ToolResponseSummarizerHook.SUMMARY_KEY_PREFIX)) continue
+            if (key == ToolResponseSummarizerHook.COUNTER_KEY) continue
+            val summary = value as? ToolResponseSummary ?: continue
+            val toolName = extractToolNameFromSummaryKey(key)
+            collector.recordToolResponseKind(
+                kind = summary.kind.name.lowercase(),
+                toolName = toolName
+            )
+        }
+    }
+
+    /**
+     * `toolSummary_{callIndex}_{toolName}` 키에서 도구 이름을 추출한다.
+     * [ToolResponseSummarizerHook.buildKey]가 만드는 형식과 대칭이다.
+     */
+    private fun extractToolNameFromSummaryKey(key: String): String {
+        val afterPrefix = key.removePrefix(ToolResponseSummarizerHook.SUMMARY_KEY_PREFIX)
+        val firstUnderscore = afterPrefix.indexOf('_')
+        if (firstUnderscore < 0) return afterPrefix
+        // {callIndex}_{toolName} → callIndex 이후가 toolName
+        return afterPrefix.substring(firstUnderscore + 1).ifBlank {
+            MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
+        }
     }
 
     /**

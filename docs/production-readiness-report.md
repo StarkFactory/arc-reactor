@@ -11383,3 +11383,169 @@ ToolResponseSummarizerHookTest                 → 14 tests PASS
 #### 📊 R223 요약
 
 🛠️ **Directive #2 ACI 도구 출력 요약 계층 완료**. `ToolResponseSummarizer` 인터페이스 + `DefaultToolResponseSummarizer` 휴리스틱 구현체(에러/리스트/구조화/텍스트/빈 응답 분류) + `ToolResponseSummarizerHook`(AfterToolCallHook 어댑터) + `ToolResponseSummarizerConfiguration`(자동 구성) 신규 추가. 기존 `ToolCallOrchestrator`, `ToolResponsePayloadNormalizer`, MCP 경로 전혀 미수정. 요약은 `HookContext.metadata["toolSummary_{callIndex}_{toolName}"]`에만 저장되어 원본 응답과 LLM 전달 경로에 영향 없음. `arc.reactor.tool.response.summarizer.enabled=true` 프로퍼티로만 활성화. 알려진 리스트 필드(issues/pullRequests/pages/repositories 등)와 식별자 필드(key/id/issueKey 등)는 atlassian-mcp-server 응답 구조를 반영. 신규 테스트 **34 PASS** (summarizer 20 + hook 14), 기존 R219/R220/R221/R222 테스트 회귀 없음, R220 Golden snapshot 5개 해시 재확인. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 완료 (#94 Prompt Layer, #95 Tool Approval, #96 Evaluation, #97 ACI 요약)**. swagger-mcp 8181 **54 라운드 연속** 안정.
+
+### Round 224 — 🔗 2026-04-11T05:00+09:00 — R222+R223 시너지: SummaryKind → Evaluation 메트릭
+
+**작업 종류**: Directive 심화 — 기존 완료 태스크 간 시너지 창출 (QA 측정 없음)
+**Directive 패턴**: #5 Evaluation + #2 ACI (결합)
+**완료 태스크**: #99 (시너지 연결)
+
+#### 작업 배경
+
+R222(`EvaluationMetricsCollector`)와 R223(`ToolResponseSummarizer`)은 각각 평가셋 기반 개선 측정과 도구 응답 요약이라는 독립적 목적을 가지고 완성되었다. 그러나 두 기능이 모두 opt-in으로 동시에 활성화되었을 때, R223이 생성하는 `SummaryKind` 분류를 R222 메트릭으로 집계하면 **"도구 응답 품질의 분포"** 를 정량 관측할 수 있다.
+
+예를 들어:
+- `error_cause_first` 비율이 높은 도구 → 신뢰성 낮음 → 개선 대상
+- `list_top_n` 비율이 높은 도구 → 검색/조회 중심
+- `empty` 비율이 높은 도구 → 쿼리 매칭 이슈 또는 권한 문제
+
+R224는 두 Round를 연결하는 **추가 메트릭 `arc.reactor.eval.tool.response.kind`** 를 도입하여 이 시너지를 실현한다.
+
+#### 설계 원칙
+
+1. **backward compat 강제**: `EvaluationMetricsCollector.recordToolResponseKind()`는 **interface default no-op**으로 추가 → 기존 구현체/사용자 커스텀 collector가 수정 없이 동작
+2. **cross-hook 없음**: R223의 `ToolResponseSummarizerHook`은 그대로 두고, R222의 `EvaluationMetricsHook.afterAgentComplete`가 종료 시점에 `toolSummary_*` 메타데이터를 스캔
+3. **양쪽 opt-in 모두 존중**: R223 요약기 비활성 → 메타데이터 비어있음 → 루프 실행 없음. R222 수집기 NoOp → 루프 돌지만 실제 기록 없음. 양쪽 모두 활성이어야만 실효성
+4. **3대 최상위 제약 준수**: MCP/Redis 캐시/컨텍스트 관리 경로 전혀 미수정
+
+#### 변경 파일
+
+| 파일 | 변경 | 설명 |
+|------|------|------|
+| `agent/metrics/EvaluationMetricsCollector.kt` | 수정 | `recordToolResponseKind(kind, toolName)` default no-op 메서드 추가 |
+| `agent/metrics/MicrometerEvaluationMetricsCollector.kt` | 수정 | 새 메서드 override + `METRIC_TOOL_RESPONSE_KIND` 상수 + `TAG_KIND` 상수 |
+| `agent/metrics/EvaluationMetricsHook.kt` | 수정 | `recordToolResponseKinds()` 헬퍼 추가 + `extractToolNameFromSummaryKey()` + `ToolResponseSummary`/`ToolResponseSummarizerHook` import |
+| `test/.../EvaluationMetricsCollectorTest.kt` | 수정 | 3개 신규 테스트 (Micrometer 기록 + NoOp + backward compat) |
+| `test/.../EvaluationMetricsHookTest.kt` | 수정 | 6개 신규 테스트 (새 `@Nested ToolResponseKindRecording` 그룹) |
+
+**신규 파일 0개, 기존 파일 5개 수정.** 가장 작은 Round 변경 규모.
+
+#### Backward Compat 보장
+
+`EvaluationMetricsCollector` 인터페이스에 새 메서드를 **default 구현**으로 추가:
+
+```kotlin
+fun recordToolResponseKind(kind: String, toolName: String) {
+    // 기본 no-op (backward compat)
+}
+```
+
+**효과**:
+- 기존 `NoOpEvaluationMetricsCollector` 수정 불필요 (default 상속)
+- 기존 `MicrometerEvaluationMetricsCollector`는 실제 기록을 override
+- 사용자 커스텀 collector도 수정 없이 동작
+- 테스트에서 `mockk(relaxed = true)`를 사용한 기존 테스트도 깨지지 않음
+
+backward compat 테스트 케이스 추가 — `recordToolResponseKind`를 구현하지 않는 anonymous collector가 여전히 컴파일되고 호출 가능함을 verify.
+
+#### EvaluationMetricsHook 스캔 로직
+
+```kotlin
+private fun recordToolResponseKinds(context: HookContext) {
+    for ((key, value) in context.metadata.entries) {
+        if (!key.startsWith(SUMMARY_KEY_PREFIX)) continue  // "toolSummary_"
+        if (key == COUNTER_KEY) continue                   // "toolSummaryCount"
+        val summary = value as? ToolResponseSummary ?: continue  // 타입 안전성
+        val toolName = extractToolNameFromSummaryKey(key)
+        collector.recordToolResponseKind(
+            kind = summary.kind.name.lowercase(),
+            toolName = toolName
+        )
+    }
+}
+```
+
+**키 파싱**: `"toolSummary_{callIndex}_{toolName}"`에서 첫 `_` 뒤부터 끝까지가 `toolName`. `confluence_search_by_text`처럼 도구 이름에 언더스코어가 여러 개 있어도 정확히 파싱.
+
+**안전 장치**:
+- 접두사 불일치 → skip
+- 카운터 키 → skip
+- 타입 캐스트 실패 (`as?` null) → skip
+- 예외 발생 → 상위 `try/catch`가 잡고 로깅만 함 (fail-open)
+
+#### 신규 메트릭
+
+```
+arc.reactor.eval.tool.response.kind{kind=list_top_n, tool=jira_search}
+```
+
+| 태그 | 값 | 예시 |
+|------|-----|------|
+| `kind` | `SummaryKind.name.lowercase()` | `empty`, `error_cause_first`, `list_top_n`, `structured`, `text_head_tail`, `text_full` |
+| `tool` | 도구 이름 | `jira_search`, `confluence_search_by_text`, `bitbucket_list_prs` |
+
+**사용 예**:
+- 전체 도구 응답 중 에러 비율: `rate(arc.reactor.eval.tool.response.kind{kind="error_cause_first"}[5m]) / rate(arc.reactor.eval.tool.response.kind[5m])`
+- 도구별 빈 응답 비율: `rate(arc.reactor.eval.tool.response.kind{kind="empty"}[5m]) by (tool)`
+- 리스트 응답이 가장 많은 도구: `topk(5, sum by (tool) (arc.reactor.eval.tool.response.kind{kind="list_top_n"}))`
+
+#### 테스트 결과
+
+**EvaluationMetricsCollectorTest** 추가 (+3 tests, 총 16):
+- `도구 응답 분류는 kind와 tool 태그로 기록되어야 한다` — 여러 도구 × 여러 kind 조합
+- `빈 kind와 tool은 unknown으로 변환되어야 한다` — 빈 문자열 폴백
+- `기본 구현은 interface default no-op이어야 한다` — anonymous class 호환성
+
+**EvaluationMetricsHookTest** 추가 (+6 tests, 총 23):
+- `R223 toolSummary 메타데이터가 있으면 SummaryKind별 카운터를 기록해야 한다`
+- `동일 도구의 여러 호출은 각각 기록되어야 한다` (2회 호출 → exactly=2)
+- `toolSummary 엔트리가 없으면 recordToolResponseKind를 호출하지 않아야 한다`
+- `toolSummaryCount 카운터는 recordToolResponseKind 대상이 아니어야 한다`
+- `ToolResponseSummary가 아닌 값은 무시되어야 한다` (타입 안전성)
+- `underscore 포함 도구 이름이 올바르게 파싱되어야 한다` (`confluence_search_by_text`)
+
+**기존 테스트 회귀**: R219/R220/R221/R222/R223 모두 PASS. R220 Golden snapshot 5개 해시 재확인 완료.
+
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+- 전체 arc-core 테스트 실행 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미수정
+- ✅ 도구 호출/응답 path 영향 없음
+- ✅ 메트릭은 응답 이후 관측 단계
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료 (byte-identical 유지)
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 요약 분류는 순수 관측 레이어, 대화 이력에 섞이지 않음
+
+#### opt-in / 활성화 조합
+
+| R222 (Evaluation) | R223 (Summarizer) | 효과 |
+|-------------------|-------------------|------|
+| disabled | disabled | 오버헤드 0, 기록 없음 |
+| disabled | enabled | 요약만 metadata에 저장, 메트릭 기록 없음 |
+| enabled | disabled | task/tool/cost/override/safety 메트릭만 기록, kind 메트릭 비어있음 |
+| **enabled** | **enabled** | **전체 시너지**: 6개 기존 메트릭 + 신규 kind 메트릭 |
+
+#### 연속 지표
+
+| 지표 | R223 | R224 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 54 | **55 🎯** | **55 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 | **4/5 + R224 심화** | - |
+
+#### 다음 Round 후보
+
+- **R225+**: Directive 4개가 완료되었고 R224로 첫 시너지가 실현되었다. 가능한 방향:
+  1. **Prompt Layer 심화** (#94 연속): `PromptLayerRegistry`를 활용한 워크스페이스 프로파일 오버라이드. byte-identical 원칙 유지하면서 계층별 on/off 가능하게 확장
+  2. **Tool Approval 심화** (#95 연속): `ApprovalContextResolver`의 프로덕션 사용 사례 (예: JiraToolApprovalContextResolver, BitbucketToolApprovalContextResolver)
+  3. **Evaluation 대시보드** (#96 + R224 연속): Grafana 대시보드 JSON 템플릿 docs에 추가 + 쿼리 예시
+  4. **Gemini 쿼터 회복 후 QA 측정 루프 재개**: Directive 작업 효과 정량 비교
+
+#### 📊 R224 요약
+
+🔗 **R222+R223 시너지 실현**. `EvaluationMetricsCollector`에 `recordToolResponseKind(kind, toolName)` **default no-op 메서드**를 추가하여 기존 구현체/테스트 모두 backward compat. `MicrometerEvaluationMetricsCollector`가 override하여 `arc.reactor.eval.tool.response.kind{kind, tool}` 신규 카운터 기록. `EvaluationMetricsHook.afterAgentComplete`가 종료 시점에 `HookContext.metadata`의 `toolSummary_*` 엔트리를 스캔하여 `SummaryKind`별 카운터 기록. R223의 `ToolResponseSummarizerHook`과 독립 (cross-hook 없음). 신규 파일 0개, 기존 파일 5개 수정 (가장 작은 변경 규모). 신규 테스트 **9 PASS** (collector 3 + hook 6), 기존 R219/R220/R221/R222/R223 테스트 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224 심화 연결**. swagger-mcp 8181 **🎯 55 라운드 마일스톤 달성**. R222+R223 조합 시 도구 응답 품질 분포(예: "jira_search의 empty 비율", "bitbucket_list_prs의 error 비율")를 Prometheus 쿼리로 정량 관측 가능.
