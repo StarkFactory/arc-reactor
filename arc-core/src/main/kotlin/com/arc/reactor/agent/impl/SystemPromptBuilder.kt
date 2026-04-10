@@ -819,10 +819,16 @@ internal class SystemPromptBuilder(
                 append("\nFor this request, you MUST call `bitbucket_review_sla_alerts` or `bitbucket_review_queue` before answering.")
                 append(" Prefer `bitbucket_review_sla_alerts` for risk summaries and `bitbucket_review_queue` for reviewer backlog.")
             }
+            matchesHints(userPrompt, MY_AUTHORED_PR_HINTS) -> appendToolForcing(
+                "`bitbucket_my_authored_prs`",
+                " The default requester email is auto-injected; do not ask the user for their email. " +
+                    "Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+            )
             matchesHints(userPrompt, BITBUCKET_HINTS) &&
                 matchesHints(userPrompt, MY_REVIEW_HINTS) -> appendToolForcing(
                 "`bitbucket_review_queue`",
-                " Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
+                " The default requester email is auto-injected as the reviewer identity. " +
+                    "Use default workspace/repository values when the user omits them and do not ask follow-up questions before the first tool call."
             )
             matchesHints(userPrompt, BITBUCKET_HINTS) &&
                 matchesHints(userPrompt, REVIEW_QUEUE_HINTS) -> appendToolForcing(
@@ -1186,7 +1192,15 @@ internal class SystemPromptBuilder(
         private val STALE_HINTS = setOf("stale", "오래된", "방치된")
         private val MY_REVIEW_HINTS = setOf(
             "내가 검토", "검토해야", "review for me", "needs review",
-            "리뷰가 필요한", "검토가 필요한"
+            "리뷰가 필요한", "검토가 필요한",
+            "리뷰 대기", "리뷰대기", "리뷰 필요", "리뷰필요",
+            "review pending", "waiting for review", "리뷰 중", "리뷰중"
+        )
+        /** 본인 작성 PR — bitbucket_my_authored_prs 강제 트리거 */
+        private val MY_AUTHORED_PR_HINTS = setOf(
+            "내 pr", "내가 작성한 pr", "내가 올린 pr", "내가 쓴 pr",
+            "my pr", "my prs", "my pull request", "my pull requests",
+            "내 풀 리퀘스트", "내 풀리퀘스트", "작성한 pr", "올린 pr"
         )
         private val SCHEMA_HINTS = setOf("schema", "스키마", "model", "dto")
         private val DETAIL_HINTS = setOf("detail", "상세", "parameter", "response", "security")
