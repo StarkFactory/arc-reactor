@@ -68,6 +68,7 @@ import org.springframework.context.annotation.Import
     BudgetConfiguration::class,
     ToolDescriptionEnrichmentConfiguration::class,
     SlaMetricsConfiguration::class,
+    EvaluationMetricsConfiguration::class,
     ToolDependencyConfiguration::class,
     SloAlertConfiguration::class,
     CostAnomalyConfiguration::class,

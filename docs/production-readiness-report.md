@@ -11042,3 +11042,156 @@ ToolCallOrchestrator.checkToolApproval
 #### 📊 R221 요약
 
 🛠️ **Directive #1 Tool Approval 4단계 정보 구조화 완료**. `ApprovalContext` (reason/action/impactScope/reversibility) + `Reversibility` enum + `ApprovalContextResolver` fun interface + `HeuristicApprovalContextResolver` 샘플 구현체 신규 추가. 기존 `ToolApprovalRequest`/`ApprovalSummary`에 nullable `context` 필드 추가 (backward compat). `PendingApprovalStore.requestApproval`에 optional context 파라미터 추가. Flyway V52로 `pending_approvals.context_json TEXT` 컬럼 추가 (IF NOT EXISTS). `ToolCallOrchestrator`는 `ObjectProvider<ApprovalContextResolver>` 기반 opt-in enrichment, resolver 예외는 fail-open. 신규 테스트 **39 PASS** (ApprovalContextTest 17 + HeuristicApprovalContextResolverTest 22), 기존 테스트 회귀 없음, R220 Golden snapshot 5개 해시 불변 확인. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **2/5 완료 (#94 Prompt Layer, #95 Tool Approval)**. swagger-mcp 8181 **52 라운드 연속** 안정.
+
+### Round 222 — 🛠️ 2026-04-11T04:00+09:00 — Directive #5: Evaluation 상세 메트릭 추가 (opt-in, Hook 기반)
+
+**작업 종류**: Directive 기반 코드 개선 (QA 측정 없음)
+**Directive 패턴**: #5 Benchmark-Aware Evaluation Loop
+**완료 태스크**: #96
+
+#### 작업 배경
+
+`docs/agent-work-directive.md` §3.5는 "기능 추가 전후를 평가셋으로 비교한다"를 원칙으로 제시하며 6가지 기본 지표를 요구한다:
+
+1. task success rate
+2. average tool calls
+3. latency
+4. token cost
+5. human override rate
+6. safety rejection accuracy
+
+기존 `SlaMetrics`/`AgentMetrics`는 SLO 보고용·운영 관측용이며 평가셋 기반 개선 측정과는 목적이 다르다. R222는 **분리된 관측 계층**으로 평가 메트릭 수집기를 도입한다.
+
+또한 `docs/agent-work-directive.md` 원칙 1.5 "측정 없는 개선 금지"를 이행하기 위해 이후 Round의 개선 효과를 정량적으로 비교할 수 있는 기반을 먼저 세운다.
+
+#### 설계 원칙
+
+1. **분리된 관측 계층** — `SlaMetrics`/`AgentMetrics` 수정 없이 새 계층 추가
+2. **Hook 기반 통합** — 기존 `AfterAgentCompleteHook` 메커니즘만 사용, 핵심 실행 경로 미수정
+3. **opt-in 활성화** — 기본 no-op, 사용자가 `arc.reactor.evaluation.metrics.enabled=true` 설정 시에만 Hook 등록
+4. **Fail-open 원칙** — collector 예외도 Hook 예외도 모두 삼킴, 핵심 실행 방해 금지
+5. **3대 최상위 제약 준수** — MCP, Redis 캐시, 컨텍스트 관리 경로 전혀 미수정
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `agent/metrics/EvaluationMetricsCollector.kt` | 149 | 인터페이스 + `NoOpEvaluationMetricsCollector` + `HumanOverrideOutcome`/`SafetyRejectionStage` enum |
+| `agent/metrics/MicrometerEvaluationMetricsCollector.kt` | 113 | Micrometer 기반 구현체 (6 메트릭, fail-open) |
+| `agent/metrics/EvaluationMetricsHook.kt` | 180 | `AfterAgentCompleteHook` 어댑터 — 메타데이터 파싱 + collector 호출 |
+| `autoconfigure/EvaluationMetricsConfiguration.kt` | 90 | 자동 구성 (no-op 기본, Micrometer 존재 시 자동 업그레이드, 프로퍼티로 Hook 활성화) |
+| `test/.../EvaluationMetricsCollectorTest.kt` | 237 | 13 tests (NoOp + Micrometer + enum 정의) |
+| `test/.../EvaluationMetricsHookTest.kt` | 317 | 17 tests (메타데이터 파싱 + fail-open + HITL + safety 분기) |
+
+**총 6개 신규 파일 1086줄 추가. 기존 파일 1개 수정** (`ArcReactorAutoConfiguration.kt`에 `@Import`만 추가).
+
+#### 수집되는 6개 메트릭
+
+| 메트릭 이름 | 유형 | 태그 | 수집 경로 |
+|-------------|------|------|-----------|
+| `arc.reactor.eval.task.completed` | Counter | `result`, `error_code` | `AgentResponse.success` + `errorCode` |
+| `arc.reactor.eval.task.duration` | Timer | `result` | `AgentResponse.totalDurationMs` |
+| `arc.reactor.eval.tool.calls` | DistributionSummary | — | `AgentResponse.toolsUsed.size` |
+| `arc.reactor.eval.token.cost.usd` | Counter | `model` | `hookContext.metadata["costEstimateUsd"]` |
+| `arc.reactor.eval.human.override` | Counter | `outcome`, `tool` | `hookContext.metadata["hitlApproved_*"]` |
+| `arc.reactor.eval.safety.rejection` | Counter | `stage`, `reason` | `hookContext.metadata["blockReason"]` + `errorCode` |
+
+#### Hook 파싱 로직
+
+`EvaluationMetricsHook.afterAgentComplete`가 `HookContext.metadata`에서 다음 키를 자동으로 읽는다:
+
+- **비용**: `costEstimateUsd` (String 또는 Number). `ExecutionResultFinalizer`가 설정.
+- **HITL**: `hitlApproved_{suffix}` (Boolean). `ToolCallOrchestrator.recordApprovalMetadata`가 설정. suffix에서 도구 이름 추출.
+  - `true` → `APPROVED`
+  - `false` + 거부 사유에 "timed out" 포함 → `TIMEOUT`
+  - 기타 → `REJECTED`
+- **안전 거부**: `blockReason` (String) + `errorCode` 조합으로 stage 분류
+  - `OUTPUT_GUARD_REJECTED` → `OUTPUT_GUARD`
+  - `GUARD_REJECTED` → `GUARD`
+  - `HOOK_REJECTED` → `HOOK`
+  - `blockReason`만 존재 → `GUARD` (기본 추정)
+
+파싱 실패/누락 시 해당 메트릭만 건너뛴다. 전체 Hook은 `try/catch`로 감싸져 예외를 절대 전파하지 않는다.
+
+#### 자동 구성 동작
+
+**기본 상태** (`enabled=false`):
+- `NoOpEvaluationMetricsCollector` 주입 → 모든 메서드가 즉시 반환 → 오버헤드 0
+- `EvaluationMetricsHook` 빈 등록 안 됨 → Hook 체인에 참여 안 함
+
+**`arc.reactor.evaluation.metrics.enabled=true` 설정 시**:
+- `MeterRegistry` 빈이 있으면 `MicrometerEvaluationMetricsCollector`가 `@Primary`로 주입
+- `MeterRegistry` 없으면 `NoOpEvaluationMetricsCollector` 유지
+- `EvaluationMetricsHook` 빈이 등록되어 `AfterAgentCompleteHook` 체인에 자동 참여
+
+**사용자 커스텀 수집기** 등록 시 자동으로 no-op 대체:
+```kotlin
+@Bean
+fun myCollector(): EvaluationMetricsCollector = MyCustomCollector()
+```
+
+#### 테스트 결과
+
+```
+EvaluationMetricsCollectorTest                → 13 tests PASS
+  - NoOp behavior (3)
+  - Enum definitions (2)
+  - Micrometer behavior (8, SimpleMeterRegistry 기반)
+EvaluationMetricsHookTest                     → 17 tests PASS
+  - Basic recording (3)
+  - Cost recording (4)
+  - Human override recording (3)
+  - Safety rejection recording (4)
+  - Fail-open behavior (3)
+```
+
+- 기존 R219 `AgentErrorPolicyTest`, R220 `SystemPromptBuilderGoldenSnapshotTest` (5 hash 불변 확인), R221 `ApprovalContextTest` / `HeuristicApprovalContextResolverTest` 전부 회귀 없음
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 도구 description/파라미터/SSE 경로 미수정
+- ✅ `ArcToolCallbackAdapter`, `McpToolRegistry`, `ToolResponsePayloadNormalizer` 미수정
+- ✅ 도구 호출 arguments/response 전혀 건드리지 않음
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 SHA-256 해시 재실행 확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationManager`, `ConversationMessageTrimmer` 미수정
+- ✅ Slack 스레드 경로 미수정
+- ✅ 계층적 메모리 주입 순서 불변
+
+#### opt-in / 성능 오버헤드
+
+- **기본 오버헤드**: 0 (`NoOpEvaluationMetricsCollector`는 모든 메서드가 empty body)
+- **활성화 시 오버헤드**: Hook 1회 호출 + Micrometer 카운터/타이머 기록 (마이크로초 단위)
+- **메모리**: 메트릭당 tag 카디널리티 × 메모리 (Micrometer 표준)
+
+#### 연속 지표
+
+| 지표 | R221 | R222 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 52 | **53** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 2/5 | **3/5** | #94, #95, #96 |
+
+#### 다음 Round 후보
+
+- **R223**: `#97 ACI 도구 출력 요약 계층`
+  - 범위가 크지만 R222로 평가 인프라가 생겼으므로 이후 개선 효과를 정량적으로 측정 가능
+  - 원칙상 MCP 호환성 최우선 — `ToolResponsePayloadNormalizer` 주변에 additive-only 계층 추가
+  - `MemoryStore` 저장과 LLM 전달을 분기하는 설계 필요
+
+#### 📊 R222 요약
+
+🛠️ **Directive #5 Evaluation 상세 메트릭 추가 완료**. `EvaluationMetricsCollector` 인터페이스 + `NoOpEvaluationMetricsCollector`(기본) + `MicrometerEvaluationMetricsCollector`(opt-in) + `EvaluationMetricsHook`(AfterAgentCompleteHook 어댑터) + `EvaluationMetricsConfiguration`(자동 구성) 추가. 6개 핵심 지표(task success, latency, tool calls, token cost, human override, safety rejection)를 Hook 기반으로 수집. 기존 핫 패스 전혀 미수정, `arc.reactor.evaluation.metrics.enabled=true` 속성으로만 활성화. 신규 테스트 **30 PASS** (collector 13 + hook 17), 기존 R219/R220/R221 테스트 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **3/5 완료 (#94 Prompt Layer, #95 Tool Approval, #96 Evaluation)**. swagger-mcp 8181 **53 라운드 연속** 안정. "측정 없는 개선 금지" 원칙을 이행하기 위한 기반이 마련되어 R223+ 작업의 효과를 정량 비교할 수 있게 되었다.
