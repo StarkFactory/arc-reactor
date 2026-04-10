@@ -4215,3 +4215,87 @@ R170 baseline 측정에서 **D1/D2/D4 모두 tools=0** (약 1.5~1.9초로 매우
 - 병렬 20 시나리오 측정 flakiness — ratelimiter 설정 완화 or 측정 스크립트 재시도 로직 추가
 
 **R170 요약**: D 카테고리 근본 원인 발견 ("검증 가능한 출처를 찾지 못해" 차단 패턴) + `MY_AUTHORED_PR_HINTS` 추가로 D1 단건 완벽 작동 확인. 인프라 IPv6 이슈도 `java -jar` 방식으로 회피. D2/D4는 다음 라운드 과제. 중복 호출 0건 유지.
+
+### Round 171 — 2026-04-10T15:50+09:00 (D2/D4 ForcedToolPlanner 해결)
+
+**HEALTH**: arc-reactor UP (java -jar 직접 실행), swagger-mcp UP, atlassian-mcp UP
+**BUILD**: arc-core compileKotlin + bootJar PASS (0 warnings)
+**TEST**: arc-core 전체 PASS (R171에서 추가한 테스트 케이스 포함)
+
+#### 근본 원인 분석 (R170 잔여 과제)
+R170에서 D1은 SystemPromptBuilder 힌트만으로 해결됐지만, **D2/D4는 여전히 LLM이 도구 호출 거부**:
+- D2 "리뷰 대기 중인 PR 있어?" → tools=[]
+- D4 "BB30 저장소 최근 PR 3건" → tools=[]
+
+조사 결과:
+1. SystemPromptBuilder의 `appendBitbucketToolForcing` 분기에 힌트 추가했지만 **Gemini가 system prompt 지시를 무시**
+2. 문제는 프롬프트 힌트 수준이 아니라 **서버 측 강제 실행** 필요
+3. `WorkContextForcedToolPlanner.plan()` 체인이 LLM 호출 전에 도구를 선제적으로 실행
+4. 하지만 `WorkContextBitbucketPlanner.planBitbucketPersonal`이:
+   - `bitbucketMyReviewHints`가 너무 좁음 (`내가 검토`만)
+   - `isPersonal=false`이면 null 반환 → "리뷰 대기"는 isPersonal=false라 놓침
+   - `bitbucket_my_authored_prs` 라우팅 자체가 없음
+
+#### Task #12: ForcedToolPlanner 강화 (R171 핵심 수정)
+
+**파일**: `arc-core/src/main/kotlin/com/arc/reactor/agent/impl/WorkContextBitbucketPlanner.kt`
+
+**변경 내역**:
+1. `bitbucketMyReviewHints` 확장 — "리뷰 대기", "리뷰 필요", "review pending" 추가
+2. `bitbucketMyAuthoredHints` 신규 상수 추가 — "내가 작성한 pr", "my pr" 등
+3. `planBitbucketPersonal` 재설계:
+   - `isPersonal` 체크 제거 (인칭 대명사 없어도 reviewer는 requesterEmail 자동 매핑)
+   - `bitbucketMyAuthoredHints` 매칭 시 `bitbucket_my_authored_prs` 라우팅 추가
+   - **`hasHybridReleaseContext` 가드** 추가: blocker/hybrid/release_readiness 컨텍스트가 함께 있으면 통합 도구(work_release_risk_digest)가 우선이므로 이 plan 건너뛰기
+
+**테스트 업데이트**: `arc-core/src/test/.../WorkContextSubPlannerTest.kt`
+- `isPersonal=false`에서도 review hint면 `bitbucket_review_queue` 반환 검증
+- `내가 작성한 pr` → `bitbucket_my_authored_prs` 검증
+- 기존 `WorkContextForcedToolPlannerTest`의 hybrid release risk 테스트 유지 (R171 hybrid context guard로 회귀 방지)
+
+#### 검증 결과 (단건)
+
+**D2** "리뷰 대기 중인 PR 있어?":
+```
+tools: ['bitbucket_review_queue'] ✅
+ms: 3819
+content: "리뷰 대기 중인 PR을 찾아드릴 수 있지만, 어떤 저장소(repository)를 확인해야 할지 알려주시면..."
+```
+도구 호출 성공, 사용자에게 명확한 후속 안내 제공 (repo 미지정 시).
+
+**D4** "BB30 저장소 최근 PR 3건":
+```
+tools: ['bitbucket_list_repositories'] ✅
+ms: 11321
+content: "'BB30' 저장소를 Bitbucket에서 찾을 수 없습니다. 혹시 Jira 프로젝트 'BB30'의 이슈를 찾고 계신가요?"
+출처: 50개 ihunet 레포 목록
+```
+**Disambiguation 자동 작동** — R169에 추가한 disambiguation hint가 실제 응답으로 이어짐!
+
+**D1** "내가 작성한 PR 현황 알려줘":
+```
+tools: ['bitbucket_my_authored_prs'] ✅ (R170 fix 회귀 없음)
+```
+
+#### 인프라 운영 노트
+- 시작 시 atlassian-mcp + swagger-mcp 둘 다 down 발견 → 재시작 필요
+- atlassian-mcp는 gradle bootRun 데몬 이슈 → `java -jar atlassian-mcp-server-1.0.0.jar` 직접 실행으로 해결
+- arc-reactor 시작 후 MCP 자동 연결 실패 빈도가 높음 → 수동 `/api/mcp/servers/{name}/connect` 호출 필요
+- **다음 라운드 과제**: MCP 연결 retry/backoff 로직 개선 검토
+
+#### 측정 결과 (R171)
+- 단건 D1/D2/D4 모두 도구 호출 성공 ✅
+- 중복 호출: 0건 유지
+- 응답 품질: D2/D4 모두 사용자 친화 응답 + 명확한 후속 안내
+
+#### 코드 수정 파일 (R171)
+1. `arc-core/.../WorkContextBitbucketPlanner.kt` — Forced planner 확장
+2. `arc-core/src/test/.../WorkContextSubPlannerTest.kt` — 테스트 업데이트
+
+#### 남은 과제 (R172~)
+- MCP 연결 자동 복구 — arc-reactor 시작 시 MCP 서버가 늦게 올라와도 자동 재연결
+- 병렬 측정 스크립트 안정화 — rate limit 회피
+- D 카테고리 인사이트 포함률 — 실제 데이터가 적은 환경에서도 의미 있는 응답 (내장 fallback insights)
+- A4 forcedTool 재검증
+
+**R171 요약**: WorkContextBitbucketPlanner를 hybrid release context-aware로 확장. **D2/D4 두 시나리오 모두 단건 검증 완료** — `bitbucket_review_queue` + `bitbucket_list_repositories` 자동 호출. R169 disambiguation hint와 R170 my_authored_prs hint가 ForcedToolPlanner 레벨에서 통합 작동. 중복 호출 0건 유지. 전체 arc-core 테스트 PASS.

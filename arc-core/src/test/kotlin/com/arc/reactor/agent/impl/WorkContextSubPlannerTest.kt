@@ -189,12 +189,15 @@ class WorkContextSubPlannerTest {
             }
 
             @Test
-            fun `isPersonal 이 false 이면 null 을 반환해야 한다`() {
+            fun `isPersonal 이 false 여도 review 힌트가 있으면 review_queue 를 반환해야 한다`() {
+                // R171: review hint는 isPersonal 여부와 무관하게 트리거되어야 한다.
+                // requesterEmail이 자동 주입되므로 reviewer는 서버 측에서 결정된다.
                 val plan = WorkContextBitbucketPlanner.planBitbucketPersonal(
                     ctx("내가 검토해야 할 pr", isPersonal = false)
                 )
 
-                assertNull(plan, "isPersonal=false이면 plan이 null이어야 한다")
+                assertNotNull(plan, "review 힌트가 있으면 isPersonal 여부와 무관하게 plan 반환")
+                plan!!.toolName shouldBe "bitbucket_review_queue"
             }
 
             @Test
@@ -204,6 +207,16 @@ class WorkContextSubPlannerTest {
                 )
 
                 assertNull(plan, "매칭 힌트가 없으면 plan이 null이어야 한다")
+            }
+
+            @Test
+            fun `내가 작성한 PR 힌트는 bitbucket_my_authored_prs 를 반환해야 한다`() {
+                // R171: my_authored_prs hint는 isPersonal 무관하게 작동
+                val plan = WorkContextBitbucketPlanner.planBitbucketPersonal(
+                    ctx("내가 작성한 pr 보여줘", isPersonal = false)
+                )
+                assertNotNull(plan, "my_authored_prs hint가 있으면 plan 반환")
+                plan!!.toolName shouldBe "bitbucket_my_authored_prs"
             }
         }
 
