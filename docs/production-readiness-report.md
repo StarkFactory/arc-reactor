@@ -13849,3 +13849,240 @@ R235는 Prompt Layer 축의 두 번째 성숙 단계다. 다른 축과 달리 ru
 #### 📊 R235 요약
 
 📐 **R220 심화: PromptLayerProfile 도입 (passive introspection)**. R220 `PromptLayer`/`PromptLayerRegistry` 도입 이후 16라운드 동안 휴면 상태였던 Prompt Layer 축을 다시 활성화. `SystemPromptBuilder` 출력을 **한 글자도 건드리지 않으면서** 선언적 프로파일 모델과 Registry introspection 확장을 추가. `PromptLayerProfile` data class는 `enabledLayers: Set<PromptLayer>`로 어떤 계층이 활성화될 것인지 표현하며, 5개 상수(ALL_LAYERS / WORKSPACE_FOCUSED / MINIMAL / SAFETY_ONLY / EMPTY) + 8개 빌더 메서드(withLayer/withoutLayer/isEnabled/isFullyEnabled 등) 제공. `PromptLayerRegistry`에 2개 확장 함수(`filterMethodsByProfile`, `isMethodEnabled`) 추가 — Registry 객체 자체는 미수정 (Kotlin 관용 패턴). 신규 파일 2개 (PromptLayerProfile 285줄 + 테스트 380줄), **기존 파일 수정 0건**. 신규 테스트 **33 PASS** (9 @Nested 그룹 포함 **ByteIdenticalInvariance**). **R220 `SystemPromptBuilderGoldenSnapshotTest` 5개 해시 재확인 완료** ⭐ — 프로파일은 completely passive. 기존 R219~R234 테스트 모두 회귀 없음. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R235**. swagger-mcp 8181 **66 라운드 연속** 안정. R220의 "Foundation" 단계 위에 **"Introspection Profile"** 두 번째 단계 추가 완료. Runtime gating은 cache flush 이벤트로 사용자 승인이 필요하므로 R236+ 또는 사용자 확장 영역으로 남김.
+
+### Round 236 — 🩺 2026-04-11T11:00+09:00 — DoctorDiagnostics: R225~R235 활성화 상태 진단 서비스
+
+**작업 종류**: Directive 심화 — 배포 후 설정 검증 도구 (QA 측정 없음)
+**Directive 패턴**: Observability 축 확장
+**완료 태스크**: #111
+
+#### 작업 배경
+
+R221~R235 사이에 도입한 opt-in 기능이 10개가 넘어갔다:
+
+- R225 AtlassianApprovalContextResolver
+- R227 Atlassian + Heuristic 자동 체이닝
+- R228/R229 Approval PII Redaction (+자동 구성)
+- R230 ChainedToolResponseSummarizer
+- R231/R232 Tool Response PII Redaction (+자동 구성)
+- R222/R224 Evaluation Metrics (+R224 시너지)
+- R235 PromptLayerProfile
+
+각 기능은 서로 다른 `@ConditionalOnProperty` 속성으로 활성화되며, 사용자 입장에서는 **"내 YAML이 의도대로 반영됐는지"** 확인할 방법이 없었다. 속성 하나를 틀리면 엉뚱한 조합이 활성화되거나, PII 마스킹이 꺼진 상태로 운영될 수 있다.
+
+R236은 **read-only 진단 서비스**를 도입하여 사용자가 한 번의 호출로 모든 opt-in 기능의 현재 상태를 확인할 수 있게 한다. "doctor command" 비유 — 시스템 건강 상태를 한눈에 파악하는 도구.
+
+#### 설계 원칙
+
+1. **Read-only**: 진단 자체는 시스템 상태를 전혀 변경하지 않음 (메트릭 1회 기록은 sanity check용으로 의도적)
+2. **Fail-safe**: 각 섹션 진단은 try/catch로 격리 — 한 섹션 예외가 다른 섹션 진단을 막지 않음
+3. **ObjectProvider 기반 optional DI**: 모든 빈이 등록되지 않아도 `DoctorDiagnostics` 자체는 항상 동작
+4. **항상 등록**: 오버헤드가 거의 없으므로 opt-in property 없이 자동 구성으로 항상 등록
+5. **구조화된 출력**: 단순 String 로그가 아닌 `DoctorReport` 객체 — REST API로 쉽게 노출 가능
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `diagnostics/DoctorReport.kt` | 110 | `DoctorReport` / `DoctorSection` / `DoctorCheck` / `DoctorStatus` 데이터 모델 |
+| `diagnostics/DoctorDiagnostics.kt` | 320 | 진단 서비스 — 4개 섹션 진단 로직 |
+| `autoconfigure/DoctorDiagnosticsConfiguration.kt` | 55 | `@AutoConfiguration` + `@ConditionalOnMissingBean` |
+| `test/.../DoctorDiagnosticsTest.kt` | 385 | 19 tests (8 `@Nested` 그룹) |
+
+**기존 파일 수정 1개**: `ArcReactorAutoConfiguration.kt`의 `@Import`에 `DoctorDiagnosticsConfiguration::class` 한 줄 추가.
+
+#### 진단 대상 4개 섹션
+
+| 섹션 | 검사 항목 | R225~R235 기능 참조 |
+|------|-----------|---------------------|
+| **Approval Context Resolver** | resolver bean / PII 마스킹 (R228) / sample resolve | R225-R229 |
+| **Tool Response Summarizer** | summarizer bean / PII 마스킹 (R231) / sample summarize | R223/R230-R232 |
+| **Evaluation Metrics Collector** | collector bean / metric catalog (R234) / sample record | R222/R224/R234 |
+| **Prompt Layer Registry** | classified methods / layer coverage / path independence | R220/R235 |
+
+#### 4가지 상태 분류
+
+```kotlin
+enum class DoctorStatus {
+    OK,       // 정상 동작
+    SKIPPED,  // 기능이 활성화되지 않음 (의도된 상태일 수 있음)
+    WARN,     // 권장 설정과 어긋나거나 부분적 문제
+    ERROR     // 기능이 등록되었으나 제대로 동작하지 않음
+}
+```
+
+**판별 예시**:
+- Approval resolver가 `AtlassianApprovalContextResolver` 단독 → `WARN` (R228 PII 마스킹이 비활성 → 감사 로그 PII 노출 위험)
+- `RedactedApprovalContextResolver`로 래핑된 상태 → `OK`
+- resolver 빈이 `null` → `SKIPPED` (enrichment 비활성 — 의도된 기본 상태)
+- resolver가 예외 던지면 → sample resolve 체크가 `WARN`으로 표시
+
+#### 핵심 진단 로직
+
+```kotlin
+private fun diagnoseApprovalResolver(): DoctorSection {
+    val resolver = approvalResolverProvider.ifAvailable ?: return skippedSection()
+
+    val checks = mutableListOf<DoctorCheck>()
+    checks.add(DoctorCheck("resolver bean", OK, "등록됨: ${resolver::class.simpleName}"))
+
+    // R228 PII 마스킹 확인 — 타입 체크로 간단히 판별
+    val isRedacted = resolver is RedactedApprovalContextResolver
+    checks.add(DoctorCheck(
+        name = "PII 마스킹 (R228)",
+        status = if (isRedacted) OK else WARN,
+        detail = if (isRedacted) "활성" else "비활성 — 감사 로그 PII 노출 위험"
+    ))
+
+    // Sanity check — 샘플 도구로 resolve 호출
+    val sample = try {
+        resolver.resolve("jira_get_issue", mapOf("issueKey" to "SAMPLE-1"))
+    } catch (e: Exception) { null }
+    checks.add(DoctorCheck(
+        name = "sample resolve",
+        status = if (sample != null) OK else WARN,
+        detail = if (sample != null) "정상 응답" else "응답 없음"
+    ))
+
+    return DoctorSection("Approval Context Resolver", ..., checks, ...)
+}
+```
+
+#### `DoctorReport` API
+
+```kotlin
+data class DoctorReport(
+    val generatedAt: Instant,
+    val sections: List<DoctorSection>
+) {
+    fun allHealthy(): Boolean              // WARN/ERROR 없으면 true
+    fun hasErrors(): Boolean                // ERROR 있으면 true
+    fun hasWarningsOrErrors(): Boolean      // WARN 또는 ERROR 있으면 true
+    fun summary(): String                    // "4 섹션 — OK 3, WARN 1"
+}
+```
+
+#### 사용 예
+
+```kotlin
+// REST 엔드포인트
+@RestController
+class DoctorController(private val doctor: DoctorDiagnostics) {
+    @GetMapping("/admin/doctor")
+    fun report(): DoctorReport = doctor.runDiagnostics()
+}
+
+// 또는 startup logger
+@Component
+class StartupLogger(private val doctor: DoctorDiagnostics) : ApplicationRunner {
+    override fun run(args: ApplicationArguments?) {
+        val report = doctor.runDiagnostics()
+        logger.info { report.summary() }
+        if (report.hasWarningsOrErrors()) {
+            report.sections.filter { it.status != DoctorStatus.OK && it.status != DoctorStatus.SKIPPED }
+                .forEach { logger.warn { it } }
+        }
+    }
+}
+```
+
+#### 테스트 결과
+
+```
+DoctorDiagnosticsTest                          → 19 tests PASS
+  @Nested DefaultState (2)
+    - 모든 기능 비활성 → 3 SKIPPED + 1 OK (Prompt Layer)
+    - NoOp 구현체도 SKIPPED로 판단
+  @Nested ApprovalSection (3)
+    - Atlassian 단독 → WARN (PII 마스킹 비활성)
+    - Redacted 래핑 → OK
+    - resolver 예외 → sample resolve 체크 WARN
+  @Nested SummarizerSection (2)
+    - Default 단독 → WARN
+    - Redacted 래핑 → OK
+  @Nested EvaluationSection (1)
+    - Micrometer 등록 → OK + 7개 메트릭 언급
+  @Nested PromptLayerSection (1)
+    - Registry 기본 OK (3개 체크)
+  @Nested ReportHelpers (3)
+    - summary 포맷
+    - allHealthy WARN → false
+    - hasErrors SKIPPED/OK만 → false
+  @Nested SafeRunBehavior (1)
+    - 한 섹션 예외가 다른 섹션 진단 막지 않음
+  @Nested AutoConfigIntegration (4) ⭐
+    - ApplicationContextRunner 기반
+    - 기본 빈 등록 확인
+    - Atlassian + Redaction → OK
+    - Summarizer + Redaction → OK
+    - 전체 opt-in → 모든 섹션 healthy
+```
+
+**`AutoConfigIntegration` 그룹**이 가장 중요 — 실제 Spring 컨텍스트에서 R225/R227/R228/R229/R231/R232 auto-config들이 함께 로드된 상태에서 진단이 정확히 동작하는지 end-to-end로 검증한다.
+
+**기존 R219~R235 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 불변
+- R228 27 / R231 22 / R227 14 / R229 11 / R230 20 / R232 12 / R233 23 / R234 19 / R235 33 tests PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 전혀 미접근
+- ✅ 진단은 순수 read-only introspection
+- ✅ 도구 호출/응답 경로 미접근
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ 진단이 메트릭을 1회 기록하지만(sanity check) 이는 캐시와 무관
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `HookContext`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ 진단은 순수 빈 상태 조회
+
+#### opt-in / 기본값
+
+- **기본 상태**: `DoctorDiagnostics` 빈이 **항상 등록** (opt-in 프로퍼티 없음). 오버헤드가 매우 작고 사용자는 필요할 때만 주입해서 호출
+- **사용자 커스텀**: `@ConditionalOnMissingBean`으로 사용자가 확장 구현을 `@Bean`으로 등록하면 기본 빈 양보
+- **기존 사용자 영향**: 0 (추가만 있음)
+
+#### Observability 축 진화
+
+Arc Reactor의 **observability** 요소들:
+
+| 라운드 | 내용 |
+|--------|------|
+| R222 | EvaluationMetricsCollector + 6개 메트릭 |
+| R224 | R222+R223 시너지 (7번째 메트릭) |
+| R234 | EvaluationMetricsCatalog + 관측 문서 |
+| **R236** | **DoctorDiagnostics 진단 서비스** |
+
+R234가 "메트릭을 어떻게 읽는가"를 다뤘다면, R236은 "설정이 의도대로 되어 있는가"를 다룬다. 두 가지가 함께 있으면 사용자는 배포 직후 `/admin/doctor`로 현재 상태 확인 → `/admin/metrics`로 수집되는 메트릭 확인 → Grafana 대시보드 구성의 흐름을 단일 세션에서 완성할 수 있다.
+
+#### 연속 지표
+
+| 지표 | R235 | R236 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 66 | **67** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R235 | **4/5 + R224~R236** | - |
+
+#### 다음 Round 후보
+
+- **R237+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개** — R220 이후 첫 측정 세션
+  2. **Doctor command REST 엔드포인트** — arc-admin 모듈에 `/admin/doctor` 컨트롤러 추가
+  3. **Doctor 확장** — 추가 섹션 (RequestGuard, HookExecutor, MCP 연결 상태 등)
+  4. **새 Directive 축 탐색** — 5대 패턴이 거의 성숙
+
+#### 📊 R236 요약
+
+🩺 **DoctorDiagnostics 진단 서비스 완료**. R225~R235에서 도입한 10+개 opt-in 기능의 현재 활성화 상태를 **한 번의 호출로 진단**하는 read-only 서비스. 4개 섹션(Approval Context Resolver / Tool Response Summarizer / Evaluation Metrics Collector / Prompt Layer Registry) + 4가지 상태(OK / SKIPPED / WARN / ERROR) + sanity check (샘플 도구로 실제 resolve/summarize 호출). 핵심 로직: R228/R231 PII 마스킹이 꺼진 상태면 `WARN` 표시하여 감사 로그 PII 노출 위험 경고, R232와 같이 양쪽 활성화되면 `OK` 표시. Fail-safe 설계 — 각 섹션 진단이 try/catch로 격리되어 한 섹션 예외가 나머지 진단을 막지 않음. `ObjectProvider` 기반 optional DI로 어떤 빈도 등록되지 않은 기본 상태에서도 동작. 신규 파일 4개 (DoctorReport 110줄 + DoctorDiagnostics 320줄 + autoconfig 55줄 + 테스트 385줄), 기존 파일 1줄 수정 (`ArcReactorAutoConfiguration` @Import). 신규 테스트 **19 PASS** (8 @Nested 그룹: DefaultState/ApprovalSection/SummarizerSection/EvaluationSection/PromptLayerSection/ReportHelpers/SafeRunBehavior/**AutoConfigIntegration** ⭐). AutoConfigIntegration이 실제 Spring 컨텍스트에서 R225/R227/R228/R229/R231/R232 auto-config를 함께 로드하여 end-to-end 진단 검증. 기존 R219~R235 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R236**. swagger-mcp 8181 **67 라운드 연속** 안정. R234(관측 문서) + R236(설정 진단)이 함께 있으면 사용자는 배포 직후 "현재 상태 확인 → 수집되는 메트릭 확인 → Grafana 대시보드 구성"의 완전한 플로우를 단일 세션에서 완성할 수 있다.

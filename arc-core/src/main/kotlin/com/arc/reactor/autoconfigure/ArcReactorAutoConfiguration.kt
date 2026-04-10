@@ -73,6 +73,7 @@ import org.springframework.context.annotation.Import
     ToolResponseSummarizerPiiRedactionConfiguration::class,
     AtlassianApprovalResolverConfiguration::class,
     ApprovalPiiRedactionConfiguration::class,
+    DoctorDiagnosticsConfiguration::class,
     ToolDependencyConfiguration::class,
     SloAlertConfiguration::class,
     CostAnomalyConfiguration::class,
