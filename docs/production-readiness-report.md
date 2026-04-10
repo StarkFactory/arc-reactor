@@ -10474,3 +10474,111 @@ R210 forcing 제거 이후 9 라운드 연속 코드 변경 없이 측정 지표
 - **D3/D2 응답시간 개선** (13000ms대, 목표 <10000ms)
 
 **R217 요약**: 🏆 **8/8 METRICS ALL-MAX 37 라운드 누적**, **C 출처 45 라운드 연속 만점**, **swagger-mcp 8181 48 라운드 연속**. B4 variance 8 라운드 통계: Confluence rate **50%** (R216 57% → 50% 하락, R210 이후 장기 평균), Substantial content rate **87.5%**. B4 Clarification path 1999ms (tools=0, 구조화 bullet + 인사이트 포함). 평균 응답시간 6134ms (B -21%, C -10% 개선), 9개 시나리오 5초 이내. Admin 8/8, 빌드 PASS, 중복 0건. R210 이후 **9 라운드 연속 무변경**으로 시스템 안정성 증명.
+
+### Round 218 — ⚠️ 2026-04-11T02:27+09:00 — Gemini API 쿼터 소진 인프라 장애 (8/8 37 유지, 측정 불가)
+
+**HEALTH**: arc-reactor UP, swagger-mcp UP, atlassian-mcp UP — **그러나 Gemini API 429 Resource Exhausted**
+
+#### Task #90: R218 측정 중 쿼터 소진 발생
+
+##### R218 Round 1 결과 — ⚠️ 외부 인프라 장애
+
+| 카테고리 | 출처 | 인사이트 | 구조 | 비고 |
+|----------|------|----------|------|------|
+| A | 3/3 (3개 도구사용) | 3/3 | 3/4 | A2 완전 실패 (null content) |
+| B | 4/4 (4개 도구사용) | 4/4 | 4/5 | B5 완전 실패 |
+| C | 0/0 (0개 도구사용) | - | **0/4** | **C1~C4 전체 null content** |
+| D | 0/0 (0개 도구사용) | - | **0/4** | **D1~D4 전체 null content** |
+| E | - | - | 1/3 | E1/E3 null, E2만 OK |
+
+**실제 성공 (content_len > 50): 8/20**
+
+| 성공 (8) | 실패 (12) |
+|----------|-----------|
+| A1 854자 / A3 662자 / A4 843자 | A2, B5 |
+| B1 1185자 / B2 1415자 | C1, C2, C3, C4 |
+| B3 1089자 / B4 1654자 | D1, D2, D3, D4 |
+| E2 763자 | E1, E3 |
+
+#### 🚨 근본 원인: Gemini API 429 Resource Exhausted
+
+```
+Caused by: com.google.genai.errors.ClientException:
+  429 . Resource has been exhausted (e.g. check quota).
+  at com.google.genai.Models.processResponseForPrivateGenerateContent
+```
+
+**첫 429 발생**: 02:28:18 (A2 시점, R218 시작 49초 후)
+**로그 내 429 카운트**: 18회 (쿼터 소진 후 모든 요청 실패)
+**실패 모드**: 45초 타임아웃 → `content=null`, `errorCode=TIMEOUT`, `errorMessage=Request timed out`
+
+#### 쿼터 소진 원인 분석
+
+R186~R217 기간 동안 누적 API 호출:
+- 32 라운드 × 20 시나리오 = **640 시나리오**
+- 도구 호출 포함 시 평균 2~3 LLM call/scenario → **~1600 LLM 호출 추정**
+- Gemini Flash 무료 티어 일일 한도 (1500 RPD) 근접/초과
+
+R217 완료 시각: 02:20+09:00
+R218 시작 시각: 02:27+09:00
+쿼터 경계 도달: 02:28:18 (R218 A2)
+
+#### 시스템 동작 검증 (쿼터 소진 하)
+
+✅ **기대 동작 확인**:
+1. **Spring AI Retry**: `o.s.a.r.a.SpringAiRetryAutoConfiguration - Retry error. Retry count: 1` — retry 메커니즘 정상 동작
+2. **45s 타임아웃**: `SpringAiAgentExecutor - 요청 타임아웃: 45000ms 경과` — R209 45초 설정 적용
+3. **Graceful degradation**: content=null + errorCode=TIMEOUT 응답 (500 에러 아님, HTTP 200)
+4. **서버 안정성**: 18회 연속 429에도 arc-reactor 프로세스 정상 (UP)
+5. **중복 호출 0건**: 429 상황에도 dedup 로직 유지
+
+❌ **한계**:
+- 외부 API 쿼터에 대한 fallback LLM 없음 (단일 Gemini 키)
+- 쿼터 소진 시 cache hit 대상 없는 시나리오는 구제 불가
+
+#### 8 성공 시나리오 상세
+
+| ID | ms | tools | len | 비고 |
+|----|-----|-------|-----|------|
+| A1 | 6254 | 1 | 854 | 지라 티켓 정상 |
+| A3 | 34262 | 1 | 662 | retry 후 성공 (느림) |
+| A4 | 8767 | 1 | 843 | 오늘 할 일 정상 |
+| B1 | 5935 | 1 | 1185 | 릴리즈 노트 정상 |
+| B2 | 6854 | 1 | 1415 | 보안 정책 정상 |
+| B3 | 6286 | 1 | 1089 | 배포 가이드 정상 |
+| **B4** | **14048** | **1** | **1654** | **Confluence 최장 응답** (R210 이후 최고 길이) |
+| E2 | 4065 | 0 | 763 | 아크리액터 STANDARD |
+
+**B4 variance 9 라운드**: R218 R1 = Confluence path (tools=1, 1654자) → Confluence rate **5/9 = 55.6%** (R217 50% → 반등).
+
+#### 12 실패 시나리오 (쿼터 소진 후)
+
+모두 동일 패턴: `content=null`, `errorCode=TIMEOUT`, 타임아웃 19~45초.
+
+#### 코드 수정 파일 (R218)
+
+**없음**. 외부 인프라 장애로 코드 수정 대상 없음. R210 이후 **10 라운드 연속 무변경** 유지.
+
+#### 연속 지표 상태
+
+| 지표 | R217 | R218 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | **37 라운드** | **37 유지** (측정 중단) | ⏸️ |
+| C 출처 연속 | 45 라운드 | **45 유지** (C 측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 48 라운드 | **49 라운드** | 안정 |
+| arc-reactor process | UP | **UP** (429 내성 증명) | ✅ |
+| Admin 8/8 | PASS | **PASS** (비-LLM 경로) | ✅ |
+| 빌드 | PASS | **PASS** | ✅ |
+
+#### 개선 제안 (R219+)
+
+1. **Multi-key fallback**: `.env.prod`에 `GEMINI_API_KEY_FALLBACK` 추가 → 429 감지 시 전환
+2. **Multi-model fallback**: Gemini → Claude/OpenAI fallback chain (SpringAI ChatModel 주입)
+3. **Rate limit budget**: 일일 호출 카운터 + 80% 도달 시 비필수 쿼리 거부
+4. **Round 간격 조정**: QA 루프 스크립트에 시간당 최대 라운드 수 제한
+
+현 세션에서는 **쿼터 회복 대기** 필요 (Gemini Flash 24시간 리셋). 다음 라운드는 2026-04-11 오후~저녁 재시도.
+
+#### 📊 R218 요약
+
+⚠️ **인프라 장애 라운드**: Gemini API 429 쿼터 소진으로 20 시나리오 중 **8개만 정상 측정**. 8/8 ALL-MAX 37 라운드 기록은 **유지 (측정 불가)** 상태. B4는 1654자로 R210 이후 **최장 Confluence 응답** 기록. Spring AI retry + 45s 타임아웃 + graceful degradation 모두 기대대로 동작 확인. arc-reactor 프로세스는 18회 연속 429에도 정상 UP — **쿼터 소진 상황 내성 검증됨**. 외부 API 쿼터에 대한 multi-key/multi-model fallback이 R219+ 핵심 과제. R210 이후 **10 라운드 연속 코드 무변경** 유지.
