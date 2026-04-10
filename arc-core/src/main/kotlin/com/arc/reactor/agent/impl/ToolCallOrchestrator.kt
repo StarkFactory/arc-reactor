@@ -1016,9 +1016,11 @@ internal class ToolCallOrchestrator(
             agentMetrics.recordToolResultCacheMiss(toolName, cacheKey)
             return null
         }
-        logger.debug { "도구 결과 캐시 히트: tool=$toolName key=$cacheKey" }
+        logger.info { "도구 결과 캐시 히트 — 중복 호출 차단: tool=$toolName" }
         agentMetrics.recordToolResultCacheHit(toolName, cacheKey)
-        return ToolInvocationOutcome(output = cachedOutput, success = true, trackAsUsed = true)
+        // 캐시 히트는 LLM의 중복 요청을 방어한 결과이므로 toolsUsed에 추가로 카운트하지 않는다.
+        // 첫 실제 호출 때 이미 toolsUsed에 기록되었기 때문이다.
+        return ToolInvocationOutcome(output = cachedOutput, success = true, trackAsUsed = false)
     }
 
     private fun storeToolResultCache(toolName: String, toolInput: String, output: String) {

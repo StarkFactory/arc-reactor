@@ -287,52 +287,173 @@ internal class ManualReActLoopExecutor(
     ) {
         val pendingToolCalls = chatResponse?.results?.firstOrNull()
             ?.output?.toolCalls.orEmpty()
-        val toolResponses = executeAndRecordTools(
-            chatResponse, state, hookContext,
-            toolsUsed, maxToolCalls, allowedTools
-        )
+        // 사전 중복 차단: 이미 같은 서명으로 성공한 호출은 실행하지 않고 캐시된 결과를 재사용한다.
+        val (newToolCalls, cachedResponses) = splitDuplicateToolCalls(pendingToolCalls, state)
+        val executedResponses = if (newToolCalls.isEmpty()) {
+            emptyList()
+        } else {
+            executeAndRecordToolsFiltered(
+                newToolCalls, state, hookContext,
+                toolsUsed, maxToolCalls, allowedTools
+            )
+        }
+        val toolResponses = mergeToolResponsesInOrder(pendingToolCalls, cachedResponses, executedResponses)
         appendToolMessagePair(messages, action.assistantOutput, toolResponses)
-        // 성공한 도구 서명 기록 + 중복 호출 시 종합 응답 유도 힌트 주입
-        injectDuplicateToolCallHintIfNeeded(pendingToolCalls, toolResponses, state, messages)
+        // 성공한 도구 서명/결과 기록 + 사후 힌트 주입
+        recordSucceededAndMaybeHint(pendingToolCalls, toolResponses, cachedResponses, state, messages)
         applyPostToolHints(toolResponses, state, messages)
         enforceMaxToolCalls(state, command, messages)
     }
 
     /**
-     * 도구 실행 후 성공한 서명을 기록하고, 중복 호출이 감지되면 종합 응답 유도 힌트를 주입한다.
-     * 에러 응답은 재시도 허용을 위해 중복으로 취급하지 않는다.
-     * 도구 실행 자체를 차단하지 않고, 힌트 주입 + 도구 비활성화로 다음 iteration에서 최종 응답을 유도한다.
+     * 들어온 toolCalls를 "신규"와 "이미 성공한 서명으로 캐시된 결과"로 분리한다.
+     * 캐시된 결과는 원본 tool call id를 사용하여 ToolResponse를 즉시 생성한다.
+     *
+     * 두 가지 중복 패턴을 모두 차단한다:
+     * 1. 이전 iteration에서 이미 성공한 호출과 동일한 서명 → [state.succeededToolResults] 재사용
+     * 2. 같은 iteration 내 병렬 호출에서 동일 서명 중복 → 첫 번째만 실행, 나머지는 결과 복제
      */
-    private fun injectDuplicateToolCallHintIfNeeded(
+    private fun splitDuplicateToolCalls(
+        pendingToolCalls: List<AssistantMessage.ToolCall>,
+        state: ReActLoopState
+    ): Pair<List<AssistantMessage.ToolCall>, List<ToolResponseMessage.ToolResponse>> {
+        if (pendingToolCalls.isEmpty()) return pendingToolCalls to emptyList()
+        val newCalls = mutableListOf<AssistantMessage.ToolCall>()
+        val cached = mutableListOf<ToolResponseMessage.ToolResponse>()
+        // iteration 내 동일 서명 tc 추적 — 첫 번째 tc의 id를 기록해 나머지는 그 결과에 묶는다.
+        val sigToFirstCallId = mutableMapOf<String, String>()
+        for (tc in pendingToolCalls) {
+            val sig = buildToolSignature(tc)
+            // 1. 이전 iteration 캐시 확인
+            val prevResult = state.succeededToolResults[sig]
+            if (prevResult != null) {
+                logger.info { "중복 도구 호출 사전 차단(prev): ${tc.name()} — 이전 결과 재사용" }
+                cached.add(ToolResponseMessage.ToolResponse(tc.id(), tc.name(), prevResult))
+                continue
+            }
+            // 2. 같은 iteration 내 중복 확인 — 첫 번째만 실행 대상, 나머지는 placeholder 생성
+            val firstId = sigToFirstCallId[sig]
+            if (firstId != null) {
+                logger.info { "중복 도구 호출 사전 차단(same-iter): ${tc.name()} — 동일 iteration 재사용" }
+                // 실행 이후 첫 번째 결과로 채워질 placeholder — 여기서는 마커만 기록
+                cached.add(
+                    ToolResponseMessage.ToolResponse(
+                        tc.id(),
+                        tc.name(),
+                        SAME_ITER_DUPLICATE_MARKER + firstId
+                    )
+                )
+            } else {
+                sigToFirstCallId[sig] = tc.id()
+                newCalls.add(tc)
+            }
+        }
+        return newCalls to cached
+    }
+
+    /**
+     * 캐시된 응답과 실제 실행 응답을 원본 toolCall 순서대로 병합한다.
+     * same-iteration 중복 마커(SAME_ITER_DUPLICATE_MARKER)를 만나면,
+     * 참조된 첫 번째 호출의 실제 결과로 본문을 치환한다.
+     */
+    private fun mergeToolResponsesInOrder(
+        pendingToolCalls: List<AssistantMessage.ToolCall>,
+        cachedResponses: List<ToolResponseMessage.ToolResponse>,
+        executedResponses: List<ToolResponseMessage.ToolResponse>
+    ): List<ToolResponseMessage.ToolResponse> {
+        if (cachedResponses.isEmpty()) return executedResponses
+        if (executedResponses.isEmpty() && cachedResponses.none {
+                it.responseData().startsWith(SAME_ITER_DUPLICATE_MARKER)
+            }) {
+            return cachedResponses
+        }
+        val executedById = executedResponses.associateBy { it.id() }
+        val resolved = cachedResponses.map { r ->
+            val body = r.responseData()
+            if (body.startsWith(SAME_ITER_DUPLICATE_MARKER)) {
+                val firstId = body.removePrefix(SAME_ITER_DUPLICATE_MARKER)
+                val sourceBody = executedById[firstId]?.responseData() ?: body
+                ToolResponseMessage.ToolResponse(r.id(), r.name(), sourceBody)
+            } else {
+                r
+            }
+        }
+        val byId = (resolved + executedResponses).associateBy { it.id() }
+        return pendingToolCalls.mapNotNull { byId[it.id()] }
+    }
+
+
+    /**
+     * 실제 실행된 toolCalls만 대상으로 executeAndRecordTools를 호출한다.
+     * 기존 `executeAndRecordTools`는 chatResponse 전체를 다시 파싱하므로,
+     * 사전 차단으로 걸러낸 호출을 우회하기 위해 별도 경로를 제공한다.
+     */
+    private suspend fun executeAndRecordToolsFiltered(
+        newToolCalls: List<AssistantMessage.ToolCall>,
+        state: ReActLoopState,
+        hookContext: HookContext,
+        toolsUsed: MutableList<String>,
+        maxToolCalls: Int,
+        allowedTools: Set<String>?
+    ): List<ToolResponseMessage.ToolResponse> {
+        state.totalToolCallsCounter.set(state.totalToolCalls)
+        val toolStart = System.nanoTime()
+        val toolResponses = executeToolsWithTracing(
+            newToolCalls, state.activeTools, hookContext, toolsUsed,
+            state.totalToolCallsCounter, maxToolCalls, allowedTools,
+            state.chatOptions, state.totalToolCalls
+        )
+        state.totalToolDurationMs += (System.nanoTime() - toolStart) / 1_000_000
+        state.totalToolCalls = state.totalToolCallsCounter.get()
+        return toolResponses
+    }
+
+    /**
+     * 새로 실행된 성공 도구의 서명/결과를 기록하고,
+     * 캐시 재사용이 발생했거나 원본 toolCalls에서 사후 중복이 감지되면 힌트를 주입한다.
+     */
+    private fun recordSucceededAndMaybeHint(
         toolCalls: List<AssistantMessage.ToolCall>,
-        toolResponses: List<ToolResponseMessage.ToolResponse>,
+        allResponses: List<ToolResponseMessage.ToolResponse>,
+        cachedResponses: List<ToolResponseMessage.ToolResponse>,
         state: ReActLoopState,
         messages: MutableList<Message>
     ) {
-        val errorToolIds = toolResponses
+        val errorIds = allResponses
             .filter { it.responseData().startsWith(ReActLoopUtils.TOOL_ERROR_PREFIX) }
             .map { it.id() }
             .toSet()
+        val responseById = allResponses.associateBy { it.id() }
+        val cachedIds = cachedResponses.map { it.id() }.toSet()
         val duplicateNames = mutableListOf<String>()
         for (tc in toolCalls) {
+            if (tc.id() in errorIds) continue
             val sig = buildToolSignature(tc)
-            if (tc.id() !in errorToolIds) {
-                if (sig in state.succeededToolSignatures) {
-                    duplicateNames.add(tc.name())
+            if (sig in state.succeededToolSignatures) {
+                duplicateNames.add(tc.name())
+                continue
+            }
+            state.succeededToolSignatures.add(sig)
+            if (tc.id() !in cachedIds) {
+                responseById[tc.id()]?.responseData()?.let { body ->
+                    state.succeededToolResults[sig] = body
                 }
-                state.succeededToolSignatures.add(sig)
             }
         }
-        if (duplicateNames.isEmpty()) return
-        val names = duplicateNames.joinToString(", ")
-        logger.info { "동일 도구 중복 호출 감지: $names — 종합 응답 유도 힌트 주입" }
-        messages.add(
-            org.springframework.ai.chat.messages.UserMessage(
-                "[System] 동일한 도구($names)를 동일한 파라미터로 이미 호출했습니다. " +
-                    "추가 호출 없이 기존 결과를 종합하여 응답하세요."
+        // 캐시 재사용이 일어났거나 동일 서명 재호출이 감지되면 힌트 주입 + 도구 비활성화
+        if (cachedResponses.isNotEmpty() || duplicateNames.isNotEmpty()) {
+            val names = (cachedResponses.map { it.name() } + duplicateNames)
+                .distinct()
+                .joinToString(", ")
+            logger.info { "동일 도구 중복 호출 감지: $names — 종합 응답 유도 힌트 주입" }
+            messages.add(
+                org.springframework.ai.chat.messages.UserMessage(
+                    "[System] 동일한 도구($names)를 동일한 파라미터로 이미 호출했습니다. " +
+                        "추가 호출 없이 기존 결과를 종합하여 응답하세요."
+                )
             )
-        )
-        state.activeTools = emptyList()
+            state.activeTools = emptyList()
+        }
     }
 
     /** 도구 호출 서명을 생성한다 (이름 + 정규화된 인자). */
@@ -441,6 +562,8 @@ internal class ManualReActLoopExecutor(
         var textRetryCount = 0
         /** 이전 iteration에서 성공한 도구 서명(이름+인자) 집합 — 중복 호출 감지용 */
         val succeededToolSignatures = mutableSetOf<String>()
+        /** 성공한 도구 서명 → 결과 본문 매핑 — 사전 차단 시 캐시된 결과 재사용용 */
+        val succeededToolResults = mutableMapOf<String, String>()
     }
 
     // ── private 메서드: 토큰 예산 추적 ──
@@ -626,6 +749,9 @@ internal class ManualReActLoopExecutor(
     companion object {
         internal const val BUDGET_EXHAUSTED_MESSAGE =
             "토큰 예산이 초과되었습니다. 응답이 불완전할 수 있습니다."
+
+        /** 같은 iteration 내 중복 호출 임시 마커 — mergeToolResponsesInOrder가 실제 결과로 치환한다. */
+        private const val SAME_ITER_DUPLICATE_MARKER = "__arc_same_iter_dup__::"
 
         /** LLM이 도구를 호출하지 않고 텍스트로 도구 호출 코드를 작성한 패턴 */
         private val UNEXECUTED_TOOL_INTENT_PATTERN = Regex(

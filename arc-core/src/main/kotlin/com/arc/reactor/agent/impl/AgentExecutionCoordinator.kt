@@ -146,8 +146,11 @@ internal class AgentExecutionCoordinator(
         }
         result = applyFallbackIfNeeded(modeResolved, result, hookContext)
 
+        // 중복 도구 호출을 사용자 메트릭에서 제거한다 — LLM이 같은 도구를 여러 번 요청해도
+        // 최종 응답에는 고유 이름 1회만 표시되어 메트릭 왜곡을 방지한다.
+        val deduplicatedToolsUsed = toolsUsed.distinct()
         val finalResult = measureStage("finalizer", hookContext, modeResolved) {
-            finalizeExecution(result, modeResolved, hookContext, toolsUsed.toList(), startTime)
+            finalizeExecution(result, modeResolved, hookContext, deduplicatedToolsUsed, startTime)
         }
         val enriched = withStageTimingsMetadata(finalResult, hookContext)
         recordCostIfAvailable(enriched, hookContext)

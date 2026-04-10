@@ -482,13 +482,18 @@ data class ChatResponse(
     val metadata: Map<String, Any> = emptyMap()
 )
 
-/** [AgentResult]를 [ChatResponse]로 변환한다. grounded/verifiedSourceCount 등 신뢰도 정보를 포함한다. */
+/**
+ * [AgentResult]를 [ChatResponse]로 변환한다. grounded/verifiedSourceCount 등 신뢰도 정보를 포함한다.
+ *
+ * 동일 도구가 여러 번 호출된 경우 중복을 제거하고 원본 순서를 유지하여 반환한다.
+ * LLM이 같은 도구·파라미터를 중복 요청했더라도 사용자 메트릭에는 고유 호출만 표시된다.
+ */
 internal fun AgentResult.toChatResponse(model: String?): ChatResponse {
     return ChatResponse(
         content = content,
         success = success,
         model = model,
-        toolsUsed = toolsUsed,
+        toolsUsed = toolsUsed.distinct(),
         durationMs = durationMs,
         errorMessage = errorMessage,
         errorCode = errorCode?.name,
