@@ -4,6 +4,8 @@ import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.util.HashUtils
 import com.arc.reactor.memory.TokenEstimator
+import com.arc.reactor.approval.ApprovalContext
+import com.arc.reactor.approval.ApprovalContextResolver
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.guard.tool.ToolOutputSanitizer
@@ -66,7 +68,13 @@ internal class ToolCallOrchestrator(
     private val mcpToolCallbackProvider: () -> List<ToolCallback> = { emptyList() },
     private val toolResultCacheProperties: ToolResultCacheProperties = ToolResultCacheProperties(),
     private val tokenEstimator: TokenEstimator? = null,
-    private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS
+    private val maxContextWindowTokens: Int = DEFAULT_MAX_CONTEXT_WINDOW_TOKENS,
+    /**
+     * R221 Directive #1: 승인 컨텍스트 enrich 전략.
+     * null이면 컨텍스트 enrich를 건너뛴다 (기존 동작 유지).
+     * 빈으로 등록된 [ApprovalContextResolver]가 있을 때만 주입된다 (opt-in).
+     */
+    private val approvalContextResolver: ApprovalContextResolver? = null
 ) {
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
     private val springToolCallbackCache: Cache<Long, Map<String, org.springframework.ai.tool.ToolCallback>> =
@@ -580,18 +588,39 @@ internal class ToolCallOrchestrator(
         hookContext: HookContext
     ): String? {
         val hitlStartNanos = System.nanoTime()
+        val approvalContext = resolveApprovalContext(toolName, toolCallContext.toolParams)
         return try {
             val response = approvalStore.requestApproval(
                 runId = hookContext.runId,
                 userId = hookContext.userId,
                 toolName = toolName,
-                arguments = toolCallContext.toolParams
+                arguments = toolCallContext.toolParams,
+                context = approvalContext
             )
             recordApprovalMetadata(hookContext, toolCallContext, toolName, hitlStartNanos, response)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "도구 '$toolName' 승인 확인 실패: ${e.message ?: "알 수 없는 오류"}" }
             "Tool call blocked: Approval check failed for tool '$toolName'"
+        }
+    }
+
+    /**
+     * R221 Directive #1: 등록된 [ApprovalContextResolver]로 승인 컨텍스트를 해소한다.
+     * resolver가 없거나 null을 반환하면 null을 반환하여 기존 경로와 호환한다.
+     * resolver 실행 중 예외가 발생해도 승인 흐름을 막지 않는다 (fail-open for enrichment).
+     */
+    private fun resolveApprovalContext(
+        toolName: String,
+        arguments: Map<String, Any?>
+    ): ApprovalContext? {
+        val resolver = approvalContextResolver ?: return null
+        return try {
+            resolver.resolve(toolName, arguments)
+        } catch (e: Exception) {
+            e.throwIfCancellation()
+            logger.warn(e) { "ApprovalContextResolver 실행 실패 (enrichment 건너뜀): tool=$toolName" }
+            null
         }
     }
 

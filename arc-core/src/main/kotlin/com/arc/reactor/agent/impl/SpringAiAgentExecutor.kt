@@ -108,6 +108,7 @@ class SpringAiAgentExecutor(
     private val conversationManager: ConversationManager = DefaultConversationManager(memoryStore, properties),
     private val toolApprovalPolicy: ToolApprovalPolicy? = null,
     private val pendingApprovalStore: PendingApprovalStore? = null,
+    private val approvalContextResolver: com.arc.reactor.approval.ApprovalContextResolver? = null,
     private val responseFilterChain: ResponseFilterChain? = null,
     private val circuitBreaker: CircuitBreaker? = null,
     private val responseCache: ResponseCache? = null,
@@ -204,7 +205,8 @@ class SpringAiAgentExecutor(
         mcpToolCallbackProvider = mcpToolCallbacks,
         toolResultCacheProperties = properties.toolResultCache,
         tokenEstimator = tokenEstimator,
-        maxContextWindowTokens = properties.llm.maxContextWindowTokens
+        maxContextWindowTokens = properties.llm.maxContextWindowTokens,
+        approvalContextResolver = approvalContextResolver
     )
     // LLM 호출 재시도 실행기 — CircuitBreaker 연동
     private val retryExecutor = RetryExecutor(

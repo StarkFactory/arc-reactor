@@ -10,6 +10,7 @@ import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.routing.AgentModeResolver
 import com.arc.reactor.agent.routing.ModelRouter
+import com.arc.reactor.approval.ApprovalContextResolver
 import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.approval.ToolApprovalPolicy
 import com.arc.reactor.cache.CacheMetricsRecorder
@@ -78,6 +79,7 @@ class ArcReactorExecutorConfiguration {
         conversationManager: ConversationManager,
         toolApprovalPolicyProvider: ObjectProvider<ToolApprovalPolicy>,
         pendingApprovalStoreProvider: ObjectProvider<PendingApprovalStore>,
+        approvalContextResolverProvider: ObjectProvider<ApprovalContextResolver>,
         responseFilterChain: ResponseFilterChain,
         circuitBreakerRegistryProvider: ObjectProvider<CircuitBreakerRegistry>,
         responseCacheProvider: ObjectProvider<ResponseCache>,
@@ -114,6 +116,7 @@ class ArcReactorExecutorConfiguration {
         conversationManager = conversationManager,
         toolApprovalPolicy = toolApprovalPolicyProvider.ifAvailable,
         pendingApprovalStore = pendingApprovalStoreProvider.ifAvailable,
+        approvalContextResolver = approvalContextResolverProvider.ifAvailable,
         responseFilterChain = if (properties.response.filtersEnabled) responseFilterChain else null,
         circuitBreaker = circuitBreakerRegistryProvider.ifAvailable?.get("llm"),
         responseCache = responseCacheProvider.ifAvailable,

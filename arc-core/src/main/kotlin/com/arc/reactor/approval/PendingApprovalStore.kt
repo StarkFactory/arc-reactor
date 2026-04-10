@@ -33,6 +33,7 @@ interface PendingApprovalStore {
      * @param toolName 승인이 필요한 도구
      * @param arguments 도구 호출 인수
      * @param timeoutMs 최대 대기 시간 (0이면 기본값 사용)
+     * @param context 4단계 구조화 컨텍스트 (opt-in, null이면 컨텍스트 없음)
      * @return 사람의 승인 응답
      */
     suspend fun requestApproval(
@@ -40,7 +41,8 @@ interface PendingApprovalStore {
         userId: String,
         toolName: String,
         arguments: Map<String, Any?>,
-        timeoutMs: Long = 0
+        timeoutMs: Long = 0,
+        context: ApprovalContext? = null
     ): ToolApprovalResponse
 
     /**
@@ -100,13 +102,15 @@ class InMemoryPendingApprovalStore(
         userId: String,
         toolName: String,
         arguments: Map<String, Any?>,
-        timeoutMs: Long
+        timeoutMs: Long,
+        context: ApprovalContext?
     ): ToolApprovalResponse {
         val id = UUID.randomUUID().toString()
         val request = ToolApprovalRequest(
             id = id, runId = runId, userId = userId,
             toolName = toolName, arguments = arguments,
-            timeoutMs = timeoutMs
+            timeoutMs = timeoutMs,
+            context = context
         )
         val deferred = CompletableDeferred<ToolApprovalResponse>()
         pending[id] = PendingEntry(request, deferred)
@@ -169,6 +173,7 @@ class InMemoryPendingApprovalStore(
         toolName = request.toolName,
         arguments = request.arguments,
         requestedAt = request.requestedAt,
-        status = ApprovalStatus.PENDING
+        status = ApprovalStatus.PENDING,
+        context = request.context
     )
 }

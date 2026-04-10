@@ -49,7 +49,8 @@ class JdbcPendingApprovalStore(
         userId: String,
         toolName: String,
         arguments: Map<String, Any?>,
-        timeoutMs: Long
+        timeoutMs: Long,
+        context: ApprovalContext?
     ): ToolApprovalResponse {
         val id = UUID.randomUUID().toString()
         val requestedAt = Instant.now()
@@ -61,13 +62,14 @@ class JdbcPendingApprovalStore(
             jdbcTemplate.update(
                 """
                 INSERT INTO pending_approvals
-                (id, run_id, user_id, tool_name, arguments, timeout_ms, status, requested_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, run_id, user_id, tool_name, arguments, timeout_ms, status, requested_at, context_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 id, runId, userId, toolName,
                 objectMapper.writeValueAsString(arguments),
                 effectiveTimeoutMs, ApprovalStatus.PENDING.name,
-                Timestamp.from(requestedAt)
+                Timestamp.from(requestedAt),
+                context?.let { serializeContext(it) }
             )
         }
 
@@ -132,7 +134,7 @@ class JdbcPendingApprovalStore(
 
         return jdbcTemplate.query(
             """
-            SELECT id, run_id, user_id, tool_name, arguments, requested_at
+            SELECT id, run_id, user_id, tool_name, arguments, requested_at, context_json
               FROM pending_approvals
              WHERE status = ?
              ORDER BY requested_at DESC
@@ -145,7 +147,8 @@ class JdbcPendingApprovalStore(
                     toolName = rs.getString("tool_name"),
                     arguments = parseJsonMap(rs.getString("arguments")),
                     requestedAt = rs.getTimestamp("requested_at").toInstant(),
-                    status = ApprovalStatus.PENDING
+                    status = ApprovalStatus.PENDING,
+                    context = parseNullableContext(rs.getString("context_json"))
                 )
             },
             ApprovalStatus.PENDING.name
@@ -157,7 +160,7 @@ class JdbcPendingApprovalStore(
 
         return jdbcTemplate.query(
             """
-            SELECT id, run_id, user_id, tool_name, arguments, requested_at
+            SELECT id, run_id, user_id, tool_name, arguments, requested_at, context_json
               FROM pending_approvals
              WHERE status = ? AND user_id = ?
              ORDER BY requested_at DESC
@@ -170,7 +173,8 @@ class JdbcPendingApprovalStore(
                     toolName = rs.getString("tool_name"),
                     arguments = parseJsonMap(rs.getString("arguments")),
                     requestedAt = rs.getTimestamp("requested_at").toInstant(),
-                    status = ApprovalStatus.PENDING
+                    status = ApprovalStatus.PENDING,
+                    context = parseNullableContext(rs.getString("context_json"))
                 )
             },
             ApprovalStatus.PENDING.name,
@@ -275,6 +279,21 @@ class JdbcPendingApprovalStore(
         if (json.isNullOrBlank()) return null
         return runCatching { objectMapper.readValue<Map<String, Any?>>(json) }
             .getOrNull()
+    }
+
+    /** [ApprovalContext]를 JSON 문자열로 직렬화한다. 정보가 없으면 null 반환. */
+    private fun serializeContext(context: ApprovalContext): String? {
+        if (!context.hasAnyInformation()) return null
+        return runCatching { objectMapper.writeValueAsString(context) }.getOrNull()
+    }
+
+    /**
+     * JSON 문자열을 [ApprovalContext]로 역직렬화한다.
+     * 빈 문자열/파싱 실패 시 null을 반환하여 기존 row(context_json=NULL)와 호환한다.
+     */
+    private fun parseNullableContext(json: String?): ApprovalContext? {
+        if (json.isNullOrBlank()) return null
+        return runCatching { objectMapper.readValue<ApprovalContext>(json) }.getOrNull()
     }
 
     /** 내부 상태 조회용 데이터 클래스 */
