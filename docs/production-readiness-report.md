@@ -12778,3 +12778,243 @@ R230은 ACI 축에 **Composite** 단계를 추가한다. Approval 축과 달리 
 #### 📊 R230 요약
 
 🔗 **R223 심화: ChainedToolResponseSummarizer 조합 유틸 완료**. R226 `ChainedApprovalContextResolver`와 동일한 패턴을 R223 `ToolResponseSummarizer`에도 적용. 여러 summarizer(예: Jira 특화 → Bitbucket 특화 → Default fallback)를 순서대로 시도하여 첫 non-null 반환, fail-open(개별 summarizer 예외는 다음으로 진행, `CancellationException`은 재전파), 불변 리스트, thread-safe, varargs + List 생성자, `EMPTY` 상수, `size()`/`isEmpty()` 헬퍼. 신규 파일 2개 (유틸 125줄 + 테스트 272줄), 기존 파일 수정 0건. 신규 테스트 **20 PASS** (7 @Nested 그룹: EmptyChain, SingleSummarizer, MultiSummarizerOrdering, FailOpenBehavior, ImmutableConstruction, IntegrationWithDefault, ConstructorEquivalence, SuccessFlagPropagation). 기존 R219~R229 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 불변. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R230**. swagger-mcp 8181 **61 라운드 연속** 안정. R223→R230으로 ACI 축에 **Composite** 단계 추가 완료 — 이제 사용자는 특화 summarizer와 Default fallback을 조합하여 도구 카테고리별 맞춤 요약 전략을 안전하게 도입할 수 있다.
+
+### Round 231 — 🛡️ 2026-04-11T08:30+09:00 — R223 심화: RedactedToolResponseSummarizer (PII 마스킹 데코레이터)
+
+**작업 종류**: Directive 심화 — R228 평행 패턴을 ACI 축에 적용 (QA 측정 없음)
+**Directive 패턴**: #2 ACI 도구 출력 요약 (연속)
+**완료 태스크**: #106
+
+#### 작업 배경
+
+R223 `DefaultToolResponseSummarizer`는 도구 응답에서 식별자 필드(`key`, `id`, `issueKey`, `title`, `name`, `summary`, `slug`)를 `primaryKey`로 추출하고 `text`에 "issues: 3건 [HRFW-1, HRFW-2, HRFW-3]" 같은 요약을 만든다. 문제는 이 텍스트가 다음과 같이 **PII를 포함할 수 있다**는 점이다:
+
+- Jira `assignee` 필드에 담당자 이메일 (`alice@company.com`)
+- 사용자 제공 JQL에 `reporter = user@company.com`
+- Confluence 페이지 `title`에 개인 이름/전화번호
+- Bitbucket 커밋 메시지에 실수로 포함된 토큰
+- 식별자 필드 중 `title`이 이메일 텍스트인 경우 (예: `title = "alice@company.com 담당 이슈"`)
+
+이 요약 객체는 R223 `ToolResponseSummarizerHook`에 의해 `HookContext.metadata["toolSummary_{callIndex}_{toolName}"]`에 저장되며, 감사 로그/관측 대시보드를 통해 노출될 수 있다. R228이 Approval 축에서 해결한 PII 문제를 **ACI 축에도 동일하게 해결**한다.
+
+#### 설계 원칙
+
+R228 `RedactedApprovalContextResolver`와 **완전히 평행한 패턴**:
+
+1. **Fully additive 데코레이터**: 원본 summarizer 로직 수정 0, 출력 후처리만
+2. **정규식 기반**: 유연한 확장 (기본 7개 패턴 + 사용자 정의)
+3. **Fail-safe**: 정규식 예외 시 `"[REDACTED]"` 전체 대체 (보안 기본값)
+4. **Null/비-텍스트 필드 보존**: `kind` enum, `originalLength` Int, `itemCount` Int? 는 그대로
+5. **이메일 패턴 등 7개 PII 기본 패턴 공유**: R228과 동일
+
+#### 마스킹 대상 필드
+
+| 필드 | 타입 | 마스킹 | 근거 |
+|------|------|--------|------|
+| `text` | `String` | ✅ | 사람이 읽는 요약 — 최대 위험 |
+| `primaryKey` | `String?` | ✅ | 식별자 필드가 이메일일 수 있음 |
+| `kind` | `SummaryKind` (enum) | ❌ | 숫자/열거형, PII 아님 |
+| `originalLength` | `Int` | ❌ | 숫자 |
+| `itemCount` | `Int?` | ❌ | 숫자 |
+
+#### 신규 파일
+
+| 파일 | 라인 수 | 역할 |
+|------|---------|------|
+| `tool/summarize/RedactedToolResponseSummarizer.kt` | 170 | 데코레이터 + 7개 기본 패턴 + fail-safe |
+| `test/.../RedactedToolResponseSummarizerTest.kt` | 340 | 22 tests (9 `@Nested` 그룹) |
+
+**기존 파일 수정 0건.** R223, R228, R230 모두 한 글자도 건드리지 않음.
+
+#### 핵심 API
+
+```kotlin
+class RedactedToolResponseSummarizer(
+    private val delegate: ToolResponseSummarizer,
+    additionalPatterns: List<Regex> = emptyList(),
+    private val replacement: String = DEFAULT_REPLACEMENT
+) : ToolResponseSummarizer {
+    override fun summarize(toolName, rawPayload, success): ToolResponseSummary? {
+        val original = delegate.summarize(toolName, rawPayload, success) ?: return null
+        return original.copy(
+            text = redactOrFallback(original.text) ?: original.text,
+            primaryKey = redactOrFallback(original.primaryKey)
+            // kind/originalLength/itemCount 그대로
+        )
+    }
+
+    companion object {
+        const val DEFAULT_REPLACEMENT = "***"
+        const val SAFE_FALLBACK = "[REDACTED]"
+        val DEFAULT_PATTERNS: List<Regex> = listOf(
+            // R228과 동일: 이메일/Bearer/Atlassian/Slack/폰(국내)/폰(국제)/RRN
+        )
+    }
+}
+```
+
+#### R228 패턴과의 독립성
+
+R228과 R231은 **동일한 패턴 리스트**를 사용하지만 **독립된 상수**로 유지한다:
+
+```kotlin
+// R228
+val RedactedApprovalContextResolver.DEFAULT_PATTERNS = listOf(...)
+// R231
+val RedactedToolResponseSummarizer.DEFAULT_PATTERNS = listOf(...)  // 독립 복사
+```
+
+**독립 유지 이유**:
+1. Approval 컨텍스트와 도구 응답 요약은 서로 다른 PII 우려를 가질 수 있다 (한쪽만 추가 패턴 필요 시 독립 관리)
+2. 한쪽 패턴 변경이 다른 쪽에 의도치 않은 영향을 주지 않도록 격리
+3. 향후 공통 유틸(`arc-core/.../support/PiiPatterns.kt`)로 추출 여지를 남김 (추출 시 두 Round 모두 영향 없이 내부 참조 방식만 변경)
+
+#### 사용 패턴
+
+**패턴 1** — Default summarizer 래핑:
+```kotlin
+@Bean
+fun toolResponseSummarizer(): ToolResponseSummarizer =
+    RedactedToolResponseSummarizer(DefaultToolResponseSummarizer())
+```
+
+**패턴 2** — R230 체인 + R231 마스킹 (권장 프로덕션):
+```kotlin
+@Bean
+fun toolResponseSummarizer(): ToolResponseSummarizer = RedactedToolResponseSummarizer(
+    ChainedToolResponseSummarizer(
+        JiraSpecificSummarizer(),
+        DefaultToolResponseSummarizer()
+    )
+)
+```
+
+**패턴 3** — 사내 식별자 추가 마스킹:
+```kotlin
+@Bean
+fun toolResponseSummarizer(): ToolResponseSummarizer = RedactedToolResponseSummarizer(
+    delegate = DefaultToolResponseSummarizer(),
+    additionalPatterns = listOf(
+        Regex("""INTERNAL-\d{8}"""),
+        Regex("""SECRET_[A-F0-9]{32}""")
+    )
+)
+```
+
+#### 테스트 결과
+
+```
+RedactedToolResponseSummarizerTest             → 22 tests PASS
+  @Nested NullPassthrough (2)
+    - delegate null → 데코레이터 null
+    - primaryKey null → null 유지
+  @Nested EmailRedaction (3)
+    - text 이메일 마스킹
+    - primaryKey 이메일 전체 대체
+    - 여러 이메일 동시 마스킹
+  @Nested TokenRedaction (3)
+    - Bearer JWT
+    - Atlassian granular
+    - Slack 토큰
+  @Nested PhoneAndRrnRedaction (4)
+    - 010-xxxx-xxxx
+    - +82-10-xxxx-xxxx
+    - 주민번호 정상 케이스
+    - 첫 자리 5+ 오탐 방지
+  @Nested NonTextFieldsPreservation (3)
+    - kind enum 보존
+    - originalLength Int 보존
+    - itemCount Int? 보존
+  @Nested CustomPatterns (2)
+    - 사용자 패턴 추가
+    - patternCount 합계
+  @Nested CustomReplacement (1)
+    - replacement 커스터마이징
+  @Nested ChainIntegration (2)
+    - R230 ChainedToolResponseSummarizer 래핑
+    - 빈 체인 → null
+  @Nested DefaultSummarizerIntegration (2)
+    - 실제 DefaultSummarizer의 primaryKey/text에서 이메일 마스킹
+    - 이슈 키(PII 아님) 유지
+  @Nested PublicConstants (3)
+    - DEFAULT_REPLACEMENT / SAFE_FALLBACK / DEFAULT_PATTERNS.size == 7
+```
+
+**특기할 통합 테스트** (`DefaultSummarizerIntegration`):
+- 실제 `DefaultToolResponseSummarizer`에 `[{"title":"user@company.com 이슈"}]` JSON을 전달 → `primaryKey`와 `text`에 이메일이 포함된 결과 생성 → Redacted로 감싸면 두 필드 모두 마스킹됨을 검증
+- 대조: `[{"key":"HRFW-5695"}]`를 전달하면 `primaryKey="HRFW-5695"`가 PII 아니므로 그대로 유지
+
+**기존 R219/R220/R221/R222/R223/R224/R225/R226/R227/R228/R229/R230 테스트 모두 회귀 없음**:
+- R220 Golden snapshot 5개 해시 재확인 완료
+- R223 `DefaultToolResponseSummarizerTest` 20 + `ToolResponseSummarizerHookTest` 14 PASS
+- R228 `RedactedApprovalContextResolverTest` 27 PASS
+- R230 `ChainedToolResponseSummarizerTest` 20 PASS
+- 전체 arc-core 테스트 실행 PASS
+- 컴파일: `./gradlew compileKotlin compileTestKotlin` PASS (16 tasks)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 도구 호출/응답 경로 전혀 미수정
+- ✅ 원본 delegate의 output만 후처리 (pure output-side decorator)
+- ✅ 도구 호출 자체는 건드리지 않음
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 재확인 완료
+- ✅ `CacheKeyBuilder`, `RedisSemanticResponseCache` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미수정
+- ✅ 마스킹된 요약은 `HookContext.metadata`에만 저장 (R223 기존 경로)
+- ✅ 대화 이력에 요약이 섞이지 않음 (R223 원칙 유지)
+
+#### opt-in / 기본값
+
+- **기본 상태**: 자동 구성에 등록되지 않음. 사용자가 명시적으로 `@Bean`으로 래핑
+- **자동 구성 없음**: R228과 동일 방침 — 사용자 판단
+- **기존 사용자 영향**: 0 (완전 backward compat, 추가만 있음)
+
+#### Approval vs ACI 성숙 단계 평행 관계 (업데이트)
+
+| 단계 | Approval (R221~R229) | ACI (R223~R231) |
+|------|---------------------|------------------|
+| Foundation | R221 | R223 |
+| Concrete | R225 (Atlassian 특화) | — (사용자 공간) |
+| Composite | R226 | R230 |
+| Auto-wire | R227 (체인 자동) | 미도입 |
+| **Decorator** | **R228** | **R231** ← this |
+| Decorator Auto | R229 | 미도입 |
+
+ACI 축에 Decorator 단계 추가 완료. 이제 남은 것은:
+- **Auto-wire** (체인/개별 summarizer 속성 기반 자동 구성)
+- **Decorator Auto** (PII 마스킹 자동 래핑, R229와 평행 패턴)
+
+R232~R233에서 이 두 단계를 추가하면 ACI 축도 Approval 축과 완전히 평행한 성숙 단계에 도달한다.
+
+#### 연속 지표
+
+| 지표 | R230 | R231 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 61 | **62** | 안정 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R230 | **4/5 + R224~R231** | - |
+
+#### 다음 Round 후보
+
+- **R232+**:
+  1. **ToolResponseSummarizer Auto-wire** (R227과 평행) — 속성 기반 체인 자동 구성
+  2. **ToolResponseSummarizer Decorator Auto** (R229와 평행) — PII 마스킹 자동 래핑
+  3. **Evaluation 대시보드 문서** — Grafana JSON 템플릿
+  4. **Prompt Layer 심화** — `PromptLayerRegistry` 워크스페이스 프로파일
+  5. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+
+#### 📊 R231 요약
+
+🛡️ **R223 심화: RedactedToolResponseSummarizer (PII 마스킹 데코레이터) 완료**. R228 `RedactedApprovalContextResolver`와 동일한 패턴을 R223 `ToolResponseSummarizer`에 적용. 기존 summarizer를 감싸 반환된 `ToolResponseSummary`의 `text`와 `primaryKey` 필드에서 이메일/Bearer/Atlassian/Slack 토큰/한국 휴대폰/주민번호 등 **7개 기본 PII 패턴**을 정규식으로 마스킹. `kind`/`originalLength`/`itemCount` 등 비-텍스트 필드는 그대로 유지. 사용자 정의 추가 패턴과 `replacement` 문자열 지원. Fail-safe: 정규식 예외 시 `"[REDACTED]"` 전체 대체. R228과 동일한 패턴 리스트를 복사본으로 독립 유지 (향후 공통 유틸 `PiiPatterns.kt` 추출 여지). 신규 파일 2개 (데코레이터 170줄 + 테스트 340줄), 기존 파일 수정 0건. 신규 테스트 **22 PASS** (9 @Nested 그룹 포함 DefaultSummarizerIntegration 통합 테스트). 기존 R219~R230 테스트 모두 회귀 없음, R220 Golden snapshot 5개 해시 재확인 완료, R228 27 + R230 20 tests 재검증. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R231**. swagger-mcp 8181 **62 라운드 연속** 안정. R223→R230→R231로 ACI 축에 **Composite + Decorator** 단계 모두 추가되어 Approval 축과 평행 관계에 거의 도달했다. R232~R233에서 Auto-wire + Decorator Auto 단계를 추가하면 두 축의 성숙 단계가 완전히 동일해진다.
