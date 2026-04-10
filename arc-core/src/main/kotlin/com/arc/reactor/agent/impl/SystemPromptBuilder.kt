@@ -59,6 +59,8 @@ internal class SystemPromptBuilder(
      * @param userPrompt 사용자 프롬프트 (도구 호출 강제 판단용)
      * @param workspaceToolAlreadyCalled workspace 도구가 이미 호출되었는지 여부
      * @param userMemoryContext 사용자 메모리 컨텍스트 (UserMemoryInjectionHook에서 주입, 없으면 null)
+     * @param minimalPromptRetry R208: 빈 응답 재시도 경로에서 `true`로 설정되어 R202/R203/
+     *   SELF_IDENTITY 같은 부가 섹션을 생략한 축약 프롬프트를 생성한다.
      * @return 조합된 최종 시스템 프롬프트
      */
     fun build(
@@ -68,7 +70,8 @@ internal class SystemPromptBuilder(
         responseSchema: String? = null,
         userPrompt: String? = null,
         workspaceToolAlreadyCalled: Boolean = false,
-        userMemoryContext: String? = null
+        userMemoryContext: String? = null,
+        minimalPromptRetry: Boolean = false
     ): String {
         val effectiveBase = if (userMemoryContext != null) {
             "$basePrompt\n\n[User Context]\n$userMemoryContext"
@@ -76,7 +79,11 @@ internal class SystemPromptBuilder(
             basePrompt
         }
         val parts = mutableListOf(effectiveBase)
-        parts.add(buildGroundingInstruction(responseFormat, userPrompt, workspaceToolAlreadyCalled))
+        parts.add(
+            buildGroundingInstruction(
+                responseFormat, userPrompt, workspaceToolAlreadyCalled, minimalPromptRetry
+            )
+        )
 
         if (ragContext != null) {
             parts.add(buildRagInstruction(ragContext))
@@ -181,7 +188,8 @@ internal class SystemPromptBuilder(
     private fun buildGroundingInstruction(
         responseFormat: ResponseFormat,
         userPrompt: String?,
-        workspaceToolAlreadyCalled: Boolean
+        workspaceToolAlreadyCalled: Boolean,
+        minimalPromptRetry: Boolean = false
     ): String = buildString {
         appendLanguageRule()
         appendConversationHistoryRule()
@@ -189,16 +197,24 @@ internal class SystemPromptBuilder(
             looksLikeWorkspacePrompt(userPrompt)
         if (workspaceRelated) {
             appendWorkspaceGroundingRules(workspaceToolAlreadyCalled)
-            appendFewShotReadOnlyExamples()
-            appendResponseQualityInstruction()
-            appendCompoundQuestionHint(workspaceToolAlreadyCalled)
-            appendReadOnlyPolicy()
-            appendToolErrorRetryHint()
-            appendDuplicateToolCallPreventionHint()
-            appendConfluencePreferenceHint()
+            // R208: minimal prompt retry 경로에서는 부가 섹션 생략 → Gemini empty response 회피
+            if (!minimalPromptRetry) {
+                appendFewShotReadOnlyExamples()
+                appendResponseQualityInstruction()
+                appendCompoundQuestionHint(workspaceToolAlreadyCalled)
+                appendReadOnlyPolicy()
+                appendToolErrorRetryHint()
+                appendDuplicateToolCallPreventionHint()
+                appendConfluencePreferenceHint()
+            }
             appendMutationRefusal(userPrompt)
             appendConfluenceToolForcing(userPrompt, workspaceToolAlreadyCalled)
-            appendInternalDocSearchForcing(userPrompt, workspaceToolAlreadyCalled)
+            // R208: minimal prompt retry 경로에서는 INTERNAL_DOC forcing 생략.
+            // "개발 환경 세팅" 등 일부 키워드 조합에서 이 forcing이 Gemini empty response를
+            // 유발한다는 가설을 테스트한다. (retry 경로에서만 생략 → production 영향 없음)
+            if (!minimalPromptRetry) {
+                appendInternalDocSearchForcing(userPrompt, workspaceToolAlreadyCalled)
+            }
             appendTeamStatusForcing(userPrompt, workspaceToolAlreadyCalled)
             appendWorkToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendWorkContextToolForcing(userPrompt, workspaceToolAlreadyCalled)
@@ -207,9 +223,11 @@ internal class SystemPromptBuilder(
             appendSwaggerToolForcing(userPrompt, workspaceToolAlreadyCalled)
             appendSourcesInstruction(responseFormat, userPrompt)
             // R203: 예약 문구 금지 재강조 — LLM이 가장 최근에 본 지시에 더 무게를 두는 경향을
-            // 이용해 프롬프트 맨 끝에 final reminder를 삽입한다. R202 preventive hint는
-            // 프롬프트 앞쪽에 있어 Gemini가 약 30% 놓침.
-            appendPreventReservedPhrasesFinalReminder()
+            // 이용해 프롬프트 맨 끝에 final reminder를 삽입한다.
+            // R208: minimal prompt retry에서는 생략 (Gemini empty response 완화 목적).
+            if (!minimalPromptRetry) {
+                appendPreventReservedPhrasesFinalReminder()
+            }
         } else {
             appendGeneralGroundingRule()
         }

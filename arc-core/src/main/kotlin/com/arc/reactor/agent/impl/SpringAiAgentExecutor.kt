@@ -385,25 +385,30 @@ class SpringAiAgentExecutor(
                 }
             }
             // R206: 빈 응답 자동 재시도 (최대 2회) — Gemini 간헐적 빈 응답 대응
-            // 이전: 1회 재시도 → B4 "개발 환경 세팅 방법" 등 ~50% 실패 유지
-            // 개선: 최대 2회로 증가 → 연속 3회 실패 확률 대폭 감소
+            // R208: 재시도 시 "minimal prompt" 플래그 주입 → SystemPromptBuilder가 R202/R203/
+            // SELF_IDENTITY 같은 부가 섹션을 생략한 축약 프롬프트 생성 → Gemini safety/length
+            // 임계치 회피. B4 "개발 환경 세팅 방법" deterministic empty 해결 목적.
             for (retryAttempt in 1..EMPTY_RESPONSE_MAX_RETRIES) {
                 val isEmptyResponse = !result.success &&
                     result.content?.contains("응답을 생성하지 못했습니다") == true
                 if (!isEmptyResponse) break
                 logger.info {
-                    "빈 응답 감지, 재시도 $retryAttempt/$EMPTY_RESPONSE_MAX_RETRIES (runId=${hookContext.runId})"
+                    "빈 응답 감지, 재시도 $retryAttempt/$EMPTY_RESPONSE_MAX_RETRIES " +
+                        "(runId=${hookContext.runId})"
                 }
                 // 이전 실행에서 설정된 상태를 정리하여 재시도 오염을 방지한다.
                 hookContext.metadata.remove("blockReason")
                 (hookContext.verifiedSources as? MutableList)?.clear()
                 toolsUsed.clear()
+                // R208: 재시도 시 minimal prompt 요청 플래그 설정
+                hookContext.metadata[MINIMAL_PROMPT_RETRY_KEY] = true
                 result = concurrencySemaphore.withPermit {
                     executeWithRequestTimeout(properties.concurrency.requestTimeoutMs) {
                         agentExecutionCoordinator.execute(command, hookContext, toolsUsed, startTime)
                     }
                 }
             }
+            hookContext.metadata.remove(MINIMAL_PROMPT_RETRY_KEY)
             if (!result.success) {
                 requestSpan.setAttribute("error.code", result.errorCode?.name ?: "UNKNOWN")
                 result.errorMessage?.let { requestSpan.setAttribute("error.message", it.take(500)) }
@@ -659,13 +664,16 @@ class SpringAiAgentExecutor(
         val enrichedMemoryContext = listOfNotNull(userMemoryContext, requesterContext)
             .joinToString("\n\n")
             .takeIf { it.isNotBlank() }
+        // R208: 재시도 경로에서 minimal prompt 요청 플래그 확인
+        val minimalPromptRetry = hookContext.metadata[MINIMAL_PROMPT_RETRY_KEY] == true
         return systemPromptBuilder.build(
             command.systemPrompt, effectiveRagContext,
             command.responseFormat,
             command.responseSchema,
             command.userPrompt,
             workspaceToolAlreadyCalled = forcedToolContext != null,
-            userMemoryContext = enrichedMemoryContext
+            userMemoryContext = enrichedMemoryContext,
+            minimalPromptRetry = minimalPromptRetry
         )
     }
 
@@ -777,5 +785,12 @@ class SpringAiAgentExecutor(
          * (R199 이전: 1회) B4 "개발 환경 세팅 방법" 같은 시나리오에서 ~50% 실패율 개선 목적.
          */
         private const val EMPTY_RESPONSE_MAX_RETRIES = 2
+
+        /**
+         * R208: 빈 응답 재시도 시 `SystemPromptBuilder`가 축약 프롬프트를 생성하도록 알리는
+         * HookContext metadata 키. 재시도 경로에서만 true로 설정되어 R202/R203/SELF_IDENTITY 등
+         * 부가 섹션을 생략한 minimal prompt가 생성되며, 재시도 완료 후 제거된다.
+         */
+        internal const val MINIMAL_PROMPT_RETRY_KEY = "arc.reactor.internal.minimalPromptRetry"
     }
 }
