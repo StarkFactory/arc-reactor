@@ -374,6 +374,7 @@ internal class ExecutionResultFinalizer(
                 command = command,
                 toolsUsed = toolsUsed,
                 verifiedSources = hookContext.verifiedSources.toList(),
+                toolInsights = hookContext.toolInsights.toList(),
                 durationMs = nowMs() - startTime
             )
             val filteredContent = responseFilterChain.apply(result.content, context)

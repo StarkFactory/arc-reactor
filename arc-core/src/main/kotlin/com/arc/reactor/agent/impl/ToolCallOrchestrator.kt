@@ -469,7 +469,7 @@ internal class ToolCallOrchestrator(
     // Tool 응답 신호 추출 / 병합
     // ──────────────────────────────────────────────
 
-    /** Tool 출력에서 VerifiedSource와 ToolResponseSignal을 추출합니다. */
+    /** Tool 출력에서 VerifiedSource, Insights, ToolResponseSignal을 추출합니다. */
     private fun extractToolCapture(
         toolName: String,
         toolOutput: String,
@@ -478,6 +478,7 @@ internal class ToolCallOrchestrator(
         if (!toolSuccess) return ToolCapture()
         return ToolCapture(
             verifiedSources = VerifiedSourceExtractor.extract(toolName, toolOutput),
+            insights = VerifiedSourceExtractor.extractInsights(toolOutput),
             signal = ToolResponseSignalExtractor.extract(toolName, toolOutput)
         )
     }
@@ -485,6 +486,9 @@ internal class ToolCallOrchestrator(
     /** 추출된 ToolCapture를 HookContext에 병합합니다 (중복 URL 제거). */
     private fun mergeToolCapture(hookContext: HookContext, capture: ToolCapture) {
         mergeVerifiedSources(hookContext, capture.verifiedSources)
+        if (capture.insights.isNotEmpty()) {
+            hookContext.addToolInsights(capture.insights)
+        }
         capture.signal?.let { mergeSignalMetadata(hookContext, it) }
     }
 
@@ -1053,6 +1057,7 @@ internal class ToolCallOrchestrator(
 
     private data class ToolCapture(
         val verifiedSources: List<VerifiedSource> = emptyList(),
+        val insights: List<String> = emptyList(),
         val signal: ToolResponseSignal? = null
     )
 

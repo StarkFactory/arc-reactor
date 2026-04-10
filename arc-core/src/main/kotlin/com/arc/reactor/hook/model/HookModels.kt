@@ -51,6 +51,8 @@ data class HookContext(
     val startedAt: Instant = Instant.now(),
     val toolsUsed: List<String> = CopyOnWriteArrayList(),
     val verifiedSources: List<VerifiedSource> = CopyOnWriteArrayList(),
+    /** R192: 도구 응답에서 추출한 insights 항목. LLM 응답이 비어있을 때 fallback으로 사용. */
+    val toolInsights: List<String> = CopyOnWriteArrayList(),
     val metadata: MutableMap<String, Any> = ConcurrentHashMap()
 ) {
     /** 실행 시작 이후 경과 시간 (밀리초) */
@@ -68,6 +70,13 @@ data class HookContext(
     @Suppress("UNCHECKED_CAST")
     internal fun addVerifiedSource(source: VerifiedSource) {
         (verifiedSources as MutableList<VerifiedSource>).add(source)
+    }
+
+    /** R192: 도구 응답에서 추출한 insights 항목을 추가한다. CopyOnWriteArrayList 백킹이므로 스레드 안전. */
+    @Suppress("UNCHECKED_CAST")
+    internal fun addToolInsights(insights: List<String>) {
+        if (insights.isEmpty()) return
+        (toolInsights as MutableList<String>).addAll(insights)
     }
 }
 

@@ -47,11 +47,13 @@ interface ResponseFilter {
  * @param command 원본 에이전트 커맨드
  * @param toolsUsed 실행 중 사용된 도구 목록
  * @param verifiedSources 도구 출력에서 수집된 검증된 출처
+ * @param toolInsights R192: 도구 출력에서 수집된 insights 문자열 (LLM 빈 응답 fallback용)
  * @param durationMs 실행 소요 시간 (밀리초)
  */
 data class ResponseFilterContext(
     val command: AgentCommand,
     val toolsUsed: List<String>,
     val verifiedSources: List<VerifiedSource> = emptyList(),
+    val toolInsights: List<String> = emptyList(),
     val durationMs: Long
 )

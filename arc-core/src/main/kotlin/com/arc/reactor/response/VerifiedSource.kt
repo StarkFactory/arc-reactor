@@ -128,6 +128,37 @@ internal object VerifiedSourceExtractor {
         return BLOCKED_URL_PATTERNS.any { pattern -> url.contains(pattern, ignoreCase = true) }
     }
 
+    /**
+     * R192: 도구 출력 JSON의 `insights` 배열 필드에서 문자열 항목을 추출한다.
+     * 여러 insights 필드가 있어도 모두 수집하며, 중복과 공백 문자열은 제거한다.
+     */
+    fun extractInsights(output: String): List<String> {
+        val tree = parseJson(output) ?: return emptyList()
+        val normalizedTree = if (tree.isTextual) parseJson(tree.asText()) ?: tree else tree
+        val collected = mutableListOf<String>()
+        collectInsights(normalizedTree, collected)
+        return collected
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(MAX_INSIGHTS)
+    }
+
+    /** JSON 트리에서 'insights' 필드의 텍스트 배열을 재귀 수집한다. */
+    private fun collectInsights(node: JsonNode, out: MutableList<String>) {
+        if (node.isObject) {
+            val insightsField = node.path("insights")
+            if (insightsField.isArray) {
+                insightsField.forEach { child ->
+                    if (child.isTextual) out.add(child.asText())
+                }
+            }
+            node.fieldNames().forEachRemaining { field -> collectInsights(node.path(field), out) }
+            return
+        }
+        if (node.isArray) node.forEach { child -> collectInsights(child, out) }
+    }
+
     /** URL로 인식하는 JSON 필드명 목록 */
     private val URL_FIELDS = listOf(
         "url", "webUrl", "htmlUrl", "link", "sourceUrl", "specUrl", "href", "self", "webui"
@@ -140,4 +171,7 @@ internal object VerifiedSourceExtractor {
     private val BLOCKED_URL_PATTERNS = listOf("/download/attachments/")
     /** 최대 출처 수 */
     private const val MAX_SOURCES = 12
+
+    /** R192: 최대 insights 항목 수 */
+    private const val MAX_INSIGHTS = 10
 }

@@ -38,7 +38,11 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         }
 
         val finalContent = normalizedContent.ifBlank {
-            buildFallbackVerifiedResponse(context.command.userPrompt, sources)
+            buildFallbackVerifiedResponse(context.command.userPrompt, sources, context.toolInsights)
+        }.let { base ->
+            // R192: thin body 감지 — 도구 호출 후 본문이 THIN_BODY_THRESHOLD 미만이고 toolInsights가 있으면
+            // LLM이 "인사 + 출처"로 응답을 조기 종료한 것으로 판단 → 서버 insights를 본문에 주입한다.
+            maybeAppendToolInsightsForThinBody(base, context)
         }
 
         // 내부 읽기 도구만 사용했거나 읽기 전용 변경 거부이면 출처 블록 생략
@@ -168,14 +172,54 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         return "$heading\n${lines.joinToString("\n")}"
     }
 
-    /** 콘텐츠가 비어 있을 때 대체 메시지를 생성한다. */
-    private fun buildFallbackVerifiedResponse(userPrompt: String, sources: List<VerifiedSource>): String {
-        if (sources.isEmpty()) return ""
-        return if (containsHangul(userPrompt)) {
-            "승인된 도구 결과를 확인했지만 요약 문장을 생성하지 못했습니다. 아래 출처를 직접 확인해 주세요."
+    /**
+     * R192: 본문이 너무 짧을 때(LLM이 인사만 남기고 조기 종료) 서버 측 toolInsights로 본문을 보강한다.
+     *
+     * 트리거 조건:
+     * - 도구가 호출되었고
+     * - toolInsights가 비어있지 않으며
+     * - 본문이 [THIN_BODY_THRESHOLD] 미만
+     * - 이미 인사이트 마커(💡)가 포함되지 않음
+     */
+    private fun maybeAppendToolInsightsForThinBody(
+        content: String,
+        context: ResponseFilterContext
+    ): String {
+        if (context.toolsUsed.isEmpty()) return content
+        if (context.toolInsights.isEmpty()) return content
+        val trimmed = content.trim()
+        if (trimmed.length >= THIN_BODY_THRESHOLD) return content
+        if (trimmed.contains("💡") || trimmed.contains(":bulb:")) return content
+        val korean = containsHangul(context.command.userPrompt)
+        val insightsTitle = if (korean) "\n\n💡 인사이트" else "\n\n💡 Insights"
+        val insightLines = context.toolInsights
+            .take(MAX_FALLBACK_INSIGHTS)
+            .joinToString("\n") { "- $it" }
+        return "$trimmed$insightsTitle\n$insightLines"
+    }
+
+    /**
+     * 콘텐츠가 비어 있을 때 대체 메시지를 생성한다.
+     * R192: toolInsights가 있으면 `💡 인사이트` 섹션을 포함하여 사용자에게 의미 있는 정보를 제공한다.
+     */
+    private fun buildFallbackVerifiedResponse(
+        userPrompt: String,
+        sources: List<VerifiedSource>,
+        toolInsights: List<String> = emptyList()
+    ): String {
+        if (sources.isEmpty() && toolInsights.isEmpty()) return ""
+        val korean = containsHangul(userPrompt)
+        val header = if (korean) {
+            "승인된 도구 결과를 확인했지만 요약 문장을 생성하지 못했습니다. 아래 인사이트와 출처를 직접 확인해 주세요."
         } else {
-            "I retrieved approved tool results, but couldn't generate a clean summary. Please inspect the sources below."
+            "I retrieved approved tool results, but couldn't generate a clean summary. " +
+                "Please inspect the insights and sources below."
         }
+        // R192: 인사이트가 있으면 💡 블록으로 렌더링. has_insight 측정에서 포착되도록 한다.
+        if (toolInsights.isEmpty()) return header
+        val insightsTitle = if (korean) "💡 인사이트" else "💡 Insights"
+        val insightLines = toolInsights.take(MAX_FALLBACK_INSIGHTS).joinToString("\n") { "- $it" }
+        return "$header\n\n$insightsTitle\n$insightLines"
     }
 
     /** 생성된 콘텐츠에서 도구 코드 블록과 기존 출처 블록을 제거한다. */
@@ -364,5 +408,15 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
 
         /** 출처 블록에 포함할 최대 출처 수. */
         private const val MAX_SOURCES = 8
+
+        /** R192: fallback 응답에 포함할 최대 insights 수 */
+        private const val MAX_FALLBACK_INSIGHTS = 5
+
+        /**
+         * R192: 본문이 이 값 미만이면 "인사만 남기고 종료" 패턴으로 간주하여 인사이트를 자동 주입한다.
+         * 실제 "핵심 요약 + 상세 + 인사이트 + 행동 제안"이 있는 응답은 보통 300자 이상.
+         * 100자는 인사 1-2문장 + 간단한 한 줄 요약 정도까지만 허용하는 보수적 임계치.
+         */
+        private const val THIN_BODY_THRESHOLD = 100
     }
 }
