@@ -13,7 +13,11 @@ internal object WorkContextBitbucketPlanner {
 
     private val bitbucketOpenPrHints = setOf(
         "열린 pr", "오픈 pr", "open pr", "open prs",
-        "pull request 목록", "pr 목록"
+        "pull request 목록", "pr 목록",
+        // R172: 단순 PR 패턴도 OPEN PR로 가정 — repo가 명시되면 더 강하게 매칭
+        "최근 pr", "최신 pr", "pr 보여줘", "pr 알려줘",
+        "pr 현황", "pr 상황", "pr 리스트",
+        "recent pr", "latest pr", "show pr"
     )
     private val bitbucketMergedPrHints = setOf(
         "머지된 pr", "merge된 pr", "merged pr", "merged prs",
