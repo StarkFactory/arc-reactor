@@ -2,6 +2,8 @@ package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.config.ToolResultCacheProperties
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.util.HashUtils
 import com.arc.reactor.memory.TokenEstimator
 import com.arc.reactor.approval.ApprovalContext
@@ -74,7 +76,12 @@ internal class ToolCallOrchestrator(
      * null이면 컨텍스트 enrich를 건너뛴다 (기존 동작 유지).
      * 빈으로 등록된 [ApprovalContextResolver]가 있을 때만 주입된다 (opt-in).
      */
-    private val approvalContextResolver: ApprovalContextResolver? = null
+    private val approvalContextResolver: ApprovalContextResolver? = null,
+    /**
+     * R247: MCP 폴백 경로에서 즉석 생성되는 [ArcToolCallbackAdapter]에 주입되어
+     * tool 호출 예외를 `TOOL_CALL` stage로 자동 기록한다. 기본값 NoOp으로 backward compat.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
     /** Spring AI ToolCallback 해석 결과 캐시 — MethodToolCallbackProvider 호출 비용 절감. 크기 제한으로 메모리 누수 방지. */
     private val springToolCallbackCache: Cache<Long, Map<String, org.springframework.ai.tool.ToolCallback>> =
@@ -754,7 +761,8 @@ internal class ToolCallOrchestrator(
         findMcpToolCallback(toolName)?.let { mcpCallback ->
             val adapter = ArcToolCallbackAdapter(
                 arcCallback = mcpCallback,
-                fallbackToolTimeoutMs = toolCallTimeoutMs
+                fallbackToolTimeoutMs = toolCallTimeoutMs,
+                evaluationCollector = evaluationMetricsCollector
             )
             logger.info { "MCP 폴백으로 도구 발견: $toolName" }
             return invokeArcAdapter(toolName, toolInput, adapter)

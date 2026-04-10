@@ -6,6 +6,8 @@ import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
 import com.arc.reactor.agent.impl.defaultTransientErrorClassifier
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.SlaMetrics
 import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.routing.AgentModeResolver
@@ -96,7 +98,8 @@ class ArcReactorExecutorConfiguration {
         slaMetricsProvider: ObjectProvider<SlaMetrics>,
         costCalculatorProvider: ObjectProvider<CostCalculator>,
         cacheMetricsRecorderProvider: ObjectProvider<CacheMetricsRecorder>,
-        meterRegistryProvider: ObjectProvider<MeterRegistry>
+        meterRegistryProvider: ObjectProvider<MeterRegistry>,
+        evaluationMetricsCollectorProvider: ObjectProvider<EvaluationMetricsCollector>
     ): AgentExecutor = SpringAiAgentExecutor(
         chatClient = chatClient,
         chatModelProvider = chatModelProvider,
@@ -136,6 +139,9 @@ class ArcReactorExecutorConfiguration {
         slaMetrics = slaMetricsProvider.ifAvailable,
         costCalculator = costCalculatorProvider.ifAvailable,
         cacheMetricsRecorder = cacheMetricsRecorderProvider.ifAvailable,
-        meterRegistry = meterRegistryProvider.ifAvailable
+        meterRegistry = meterRegistryProvider.ifAvailable,
+        evaluationMetricsCollector = evaluationMetricsCollectorProvider.getIfAvailable {
+            NoOpEvaluationMetricsCollector
+        }
     )
 }

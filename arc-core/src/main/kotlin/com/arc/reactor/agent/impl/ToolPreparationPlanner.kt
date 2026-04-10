@@ -1,5 +1,7 @@
 package com.arc.reactor.agent.impl
 
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.mcp.McpToolAvailabilityChecker
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.LocalToolFilter
@@ -34,7 +36,9 @@ internal class ToolPreparationPlanner(
     private val maxToolsPerRequest: Int,
     private val fallbackToolTimeoutMs: Long,
     private val localToolFilters: List<LocalToolFilter> = emptyList(),
-    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null
+    private val mcpToolAvailabilityChecker: McpToolAvailabilityChecker? = null,
+    /** R247: adapter에 전달되어 tool 호출 예외를 `TOOL_CALL` stage로 자동 기록한다. */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) {
     /** ToolCallback → ArcToolCallbackAdapter 캐시 (weakKeys로 GC 시 자동 제거, lock-free) */
     private val callbackAdapterCache: Cache<ToolCallback, ArcToolCallbackAdapter> =
@@ -118,7 +122,8 @@ internal class ToolPreparationPlanner(
         return callbackAdapterCache.get(callback) {
             ArcToolCallbackAdapter(
                 arcCallback = callback,
-                fallbackToolTimeoutMs = fallbackToolTimeoutMs
+                fallbackToolTimeoutMs = fallbackToolTimeoutMs,
+                evaluationCollector = evaluationMetricsCollector
             )
         }
     }

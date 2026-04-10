@@ -21,6 +21,8 @@ import com.arc.reactor.agent.model.ErrorMessageResolver
 import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import io.micrometer.core.instrument.MeterRegistry
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.metrics.SlaMetrics
@@ -127,7 +129,16 @@ class SpringAiAgentExecutor(
     private val slaMetrics: SlaMetrics? = null,
     private val costCalculator: CostCalculator? = null,
     private val cacheMetricsRecorder: CacheMetricsRecorder? = null,
-    private val meterRegistry: MeterRegistry? = null
+    private val meterRegistry: MeterRegistry? = null,
+    /**
+     * R247: R245/R246 `execution.error{stage="tool_call"}` 메트릭을 자동 기록하기 위한 수집기.
+     *
+     * `ToolPreparationPlanner`, `ToolCallOrchestrator`, 그리고 강제 Workspace Tool 실행 경로에
+     * 생성되는 모든 `ArcToolCallbackAdapter`에 전달된다. 기본값은 `NoOpEvaluationMetricsCollector`
+     * 이므로 사용자가 `arc.reactor.evaluation.metrics.enabled=true`를 설정하고
+     * `MicrometerEvaluationMetricsCollector` 빈을 주입할 때만 실제 값이 수집된다.
+     */
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
 ) : AgentExecutor {
 
     // ── 초기화: 컨텍스트 윈도우가 출력 토큰보다 커야 트리밍이 정상 동작한다 ──
@@ -184,7 +195,8 @@ class SpringAiAgentExecutor(
         maxToolsPerRequest = properties.maxToolsPerRequest,
         fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs,
         localToolFilters = localToolFilters,
-        mcpToolAvailabilityChecker = mcpToolAvailabilityChecker
+        mcpToolAvailabilityChecker = mcpToolAvailabilityChecker,
+        evaluationMetricsCollector = evaluationMetricsCollector
     )
     // 대화 메시지 트리밍 — 컨텍스트 윈도우 초과 시 오래된 메시지 제거
     private val messageTrimmer = ConversationMessageTrimmer(
@@ -206,7 +218,8 @@ class SpringAiAgentExecutor(
         toolResultCacheProperties = properties.toolResultCache,
         tokenEstimator = tokenEstimator,
         maxContextWindowTokens = properties.llm.maxContextWindowTokens,
-        approvalContextResolver = approvalContextResolver
+        approvalContextResolver = approvalContextResolver,
+        evaluationMetricsCollector = evaluationMetricsCollector
     )
     // LLM 호출 재시도 실행기 — CircuitBreaker 연동
     private val retryExecutor = RetryExecutor(
@@ -744,7 +757,8 @@ class SpringAiAgentExecutor(
         val callback = (toolCallbacks + mcpToolCallbacks()).firstOrNull { it.name == plan.toolName } ?: return null
         val wrappedTool = ArcToolCallbackAdapter(
             arcCallback = callback,
-            fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs
+            fallbackToolTimeoutMs = properties.concurrency.toolCallTimeoutMs,
+            evaluationCollector = evaluationMetricsCollector
         )
         return toolCallOrchestrator.executeDirectToolCall(
             toolName = plan.toolName,

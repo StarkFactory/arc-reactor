@@ -1,14 +1,18 @@
 package com.arc.reactor.agent.impl
 
 import com.arc.reactor.agent.AgentTestFixture
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.tool.LocalTool
 import com.arc.reactor.tool.ToolCallback
 import com.arc.reactor.tool.ToolSelector
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -171,5 +175,74 @@ class ToolPreparationPlannerTest {
             firstPrepared.first() !== secondPrepared.first(),
             "Planner should not pin a stale adapter when callback instances are recreated"
         )
+    }
+
+    // ========================================================================
+    // R247: evaluationMetricsCollector 자동 배선 테스트
+    // ========================================================================
+
+    @Test
+    fun `R247 주입된 collector가 adapter에 전달되어 tool call 예외를 기록해야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+
+        val failingCallback = object : ToolCallback {
+            override val name: String = "failing_planner_tool"
+            override val description: String = "fails"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw IllegalStateException("planner injected failure")
+            }
+        }
+        val planner = ToolPreparationPlanner(
+            localTools = emptyList(),
+            toolCallbacks = listOf(failingCallback),
+            mcpToolCallbacks = { emptyList() },
+            toolSelector = null,
+            maxToolsPerRequest = 10,
+            fallbackToolTimeoutMs = 150,
+            evaluationMetricsCollector = collector
+        )
+
+        val prepared = planner.prepareForPrompt("do something")
+        val adapter = prepared.first() as ArcToolCallbackAdapter
+        adapter.call("{}")
+
+        val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+            .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "tool_call")
+            .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+            .counter()
+        assertNotNull(counter) {
+            "planner에 주입된 collector가 adapter에 전파되어 예외가 기록되어야 한다"
+        }
+        assertEquals(1.0, counter!!.count())
+    }
+
+    @Test
+    fun `R247 collector 미주입 시 기본 NoOp으로 backward compat 유지`() {
+        val failingCallback = object : ToolCallback {
+            override val name: String = "failing_tool"
+            override val description: String = "fails"
+            override suspend fun call(arguments: Map<String, Any?>): Any? {
+                throw RuntimeException("boom")
+            }
+        }
+        // evaluationMetricsCollector 파라미터 생략 → 기본 NoOp
+        val planner = ToolPreparationPlanner(
+            localTools = emptyList(),
+            toolCallbacks = listOf(failingCallback),
+            mcpToolCallbacks = { emptyList() },
+            toolSelector = null,
+            maxToolsPerRequest = 10,
+            fallbackToolTimeoutMs = 150
+        )
+
+        val prepared = planner.prepareForPrompt("prompt")
+        val adapter = prepared.first() as ArcToolCallbackAdapter
+        val output = adapter.call("{}")
+
+        assertTrue(output.startsWith("Error:")) {
+            "기본 NoOp collector에서도 예외 처리 경로는 그대로 작동"
+        }
+        assertTrue(output.contains("RuntimeException"))
     }
 }
