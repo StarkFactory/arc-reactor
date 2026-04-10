@@ -20,6 +20,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.ToolResponseMessage
+import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
 import java.util.concurrent.atomic.AtomicInteger
@@ -287,6 +288,9 @@ internal class ManualReActLoopExecutor(
         ) {
             logger.info { "도구 호출 의도가 텍스트로만 표현됨 — 재시도 (textRetryCount=${state.textRetryCount})" }
             state.textRetryCount++
+            // R201: 재시도 전에 명시적 힌트 메시지를 주입하여 LLM이 "잠시만 기다려 주세요" 패턴을
+            // 반복하지 않고 즉시 tool_calls를 emit하도록 유도한다.
+            messages += UserMessage(RETRY_TOOL_INTENT_HINT)
             return LoopAction.RetryWithoutTools
         }
         recordLoopDurations(hookContext, state.totalLlmDurationMs, state.totalToolDurationMs)
@@ -794,6 +798,19 @@ internal class ManualReActLoopExecutor(
 
         /** 같은 iteration 내 중복 호출 임시 마커 — mergeToolResponsesInOrder가 실제 결과로 치환한다. */
         private const val SAME_ITER_DUPLICATE_MARKER = "__arc_same_iter_dup__::"
+
+        /**
+         * R201: "미실행 도구 의도 감지" 시 재시도 LLM 호출에 주입하는 명시적 힌트.
+         * LLM이 "잠시만 기다려 주세요!" / "찾아볼게요!" 같은 텍스트 예약만 하고 실제 tool_calls를
+         * 생성하지 않는 패턴을 끊기 위해, 재시도 시 이 메시지를 UserMessage로 대화에 추가한다.
+         */
+        private const val RETRY_TOOL_INTENT_HINT =
+            "[시스템 안내] 직전 응답이 도구 호출(tool_calls) 없이 '잠시만 기다려 주세요' 같은 " +
+                "예약 텍스트로만 나왔습니다. 사용자는 이미 답변을 기다리고 있으므로 즉시 " +
+                "필요한 도구를 구조적 tool_calls로 호출하세요. " +
+                "'~찾아볼게요', '~기다려 주세요', '~조회하고 있습니다' 같은 예약 문구는 " +
+                "이번 응답에서 절대 사용하지 말고, 도구 호출만 emit하거나 " +
+                "도구 결과를 기반으로 한 최종 답변만 작성하세요."
 
         /** LLM이 도구를 호출하지 않고 텍스트로 도구 호출 코드를 작성한 패턴 */
         private val UNEXECUTED_TOOL_INTENT_PATTERN = Regex(
