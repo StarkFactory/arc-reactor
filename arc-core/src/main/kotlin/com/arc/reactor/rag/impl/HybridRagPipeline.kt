@@ -66,7 +66,10 @@ class HybridRagPipeline(
         val vectorDocs = retrieveFromVectorStore(transformedQueries, query)
         if (vectorDocs.isEmpty() && bm25Scorer.size == 0) return RagContext.EMPTY
 
-        val bm25Results = retrieveFromBm25(transformedQueries.first(), query.topK)
+        // R329 fix: 모든 transformedQueries에 대해 BM25를 실행한 후 결과를 병합한다.
+        // 기존 구현은 `transformedQueries.first()`만 사용하여 HyDE가 생성한 가상 문서(어휘가 풍부한 쿼리)를
+        // BM25 스코어링에서 완전히 discard했다 → 하이브리드 설계 의도가 반만 반영되는 semantic bug.
+        val bm25Results = retrieveFromBm25Multi(transformedQueries, query.topK)
         val fusedRanked = fuseWithRrf(vectorDocs, bm25Results)
         if (fusedRanked.isEmpty()) return RagContext.EMPTY
 
@@ -100,6 +103,39 @@ class HybridRagPipeline(
         val results = bm25Scorer.search(query, topK * 2)
         logger.debug { "BM25 검색 결과: ${results.size}개 문서" }
         return results
+    }
+
+    /**
+     * R329: 여러 transformedQueries에 대해 BM25 검색 후 결과를 doc ID별로 병합한다.
+     *
+     * 동일 문서가 여러 쿼리에서 검색된 경우 **최고 점수**를 채택하여 HyDE처럼 확장된 쿼리가
+     * 원본보다 더 잘 매칭되는 케이스를 놓치지 않는다. 최종 결과는 점수 내림차순 정렬 후 `topK * 2`로 컷.
+     */
+    private fun retrieveFromBm25Multi(
+        queries: List<String>,
+        topK: Int
+    ): List<Pair<String, Double>> {
+        if (queries.isEmpty()) return emptyList()
+        // 단일 쿼리면 기존 경로와 동일 (불필요한 맵 연산 회피)
+        if (queries.size == 1) return retrieveFromBm25(queries.first(), topK)
+
+        val bestScoreByDocId = mutableMapOf<String, Double>()
+        for (q in queries) {
+            val results = bm25Scorer.search(q, topK * 2)
+            for ((docId, score) in results) {
+                val current = bestScoreByDocId[docId]
+                if (current == null || score > current) {
+                    bestScoreByDocId[docId] = score
+                }
+            }
+        }
+        val merged = bestScoreByDocId.toList()
+            .sortedByDescending { it.second }
+            .take(topK * 2)
+        logger.debug {
+            "BM25 다중 쿼리 검색 결과: ${merged.size}개 문서 (쿼리=${queries.size}개)"
+        }
+        return merged
     }
 
     /** 4단계: RRF 융합 — 두 검색 결과의 순위를 역순위 점수로 합산 */

@@ -108,12 +108,32 @@ class LlmContextualCompressor(
         }
     }
 
-    /** LLM을 호출하여 쿼리 관련 내용을 추출한다. */
+    /**
+     * LLM을 호출하여 쿼리 관련 내용을 추출한다.
+     *
+     * R329 fix: 기존 구현은 `EXTRACTION_PROMPT.replace("{query}", query).replace("{content}", content)`
+     * 순서로 템플릿 치환을 수행했다. `String.replace`는 **모든 occurrence**를 치환하므로:
+     * - `query` 값에 리터럴 `{content}`가 포함되면 → 첫 `replace("{query}", query)` 결과에 `{content}`가
+     *   2번(템플릿 원본 + query에서 유래) 나타남
+     * - 두 번째 `replace("{content}", content)`가 **두 자리 모두** 문서 본문으로 치환
+     * - 결과: 프롬프트 구조가 망가지고, 사용자 query 위치에 문서 본문이 삽입되어 LLM이 엉뚱한
+     *   지시를 받음 (prompt injection / template corruption)
+     *
+     * 대칭 케이스: 문서에 `{query}` 리터럴 포함 → 이미 첫 replace가 실행된 후라 안전하지만 query가
+     * 문서에 주입되는 대칭 버그 발생 가능.
+     *
+     * 수정: `replace` 대신 직접 문자열 조립. 템플릿 상수는 이제 placeholder 없이 고정 헤더만 사용.
+     */
     private suspend fun callLlm(query: String, content: String): String? {
         return withContext(Dispatchers.IO) {
-            val userPrompt = EXTRACTION_PROMPT
-                .replace("{query}", query)
-                .replace("{content}", content)
+            // R329: 직접 조립으로 template replace 재귀 우회. 순서와 레이아웃은 기존과 byte-identical.
+            val userPrompt = buildString {
+                append("Query: ")
+                append(query)
+                append("\n\nDocument:\n")
+                append(content)
+                append("\n\nRelevant extract:")
+            }
 
             chatClient.prompt()
                 .system(SYSTEM_PROMPT)

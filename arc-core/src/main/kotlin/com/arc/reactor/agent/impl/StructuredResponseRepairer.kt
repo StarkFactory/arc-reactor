@@ -79,6 +79,11 @@ internal class StructuredResponseRepairer(
     /**
      * 유효하지 않은 구조화 콘텐츠를 LLM에 전송하여 복구를 시도한다.
      *
+     * R329 fix: `invalidContent`를 [MAX_REPAIR_INPUT_CHARS]로 truncate한 뒤 repair 프롬프트에
+     * 삽입한다. 기존 구현은 크기 제한이 없어 **100KB+ 잘못된 본문**이 repair LLM에 그대로
+     * 전달되어 (1) 토큰 비용 폭주 (2) repair 응답도 truncated 되어 다시 invalid (3) prompt
+     * injection 공격자가 "repair 지시 무시" 같은 payload를 본문에 심을 수 있다. 보수적 상한 8KB.
+     *
      * @return 복구된 콘텐츠 (코드 펜스 제거 후). 복구 실패 시 null
      */
     private suspend fun attemptRepair(
@@ -88,8 +93,18 @@ internal class StructuredResponseRepairer(
     ): String? {
         return runSuspendCatchingNonCancellation {
             val formatName = format.name
+            // R329: 사이즈 상한 — 대용량 invalid 본문으로 인한 token 폭주/truncation 체인 차단
+            val boundedContent = if (invalidContent.length > MAX_REPAIR_INPUT_CHARS) {
+                logger.warn {
+                    "복구 입력 크기 ${invalidContent.length} > $MAX_REPAIR_INPUT_CHARS — " +
+                        "첫 $MAX_REPAIR_INPUT_CHARS 자로 truncate 후 repair 시도"
+                }
+                invalidContent.take(MAX_REPAIR_INPUT_CHARS)
+            } else {
+                invalidContent
+            }
             val repairPrompt = "The following $formatName is invalid. " +
-                "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$invalidContent"
+                "Fix it and return ONLY valid $formatName with no explanation or code fences:\n\n$boundedContent"
 
             val activeChatClient = resolveChatClient(command)
             val response = kotlinx.coroutines.runInterruptible(Dispatchers.IO) {
@@ -102,8 +117,14 @@ internal class StructuredResponseRepairer(
             val repairedContent = response?.results?.firstOrNull()?.output?.text
             if (repairedContent != null) structuredOutputValidator.stripMarkdownCodeFence(repairedContent) else null
         }.getOrElse { e ->
-            logger.warn(e) { "복구 시도 실패" }
+            // R329: `e.message`는 ChatClient 예외 세부 정보를 log shipper에 노출할 수 있어 클래스명만 기록
+            logger.warn { "복구 시도 실패: ${e.javaClass.simpleName}" }
             null
         }
+    }
+
+    companion object {
+        /** R329: repair LLM에 전달하는 invalidContent 상한. 8KB ≈ 2K 토큰 보수적 기준. */
+        internal const val MAX_REPAIR_INPUT_CHARS = 8_192
     }
 }
