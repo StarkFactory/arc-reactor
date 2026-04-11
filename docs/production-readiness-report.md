@@ -20073,4 +20073,200 @@ mockk 테스트는 **DoctorDiagnostics의 분기 로직만** 검증하지만, Ap
 
 #### 🔌 R263 요약
 
-🔌 **R261 6번째 섹션을 ApplicationContextRunner Spring 통합 테스트로 끝점부터 검증** + R246~R263 동안 잠재해 있던 미묘한 EvaluationMetrics 동작을 명시적으로 잠금. 새 production 코드 없음, 순수 통합 테스트 라운드. 신규 `@Nested R263EvaluationMetricsContextIntegration` inner class에 5개 테스트 추가, 두 개의 contextRunner(`contextRunnerWithMeterRegistry`/`contextRunnerWithoutMeterRegistry`)로 시나리오 검증: (1) MeterRegistry 미등록 → NoOp + 6번째 SKIPPED, (2) MeterRegistry만 등록 → Micrometer + 6번째 OK (enabled 프로퍼티 무관 — 이 라운드 핵심 발견), (3) MeterRegistry + enabled → 자산 detail Spring 컨텍스트 통과 보존, (4) 5번째와 6번째 섹션 동기화, (5) 사용자 커스텀 collector → @ConditionalOnMissingBean으로 NoOp fallback 차단. **미묘한 동작 발견**: 첫 시도에서 "metrics 비활성 = NoOp"이라는 잘못된 가설로 1차 실패 → `EvaluationMetricsConfiguration` 분석 결과 `micrometerEvaluationMetricsCollector` 빈은 `@ConditionalOnBean(MeterRegistry::class)` 조건만 가져 enabled 프로퍼티 무관으로 활성화됨, `enabled` 프로퍼티는 `EvaluationMetricsHook` 자동 등록만 제어 — R236 이후 줄곧 silent 동작이었으나 어디에도 명시되지 않음, **R263 Test 2가 이 동작을 명시적 잠금**으로 향후 누군가 `@ConditionalOnProperty`를 collector 빈에 추가하려 하면 즉시 차단. **테스트 작성 중 추가 문제**: 인터페이스 시그니처 불일치(R245에서 errorCode/toolNames/exceptionClass 추가, SafetyRejectionStage enum 변경) → 5개 abstract method 시그니처 수정. **테스트 결과**: 5/5 신규 PASS + DoctorDiagnosticsTest 전체 + 전체 diagnostics 모듈 + arc-admin DoctorControllerTest PASS. **빌드**: `compileTestKotlin` 0 warnings, `:arc-core:test :arc-admin:test` PASS. **3대 최상위 제약 자동 준수**: 테스트 코드만 추가 — MCP/Cache/Context 모두 미접근. **R261 + R262 + R263 누적 6번째 섹션 보호 매트릭스**: catalog 8 + section 4 + formatter 6 + **integration 5 = 23** (R261 단독 12 → +92%). **검증 레벨 4단계 완성**: Unit data(R261) + Unit logic(R261) + Golden rendering(R262) + **Integration wiring(R263)** = 4계층, mockk만으로는 절대 발견할 수 없는 Spring 컨텍스트 회귀(빈 정의 변경/조건 누락/의존성 변경/Primary 충돌) 영역까지 커버. **회귀 방어 시나리오**: collector 빈에 `@ConditionalOnProperty` 추가 차단(Test 2), 두 섹션 동기화 보호(Test 4), 카탈로그 path Spring 통과 보존(Test 3), 사용자 커스텀 우선순위 보호(Test 5), MeterRegistry 없이 Micrometer 등록 차단(Test 1). Directive 진행: **4/5 + R224~R263**. swagger-mcp 8181 **94 라운드 연속 PASS**. 다음 우선순위는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, R263 발견 동작을 `EvaluationMetricsConfiguration` KDoc로 명시화, 또는 DoctorReport Slack 정기 포스팅 cron.
+🔌 R263 — DoctorDiagnostics 6번째 섹션 ApplicationContextRunner 통합 테스트 + EvaluationMetrics 미묘한 동작 발견. [상세 본문 위 R263 섹션 참조]
+
+---
+
+### Round 264 — 📝 2026-04-12T01:00+09:00 — EvaluationMetricsConfiguration KDoc 활성화 매트릭스 명시화 (R263 발견 동작 문서화)
+
+**작업 종류**: 문서화 — KDoc 강화, 코드 동작 변경 0
+**Directive 패턴**: Documentation Hardening (R263 발견 silent 동작의 명시화)
+**완료 태스크**: #139
+
+#### 작업 배경
+
+R263에서 ApplicationContextRunner 통합 테스트를 작성하다 **`EvaluationMetricsConfiguration`의 미묘한 동작**을 발견했다:
+
+- `arc.reactor.evaluation.metrics.enabled=true` 프로퍼티는 **`EvaluationMetricsHook` 자동 등록만 제어**한다.
+- `EvaluationMetricsCollector` 빈은 **`MeterRegistry` 빈 존재 여부만으로** Micrometer 구현체로 활성화된다 — `enabled` 프로퍼티와 무관.
+- 따라서 `MeterRegistry`가 등록된 환경(Spring Boot Actuator + Micrometer 등)에서는 `enabled` 프로퍼티 없이도 collector가 활성 상태로 간주된다.
+
+R263 Test 2(`R263 MeterRegistry 등록만으로도 Micrometer collector + 6번째 섹션 OK (enabled 프로퍼티 무관)`)가 이 동작을 명시적으로 **테스트 레벨**에서 잠갔지만, **KDoc에는 기록되지 않은 상태**였다. R236 이후 약 28 라운드 동안 silent 동작으로 남아 있었던 셈이다.
+
+R264는 이 동작을 클래스 KDoc에 활성화 매트릭스 표로 명시하여, 코드를 처음 보는 사람도 즉시 동작을 이해할 수 있도록 한다.
+
+#### 수정 파일
+
+**`arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/EvaluationMetricsConfiguration.kt`** — KDoc만 수정, 빈 정의/시그니처/동작 모두 불변.
+
+##### 클래스 KDoc 추가 섹션
+
+```
+## R264: 활성화 매트릭스 (R263 발견 동작 명시화)
+
+| MeterRegistry 빈 | enabled 프로퍼티 | collector 결과 | Hook 등록 | DoctorDiagnostics 6번째 섹션 |
+|------------------|-------------------|----------------|-----------|------------------------------|
+| ❌ 없음           | ❌ 미설정          | NoOp           | ❌         | SKIPPED |
+| ❌ 없음           | ✅ true            | NoOp           | ✅ (NoOp 래핑) | SKIPPED |
+| ✅ 있음           | ❌ 미설정          | **Micrometer** | ❌         | **OK** |
+| ✅ 있음           | ✅ true            | **Micrometer** | ✅         | **OK** |
+```
+
+3행이 R263에서 발견한 미묘한 동작 — `MeterRegistry` 등록 + `enabled` 프로퍼티 미설정 시 collector는 활성, Hook은 비활성. 운영자가 직접 `collector.recordXxx()`를 호출하는 시나리오를 지원한다.
+
+##### 핵심 관찰 3개
+
+1. `MeterRegistry`만 있어도 collector는 활성 — Hook 없이 직접 호출 시나리오 (옵션 C)
+2. Hook 자동 등록은 `enabled=true` 명시 필요
+3. 사용자 커스텀 collector + `@ConditionalOnMissingBean` 동작 — 사용자 빈 우선
+
+##### 옵션 C 신규 추가
+
+기존 옵션 A(Micrometer + Hook), 옵션 B(커스텀 collector + Hook)에 더해 옵션 C를 추가:
+
+> ### 옵션 C (R264 명시) — MeterRegistry만 등록 (Hook 없이 직접 호출)
+>
+> Spring Boot Actuator나 사용자 코드로 `MeterRegistry` 빈만 등록하고 `enabled`
+> 프로퍼티를 설정하지 않으면, `MicrometerEvaluationMetricsCollector`가 자동으로
+> 등록되지만 `EvaluationMetricsHook`은 등록되지 않는다.
+
+##### 변경 시 주의 (잠금 사항)
+
+```
+`micrometerEvaluationMetricsCollector` 빈에 `@ConditionalOnProperty(... enabled=true)`를
+추가하면 위 활성화 매트릭스의 3행이 깨진다. R263 통합 테스트
+(`R263EvaluationMetricsContextIntegration` Test 2)가 이 변경을 즉시 차단하므로,
+만약 의도된 동작 변경이라면 해당 테스트도 함께 갱신해야 한다.
+```
+
+이 노트는 미래 개발자에게 명시적 경고로 작용한다. KDoc → 테스트 → 빈 정의 3계층이 모두 동기화되어야 한다는 점을 명확히 한다.
+
+##### 빈 메서드별 KDoc 강화
+
+**`micrometerEvaluationMetricsCollector`**:
+
+```
+R264 잠금: 이 빈은 **`arc.reactor.evaluation.metrics.enabled` 프로퍼티와 무관**하다.
+`MeterRegistry` 빈이 컨텍스트에 등록되어 있기만 하면 Micrometer 구현체가 활성화된다.
+```
+
+**`evaluationMetricsHook`**:
+
+```
+R264 명시: 이 빈만 enabled 프로퍼티에 묶여 있다. collector 자체는 [MeterRegistry]
+등록만으로 활성화되므로, Hook 없이 collector 메서드를 직접 호출하는 운영 시나리오도
+가능하다 (옵션 C).
+```
+
+#### 안 한 것 (의도적)
+
+- **production 코드 동작 변경 없음** — R264는 순수 KDoc 라운드. 빈 조건/시그니처/생성자 모두 불변
+- **R263 테스트 변경 없음** — 이미 동작이 잠겨 있음
+- **`@Deprecated` 추가 없음** — 현재 동작은 의도된 자유로운 모델이며 deprecate할 이유 없음
+- **README 변경 없음** — 클래스 레벨 KDoc이 IDE/JavaDoc에서 자연스럽게 surfacing되므로 별도 README 진입점 불필요
+
+#### 테스트
+
+코드 변경 없으므로 단위 테스트 추가 불필요. KDoc만 수정했으므로 컴파일 sanity check만 수행:
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL in 1s — 0 warnings
+
+./gradlew :arc-core:test --tests "com.arc.reactor.diagnostics.*" --tests "com.arc.reactor.autoconfigure.*"
+# BUILD SUCCESSFUL in 5s — all tests pass (regression check)
+```
+
+R263 통합 테스트가 여전히 PASS — KDoc 변경이 실제 빈 동작에 영향 없음을 확인.
+
+#### 빌드
+
+- `compileKotlin`: PASS (0 warnings)
+- `compileTestKotlin`: PASS (0 warnings)
+- diagnostics + autoconfig 모듈 회귀 테스트: PASS
+
+#### opt-in 기본값
+
+- **새 기능 없음** — 문서화만
+- **기존 경로 영향**: 0 — KDoc 수정만, 런타임 동작 불변
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**: ✅ KDoc만 수정 — 도구 경로 미접근
+**2. Redis 의미적 캐시**: ✅ KDoc만 수정 — SystemPromptBuilder 미수정
+**3. 대화/스레드 컨텍스트 관리**: ✅ KDoc만 수정 — MemoryStore 미접근
+
+#### R263 + R264 통합 명세 완성
+
+| 라운드 | 잠금 위치 | 무엇을 잠그는가 |
+|--------|-----------|----------------|
+| R263 | 통합 테스트 5개 | 동작이 깨지면 테스트 실패로 즉시 차단 |
+| **R264** | **클래스 KDoc** | **동작이 명시되어 코드 리뷰어가 의도를 즉시 이해** |
+
+두 라운드의 합산 가치: **silent 동작 → 명시 동작**. R263 단독으로는 테스트가 동작을 잠갔지만 코드 리뷰어가 KDoc만 보고는 모를 수 있었다. R264는 이 갭을 메운다. 이제 누군가 `@ConditionalOnProperty(enabled=true)`를 collector 빈에 추가하려 하면:
+
+1. **KDoc 경고**가 변경 의도를 묻는다 (R264)
+2. **R263 Test 2**가 컴파일/실행 시 즉시 실패한다 (R263)
+3. 두 신호를 모두 무시하면 의식적인 동작 변경으로 분류되어, 활성화 매트릭스 표 + 테스트 모두를 함께 업데이트해야 한다
+
+#### 문서-테스트-코드 3계층 동기화
+
+```
+┌──────────────────────────────────────────────────────┐
+│ 문서 계층 (R264)                                     │
+│   - KDoc 활성화 매트릭스 표 (4행 시나리오)            │
+│   - 옵션 C 명시                                      │
+│   - 변경 시 주의 (잠금 사항)                          │
+└──────────────────────────────────────────────────────┘
+                         ↕
+┌──────────────────────────────────────────────────────┐
+│ 테스트 계층 (R263)                                   │
+│   - R263EvaluationMetricsContextIntegration 5 tests │
+│   - Test 2: enabled 프로퍼티 무관 동작 잠금          │
+│   - Test 5: 사용자 커스텀 collector @ConditionalOnMissingBean │
+└──────────────────────────────────────────────────────┘
+                         ↕
+┌──────────────────────────────────────────────────────┐
+│ 코드 계층 (R222 이후 불변)                           │
+│   - micrometerEvaluationMetricsCollector @ConditionalOnBean │
+│   - noOpEvaluationMetricsCollector @ConditionalOnMissingBean │
+│   - evaluationMetricsHook @ConditionalOnProperty    │
+└──────────────────────────────────────────────────────┘
+```
+
+세 계층이 동기화되어 있다는 것을 확인하기 위해서는 R264 KDoc 표 + R263 테스트 + 빈 정의를 동시에 읽어야 한다. 변경할 때도 마찬가지다.
+
+#### 운영자 영향
+
+R264는 새 기능 없음 — 운영자에게 즉각적인 변화는 없다. **간접 가치**:
+
+1. **`/admin/doctor` 응답이 OK인데 enabled=false인 경우 의문 해소** — 이전에는 "왜 활성으로 표시되지?"라고 헷갈릴 수 있었으나, KDoc 표를 보면 즉시 이해 가능
+2. **운영자 옵션 C 명시** — Hook 없이 직접 collector 호출 시나리오를 공식 옵션으로 인정
+3. **새 개발자 onboarding 시간 단축** — 클래스 한 곳에서 모든 활성화 시나리오 파악 가능
+
+#### 연속 지표
+
+| 지표 | R263 | R264 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 94 | **95** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5914+ PASS | **5914+ PASS** (변경 없음) | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R263 | **4/5 + R224~R264** | - |
+| EvaluationMetrics silent 동작 | R263 테스트만 잠금 | **R263 테스트 + R264 KDoc 동시 잠금** | 명시화 완성 |
+| 문서-테스트-코드 동기화 | 부분 (테스트만) | **3계층 모두** | ✅ |
+
+#### 다음 Round 후보
+
+- **R265+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+  3. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254 분리 작업
+  4. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+  5. **DoctorReport Slack 정기 포스팅 cron** — `@Scheduled` 기반
+  6. **다른 Configuration들의 silent 동작 KDoc 감사** — R264 패턴을 다른 auto-config 클래스에도 적용. 예: `ResponseCacheConfiguration`, `GuardConfiguration`, `HookAndMcpConfiguration` 등에서 `@ConditionalOn*` 조합의 미묘한 활성화 매트릭스가 KDoc에 명시되어 있는지 점검
+
+#### 📝 R264 요약
+
+📝 **R263에서 발견한 EvaluationMetrics silent 동작을 EvaluationMetricsConfiguration KDoc 활성화 매트릭스로 명시화** — 코드 동작 변경 0, 순수 문서화 라운드. R263 통합 테스트가 동작을 잠갔지만 KDoc은 R236 이후 약 28 라운드 동안 침묵 상태였던 silent 동작 갭을 메운다. **클래스 KDoc 추가 섹션**: (1) **활성화 매트릭스 표** — `MeterRegistry 빈 × enabled 프로퍼티`의 4가지 조합과 각각의 collector/Hook/DoctorDiagnostics 6번째 섹션 결과 명시, 3행이 핵심(MeterRegistry 등록 + enabled 미설정 → Micrometer 활성, Hook 비활성, 6번째 섹션 OK), (2) **핵심 관찰 3개** — MeterRegistry만으로도 활성/Hook은 enabled 필수/사용자 커스텀 빈 @ConditionalOnMissingBean 동작, (3) **옵션 C 신규** — 기존 A(Micrometer+Hook), B(커스텀+Hook)에 더해 C(MeterRegistry만, Hook 없이 직접 호출) 공식 옵션으로 인정, 운영자가 자체 코드에서 collector 메서드 직접 호출 시나리오 지원, (4) **변경 시 주의 잠금 사항** — `@ConditionalOnProperty`를 collector 빈에 추가하면 매트릭스 3행 깨짐 + R263 Test 2가 즉시 차단하므로 의도된 변경이면 테스트와 매트릭스 둘 다 갱신 필요. **빈 메서드별 KDoc 강화**: `micrometerEvaluationMetricsCollector`에 "R264 잠금: enabled 프로퍼티와 무관" 명시, `evaluationMetricsHook`에 "R264 명시: 이 빈만 enabled 프로퍼티에 묶여 있음, 옵션 C 가능" 명시. **빌드/테스트**: `compileKotlin compileTestKotlin` 0 warnings PASS, `:arc-core:test --tests "diagnostics/autoconfigure"` PASS — KDoc 변경이 실제 빈 동작에 영향 없음 확인. **3대 최상위 제약 자동 준수**: KDoc만 수정, MCP/Cache/Context 모두 미접근. **R263 + R264 통합 명세 완성**: R263은 통합 테스트 5개로 동작 잠금, R264는 클래스 KDoc로 명시 — 두 라운드 합산하여 silent → 명시 변환 완료. **3계층 동기화**: 문서(R264 KDoc 표) ↔ 테스트(R263 Integration tests) ↔ 코드(R222 이후 불변 빈 정의) 세 계층이 모두 동기화되어, 누군가 미래에 collector 빈에 `@ConditionalOnProperty`를 추가하려 하면 (1) KDoc 경고, (2) R263 Test 2 실패, (3) 의식적인 변경으로 분류 — 세 신호가 동시에 작동. **운영자 영향**: 즉각 변화 없으나 (1) `/admin/doctor`가 enabled=false 환경에서 OK를 반환하는 의문 해소, (2) 옵션 C 공식 인정, (3) 새 개발자 onboarding 시간 단축. Directive 진행: **4/5 + R224~R264**. swagger-mcp 8181 **95 라운드 연속 PASS**. 다음 우선순위는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, 다른 Configuration들의 silent 동작 KDoc 감사(R264 패턴을 ResponseCacheConfiguration/GuardConfiguration 등에 확장), 또는 DoctorReport Slack 정기 포스팅 cron.
