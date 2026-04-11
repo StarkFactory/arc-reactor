@@ -368,6 +368,101 @@ class PromptLabControllerTest {
         }
     }
 
+    @Nested
+    inner class R299_ErrorMessageSanitization {
+
+        @Test
+        fun `R299 sanitize null returns null`() {
+            assertEquals(null, controller.sanitizeExperimentError(null)) {
+                "R299 fix: null 입력은 null 반환"
+            }
+        }
+
+        @Test
+        fun `R299 sanitize blank returns null`() {
+            assertEquals(null, controller.sanitizeExperimentError("   ")) {
+                "R299 fix: blank 입력은 null 반환"
+            }
+        }
+
+        @Test
+        fun `R299 sanitize strips stack trace lines`() {
+            // 다중 라인 입력 — 첫 라인만 살아남아야 함 (stack trace 차단)
+            val raw = """
+                LLM provider error: connection refused
+                    at com.arc.reactor.llm.GeminiClient.invoke(GeminiClient.kt:42)
+                    at com.arc.reactor.agent.SpringAiAgentExecutor.execute(SpringAiAgentExecutor.kt:128)
+                Caused by: java.net.ConnectException
+            """.trimIndent()
+
+            val sanitized = controller.sanitizeExperimentError(raw)
+
+            assertNotNull(sanitized) { "non-blank 입력은 null 아니어야 한다" }
+            assertEquals("LLM provider error: connection refused", sanitized) {
+                "R299 fix: 첫 번째 non-blank 라인만 추출되어야 한다 (stack trace 라인 제거)"
+            }
+        }
+
+        @Test
+        fun `R299 sanitize truncates long messages with ellipsis`() {
+            // 200자 초과 → truncation + ... suffix
+            val longMessage = "Database query failed: " + "x".repeat(300)
+            val sanitized = controller.sanitizeExperimentError(longMessage)
+
+            assertNotNull(sanitized)
+            assertEquals(
+                PromptLabController.MAX_ERROR_MESSAGE_LENGTH + 3,
+                sanitized!!.length
+            ) {
+                "R299 fix: 200자 초과 시 truncate + '...' suffix (총 203자)"
+            }
+            assertEquals(true, sanitized.endsWith("...")) {
+                "R299 fix: truncated suffix '...' 포함"
+            }
+        }
+
+        @Test
+        fun `R299 sanitize keeps short messages intact`() {
+            val shortMessage = "Experiment timed out after 60s"
+            val sanitized = controller.sanitizeExperimentError(shortMessage)
+
+            assertEquals(shortMessage, sanitized) {
+                "R299 fix: 200자 이하 단일 라인은 그대로 유지"
+            }
+        }
+
+        @Test
+        fun `R299 getStatus 응답 errorMessage는 sanitize되어야 한다`() {
+            // R299 fix 검증: getStatus 응답에서 raw stack trace가 노출되지 않음
+            val sensitive = """
+                JDBC error at /var/lib/db/sensitive.sql line 42: secret column not found
+                    at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse
+                    at org.postgresql.jdbc.PgStatement.execute
+            """.trimIndent()
+
+            val experiment = buildExperiment().copy(
+                status = ExperimentStatus.FAILED,
+                errorMessage = sensitive
+            )
+            every { experimentStore.get("exp-1") } returns experiment
+
+            val response = controller.getStatus("exp-1", adminExchange())
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            val body = response.body as ExperimentStatusResponse
+            assertEquals(
+                "JDBC error at /var/lib/db/sensitive.sql line 42: secret column not found",
+                body.errorMessage
+            ) {
+                "R299 fix: errorMessage는 첫 라인만 포함하고 stack trace는 제거"
+            }
+            // stack trace 라인이 없음을 명시 검증
+            assertEquals(false, body.errorMessage?.contains("at org.postgresql")) {
+                "R299 fix: stack trace 라인은 응답에 포함되면 안 된다"
+            }
+        }
+    }
+
     // ── Helpers ──
 
     private fun buildExperiment(

@@ -227,6 +227,15 @@ class PromptLabController(
     }
 
     /** 실험 실행 상태를 조회한다. */
+    /**
+     * 실험 실행 상태를 조회한다.
+     *
+     * R299 fix: `experiment.errorMessage`를 [sanitizeExperimentError]로 정제하여 응답에
+     * 포함한다. 이전 구현은 raw 메시지를 그대로 노출하여 stack trace, 내부 파일 경로,
+     * SQL 단편 등 민감 정보가 admin endpoint를 통해 누출될 수 있었다. CLAUDE.md 규칙
+     * #9의 spirit(`e.message` HTTP 노출 금지)을 admin endpoint에도 적용. 운영자는 server
+     * log에서 원본 stack trace를 확인.
+     */
     @Operation(summary = "실험 실행 상태 조회 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Experiment status"),
@@ -247,9 +256,36 @@ class PromptLabController(
                 status = experiment.status.name,
                 startedAt = experiment.startedAt?.toEpochMilli(),
                 completedAt = experiment.completedAt?.toEpochMilli(),
-                errorMessage = experiment.errorMessage
+                // R299: errorMessage sanitize — stack trace 제거 + 200자 truncation
+                errorMessage = sanitizeExperimentError(experiment.errorMessage)
             )
         )
+    }
+
+    /**
+     * R299: experiment.errorMessage를 HTTP 응답에 안전하게 노출하기 위해 sanitize한다.
+     *
+     * 처리:
+     * 1. null/blank → null 반환
+     * 2. 첫 번째 라인만 추출 (stack trace `at com.foo.Bar(...)` 라인 제거)
+     * 3. 200자로 truncation (긴 경로/SQL 단편 차단)
+     * 4. truncate 시 `...` suffix 추가
+     *
+     * 운영자는 [logger]가 기록한 server log에서 원본 stack trace 확인 가능.
+     */
+    internal fun sanitizeExperimentError(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        // 1. 첫 번째 non-blank 라인만 (stack trace 제거)
+        val firstLine = raw.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotBlank() }
+            ?: return null
+        // 2. 200자 truncation
+        return if (firstLine.length > MAX_ERROR_MESSAGE_LENGTH) {
+            firstLine.substring(0, MAX_ERROR_MESSAGE_LENGTH) + "..."
+        } else {
+            firstLine
+        }
     }
 
     /** 실험 트라이얼 데이터를 조회한다. */
@@ -421,6 +457,11 @@ class PromptLabController(
 
     override fun destroy() {
         scope.cancel()
+    }
+
+    companion object {
+        /** R299: experiment.errorMessage HTTP 노출 시 최대 길이 (긴 SQL 단편/경로 차단) */
+        internal const val MAX_ERROR_MESSAGE_LENGTH = 200
     }
 }
 
