@@ -152,12 +152,24 @@ class JdbcMemoryStoreConfiguration {
         jdbcTemplate: JdbcTemplate
     ): UserIdentityStore = JdbcUserIdentityStore(jdbcTemplate = jdbcTemplate)
 
+    /**
+     * R289 fix: matchIfMissing을 false → true로 정렬하여 default JDBC 배포에서도 자동 등록.
+     *
+     * 이전 구현은 [FeedbackMetadataCaptureHook](`ArcReactorCoreBeansConfiguration.feedbackMetadataCaptureHook`)이
+     * `matchIfMissing = true`로 default ON인 반면, 이 JdbcFeedbackStore는 `matchIfMissing = false`로
+     * default OFF였다. 결과: 기본 JDBC 배포에서 hook이 메타데이터를 capture하지만 JdbcFeedbackStore가
+     * 등록되지 않아 in-memory fallback으로 저장 → restart 시 silent data loss.
+     *
+     * R289 fix: matchIfMissing을 true로 정렬하여 hook과 store의 활성화 조건 일치. JDBC datasource가
+     * 있는 deployment에서는 자동으로 영속 저장. JDBC를 의도적으로 비활성화하려면
+     * `arc.reactor.feedback.enabled=false` 설정.
+     */
     @Bean
     @Primary
     @ConditionalOnMissingBean(name = ["jdbcFeedbackStore"])
     @ConditionalOnProperty(
         prefix = "arc.reactor.feedback", name = ["enabled"],
-        havingValue = "true", matchIfMissing = false
+        havingValue = "true", matchIfMissing = true
     )
     fun jdbcFeedbackStore(
         jdbcTemplate: JdbcTemplate

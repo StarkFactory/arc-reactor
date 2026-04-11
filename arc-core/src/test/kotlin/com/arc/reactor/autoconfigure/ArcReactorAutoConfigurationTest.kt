@@ -397,6 +397,59 @@ class ArcReactorAutoConfigurationTest {
         }
     }
 
+    // ── Feedback Store Configuration (R289) ─────────────────────────
+
+    @Nested
+    inner class FeedbackStoreDefaults {
+
+        @Test
+        fun `R289 default JDBC 배포에서 JdbcFeedbackStore가 자동 등록되어야 한다`() {
+            // R289 fix 검증: 이전 구현은 FeedbackMetadataCaptureHook이 matchIfMissing=true로
+            // default ON이지만 JdbcFeedbackStore가 matchIfMissing=false로 default OFF여서
+            // hook이 capture한 데이터가 in-memory fallback에 저장되어 restart 시 silent loss.
+            // R289에서 JdbcFeedbackStore의 matchIfMissing=true로 정렬하여 default JDBC 배포에서
+            // 자동 영속 저장.
+            jdbcContextRunner
+                .withPropertyValues(
+                    "spring.datasource.url=jdbc:h2:mem:r289FeedbackDefault;DB_CLOSE_DELAY=-1",
+                    "spring.datasource.driver-class-name=org.h2.Driver"
+                )
+                .run { context ->
+                    assertTrue(context.containsBean("jdbcFeedbackStore")) {
+                        "R289 fix: default JDBC 배포에서 jdbcFeedbackStore가 자동 등록되어야 한다 " +
+                            "(matchIfMissing=true). 이전 false 설정에서는 등록 안 됨 → " +
+                            "FeedbackMetadataCaptureHook이 capture한 데이터가 in-memory에 저장 → " +
+                            "restart 시 silent data loss."
+                    }
+                    val store = context.getBean(
+                        com.arc.reactor.feedback.FeedbackStore::class.java
+                    )
+                    assertInstanceOf(
+                        com.arc.reactor.feedback.JdbcFeedbackStore::class.java,
+                        store
+                    ) {
+                        "R289 fix: default 활성화된 FeedbackStore는 JdbcFeedbackStore여야 한다"
+                    }
+                }
+        }
+
+        @Test
+        fun `R289 feedback enabled false 명시 시 JdbcFeedbackStore가 비활성화되어야 한다`() {
+            jdbcContextRunner
+                .withPropertyValues(
+                    "arc.reactor.feedback.enabled=false",
+                    "spring.datasource.url=jdbc:h2:mem:r289FeedbackDisabled;DB_CLOSE_DELAY=-1",
+                    "spring.datasource.driver-class-name=org.h2.Driver"
+                )
+                .run { context ->
+                    assertFalse(context.containsBean("jdbcFeedbackStore")) {
+                        "R289 fix: arc.reactor.feedback.enabled=false 명시 시 JdbcFeedbackStore는 " +
+                            "등록되지 않아야 한다 (operator opt-out 보존)"
+                    }
+                }
+        }
+    }
+
     /** R287 회귀 테스트용 — 다른 이름으로 등록되는 RateLimitStage 사용자 구성. */
     @Configuration
     class CustomRateLimitStageConfig {
