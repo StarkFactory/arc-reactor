@@ -214,6 +214,13 @@
 - 요약: `admin_productization` 3회 연속 후 tie-break 다음 우선순위인 `employee_value`로 axis 전환. response 조립 scanner가 P1 MED 1건 발견 — `mergeVerifiedSourcesMetadata`의 grounded 판정이 `latestSignal?.grounded ?: verifiedSources.isNotEmpty()` Elvis 체인이라 tool이 명시적으로 `grounded=false`(non-null)를 반환하면 우변이 평가되지 않아, 실제 verifiedSources가 존재해도 최종 metadata에 `grounded=false`가 기록되는 **false-negative**. tool의 partial match 신호 등이 이 경로를 트리거해 직원이 근거 있는 답변을 받았음에도 "ungrounded"로 평가절하되고 Grafana employee_value 대시보드의 grounded coverage KPI가 저평가되는 silent drift. 1줄 수정: `(latestSignal?.grounded == true) || verifiedSources.isNotEmpty()`로 변경해 "signal true 또는 sources 존재"를 grounded로 판정. "signal false + sources 없음" 케이스는 여전히 false 유지(의미 보존). 신규 회귀 2건(false-negative fix + negative 유지 cross-verify). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R342.md`
 
+### Round 343 — 2026-04-13T04:30+09:00 — cycle 10 14차: VerifiedSourceExtractor URL dedup 정규화
+
+- axis: `employee_value` (2회 연속)
+- 분류: `direct_value`
+- 요약: R342 scanner LOW #1 처리. `VerifiedSourceExtractor.extract`의 `distinctBy { it.url }`이 문자열 raw 비교라 `https://wiki.company.com/page/123`, `.../page/123/`(trailing slash), `.../page/123#section`(fragment)이 각각 별개 source로 취급되어 직원이 응답 Sources 블록에서 같은 페이지 링크를 중복으로 보는 user-visible 버그. Confluence/Jira 도구가 `self.href` + `webUrl` + path 표현 변형을 동시에 반환하는 현실적 케이스에서 자주 트리거. MAX_SOURCES=12 한도가 동일 페이지 중복으로 낭비되어 실제 다른 출처가 잘려나가는 2차 영향도. `normalizeUrlForDedup` private helper 추가: fragment 제거 + trailing slash 정리 (scheme:// 엣지 케이스 보존). `distinctBy { normalizeUrlForDedup(it.url) }`로 key selector만 변경. 원본 URL은 `distinctBy`의 "첫 번째 발견 유지" 의미로 보존되어 사용자 링크 표시 자연스러움 유지. 신규 회귀 3건(trailing slash dedup, fragment dedup, 조합 dedup) + 기존 VerifiedSourceTest 3건 PASS 유지. 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R343.md`
+
 ---
 
 ## 11. 아카이브

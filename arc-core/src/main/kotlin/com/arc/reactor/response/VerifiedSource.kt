@@ -39,9 +39,42 @@ internal object VerifiedSourceExtractor {
         val tree = parseJson(output) ?: return emptyList()
         // 텍스트 노드인 경우 한 번 더 파싱 시도 (이스케이프된 JSON 처리)
         val normalizedTree = if (tree.isTextual) parseJson(tree.asText()) ?: tree else tree
+        // R343: distinctBy의 key selector를 `normalizeUrlForDedup`으로 변경해 trailing slash /
+        // fragment 차이만으로 같은 페이지가 중복 source로 기록되는 문제 수정. 원본 url 값은 보존.
         return collectSources(normalizedTree, toolName)
-            .distinctBy { it.url }
+            .distinctBy { normalizeUrlForDedup(it.url) }
             .take(MAX_SOURCES)
+    }
+
+    /**
+     * R343: URL dedup 키 정규화.
+     *
+     * **배경**: 기존 `distinctBy { it.url }`은 문자열 raw 비교라
+     * `https://wiki.company.com/page/123`과 `https://wiki.company.com/page/123/` (trailing slash)
+     * 또는 `https://wiki.company.com/page/123#section-a`와 `https://wiki.company.com/page/123` 처럼
+     * 실질적으로 같은 페이지를 가리키는 변형이 별개 source로 취급되어 직원이 동일 페이지 링크를
+     * 두 번(또는 그 이상) 보게 된다. employee_value axis 핵심인 응답 가치(신뢰 가능한 출처) UX를
+     * 직접 저해.
+     *
+     * **정규화 정책** (url을 "의미론적으로 같은 자원"으로 판단하는 데 필요한 최소한의 작업):
+     * 1. `#fragment` 제거 — HTML anchor는 같은 문서 내 앵커이므로 dedup 대상
+     * 2. trailing slash 정리 — `/path/` → `/path` (루트 `/`는 보존)
+     * 3. 대소문자는 변경하지 않음 — path는 대소문자 구분, host는 대소문자 무시지만 현업 URL에서
+     *    대소문자가 다른 변형은 거의 없고 raw host 정보 보존이 디버깅에 유리
+     *
+     * 정규화는 dedup 키로만 사용되고 `VerifiedSource.url`은 원본 값을 그대로 유지한다.
+     * `distinctBy`의 "첫 번째 발견 값 유지" 의미론에 의해 먼저 발견된 URL이 응답에 표시된다.
+     */
+    private fun normalizeUrlForDedup(url: String): String {
+        val trimmed = url.trim()
+        val noFragment = trimmed.substringBefore('#')
+        if (noFragment.length <= 1) return noFragment
+        // trailing slash 제거 — 단 "scheme://" 같은 엣지 케이스는 그대로 유지
+        return if (noFragment.endsWith('/') && !noFragment.endsWith("://")) {
+            noFragment.trimEnd('/')
+        } else {
+            noFragment
+        }
     }
 
     /** JSON 문자열을 파싱한다. 실패 시 null. */

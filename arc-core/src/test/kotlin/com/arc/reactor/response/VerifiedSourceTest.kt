@@ -57,6 +57,81 @@ class VerifiedSourceTest {
         }
     }
 
+    /**
+     * R343 regression: `distinctBy { it.url }`가 trailing slash / fragment 차이만으로 같은
+     * 페이지를 중복 source로 취급하던 문제 수정. `normalizeUrlForDedup` helper로 dedup 키를
+     * 정규화해 `wiki/page/123`과 `wiki/page/123/`, `wiki/page/123#section`을 모두 같은
+     * source로 합쳐야 한다. 원본 URL 값은 첫 번째 발견된 것이 유지되어야 한다.
+     */
+    @Test
+    fun `R343 trailing slash 차이만 있는 URL은 중복 제거되어야 한다`() {
+        val output = """
+            {
+              "results": [
+                {"url": "https://wiki.company.com/page/123"},
+                {"url": "https://wiki.company.com/page/123/"},
+                {"url": "https://wiki.company.com/page/456"}
+              ]
+            }
+        """.trimIndent()
+
+        val sources = VerifiedSourceExtractor.extract("confluence_answer_question", output)
+
+        assertEquals(2, sources.size) {
+            "R343: trailing slash 차이만 있는 URL은 하나로 dedup되어야 한다. 실제=${sources.map { it.url }}"
+        }
+        assertEquals(
+            "https://wiki.company.com/page/123",
+            sources[0].url,
+            "R343: 첫 번째 발견된 원본 URL(no trailing slash)이 유지되어야 한다"
+        )
+    }
+
+    @Test
+    fun `R343 fragment 차이만 있는 URL은 중복 제거되어야 한다`() {
+        val output = """
+            {
+              "results": [
+                {"url": "https://wiki.company.com/page/100#intro"},
+                {"url": "https://wiki.company.com/page/100#conclusion"},
+                {"url": "https://wiki.company.com/page/100"}
+              ]
+            }
+        """.trimIndent()
+
+        val sources = VerifiedSourceExtractor.extract("confluence_answer_question", output)
+
+        assertEquals(1, sources.size) {
+            "R343: fragment 차이만 있는 URL은 하나로 dedup되어야 한다. 실제=${sources.map { it.url }}"
+        }
+        assertEquals(
+            "https://wiki.company.com/page/100#intro",
+            sources[0].url,
+            "R343: 첫 번째 발견된 원본 URL(#intro fragment 포함)이 유지되어야 한다"
+        )
+    }
+
+    @Test
+    fun `R343 trailing slash + fragment 조합도 정규화되어야 한다`() {
+        val output = """
+            {
+              "results": [
+                {"url": "https://wiki.company.com/page/200/"},
+                {"url": "https://wiki.company.com/page/200#top"},
+                {"url": "https://wiki.company.com/page/200/#bottom"},
+                {"url": "https://wiki.company.com/page/200"}
+              ]
+            }
+        """.trimIndent()
+
+        val sources = VerifiedSourceExtractor.extract("confluence_answer_question", output)
+
+        assertEquals(1, sources.size) {
+            "R343: trailing slash와 fragment 조합이 모두 같은 자원으로 dedup되어야 한다. " +
+                "실제=${sources.map { it.url }}"
+        }
+    }
+
     @Test
     fun `api paths로 extract openapi and api urls even해야 한다`() {
         val output = """
