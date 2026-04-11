@@ -10,6 +10,8 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.document.Document
 import org.springframework.ai.vectorstore.SearchRequest
@@ -69,8 +71,13 @@ class DocumentController(
         ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
         ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
+    /**
+     * R294 fix: blocking VectorStore I/O를 IO 디스패처로 격리하기 위해 suspend로 전환.
+     * 이전 구현은 PGVector JDBC 호출을 Reactor Netty NIO 이벤트 루프에서 직접 실행하여
+     * 임베딩/JDBC latency 동안 워커 스레드를 차단했다.
+     */
     @PostMapping
-    fun addDocument(
+    suspend fun addDocument(
         @Valid @RequestBody request: AddDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
@@ -89,7 +96,10 @@ class DocumentController(
             ?: listOf(document)
 
         try {
-            vectorStore.add(chunks)
+            // R294: blocking JDBC를 IO dispatcher로 격리
+            withContext(Dispatchers.IO) {
+                vectorStore.add(chunks)
+            }
         } catch (e: Exception) {
             logger.error(e) { "Failed to embed document: id=$id" }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
@@ -126,8 +136,9 @@ class DocumentController(
         ApiResponse(responseCode = "409", description = "Document with identical content already exists"),
         ApiResponse(responseCode = "500", description = "Embedding or storage failure")
     ])
+    /** R294 fix: suspend로 전환 + blocking JDBC IO 격리. */
     @PostMapping("/batch")
-    fun addDocuments(
+    suspend fun addDocuments(
         @Valid @RequestBody request: BatchAddDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
@@ -150,7 +161,10 @@ class DocumentController(
         val chunks = chunker?.chunk(documents) ?: documents
 
         try {
-            vectorStore.add(chunks)
+            // R294: blocking JDBC를 IO dispatcher로 격리
+            withContext(Dispatchers.IO) {
+                vectorStore.add(chunks)
+            }
         } catch (e: Exception) {
             logger.error(e) { "Failed to embed batch of ${documents.size} documents" }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
@@ -178,15 +192,19 @@ class DocumentController(
         ApiResponse(responseCode = "200", description = "Similarity search results"),
         ApiResponse(responseCode = "400", description = "Invalid request")
     ])
+    /** R294 fix: suspend로 전환 + blocking JDBC IO 격리. */
     @PostMapping("/search")
-    fun searchDocuments(@Valid @RequestBody request: SearchDocumentRequest): List<SearchResultResponse> {
+    suspend fun searchDocuments(@Valid @RequestBody request: SearchDocumentRequest): List<SearchResultResponse> {
         val searchRequest = SearchRequest.builder()
             .query(request.query)
             .topK(request.topK ?: 5)
             .similarityThreshold(request.similarityThreshold ?: 0.0)
             .build()
 
-        val results = vectorStore.similaritySearch(searchRequest)
+        // R294: blocking JDBC + 임베딩 호출을 IO dispatcher로 격리
+        val results = withContext(Dispatchers.IO) {
+            vectorStore.similaritySearch(searchRequest)
+        }.orEmpty()
 
         logger.debug { "Search '${request.query}' returned ${results.size} results" }
 
@@ -210,8 +228,9 @@ class DocumentController(
         ApiResponse(responseCode = "204", description = "Documents deleted"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R294 fix: suspend로 전환 + blocking JDBC IO 격리. */
     @DeleteMapping
-    fun deleteDocuments(
+    suspend fun deleteDocuments(
         @Valid @RequestBody request: DeleteDocumentRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
@@ -231,7 +250,10 @@ class DocumentController(
             }
         }.distinct()
 
-        vectorStore.delete(allIds)
+        // R294: blocking JDBC를 IO dispatcher로 격리
+        withContext(Dispatchers.IO) {
+            vectorStore.delete(allIds)
+        }
         logger.info { "Deleted documents: ${request.ids.size} requested IDs -> ${allIds.size} total IDs" }
         return ResponseEntity.noContent().build()
     }
@@ -243,14 +265,18 @@ class DocumentController(
         return digest.digest(content.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
-    private fun findByContentHash(hash: String): Document? {
+    /** R294 fix: suspend로 전환 + blocking similaritySearch IO 격리. */
+    private suspend fun findByContentHash(hash: String): Document? {
         val filter = FilterExpressionBuilder()
         val searchRequest = SearchRequest.builder()
             .query("duplicate check")
             .topK(1)
             .filterExpression(filter.eq(CONTENT_HASH_KEY, hash).build())
             .build()
-        return vectorStore.similaritySearch(searchRequest).firstOrNull()
+        // R294: blocking JDBC를 IO dispatcher로 격리
+        return withContext(Dispatchers.IO) {
+            vectorStore.similaritySearch(searchRequest).firstOrNull()
+        }
     }
 
     private fun duplicateConflictResponse(existingId: String): ResponseEntity<Any> {

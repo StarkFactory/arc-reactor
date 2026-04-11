@@ -7,6 +7,7 @@ import com.arc.reactor.rag.chunking.DocumentChunker
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -67,7 +68,7 @@ class DocumentControllerTest {
         fun `admin에 대해 return 201해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
-            val response = controller.addDocument(request, adminExchange())
+            val response = runBlocking { controller.addDocument(request, adminExchange()) }
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Admin should be able to add documents" }
             verify(exactly = 1) { vectorStore.add(any()) }
@@ -77,7 +78,7 @@ class DocumentControllerTest {
         fun `non-admin user에 대해 return 403해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
-            val response = controller.addDocument(request, userExchange())
+            val response = runBlocking { controller.addDocument(request, userExchange()) }
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "USER should get 403" }
             verify(exactly = 0) { vectorStore.add(any()) }
@@ -87,7 +88,7 @@ class DocumentControllerTest {
         fun `role is missing일 때 reject write해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Test content")
 
-            val response = controller.addDocument(request, noAuthExchange())
+            val response = runBlocking { controller.addDocument(request, noAuthExchange()) }
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
                 "Missing role should be rejected"
@@ -102,7 +103,7 @@ class DocumentControllerTest {
                 metadata = mapOf("source" to "test")
             )
 
-            val response = controller.addDocument(request, adminExchange())
+            val response = runBlocking { controller.addDocument(request, adminExchange()) }
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should create document with metadata" }
         }
@@ -111,7 +112,7 @@ class DocumentControllerTest {
         fun `store content_hash in metadata해야 한다`() {
             val request = DocumentController.AddDocumentRequest(content = "Hash me")
 
-            val response = controller.addDocument(request, adminExchange())
+            val response = runBlocking { controller.addDocument(request, adminExchange()) }
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Should create document" }
             val body = response.body as DocumentController.DocumentResponse
@@ -132,7 +133,7 @@ class DocumentControllerTest {
             )
 
             val request = DocumentController.AddDocumentRequest(content = content)
-            val response = controller.addDocument(request, adminExchange())
+            val response = runBlocking { controller.addDocument(request, adminExchange()) }
 
             assertEquals(HttpStatus.CONFLICT, response.statusCode) {
                 "Duplicate content should return 409"
@@ -158,7 +159,7 @@ class DocumentControllerTest {
                 )
             )
 
-            val response = controller.addDocuments(request, adminExchange())
+            val response = runBlocking { controller.addDocuments(request, adminExchange()) }
 
             assertEquals(HttpStatus.CREATED, response.statusCode) { "Admin should be able to batch add" }
         }
@@ -169,7 +170,7 @@ class DocumentControllerTest {
                 documents = listOf(DocumentController.AddDocumentRequest(content = "Doc"))
             )
 
-            val response = controller.addDocuments(request, userExchange())
+            val response = runBlocking { controller.addDocuments(request, userExchange()) }
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "USER should get 403 on batch add" }
         }
@@ -189,7 +190,7 @@ class DocumentControllerTest {
                 )
             )
 
-            val response = controller.addDocuments(request, adminExchange())
+            val response = runBlocking { controller.addDocuments(request, adminExchange()) }
 
             assertEquals(HttpStatus.CONFLICT, response.statusCode) {
                 "Batch with duplicate content should return 409"
@@ -208,7 +209,7 @@ class DocumentControllerTest {
             )
 
             val request = DocumentController.SearchDocumentRequest(query = "test query")
-            val results = controller.searchDocuments(request)
+            val results = runBlocking { controller.searchDocuments(request) }
 
             assertEquals(1, results.size) { "Should return search results" }
             assertEquals("Found content", results[0].content) { "Content should match" }
@@ -222,7 +223,7 @@ class DocumentControllerTest {
         fun `admin delete에 대해 return 204해야 한다`() {
             val request = DocumentController.DeleteDocumentRequest(ids = listOf("id-1", "id-2"))
 
-            val response = controller.deleteDocuments(request, adminExchange())
+            val response = runBlocking { controller.deleteDocuments(request, adminExchange()) }
 
             assertEquals(HttpStatus.NO_CONTENT, response.statusCode) { "Admin should be able to delete" }
             verify(exactly = 1) { vectorStore.delete(any<List<String>>()) }
@@ -232,7 +233,7 @@ class DocumentControllerTest {
         fun `non-admin delete에 대해 return 403해야 한다`() {
             val request = DocumentController.DeleteDocumentRequest(ids = listOf("id-1"))
 
-            val response = controller.deleteDocuments(request, userExchange())
+            val response = runBlocking { controller.deleteDocuments(request, userExchange()) }
 
             assertEquals(HttpStatus.FORBIDDEN, response.statusCode) { "USER should get 403 on delete" }
             verify(exactly = 0) { vectorStore.delete(any<List<String>>()) }
