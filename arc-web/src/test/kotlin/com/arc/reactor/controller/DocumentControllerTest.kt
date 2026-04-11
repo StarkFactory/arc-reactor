@@ -203,16 +203,45 @@ class DocumentControllerTest {
     inner class SearchDocuments {
 
         @Test
-        fun `allow search without admin check해야 한다`() {
+        fun `R298 admin이면 search 결과를 반환한다`() {
+            // R298 fix 후 admin 가드 추가 — admin은 정상 동작
             every { vectorStore.similaritySearch(any<SearchRequest>()) } returns listOf(
                 Document("id-1", "Found content", mapOf<String, Any>())
             )
 
             val request = DocumentController.SearchDocumentRequest(query = "test query")
-            val results = runBlocking { controller.searchDocuments(request) }
+            val response = runBlocking { controller.searchDocuments(request, adminExchange()) }
 
+            assertEquals(HttpStatus.OK, response.statusCode) { "Admin search should return 200" }
+            @Suppress("UNCHECKED_CAST")
+            val results = response.body as List<DocumentController.SearchResultResponse>
             assertEquals(1, results.size) { "Should return search results" }
             assertEquals("Found content", results[0].content) { "Content should match" }
+        }
+
+        @Test
+        fun `R298 비관리자 search는 403을 반환한다`() {
+            // R298 fix 검증: 이전 구현은 admin 검사 없이 누구나 search 호출 가능했고
+            // topK 상한도 없어 임의 사용자가 topK=10000으로 전체 vector store 추출 가능했다.
+            // R298: admin 가드 추가 → 비관리자는 403.
+            val request = DocumentController.SearchDocumentRequest(query = "test query")
+            val response = runBlocking { controller.searchDocuments(request, userExchange()) }
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "R298 fix: 비관리자 search는 403이어야 한다 (RAG 인덱스 콘텐츠 보호)"
+            }
+            verify(exactly = 0) { vectorStore.similaritySearch(any<SearchRequest>()) }
+        }
+
+        @Test
+        fun `R298 미인증 search는 403을 반환한다`() {
+            val request = DocumentController.SearchDocumentRequest(query = "test query")
+            val response = runBlocking { controller.searchDocuments(request, noAuthExchange()) }
+
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "R298 fix: 미인증 search는 403이어야 한다"
+            }
+            verify(exactly = 0) { vectorStore.similaritySearch(any<SearchRequest>()) }
         }
     }
 

@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
@@ -186,15 +188,28 @@ class DocumentController(
         )
     }
 
-    /** 유사도 기반으로 문서를 검색한다. */
-    @Operation(summary = "유사도 기반 문서 검색")
+    /**
+     * 유사도 기반으로 문서를 검색한다.
+     *
+     * R298 fix: (1) admin 가드 추가, (2) topK upper bound는 [SearchDocumentRequest]에서
+     * `@Max(100)`으로 강제. 이전 구현은 인증 없이 누구나 호출 가능 + topK 상한 없음으로,
+     * 임의 사용자가 `topK=10000` 등을 보내 전체 vector store 콘텐츠를 한 번에 추출 가능
+     * (정보 노출 + JDBC 부하). admin endpoint로 전환하여 RAG 인덱스 콘텐츠 보호.
+     */
+    @Operation(summary = "유사도 기반 문서 검색 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Similarity search results"),
-        ApiResponse(responseCode = "400", description = "Invalid request")
+        ApiResponse(responseCode = "400", description = "Invalid request"),
+        ApiResponse(responseCode = "403", description = "Admin access required")
     ])
-    /** R294 fix: suspend로 전환 + blocking JDBC IO 격리. */
+    /** R294 fix: suspend로 전환 + blocking JDBC IO 격리. R298 fix: admin 가드 + topK 상한. */
     @PostMapping("/search")
-    suspend fun searchDocuments(@Valid @RequestBody request: SearchDocumentRequest): List<SearchResultResponse> {
+    suspend fun searchDocuments(
+        @Valid @RequestBody request: SearchDocumentRequest,
+        exchange: ServerWebExchange
+    ): ResponseEntity<Any> {
+        if (!isAdmin(exchange)) return forbiddenResponse()
+
         val searchRequest = SearchRequest.builder()
             .query(request.query)
             .topK(request.topK ?: 5)
@@ -208,7 +223,7 @@ class DocumentController(
 
         logger.debug { "Search '${request.query}' returned ${results.size} results" }
 
-        return results.map { doc ->
+        val responseList = results.map { doc ->
             SearchResultResponse(
                 id = doc.id,
                 content = doc.text ?: "",
@@ -216,6 +231,7 @@ class DocumentController(
                 score = doc.metadata["distance"]?.toString()?.toDoubleOrNull()
             )
         }
+        return ResponseEntity.ok(responseList)
     }
 
     /**
@@ -307,10 +323,16 @@ class DocumentController(
         val documents: List<@Valid AddDocumentRequest>
     )
 
+    /**
+     * R298 fix: topK는 `@Min(1) @Max(100)`으로 제한 — 이전에는 상한이 없어 임의 사용자가
+     * `topK=10000` 등을 보내 전체 vector store 콘텐츠를 한 번에 추출 가능했다.
+     */
     data class SearchDocumentRequest(
         @field:NotBlank(message = "Search query is required")
         @field:Size(max = 10000, message = "Search query must not exceed 10000 characters")
         val query: String,
+        @field:Min(value = 1, message = "topK must be at least 1")
+        @field:Max(value = 100, message = "topK must not exceed 100")
         val topK: Int? = 5,
         val similarityThreshold: Double? = 0.0
     )
