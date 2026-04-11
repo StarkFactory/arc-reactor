@@ -215,4 +215,29 @@ class InMemoryScheduledJobStoreTest {
             // 예외 없이 종료해야 한다
         }
     }
+
+    @Nested
+    inner class R312BoundedCache {
+
+        /**
+         * R312 회귀: ConcurrentHashMap → Caffeine bounded cache 마이그레이션.
+         * maxJobs 상한을 넘으면 W-TinyLFU 정책으로 evict되어야 한다.
+         */
+        @Test
+        fun `maxJobs 초과 시 Caffeine이 evict해야 한다`() {
+            val bounded = InMemoryScheduledJobStore(maxJobs = 5)
+            repeat(100) { i ->
+                bounded.save(job("job-$i"))
+            }
+            bounded.forceCleanUp()
+            val all = bounded.list()
+            (all.size < 100) shouldBe true
+            (all.size <= 20) shouldBe true
+        }
+
+        @Test
+        fun `DEFAULT_MAX_JOBS는 1000이다`() {
+            InMemoryScheduledJobStore.DEFAULT_MAX_JOBS shouldBe 1_000L
+        }
+    }
 }

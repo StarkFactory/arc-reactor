@@ -87,4 +87,36 @@ class InMemoryConversationSummaryStoreTest {
     fun `handle delete of non-existent session해야 한다`() {
         store.delete("non-existent")  // not throw해야 합니다
     }
+
+    @Test
+    fun `R312 maxSummaries 초과 시 Caffeine이 evict해야 한다`() {
+        val bounded = InMemoryConversationSummaryStore(maxSummaries = 5)
+        repeat(100) { i ->
+            bounded.save(
+                ConversationSummary(
+                    sessionId = "session-$i",
+                    narrative = "n-$i",
+                    facts = emptyList(),
+                    summarizedUpToIndex = i
+                )
+            )
+        }
+        bounded.forceCleanUp()
+        // 실제 count는 getAll()이 없어서 get 검증으로 대체
+        var found = 0
+        repeat(100) { i ->
+            if (bounded.get("session-$i") != null) found++
+        }
+        assert(found < 100) { "Expected eviction to reduce count below 100, got $found" }
+        assert(found <= 20) { "Expected bounded cache convergence near 5, got $found" }
+    }
+
+    @Test
+    fun `R312 DEFAULT_MAX_SUMMARIES는 10000이다`() {
+        assertEquals(
+            10_000L,
+            InMemoryConversationSummaryStore.DEFAULT_MAX_SUMMARIES,
+            "Expected default max summaries to be 10000"
+        )
+    }
 }
