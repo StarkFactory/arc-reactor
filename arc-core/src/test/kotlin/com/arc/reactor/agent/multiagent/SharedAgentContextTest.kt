@@ -4,6 +4,8 @@ import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.maps.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -115,6 +117,40 @@ class SharedAgentContextTest {
 
             snapshot shouldHaveSize 1
             context.getAll() shouldHaveSize 2
+        }
+    }
+
+    @Nested
+    inner class R311BoundedCache {
+
+        /**
+         * R311 회귀: ConcurrentHashMap → Caffeine bounded cache 마이그레이션.
+         *
+         * maxEntries 상한을 넘으면 W-TinyLFU 정책으로 evict되어야 한다.
+         */
+        @Test
+        fun `maxEntries 초과 시 Caffeine이 evict해야 한다`() {
+            val bounded = DefaultSharedAgentContext(maxEntries = 5)
+            repeat(100) { i ->
+                bounded.put("key-$i", "value-$i")
+            }
+            bounded.forceCleanUp()
+            val all = bounded.getAll()
+            assertTrue(all.size < 100) {
+                "Expected eviction to reduce size below 100, got ${all.size}"
+            }
+            assertTrue(all.size <= 20) {
+                "Expected Caffeine bounded cache to converge near maxEntries=5, got ${all.size}"
+            }
+        }
+
+        @Test
+        fun `DEFAULT_MAX_ENTRIES는 10000이다`() {
+            assertEquals(
+                10_000L,
+                DefaultSharedAgentContext.DEFAULT_MAX_ENTRIES,
+                "Expected default max entries to be 10000"
+            )
         }
     }
 }

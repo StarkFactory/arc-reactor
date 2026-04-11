@@ -1,7 +1,8 @@
 package com.arc.reactor.agent.multiagent
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 private val logger = KotlinLogging.logger {}
@@ -73,18 +74,29 @@ interface AgentMessageBus {
  * 인메모리 에이전트 메시지 버스.
  *
  * 단일 JVM 내에서 동작하며, 단일 Supervisor 실행 범위에 한정된다.
- * [ConcurrentHashMap]과 [CopyOnWriteArrayList]로 스레드 안전성을 보장한다.
+ * Caffeine bounded cache + [CopyOnWriteArrayList]로 스레드 안전성을 보장한다.
+ *
+ * R311 fix: subscribers map을 ConcurrentHashMap → Caffeine bounded cache로 전환.
+ * 기존 구현은 `subscribe()`가 반복되면 무제한 성장 가능성이 있었다.
+ * 이제 [maxSubscribers] 상한(기본 1000)으로 제한.
+ *
+ * 주의: `allMessages` CopyOnWriteArrayList는 이번 라운드 범위 밖 — 시간순 이터레이션
+ * 시멘틱과 clear() 주기가 필요해 별도 라운드에서 ArrayDeque + lock 패턴으로 처리.
  *
  * @see AgentMessageBus 인터페이스 정의
  */
-class InMemoryAgentMessageBus : AgentMessageBus {
+class InMemoryAgentMessageBus(
+    maxSubscribers: Long = DEFAULT_MAX_SUBSCRIBERS
+) : AgentMessageBus {
 
     /** 전체 메시지 저장소 (시간순) */
     private val allMessages = CopyOnWriteArrayList<AgentMessage>()
 
-    /** 에이전트별 구독 핸들러 */
-    private val subscribers =
-        ConcurrentHashMap<String, CopyOnWriteArrayList<suspend (AgentMessage) -> Unit>>()
+    /** 에이전트별 구독 핸들러 (Caffeine bounded cache) */
+    private val subscribers: Cache<String, CopyOnWriteArrayList<suspend (AgentMessage) -> Unit>> =
+        Caffeine.newBuilder()
+            .maximumSize(maxSubscribers)
+            .build()
 
     override suspend fun publish(message: AgentMessage) {
         allMessages.add(message)
@@ -99,9 +111,9 @@ class InMemoryAgentMessageBus : AgentMessageBus {
         agentId: String,
         handler: suspend (AgentMessage) -> Unit
     ) {
-        subscribers
-            .getOrPut(agentId) { CopyOnWriteArrayList() }
-            .add(handler)
+        // Caffeine의 get(key, mappingFunction)은 get-or-create 원자 연산이며 non-null 보장
+        val list = subscribers.get(agentId) { CopyOnWriteArrayList() }
+        list.add(handler)
         logger.debug { "구독 등록: agentId=$agentId" }
     }
 
@@ -117,7 +129,7 @@ class InMemoryAgentMessageBus : AgentMessageBus {
 
     override fun clear() {
         allMessages.clear()
-        subscribers.clear()
+        subscribers.invalidateAll()
         logger.debug { "메시지 버스 초기화 완료" }
     }
 
@@ -128,13 +140,18 @@ class InMemoryAgentMessageBus : AgentMessageBus {
     private suspend fun notifySubscribers(message: AgentMessage) {
         val targetId = message.targetAgentId
         if (targetId != null) {
-            for (handler in subscribers[targetId].orEmpty()) { handler(message) }
+            for (handler in subscribers.getIfPresent(targetId).orEmpty()) { handler(message) }
         } else {
-            for ((_, handlers) in subscribers) {
+            for ((_, handlers) in subscribers.asMap()) {
                 for (handler in handlers) {
                     handler(message)
                 }
             }
         }
+    }
+
+    companion object {
+        /** 구독자 맵 기본 상한. 초과 시 Caffeine W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_SUBSCRIBERS: Long = 1_000L
     }
 }

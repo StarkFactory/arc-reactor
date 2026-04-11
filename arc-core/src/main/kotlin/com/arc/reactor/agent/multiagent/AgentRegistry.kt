@@ -1,7 +1,8 @@
 package com.arc.reactor.agent.multiagent
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
-import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -73,43 +74,59 @@ interface AgentRegistry {
 /**
  * 인메모리 기반 기본 에이전트 레지스트리.
  *
- * [ConcurrentHashMap]을 사용하여 스레드 안전하게 에이전트를 관리한다.
+ * Caffeine bounded cache로 스레드 안전하게 에이전트를 관리한다.
  * 키워드 매칭은 대소문자 무시로 수행한다.
+ *
+ * R311 fix: ConcurrentHashMap → Caffeine. 기존 구현은 `register()`가 반복되면
+ * 무제한 성장 가능성이 있었다. 이제 [maxAgents] 상한(기본 1000)으로 제한.
  *
  * @see AgentRegistry 인터페이스 정의
  */
-class DefaultAgentRegistry : AgentRegistry {
+class DefaultAgentRegistry(
+    maxAgents: Long = DEFAULT_MAX_AGENTS
+) : AgentRegistry {
 
-    private val agents = ConcurrentHashMap<String, AgentSpec>()
+    private val agents: Cache<String, AgentSpec> = Caffeine.newBuilder()
+        .maximumSize(maxAgents)
+        .build()
 
     override fun register(spec: AgentSpec) {
-        agents[spec.id] = spec
+        agents.put(spec.id, spec)
         logger.debug { "에이전트 등록: id=${spec.id}, name=${spec.name}" }
     }
 
     override fun unregister(id: String): Boolean {
-        val removed = agents.remove(id) != null
+        val removed = agents.getIfPresent(id) != null
         if (removed) {
+            agents.invalidate(id)
             logger.debug { "에이전트 해제: id=$id" }
         }
         return removed
     }
 
-    override fun findById(id: String): AgentSpec? = agents[id]
+    override fun findById(id: String): AgentSpec? = agents.getIfPresent(id)
 
-    override fun findAll(): List<AgentSpec> = agents.values.toList()
+    override fun findAll(): List<AgentSpec> = agents.asMap().values.toList()
 
     override fun findByCapability(query: String): List<AgentSpec> {
         if (query.isBlank()) return emptyList()
         val lowerQuery = query.lowercase()
-        return agents.values
+        return agents.asMap().values
             .map { spec -> spec to calculateMatchScore(spec, lowerQuery) }
             .filter { (_, score) -> score > 0 }
             .sortedByDescending { (_, score) -> score }
             .map { (spec, _) -> spec }
     }
 
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        agents.cleanUp()
+    }
+
     companion object {
+        /** 기본 레지스트리 상한. 초과 시 Caffeine W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_AGENTS: Long = 1_000L
+
         /** 키워드 매칭 점수 가중치 */
         internal const val KEYWORD_WEIGHT = 3
 
