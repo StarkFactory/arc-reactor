@@ -326,8 +326,27 @@ class InMemoryMemoryStore(
     meterRegistry: MeterRegistry? = null
 ) : MemoryStore {
 
-    /** 세션 ID → 소유자 userId 매핑 */
-    private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
+    /**
+     * 세션 ID → 소유자 userId 매핑.
+     *
+     * R275 fix: 이전에는 `java.util.concurrent.ConcurrentHashMap`을 사용했으나 CLAUDE.md
+     * 코드 규칙("ConcurrentHashMap 금지 → Caffeine bounded cache") 위반이었다. unbounded
+     * 성장으로 장기 운영 시 메모리 누수 가능. `sessions` 캐시의 evictionListener가 정리하지만
+     * Caffeine 퇴거는 비동기/지연 실행이라 즉시 정리되지 않는다. 동일한 maxSessions 크기로
+     * Caffeine 캐시를 사용하여 자체 LRU 퇴거를 보장하고 sessions 캐시와 lifecycle을 일치시킨다.
+     *
+     * 접근 패턴 변경:
+     * - `sessionOwners[key]` → `sessionOwners.getIfPresent(key)`
+     * - `sessionOwners.remove(key)` → `sessionOwners.invalidate(key)`
+     * - `sessionOwners.clear()` → `sessionOwners.invalidateAll()`
+     * - `sessionOwners.putIfAbsent(k, v)` → `sessionOwners.asMap().putIfAbsent(k, v)` (atomic)
+     * - `sessionOwners.entries` → `sessionOwners.asMap().entries`
+     * - `sessionOwners.size` (gauge) → `sessionOwners.estimatedSize()`
+     */
+    private val sessionOwners: com.github.benmanes.caffeine.cache.Cache<String, String> =
+        Caffeine.newBuilder()
+            .maximumSize(maxSessions.toLong())
+            .build()
 
     /**
      * Caffeine 캐시를 사용하여 LRU 퇴거와 최대 크기 제한을 적용.
@@ -336,13 +355,15 @@ class InMemoryMemoryStore(
     private val sessions = Caffeine.newBuilder()
         .maximumSize(maxSessions.toLong())
         .evictionListener<String, ConversationMemory> { key, _, _ ->
-            if (key != null) sessionOwners.remove(key)
+            if (key != null) sessionOwners.invalidate(key)
         }
         .build<String, ConversationMemory>()
 
     init {
         meterRegistry?.gauge("arc.memory.sessions.size", sessions) { it.estimatedSize().toDouble() }
-        meterRegistry?.gauge("arc.memory.session_owners.size", sessionOwners) { it.size.toDouble() }
+        meterRegistry?.gauge("arc.memory.session_owners.size", sessionOwners) {
+            it.estimatedSize().toDouble()
+        }
     }
 
     override fun get(sessionId: String): ConversationMemory? = sessions.getIfPresent(sessionId)
@@ -359,17 +380,18 @@ class InMemoryMemoryStore(
 
     override fun remove(sessionId: String) {
         sessions.invalidate(sessionId)
-        sessionOwners.remove(sessionId)
+        sessionOwners.invalidate(sessionId)
     }
 
     override fun clear() {
         sessions.invalidateAll()
-        sessionOwners.clear()
+        sessionOwners.invalidateAll()
     }
 
     override fun addMessage(sessionId: String, role: String, content: String, userId: String) {
-        // 첫 메시지에서 세션 소유자를 기록 (putIfAbsent로 덮어쓰기 방지)
-        sessionOwners.putIfAbsent(sessionId, userId)
+        // 첫 메시지에서 세션 소유자를 기록 (putIfAbsent로 덮어쓰기 방지).
+        // R275: Caffeine asMap() ConcurrentMap view의 putIfAbsent로 atomicity 보장.
+        sessionOwners.asMap().putIfAbsent(sessionId, userId)
         addMessage(sessionId, role, content)
     }
 
@@ -386,7 +408,8 @@ class InMemoryMemoryStore(
     }
 
     override fun listSessionsByUserId(userId: String): List<SessionSummary> {
-        val userSessionIds = sessionOwners.entries
+        // R275: Caffeine asMap()을 통해 entries 접근 — ConcurrentHashMap entries와 동일 API.
+        val userSessionIds = sessionOwners.asMap().entries
             .filter { it.value == userId }
             .map { it.key }
             .toSet()
@@ -404,7 +427,8 @@ class InMemoryMemoryStore(
             }.sortedByDescending { it.lastActivity }
     }
 
-    override fun getSessionOwner(sessionId: String): String? = sessionOwners[sessionId]
+    // R275: Caffeine getIfPresent — null 반환 가능, ConcurrentHashMap[key]와 동일 의미
+    override fun getSessionOwner(sessionId: String): String? = sessionOwners.getIfPresent(sessionId)
 }
 
 /** 미리보기의 최대 문자 수 */

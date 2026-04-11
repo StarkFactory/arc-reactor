@@ -439,17 +439,22 @@ class DefaultConversationManager(
         )
         try {
             val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
-            mutex.withLock {
+            // R275 fix: store.get() 호출을 mutex.withLock 블록 안으로 이동하여 동시 요청
+            // race window 제거. 이전에는 락 해제(line 450) 후 line 452의 getHistory().size를
+            // 읽었기 때문에, 동일 세션에 동시 요청이 있을 때 두 번째 요청의 메시지가 추가된
+            // 상태에서 카운트를 읽어 요약 임계값 사전 판단이 부풀려질 수 있었다.
+            // store.get()도 JDBC blocking I/O를 수행할 수 있으므로 동일 withContext(IO) 안에 둔다.
+            return mutex.withLock {
                 withContext(Dispatchers.IO) {
                     store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
                     if (assistantContent != null) {
                         store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
                     }
+                    val sizeAfterAdd = store.get(sessionId)?.getHistory()?.size ?: messageCount
+                    logger.debug { "대화 이력 저장 완료: session=$sessionId, size=$sizeAfterAdd" }
+                    sizeAfterAdd
                 }
-                logger.debug { "대화 이력 저장 완료: session=$sessionId" }
             }
-            // 저장 후 메시지 수 반환 (요약 임계값 사전 판단용)
-            return store.get(sessionId)?.getHistory()?.size ?: messageCount
         } catch (e: Exception) {
             e.throwIfCancellation()
             // R252: 대화 이력 저장 실패 — fail-open(return 0) 하지만 메트릭으로 관측

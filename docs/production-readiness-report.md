@@ -22589,6 +22589,235 @@ R274 미처리 4개 (R275+에서 우선순위 처리):
 
 #### 🛡️ R274 요약
 
+🛡️ R274 — guard 영역 P1 thread starvation + P3 audit leak 2건 fix. [상세 본문 위 R274 섹션 참조]
+
+---
+
+### Round 275 — 🧪 2026-04-12T06:30+09:00 — Memory 영역 P2 race + P4 ConcurrentHashMap 위반 2건 fix (R274 미처리 처리)
+
+**작업 종류**: production code fix — R274 미처리 4개 중 2개 처리, 모두 memory 영역
+**완료 태스크**: #150
+
+#### 작업 배경
+
+R274에서 codebase-scanner가 발견한 6개 중 2개(P1 + P3)를 처리했고 4개가 미처리로 남았다. R275는 그 중 memory 영역 2개를 한 라운드에 결합 처리:
+
+- **P2** (`ConversationManager.tryFlushPendingMessages` 뮤텍스 race) — `store.get()`이 `mutex.withLock` 외부에서 호출되어 동시 요청 시 count 부풀림
+- **P4** (`InMemoryMemoryStore.sessionOwners` `ConcurrentHashMap` 사용) — CLAUDE.md 코드 규칙 명시적 위반
+
+미처리 R274 P2 2개는 R276+에서 처리 예정 (`JdbcMemoryStore.evictOldMessages` TOCTOU + `DefaultRateLimitStage` TTL 불일치 — 후자는 R275 검토 결과 fixed-window 의도된 동작으로 false positive 분류).
+
+#### Fix #1: ConversationManager 뮤텍스 race (P2)
+
+**Before** (`tryFlushPendingMessages` line 440-452):
+```kotlin
+val mutex = sessionSaveLocks.get(sessionId) { Mutex() }
+mutex.withLock {
+    withContext(Dispatchers.IO) {
+        store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
+        if (assistantContent != null) {
+            store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+        }
+    }
+    logger.debug { "대화 이력 저장 완료: session=$sessionId" }
+}
+// ↓ 락 해제 후 실행됨 — race window
+return store.get(sessionId)?.getHistory()?.size ?: messageCount
+```
+
+**버그 시나리오**:
+1. Request 1 (session X): `mutex.withLock { addMessage(user_1) addMessage(assistant_1) }` 완료
+2. **락 해제** ← race window 시작
+3. Request 2 (session X): 동시에 진입, `mutex.withLock { addMessage(user_2) addMessage(assistant_2) }` 시작
+4. Request 1: 락 해제 후 line 452 `store.get(X).getHistory().size` 호출 → 이미 user_2/assistant_2가 추가된 상태 → size 부풀림
+5. 결과: Request 1의 요약 임계값 사전 판단이 잘못된 count로 작동 → 불필요한 요약 트리거 가능
+
+**Fix**: `store.get()` 호출을 `mutex.withLock` 블록 안으로 이동하고, 전체를 `withContext(Dispatchers.IO)`로 묶어 단일 atomic block 형성.
+
+```kotlin
+return mutex.withLock {
+    withContext(Dispatchers.IO) {
+        store.addMessage(sessionId, "user", userPrompt, resolvedUserId)
+        if (assistantContent != null) {
+            store.addMessage(sessionId, "assistant", assistantContent, resolvedUserId)
+        }
+        val sizeAfterAdd = store.get(sessionId)?.getHistory()?.size ?: messageCount
+        logger.debug { "대화 이력 저장 완료: session=$sessionId, size=$sizeAfterAdd" }
+        sizeAfterAdd
+    }
+}
+```
+
+**핵심 변경**:
+- `store.get()`이 `mutex.withLock` + `withContext(Dispatchers.IO)` 안으로 이동
+- `return`이 `mutex.withLock` 블록의 결과로 변경 (Kotlin scope function 활용)
+- `store.get()`도 JDBC blocking이 가능하므로 IO 디스패처 안에서 실행 (R274 TopicDriftDetectionStage fix와 동일 원칙)
+
+#### Fix #2: InMemoryMemoryStore ConcurrentHashMap → Caffeine (P4)
+
+**Before**:
+```kotlin
+private val sessionOwners = java.util.concurrent.ConcurrentHashMap<String, String>()
+```
+
+**문제**: CLAUDE.md 코드 규칙 명시적 위반 — "ConcurrentHashMap 금지 → Caffeine bounded cache". `sessionOwners`는 unbounded `ConcurrentHashMap`으로 세션 수가 무제한 성장 가능. `sessions` Caffeine 캐시의 `evictionListener`가 정리하지만 Caffeine eviction은 비동기/지연 실행이라 즉시 정리 안 됨. 장기 운영 시 메모리 누수.
+
+**Fix**: `sessionOwners`를 동일한 `maxSessions` 크기로 Caffeine cache로 교체.
+
+```kotlin
+private val sessionOwners: Cache<String, String> =
+    Caffeine.newBuilder()
+        .maximumSize(maxSessions.toLong())
+        .build()
+```
+
+**API 변경 사항** (Caffeine vs ConcurrentHashMap):
+- `sessionOwners[key]` → `sessionOwners.getIfPresent(key)`
+- `sessionOwners.remove(key)` → `sessionOwners.invalidate(key)`
+- `sessionOwners.clear()` → `sessionOwners.invalidateAll()`
+- `sessionOwners.putIfAbsent(k, v)` → `sessionOwners.asMap().putIfAbsent(k, v)` (atomic via ConcurrentMap view)
+- `sessionOwners.entries` → `sessionOwners.asMap().entries`
+- `sessionOwners.size` (gauge) → `sessionOwners.estimatedSize()`
+- `evictionListener`의 `sessionOwners.remove(key)` → `sessionOwners.invalidate(key)`
+
+**Atomicity 보장**: Caffeine의 `asMap()`은 `ConcurrentMap` view를 반환하므로 `putIfAbsent`가 atomic. 기존 ConcurrentHashMap의 `putIfAbsent` 의미 그대로 보존.
+
+**Bounded growth**: maxSessions(default 1000)로 제한. sessions 캐시와 동일한 크기로 lifecycle 일치.
+
+#### 변경된 메서드 (5개)
+
+| 메서드 | 변경 |
+|---|---|
+| `sessionOwners` 필드 | `ConcurrentHashMap` → `Caffeine.Cache` (KDoc + 마이그레이션 가이드 추가) |
+| `sessions.evictionListener` | `sessionOwners.remove(key)` → `sessionOwners.invalidate(key)` |
+| `init` 블록 gauge | `it.size` → `it.estimatedSize()` |
+| `remove(sessionId)` | `sessionOwners.remove` → `sessionOwners.invalidate` |
+| `clear()` | `sessionOwners.clear()` → `sessionOwners.invalidateAll()` |
+| `addMessage(...)` | `putIfAbsent` → `asMap().putIfAbsent` |
+| `listSessionsByUserId(userId)` | `sessionOwners.entries` → `asMap().entries` |
+| `getSessionOwner(sessionId)` | `sessionOwners[id]` → `sessionOwners.getIfPresent(id)` |
+
+총 7개 access pattern 변경, 모두 동일 의미 유지.
+
+#### R274 P2 DefaultRateLimitStage 재검토 — false positive 분류
+
+R274에서 P2로 분류된 `DefaultRateLimitStage` TTL 불일치를 R275 작업 중 코드를 직접 분석한 결과, **fixed-window rate limiting의 의도된 동작**이라고 판정:
+
+- `minuteCache`/`hourCache`의 `expireAfterWrite`는 fixed-window TTL을 구현
+- 윈도우가 만료되면 카운터가 리셋되는 것은 fixed-window의 정의된 동작
+- 스캐너가 우려한 "rate limit 우회"는 fixed-window의 알려진 한계 (sliding window vs fixed window 트레이드오프)
+- mutexCache와 minute/hourCache의 TTL 불일치는 mutex가 카운터보다 오래 살아남도록 의도된 설계 (mutex는 키별로 1개 유지하여 동시 갱신 보호)
+
+R275 보고서에 false positive로 명시. R274 미처리 4개 → 3개로 정정.
+
+#### 테스트 결과
+
+```
+memory.* 모듈 회귀 — PASS
+전체 arc-core test suite — PASS
+```
+
+기존 `ConversationManager` + `InMemoryMemoryStore` 테스트 모두 PASS. 두 fix 모두 backward compat 유지 — 호출자 인터페이스 변경 없음.
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings (R275 변경)
+
+./gradlew :arc-core:test
+# BUILD SUCCESSFUL — 전체 arc-core 테스트 PASS
+```
+
+#### opt-in 기본값
+
+- **production code 변경 2개 파일**:
+  - `ConversationManager.tryFlushPendingMessages`: store.get() 위치 이동 + return 표현식화
+  - `ConversationMemory.InMemoryMemoryStore`: sessionOwners 필드 + 7개 access 패턴 마이그레이션
+- **새 기능 없음** — race fix + CLAUDE.md 규칙 준수
+- **기존 정상 경로 영향**: 0 (atomicity 의미 동일, bounded cache 크기는 sessions와 일치)
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ 도구 경로 미접근
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint 미수정
+- **컨텍스트 관리**: ✅ MemoryStore **인터페이스 미변경** (sessionOwners는 InMemoryMemoryStore의 private 구현 세부사항), `sessionId` 포맷 미변경, `ConversationManager` 동작은 atomic화만 강화 (return value 의미 동일)
+
+#### CLAUDE.md 규칙 준수 강화
+
+R275 fix #2는 CLAUDE.md "코드 규칙" 섹션의 명시적 항목 준수:
+
+> `ConcurrentHashMap` 금지 → Caffeine bounded cache
+
+R275 이전: `arc-core/src/main/kotlin/.../memory/ConversationMemory.kt`에 1건 위반
+R275 이후: 전체 위반 0건 → CLAUDE.md 규칙 준수율 향상
+
+#### 누적 production fix (R268~R275)
+
+| 라운드 | Fix 영역 | Fix 수 |
+|---|---|---|
+| R268 | Tool (Summarizer) | 1 |
+| R270 | Tool (Cancellation, Hook metric) | 2 |
+| R271 | Tool (CopyOnWriteArrayList, exception class name) | 2 (3 지점) |
+| R272 | Streaming (멀티 청크 toolCall) | 1 |
+| R273 | Tool (TOCTOU) | 1 |
+| R274 | Guard (blocking I/O, audit leak) | 2 |
+| **R275** | **Memory (mutex race, ConcurrentHashMap)** | **2** |
+| **합계** | **3개 영역 (Tool, Guard, Memory)** | **11 fix** |
+
+#### Silent foot-gun 매트릭스 (R275 갱신)
+
+| 위험도 | 동작 | 상태 |
+|---|---|---|
+| 🔴 높음 | Redis fallback → Caffeine | 잠금 (의도된 동작) |
+| 🟡 미처리 | JdbcMemoryStore evictOldMessages TOCTOU | R276+ |
+| ✅ 해결 | (R268~R275의 11개 fix) | 완료 |
+| ✅ 재분류 | DefaultRateLimitStage TTL 불일치 | R275 false positive |
+
+#### 운영자 영향
+
+1. **요약 임계값 정확도 향상** (R275 fix #1): `tryFlushPendingMessages`가 동시 요청 시 부풀려진 count로 인해 잘못된 요약 트리거를 일으키는 corner case 제거. 동시에 두 사용자가 같은 세션에 메시지를 보내는 환경에서 안정성 향상
+2. **메모리 누수 방지** (R275 fix #2): InMemoryMemoryStore 사용 환경에서 `sessionOwners` 무제한 성장 가능성 제거. 장기 운영 안정성 향상. CLAUDE.md 규칙 준수
+3. **CLAUDE.md 코드 규칙 준수율 향상**: ConcurrentHashMap 위반 1건 → 0건
+
+#### 능동 검증 사이클 진척
+
+| 라운드 | 영역 | 발견 → 처리 |
+|---|---|---|
+| R270~R273 | Tool hot path | 7 발견 → 6 fix + 1 false positive (100%) |
+| R274 | Guard/Memory/Cache 새 영역 | 6 발견 → 2 fix |
+| **R275** | **R274 미처리** | **2 fix + 1 false positive 재분류** |
+
+R275 후 R274 미처리: 6 → 1 (`JdbcMemoryStore.evictOldMessages` TOCTOU만 남음).
+
+#### 연속 지표
+
+| 지표 | R274 | R275 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 105 | **106** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5961+ PASS | **5961+ PASS** (변경 없음) | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R274 | **4/5 + R224~R275** | - |
+| Production fix 누적 | 9 | **11 (+2)** | +22% |
+| ConcurrentHashMap 위반 | 1 | **0** | ✅ 0% |
+| 처리 영역 | 2 (Tool, Guard) | **3 (+ Memory)** | +50% |
+| R274 미처리 | 4 | **1** (+1 false positive 재분류) | -75% |
+
+#### 다음 Round 후보
+
+1. **R274 마지막 미처리 P2 처리**: `JdbcMemoryStore.evictOldMessages` TOCTOU — `@Transactional` 추가 또는 단일 statement로 통합
+2. **새 영역 codebase scan** — autoconfigure / mcp / approval / tool.summarize 등
+3. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+4. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+
+#### 🧪 R275 요약
+
+🧪 **Memory 영역 P2 mutex race + P4 ConcurrentHashMap 위반 2건 fix**. R274 미처리 4개 중 memory 영역 2개를 한 라운드에 결합 처리. **Fix #1 — ConversationManager 뮤텍스 race**: `tryFlushPendingMessages`의 `store.get()`이 `mutex.withLock` 블록 외부(line 452)에서 호출되어 동시 요청 시 race window 발생. 시나리오: Request 1이 락을 해제한 직후 Request 2가 같은 세션에 메시지를 추가하는 동안 Request 1이 size를 읽으면 부풀려진 count → 요약 임계값 사전 판단 잘못됨. Fix: `store.get()` 호출을 `mutex.withLock` + `withContext(Dispatchers.IO)` 안으로 이동, return을 mutex.withLock 블록 결과로 변경 (Kotlin scope function 활용). store.get()도 JDBC blocking 가능하므로 R274 TopicDriftDetectionStage fix와 동일한 IO 디스패처 격리 원칙 적용. **Fix #2 — InMemoryMemoryStore ConcurrentHashMap → Caffeine**: CLAUDE.md "코드 규칙" 명시적 위반 — `sessionOwners = ConcurrentHashMap<String, String>()`로 unbounded 성장 가능. sessions 캐시의 evictionListener가 정리하지만 비동기/지연이라 즉시 안 됨. Fix: 동일한 maxSessions 크기로 Caffeine cache 교체. API 변경 7개: `[key]`→`getIfPresent`, `remove`→`invalidate`, `clear`→`invalidateAll`, `putIfAbsent`→`asMap().putIfAbsent`(atomic via ConcurrentMap view), `entries`→`asMap().entries`, `size`(gauge)→`estimatedSize()`. **R274 P2 DefaultRateLimitStage 재검토**: 코드 직접 분석 결과 fixed-window rate limiting의 의도된 동작 → R275에서 false positive로 분류. mutexCache와 minute/hourCache의 TTL 불일치는 mutex가 카운터보다 오래 살아남도록 의도된 설계 (키별 1 mutex 유지로 동시 갱신 보호). 스캐너 우려는 fixed-window vs sliding window 트레이드오프 영역. R274 미처리 4개 → 3개 정정. **테스트 결과**: memory.* 모듈 회귀 PASS + 전체 arc-core test suite PASS. 두 fix 모두 backward compat 유지 — 호출자 인터페이스 미변경. **빌드**: `compileKotlin compileTestKotlin` 0 warnings. **3대 최상위 제약 자동 준수**: 도구 경로 미접근, SystemPromptBuilder 미수정, **MemoryStore 인터페이스 미변경** (sessionOwners는 InMemoryMemoryStore private 구현), sessionId 포맷 미변경, ConversationManager 동작은 atomic화만 강화 (return value 의미 동일). **CLAUDE.md 규칙 준수율**: ConcurrentHashMap 위반 1건 → 0건. **R268~R275 누적 production fix 11건** in 3개 영역(Tool 7 + Guard 2 + Memory 2). **운영자 영향**: (1) 요약 임계값 정확도 향상 (동시 요청 corner case 제거), (2) InMemoryMemoryStore 메모리 누수 방지 (장기 운영 안정성), (3) CLAUDE.md 규칙 준수율 향상. **Silent foot-gun 매트릭스**: 🔴 Redis fallback만 의도된 잠금, 11개 fix 완료, 1개 미처리 (`JdbcMemoryStore.evictOldMessages`). **능동 검증 진척**: R270~R273(Tool 7/7) → R274(Guard/Memory 새 영역 6 발견 → 2 fix) → R275(R274 미처리 2 fix + 1 false positive 재분류). R274 미처리 4 → 1 (-75%). Production fix: 9 → 11 (+22%). 처리 영역: 2 → 3 (+50%, Tool/Guard → +Memory). ConcurrentHashMap 위반: 1 → 0 (✅ 0%). Directive 진행: **4/5 + R224~R275**. swagger-mcp 8181 **106 라운드 연속 PASS**. 다음 우선순위는 R274 마지막 미처리 P2(`JdbcMemoryStore.evictOldMessages` TOCTOU @Transactional 추가) 또는 새 영역 코드 스캔(autoconfigure/mcp/approval/tool.summarize), 또는 ApprovalController REST 엔드포인트.
+
+#### 🛡️ R274 요약 (legacy)
+
 🛡️ **새 영역 codebase scanner 사이클 시작 — guard/hook/memory/cache 스캔 + P1 thread starvation + P3 audit e.message leak 2건 fix**. R270 hot path 사이클(R270~R273, 7/7 100% 처리)에 이은 두 번째 능동 코드 검증 사이클. 사용자 피드백("에이전트 성능 개선 방향으로 코드 검증/수정") 직접 반영. **스캐너 발견 6개**: P1 1 + P2 3 + P3 1 + P4 1 (REJECTED 4개 별도). **R274 fix 2개 (한 라운드 결합)**: (1) **TopicDriftDetectionStage.loadConversationHistory blocking I/O** — 일반 `fun`(non-suspend)으로 선언되어 `MemoryStore.get()` JDBC blocking 호출이 코루틴 `Dispatchers.Default` 스레드를 차단, 고부하 환경(동시 100 요청)에서 thread starvation + latency spike 유발. Fix: `suspend fun` + `withContext(Dispatchers.IO)`로 IO 디스패처 격리, metadata 우선순위 1 경로는 비-블로킹이라 wrap 안 함. (2) **GuardPipeline.handleStageError e.message audit leak** — `publishAudit(..., e.message, ...)`가 외부 SOC 2/SIEM으로 SQL 오류, 스택 추적, 내부 file path 노출. CLAUDE.md Critical Gotcha #9 위반. R271에서 LLM 출력 노출을 fix했고 R274는 audit 채널 노출을 fix. Fix: `e.javaClass.simpleName`로 교체, 전체 스택은 `logger.error(e)`로 ops 로그에만 기록. **회귀 테스트 갱신 1개**: `GuardAuditPublisherTest.감사 event published on stage error` 테스트가 OLD 동작(`assertEquals("stage exploded", reason)`)을 잠그고 있어 fix로 자연 실패 → fix 작동 신호로 해석 → NEW 동작(`assertEquals("RuntimeException", reason)`)으로 갱신. **테스트 결과**: guard.* + memory.* 회귀 PASS + 전체 arc-core test suite PASS. **빌드**: `compileKotlin compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: 도구 경로 미접근, SystemPromptBuilder 미수정, MemoryStore 인터페이스 미변경/sessionId 포맷 미변경/ConversationMessageTrimmer 미접근, `loadConversationHistory`는 `MemoryStore.get()` 호출 자체는 동일하고 호출 컨텍스트만 IO 디스패처로 분리. **R270 → R274 능동 코드 검증 사이클**: R270~R273(executor 영역, 7/7 100%) → R274(새 영역 시작, 6 발견 → 2 fix). **R274 미처리 4개 (P2 3개 + P4 1개)**: ConversationManager 뮤텍스 race / JdbcMemoryStore evictOldMessages TOCTOU / DefaultRateLimitStage TTL 불일치 / InMemoryMemoryStore ConcurrentHashMap → R275+에서 우선순위 처리. **R268~R274 누적 production fix 9건**, 2개 영역(Tool + Guard) 커버. **운영자 영향**: (1) 고부하 guard 환경 thread starvation 제거 — TopicDriftDetection 활성화 시 100 동시 요청 latency spike 제거, (2) 외부 audit 시스템 정보 노출 차단 — SOC 2/SIEM 컴플라이언스 강화, (3) 능동 코드 검증 사이클 표준화. **능동 검증 효율성**: 5 라운드 평균 1.8 fix/round, false positive 7.7%, hidden bug 11%. Production fix: 7 → 9 (+29%). 코드 스캔 처리 영역: 1 → 2 (+100%, executor → +guard/memory). 스캐너 사이클: 1 → 2 (R274가 첫 새 영역 스캔). Directive 진행: **4/5 + R224~R274**. swagger-mcp 8181 **105 라운드 연속 PASS**. arc-core 5961 PASS (1개 갱신, 신규 없음 — 발견된 동작 잠금이 OLD → NEW 전환). 다음 우선순위는 R274 미처리 4개 처리, 새 영역 스캔(autoconfigure/mcp/approval/tool.summarize), 또는 ApprovalController REST 엔드포인트.
 
 #### 🎯 R273 요약 (legacy)
