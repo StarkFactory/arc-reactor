@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -243,6 +244,13 @@ class ToolPreparationPlannerTest {
         assertTrue(output.startsWith("Error:")) {
             "기본 NoOp collector에서도 예외 처리 경로는 그대로 작동"
         }
-        assertTrue(output.contains("RuntimeException"))
+        // R271: exception 클래스명 LLM 노출 제거 — tool name만 포함됨
+        assertTrue(output.contains("failing_tool")) {
+            "에러 메시지에 tool name 포함"
+        }
+        assertFalse(
+            output.contains("RuntimeException"),
+            "R271 fix: exception 클래스명이 LLM 출력에 노출되면 안 됨"
+        )
     }
 }

@@ -7,6 +7,7 @@ import com.arc.reactor.tool.ToolCallback
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.delay
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -106,7 +107,16 @@ class ArcToolCallbackAdapterTest {
 
         assertTrue(output.startsWith("Error:"), "Exception should return error string, got: $output")
         assertTrue(output.contains("failing_tool"), "Error should mention tool name, got: $output")
-        assertTrue(output.contains("IllegalStateException"), "Error should include exception class name, got: $output")
+        // R271: exception 클래스명이 LLM 출력에서 제거됨 (보안/사용자 노출 방지).
+        // 클래스명은 logger.error(e)로 ops 로그에만 기록.
+        assertFalse(
+            output.contains("IllegalStateException"),
+            "R271 fix: exception class name should NOT leak to LLM output, got: $output"
+        )
+        assertFalse(
+            output.contains("disk full"),
+            "R271 fix: exception message should NOT leak to LLM output, got: $output"
+        )
     }
 
     // ========================================================================
@@ -222,7 +232,14 @@ class ArcToolCallbackAdapterTest {
         assertTrue(output.startsWith("Error:")) {
             "기본값 NoOp에서도 예외 처리 경로는 그대로 동작"
         }
-        assertTrue(output.contains("RuntimeException"))
+        // R271: exception 클래스명 LLM 노출 제거 — tool name만 포함되어야 함
+        assertTrue(output.contains("failing_tool")) {
+            "에러 메시지에 tool name 포함"
+        }
+        assertFalse(
+            output.contains("RuntimeException"),
+            "R271 fix: exception 클래스명이 LLM 출력에 노출되면 안 됨"
+        )
     }
 
     @Test

@@ -763,6 +763,106 @@ class ToolCallOrchestratorCoverageGapTest {
                 "정상 경로: recordToolCall 1회 호출 (R270 변경 회귀 없음)"
         }
     }
+
+    // ──────────────────────────────────────────────
+    // 7. R271: executionErrorOutcome 메시지에 exception class name 노출 금지
+    // ──────────────────────────────────────────────
+
+    /**
+     * R271 regression: 도구 실행 실패 시 LLM에 노출되는 에러 메시지에
+     * exception 클래스명(NPE, IllegalStateException 등)이 포함되지 않아야 한다.
+     *
+     * R271 이전: `"Error: 도구 실행 중 오류가 발생했습니다. NullPointerException"`
+     * R271 이후: `"Error: 도구 실행 중 오류가 발생했습니다."`
+     *
+     * exception 정보는 ops 로그(`logger.error(e)`)에만 기록.
+     */
+    @Nested
+    inner class R271ExecutionErrorMessageSanitization {
+
+        @Test
+        fun `R271 fix - 도구가 NullPointerException을 던질 때 LLM 메시지에 exception 클래스명이 없어야 한다`() = runTest {
+            val throwingCallback = object : ToolCallback {
+                override val name: String = "buggy_tool"
+                override val description: String = "intentionally broken"
+                override suspend fun call(arguments: Map<String, Any?>): Any {
+                    throw NullPointerException("internal NPE — should not leak to LLM")
+                }
+            }
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = null,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = NoOpAgentMetrics(),
+                parseToolArguments = { emptyMap() }
+            )
+
+            val result = orchestrator.executeDirectToolCall(
+                toolName = "buggy_tool",
+                toolParams = emptyMap(),
+                tools = listOf(ArcToolCallbackAdapter(throwingCallback)),
+                hookContext = baseHookContext,
+                toolsUsed = mutableListOf()
+            )
+
+            result.success shouldBe false withClue "도구 호출 실패"
+            val output = result.output.orEmpty()
+            // 두 fallback 경로 모두에 대비:
+            // - ArcToolCallbackAdapter: "Error: 도구 'buggy_tool' 실행 중 오류가 발생했습니다."
+            // - ToolCallOrchestrator.executionErrorOutcome: "Error: 도구 실행 중 오류가 발생했습니다."
+            output shouldContain "실행 중 오류가 발생했습니다" withClue
+                "일반 에러 메시지 포함"
+            output shouldNotContain "NullPointerException" withClue
+                "R271 fix: exception 클래스명이 LLM 출력에 노출되면 안 됨"
+            output shouldNotContain "internal NPE" withClue
+                "exception message도 노출 금지"
+        }
+
+        @Test
+        fun `R271 fix - 다양한 exception 타입에서도 클래스명이 노출되지 않아야 한다`() = runTest {
+            // 도구 이름은 중립적으로 — 도구 이름 자체에 exception 클래스명을 넣지 않음
+            val cases = listOf(
+                "neutral_a" to IllegalStateException("state error"),
+                "neutral_b" to IllegalArgumentException("arg error"),
+                "neutral_c" to ArithmeticException("math error"),
+                "neutral_d" to RuntimeException("runtime")
+            )
+
+            for ((toolName, exceptionToThrow) in cases) {
+                val callback = object : ToolCallback {
+                    override val name: String = toolName
+                    override val description: String = "throws $exceptionToThrow"
+                    override suspend fun call(arguments: Map<String, Any?>): Any {
+                        throw exceptionToThrow
+                    }
+                }
+
+                val orchestrator = ToolCallOrchestrator(
+                    toolCallTimeoutMs = 1000,
+                    hookExecutor = null,
+                    toolApprovalPolicy = null,
+                    pendingApprovalStore = null,
+                    agentMetrics = NoOpAgentMetrics(),
+                    parseToolArguments = { emptyMap() }
+                )
+
+                val result = orchestrator.executeDirectToolCall(
+                    toolName = toolName,
+                    toolParams = emptyMap(),
+                    tools = listOf(ArcToolCallbackAdapter(callback)),
+                    hookContext = baseHookContext,
+                    toolsUsed = mutableListOf()
+                )
+
+                val output = result.output.orEmpty()
+                val className = exceptionToThrow::class.simpleName.orEmpty()
+                output shouldNotContain className withClue
+                    "$className 클래스명이 LLM 출력에 노출되면 안 됨: $output"
+            }
+        }
+    }
 }
 
 /** Kotest shouldBe infix 확장: withClue 패턴을 위한 간단한 DSL */

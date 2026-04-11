@@ -21634,6 +21634,242 @@ P1/P2/P3 후보 5개 미처리 — R271+에서 우선순위에 따라 처리:
 
 #### 🔬 R270 요약
 
+🔬 R270 — codebase scanner로 hot path 6개 파일 스캔 + 2개 P1 버그 fix. [상세 본문 위 R270 섹션 참조]
+
+---
+
+### Round 271 — 🧹 2026-04-12T04:30+09:00 — CopyOnWriteArrayList overhead 제거 + exception class name LLM 노출 제거 (R270 스캐너 P1+P3)
+
+**작업 종류**: production code fix — R270 스캐너 발견 P1 + P3 처리, 4개 production 파일 + 3개 테스트 파일
+**완료 태스크**: #146
+
+#### 작업 배경
+
+R270에서 에이전트 hot path 스캔으로 발견한 7개 후보 중 2개를 fix했고, 5개가 미처리로 남았다. R271은 그 중 두 개를 동시에 처리한다:
+
+- **R270 스캐너 P1**: `SpringAiAgentExecutor.kt` `CopyOnWriteArrayList<String>` overhead — 잘못된 thread-safety 가정
+- **R270 스캐너 P3**: `ToolCallOrchestrator.kt` `executionErrorOutcome` exception class name LLM 노출 (+ 동일한 패턴이 `ArcToolCallbackAdapter.kt`에도 있는 것을 R271 작업 중 발견)
+
+#### Fix #1: `CopyOnWriteArrayList` → `mutableListOf` (성능)
+
+**Before**:
+```kotlin
+val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
+val runContext = runContextManager.open(command, toolsUsed)
+```
+
+**After (R271)**:
+```kotlin
+// R271: CopyOnWriteArrayList → mutableListOf 변경 — 단일 코루틴 sequential 접근만 발생.
+// 병렬 도구 실행은 awaitAll() 후 collectParallelResults에서 단일 스레드로 add하므로
+// 동시 접근 없음. CopyOnWriteArrayList의 O(n) per add overhead 제거.
+val toolsUsed = mutableListOf<String>()
+val runContext = runContextManager.open(command, toolsUsed)
+```
+
+`SpringAiAgentExecutor.execute()` (line 385) + `executeStream()` (line 542) 두 곳에 동일한 변경.
+
+**근거 검증**: `toolsUsed`가 실제로 동시 접근되는지 grep 결과 분석:
+
+| 위치 | 작업 | 스레드 컨텍스트 |
+|---|---|---|
+| `ToolCallOrchestrator.kt:132` | `toolsUsed.size` | direct call (sequential) |
+| `ToolCallOrchestrator.kt:369` | `toolsUsed.add(toolName)` | direct call (sequential) |
+| `ToolCallOrchestrator.kt:1042` | `toolsUsed::add` | `collectParallelResults` (after `awaitAll()`, sequential) |
+| `SpringAiAgentExecutor.kt:426` | `toolsUsed.clear()` | executor reset (sequential) |
+| `AgentExecutionCoordinator.kt:130` | `toolsUsed.addAll(cached.toolsUsed)` | cache hit (sequential) |
+| `AgentExecutionCoordinator.kt:132` | `toolsUsed.toList()` | snapshot (sequential) |
+| `AgentExecutionCoordinator.kt:161` | `toolsUsed.distinct()` | finalize (sequential) |
+
+**핵심 발견**: R270 스캐너의 가설("병렬 Tool 실행 경로에서 반복 add가 발생")은 정확하지 않았다. 실제 코드는 `executeInParallel`에서 async 코루틴이 `ParallelToolExecution` 객체만 반환하고, **`awaitAll()` 이후 단일 스레드 `collectParallelResults`에서 add를 수행**한다. 즉 `toolsUsed`는 단일 코루틴 flow 내에서만 sequential하게 접근된다.
+
+`CopyOnWriteArrayList`는 잘못된 thread-safety 가정에서 도입된 overkill이었다. `mutableListOf`로 교체하면:
+- `add()`: O(1) (CopyOnWriteArrayList는 O(n))
+- `size`/`addAll`/`clear`: 동일
+- `toList()`/`distinct()`: 동일
+
+**성능 개선 추정**: N=10 도구 시 add 누적 O(N²) ≈ 100 vs O(N) ≈ 10 — 90% 작업량 감소. 실제 운영에서 N은 보통 1~5 정도라 절대 시간 차이는 미미하지만 잘못된 동시성 가정 제거가 핵심.
+
+#### Fix #2: Exception class name LLM 노출 제거 (보안/UX)
+
+**Before** (`ToolCallOrchestrator.executionErrorOutcome`):
+```kotlin
+private fun executionErrorOutcome(e: Exception): ToolInvocationOutcome {
+    return ToolInvocationOutcome(
+        output = "Error: 도구 실행 중 오류가 발생했습니다. ${e.javaClass.simpleName}",
+        success = false, trackAsUsed = true
+    )
+}
+```
+
+**After (R271)**:
+```kotlin
+@Suppress("UNUSED_PARAMETER")
+private fun executionErrorOutcome(e: Exception): ToolInvocationOutcome {
+    return ToolInvocationOutcome(
+        output = "Error: 도구 실행 중 오류가 발생했습니다.",
+        success = false, trackAsUsed = true
+    )
+}
+```
+
+**작업 중 발견 — `ArcToolCallbackAdapter`에도 동일한 패턴**: 테스트 실행 중 실패 메시지가 `"Error: 도구 'buggy_tool' 실행 중 오류가 발생했습니다 (NullPointerException)"` 형태로 나오는 것을 보고 추가 노출 지점 발견. `ArcToolCallbackAdapter.kt:79`에서도 `${e.javaClass.simpleName}`을 LLM 출력에 포함하고 있었다. 이것도 함께 fix.
+
+**Before** (`ArcToolCallbackAdapter.call()`):
+```kotlin
+"Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
+```
+
+**After (R271)**:
+```kotlin
+// R271: ToolCallOrchestrator.executionErrorOutcome과 동일하게 exception 클래스명을
+// LLM 출력에서 제거. 이미 logger.error(e)로 ops 로그에 전체 스택 트레이스가 기록되며,
+// evaluationCollector.recordError로 stage 메트릭 분류도 완료됨.
+"Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다."
+```
+
+**근거**: 두 호출자 모두 이미:
+1. `logger.error(e) { "..." }`로 전체 스택 트레이스를 ops 로그에 기록
+2. `evaluationCollector.recordError(ExecutionStage.TOOL_CALL, e)`로 메트릭 stage 분류 완료
+
+따라서 LLM 출력에 클래스명을 노출할 운영적 가치는 없고, 다음 위험만 있다:
+- **사용자 노출**: LLM이 에러 메시지를 그대로 사용자에게 전달하는 경우 내부 클래스명 노출
+- **LLM 추론 오염**: `NullPointerException`, `IllegalStateException` 같은 일반 클래스명이 LLM에 의해 잘못 해석되어 실제 원인과 다른 응답 생성
+- **CLAUDE.md Gotcha #9 위반**: "e.message 노출 금지" 규칙 정신 위반
+
+#### 회귀 테스트 업데이트 (3개)
+
+기존 테스트가 OLD 동작(class name 노출)을 잠그고 있어 R271 fix로 인해 자연히 실패. 이는 fix가 실제로 작동한다는 명백한 신호. 3개 테스트를 R271 동작으로 갱신:
+
+1. `ArcToolCallbackAdapterTest`:`callback throws non-cancellation exception일 때 error string를 반환한다`
+   - Before: `assertTrue(output.contains("IllegalStateException"))`
+   - After: `assertFalse(output.contains("IllegalStateException"))` + `assertFalse(output.contains("disk full"))`
+
+2. `ArcToolCallbackAdapterTest`:`R246 collector 미주입 시 ... backward compat`
+   - Before: `assertTrue(output.contains("RuntimeException"))`
+   - After: `assertTrue(output.contains("failing_tool"))` + `assertFalse(output.contains("RuntimeException"))`
+
+3. `ToolPreparationPlannerTest`:`R247 collector 미주입 시 기본 NoOp으로 backward compat 유지`
+   - 동일한 패턴으로 갱신
+
+#### 신규 R271 회귀 테스트 (2개)
+
+`ToolCallOrchestratorCoverageGapTest`에 새 `R271ExecutionErrorMessageSanitization` nested 추가:
+
+| 테스트 | 검증 |
+|---|---|
+| Test 1 | NPE 던지는 도구 → LLM 출력에 "NullPointerException"/"internal NPE" 둘 다 없음 |
+| Test 2 | 4가지 exception 타입(IllegalStateException/IllegalArgumentException/ArithmeticException/RuntimeException) → 모두 클래스명 미노출 |
+
+**테스트 작성 중 marc된 문제** — 처음에는 도구 이름을 `"tool_${exception.simpleName}"`로 작성해서 출력에 클래스명이 자연스럽게 포함됐다 (도구 이름 자체에). 이를 발견하고 도구 이름을 중립적인 `"neutral_a"`/`"neutral_b"` 등으로 변경.
+
+#### 작업 중 마주친 문제 (R271 작업 단계별)
+
+1. **R270 P1 검증**: `CopyOnWriteArrayList` 사용처를 grep해보니 실제로는 단일 코루틴 sequential 접근만 있음을 발견. 스캐너의 가설보다 더 단순한 결론으로 `mutableListOf`로 교체.
+
+2. **R271 fix #2 첫 시도 부분 적용**: `ToolCallOrchestrator.executionErrorOutcome`만 fix했더니 신규 테스트가 실패. 출력 메시지를 보니 `ArcToolCallbackAdapter`에도 동일한 패턴이 있어 추가 fix.
+
+3. **신규 테스트 fixture 버그**: 도구 이름에 exception 클래스명을 그대로 사용해서 출력에 자연스럽게 포함됨 → 중립 이름으로 변경.
+
+4. **기존 테스트 3개 업데이트**: 회귀 테스트 실패가 fix가 작동한다는 신호임을 확인하고 OLD 동작 잠금을 NEW 동작 잠금으로 변경 + `assertFalse` import 추가.
+
+#### 테스트 결과
+
+```
+ToolCallOrchestratorCoverageGapTest$R271ExecutionErrorMessageSanitization — 2/2 PASS
+ArcToolCallbackAdapterTest (변경 2개) — PASS
+ToolPreparationPlannerTest (변경 1개) — PASS
+agent.impl.* + 전체 arc-core test suite — PASS (회귀 없음)
+```
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings (R271 변경)
+# 기존 line 562 unchecked cast warning은 R271과 무관 (사전 존재)
+
+./gradlew :arc-core:test
+# BUILD SUCCESSFUL — 전체 arc-core 테스트 PASS
+```
+
+#### opt-in 기본값
+
+- **production code 변경 4건**:
+  - `SpringAiAgentExecutor.kt:385` — CopyOnWriteArrayList → mutableListOf
+  - `SpringAiAgentExecutor.kt:542` — 동일
+  - `ToolCallOrchestrator.kt:846` — executionErrorOutcome 메시지 정리
+  - `ArcToolCallbackAdapter.kt:79` — call() 에러 메시지 정리
+- **새 기능 없음** — 둘 다 robustness/security fix
+- **기존 정상 경로 영향**: 0 (mutableListOf는 동일 인터페이스, 에러 메시지는 LLM 출력만 변경)
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ 도구 발견/호출 경로 미수정. ArcToolCallbackAdapter 에러 메시지만 변경
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint/캐시 키 미수정
+- **컨텍스트 관리**: ✅ MemoryStore/ConversationManager 미접근
+
+#### R270~R271 fix 누적 통계
+
+| 항목 | R270 | R271 | 누적 |
+|---|---|---|---|
+| Production fix | 2 (ToolCallOrchestrator) | 4 (Executor 2 + Orchestrator 1 + Adapter 1) | **6** |
+| 변경 파일 | 2 (1 main + 1 test) | 5 (3 main + 2 test) | **7** |
+| 신규 회귀 테스트 | 3 | 2 | **5** |
+| 갱신 회귀 테스트 | 0 | 3 | **3** |
+| 스캐너 미처리 후보 | 5 | 3 | **3 남음** |
+
+#### Silent foot-gun 위험도 매트릭스 (R271 갱신)
+
+| 위험도 | 동작 | 상태 |
+|---|---|---|
+| 🔴 높음 | Redis fallback → Caffeine | 잠금 (의도된 동작) |
+| ✅ 해결 | Summarizer 6행 hard failure | R268 fix |
+| ✅ 해결 | findMcpToolCallback cancellation 누수 | R270 fix |
+| ✅ 해결 | executeAfterToolCall metric loss | R270 fix |
+| ✅ 해결 | **CopyOnWriteArrayList overhead** | **R271 fix** |
+| ✅ 해결 | **Exception class name LLM 노출** | **R271 fix (2 지점)** |
+
+R268 1개 + R270 2개 + R271 2개 = **5개 production fix 완료**.
+
+#### 운영자 영향
+
+1. **Tool 호출 빈도가 높은 운영 환경**: O(N²) → O(N) 작업량 감소로 미미한 latency 개선 (실측 기대값 < 1ms)
+2. **사용자 노출 보호**: 도구 실행 실패 시 LLM이 사용자에게 전달하는 에러 메시지에 더 이상 내부 구현 클래스명(NPE, IllegalStateException 등)이 노출되지 않음
+3. **LLM 추론 정확도**: 에러 클래스명이 LLM 컨텍스트에 흘러들어가 잘못된 추론을 유도하던 risk 제거
+
+#### 연속 지표
+
+| 지표 | R270 | R271 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 101 | **102** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5954+ PASS | **5956+ PASS (+2 신규, 3 갱신)** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R270 | **4/5 + R224~R271** | - |
+| Production fix 누적 | 2 | **4 (+2 R271)** | +100% |
+| 코드 스캔 발견 처리 | 2/7 | **4/7** | +29% |
+
+#### 다음 Round 후보 (스캐너 미처리 3개 남음)
+
+| 우선 | 발견 | 추정 작업량 |
+|---|---|---|
+| 🟡 P2 | `ToolCallOrchestrator` `findMcpToolCallback` 이중 호출 (TOCTOU) | 중간 (캐싱 추가) |
+| 🟡 P2 | StreamingReActLoopExecutor 멀티 청크 toolCall 누적 누락 | 중간 (방어적 리팩토링) |
+| 🟢 P4 | `AgentExecutionCoordinator.kt:384` `mcpToolCallbacks()` 람다 매번 재호출 | 작음 (캐싱) |
+
+추가:
+1. 새 codebase scan (다른 영역 — guard/hook/memory)
+2. ApprovalController REST 엔드포인트
+3. Gemini quota 회복 후 QA 측정 루프 재개
+
+#### 🧹 R271 요약
+
+🧹 **R270 스캐너 P1+P3 처리 — 4개 production code fix + 3개 회귀 테스트 갱신 + 2개 신규 테스트**. 두 fix를 한 라운드에 결합하여 능동적 코드 검증 사이클 가속화. **Fix #1 — CopyOnWriteArrayList → mutableListOf**: `SpringAiAgentExecutor.execute()` line 385 + `executeStream()` line 542 두 곳. **검증 과정**: R270 스캐너의 가설("병렬 add 발생")을 grep으로 검증 → 실제로는 `executeInParallel`이 async 코루틴에서 `ParallelToolExecution` 객체만 반환하고, `awaitAll()` 후 단일 스레드 `collectParallelResults`에서 add를 수행 → toolsUsed는 단일 코루틴 flow 내에서만 sequential 접근 → CopyOnWriteArrayList는 잘못된 thread-safety 가정에서 도입된 overkill. mutableListOf로 교체 시 add O(n)→O(1), N=10 도구 시 작업량 90% 감소(절대값 미미하지만 의도 명확화가 핵심). **Fix #2 — Exception class name LLM 노출 제거**: `ToolCallOrchestrator.executionErrorOutcome` (KDoc은 "e.message는 LLM에 노출되지 않도록" 명시했으나 실제로는 `${e.javaClass.simpleName}` 노출), 작업 중 신규 테스트가 `"... (NullPointerException)"` 형태 출력으로 실패하는 것을 보고 **`ArcToolCallbackAdapter.kt:79`에도 동일한 패턴이 있음을 추가 발견** → 두 곳 모두 fix. 두 호출자 모두 이미 `logger.error(e)`로 ops 로그에 전체 스택 + `evaluationCollector.recordError`로 stage 메트릭을 기록하므로 LLM 출력에 클래스명을 노출할 운영적 가치 0, 사용자 노출/LLM 추론 오염/CLAUDE.md Gotcha #9 위반의 3가지 위험만 존재. **신규 R271 테스트 2개**: NPE 도구 + 4가지 exception 타입에서 클래스명 미노출 검증. **테스트 fixture 버그 발견 및 fix**: 처음에 도구 이름에 `"tool_${exception.simpleName}"` 사용해서 출력에 자연스럽게 클래스명이 포함됨 → 중립 이름(`"neutral_a"` 등)으로 변경. **기존 회귀 테스트 3개 갱신**: ArcToolCallbackAdapterTest 2개 + ToolPreparationPlannerTest 1개 — OLD 동작(`assertTrue(output.contains("IllegalStateException"))`)을 NEW 동작(`assertFalse(...)` + `assertTrue(output.contains("failing_tool"))`)으로 변경, `assertFalse` import 추가. **테스트 작성 4단계 디버깅 사이클**: (1) R271 fix#2 첫 시도가 ArcToolCallbackAdapter 누락 → 추가 fix, (2) 신규 테스트 fixture 버그 → 중립 이름, (3) 기존 회귀 테스트 fail → fix가 작동한다는 신호로 해석 → OLD→NEW 전환, (4) `assertFalse` import 누락 → import 추가. **테스트 결과**: R271 신규 2/2 PASS + ArcToolCallbackAdapterTest (2개 갱신) PASS + ToolPreparationPlannerTest (1개 갱신) PASS + 전체 `agent.impl.*` PASS + 전체 arc-core 테스트 suite PASS (회귀 없음). **빌드**: `compileKotlin compileTestKotlin` 0 warnings. **R270~R271 누적 통계**: production fix 6 (R268 1 + R270 2 + R271 4 - 단 4 production code 수정, 일부는 동일 fix가 여러 파일에 적용된 것으로 4 distinct fix), 변경 파일 7개 (3 main + 2 test for R271), 신규 회귀 테스트 5개, 갱신 회귀 테스트 3개, 스캐너 미처리 후보 3개 남음. **3대 최상위 제약 자동 준수**: 도구 발견/호출 경로 미수정, SystemPromptBuilder/scopeFingerprint 미수정, MemoryStore 미접근 — 모든 변경은 robustness/security/performance 강화. **운영자 영향**: (1) Tool 호출 빈도 높은 환경에서 미미한 latency 개선 (O(N²)→O(N)), (2) 도구 실행 실패 시 LLM이 사용자에게 전달하는 에러 메시지에 내부 클래스명 미노출, (3) LLM 추론 정확도 향상 (잘못된 클래스명 추론 risk 제거). **Silent foot-gun 매트릭스**: R268 1개 + R270 2개 + R271 2개 = **5개 production fix 완료**, 🔴 Redis fallback만 잠금 상태(의도된 동작). Directive 진행: **4/5 + R224~R271**. swagger-mcp 8181 **102 라운드 연속 PASS**. arc-core 5954 → 5956 (+2 신규). 다음 우선순위는 R270 스캐너 미처리 3개(P2 findMcpToolCallback TOCTOU / P2 StreamingReActLoopExecutor 멀티 청크 / P4 mcpToolCallbacks 람다 캐시) 또는 새 코드 스캔(guard/hook/memory 영역).
+
+#### 🔬 R270 요약 (legacy)
+
 🔬 **codebase scanner로 에이전트 hot path 6개 파일 스캔 → 실제 P1 버그 2개 발견 → 즉시 fix**. R263~R269의 doc-test 패턴에서 R268 production fix로 진화한 후, R270은 **doc-test에서 발견된 silent가 아닌 코드 스캔으로 발견한 실제 버그**를 처음으로 fix. 사용자 피드백("에이전트 성능 개선 방향으로 코드 검증/수정") 직접 반영. **스캐너 발견**: P1 2개 + P2 2개 + P3 1개 + P4 1개 (총 7개). **R270 fix 2개** (모두 ToolCallOrchestrator.kt): (1) `findMcpToolCallback` catch 블록에 `e.throwIfCancellation()` 추가 — `mcpToolCallbackProvider` 람다가 미래에 cancellation-aware로 교체될 경우의 leak 방어, (2) `invokeAndFinalizeDirect`/`invokeAndFinalizeParallel` 두 경로의 `executeAfterToolCall` 호출을 try-finally로 wrapping하여 `failOnError=true` Hook 예외 발생 시에도 `agentMetrics.recordToolCall`이 항상 실행되도록 보장. **두 번째 fix가 실제 운영 가시성 손실 해결**: R249에서 `HookExecutor.executeAfterToolCall`이 fail-on-error Hook 예외를 재전파하도록 변경되었고, 사용자 정의 Hook이 `failOnError=true`를 사용할 수 있으므로 실제 운영 환경에서 tool.calls 메트릭이 silent하게 누락되는 시나리오. **신규 회귀 테스트 3개** (R270HookExceptionMetricGuarantee nested): 직접 실행 경로 + Hook 예외 / 병렬 실행 경로 + Hook 예외 / 정상 경로 회귀. 모두 mockk relaxed mock + `every {} answers` 블록으로 호출 횟수와 인자 추적. **테스트 작성 중 문제 2개**: (1) inner class 안에 `class SpyAgentMetrics` 선언 금지 → mockk 패턴으로 변경, (2) AgentMetrics 인터페이스 시그니처 추측 오류 → mockk relaxed mock으로 자동 처리. **테스트 결과**: 3/3 신규 PASS + 전체 `agent.impl.*` + `hook.*` 모듈 회귀 PASS. **빌드**: `compileKotlin compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: 두 fix 모두 robustness 강화이며, MCP tool discovery/registration/call 경로 미수정, SystemPromptBuilder/scopeFingerprint/캐시 키 미수정, MemoryStore/ConversationManager/Trimmer 미접근. **R263~R270 패턴 진화 완성**: doc 명시화(R264/R265) → doc-test 결합(R263/R266/R267/R269) → doc-test에서 발견된 production fix(R268) → **코드 스캔 → 실제 버그 fix(R270)**. R270이 4번째 패턴 단계 처음 진입, 사용자 피드백에 직접 응답하는 능동적 코드 검증 사이클 시작. **운영자 영향**: failOnError=true Hook 사용 운영 환경에서 tool.calls 메트릭이 더 이상 silent 누락되지 않음, Grafana 대시보드 Tool Call Rate 패널이 실제 호출 빈도와 일치, MCP 서버 cancellation이 즉시 전파되어 사용자 요청 취소 응답성 향상. **Production code level fix 카운트**: 1 (R268) → 2 (+R270, +100%). **R270 미처리 후보 5개**: 🔴 P1 SpringAiAgentExecutor CopyOnWriteArrayList / 🟡 P2 findMcpToolCallback 이중 호출 / 🟡 P2 StreamingReActLoopExecutor 멀티 청크 / 🟢 P3 exception class name LLM 노출 / 🟢 P4 mcpToolCallbacks 람다 캐시. R271+에서 우선순위 순으로 처리. Directive 진행: **4/5 + R224~R270**. swagger-mcp 8181 **101 라운드 연속 PASS**. arc-core 5951 → 5954 (+3 R270 회귀 테스트). 다음 우선순위는 R270 미처리 5개 fix 또는 ApprovalController REST 엔드포인트.
 
 #### 🛡️ R269 요약 (legacy)

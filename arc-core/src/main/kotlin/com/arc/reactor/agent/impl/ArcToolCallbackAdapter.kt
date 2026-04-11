@@ -76,7 +76,12 @@ internal class ArcToolCallbackAdapter(
             // R246: TOOL_CALL stage로 런타임 예외 자동 기록
             evaluationCollector.recordError(ExecutionStage.TOOL_CALL, e)
             logger.error(e) { "도구 콜백 실행 실패: '${arcCallback.name}'" }
-            "Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
+            // R271: ToolCallOrchestrator.executionErrorOutcome과 동일하게 exception 클래스명을
+            // LLM 출력에서 제거. 클래스명(NPE/IllegalStateException 등 내부 구현)이 LLM 컨텍스트에
+            // 노출되어 사용자에게 보이거나 LLM 추론에 영향을 줄 위험. 이미 logger.error(e)로 ops
+            // 로그에 전체 스택 트레이스가 기록되며, evaluationCollector.recordError로 stage 메트릭
+            // 분류도 완료됨.
+            "Error: 도구 '${arcCallback.name}' 실행 중 오류가 발생했습니다."
         }
     }
 }

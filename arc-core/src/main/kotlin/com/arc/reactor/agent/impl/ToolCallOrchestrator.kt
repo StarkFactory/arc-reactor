@@ -840,10 +840,22 @@ internal class ToolCallOrchestrator(
         )
     }
 
-    /** 실행 에러 결과를 생성합니다. e.message는 LLM에 노출되지 않도록 일반 메시지를 사용합니다. */
+    /**
+     * 실행 에러 결과를 생성합니다.
+     *
+     * R271: 이전에는 `${e.javaClass.simpleName}`을 LLM 출력에 포함시켜 KDoc 의도("e.message는
+     * LLM에 노출되지 않도록 일반 메시지를 사용")를 위반했다. 내부 구현 클래스명(NPE,
+     * IllegalStateException 등)이 LLM 컨텍스트에 흘러들어가 사용자에게 노출되거나 LLM 추론에
+     * 영향을 줄 수 있었다. 두 호출자(invokeToolAdapterRaw line 802, invokeSpringCallback
+     * line 825)가 이미 `logger.error(e)`로 전체 스택 트레이스를 ops 로그에 기록하므로
+     * LLM 출력은 일반 메시지만 유지한다.
+     *
+     * `_e`로 명명하여 사용 안 함을 명시 (logger 호출은 이미 호출자에서 수행).
+     */
+    @Suppress("UNUSED_PARAMETER")
     private fun executionErrorOutcome(e: Exception): ToolInvocationOutcome {
         return ToolInvocationOutcome(
-            output = "Error: 도구 실행 중 오류가 발생했습니다. ${e.javaClass.simpleName}",
+            output = "Error: 도구 실행 중 오류가 발생했습니다.",
             success = false, trackAsUsed = true
         )
     }

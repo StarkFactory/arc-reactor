@@ -382,7 +382,10 @@ class SpringAiAgentExecutor(
     override suspend fun execute(command: AgentCommand): AgentResult {
         // ── 단계 1: RunContext 초기화 ──
         val startTime = System.currentTimeMillis()
-        val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
+        // R271: CopyOnWriteArrayList → mutableListOf 변경 — 단일 코루틴 sequential 접근만 발생.
+        // 병렬 도구 실행은 awaitAll() 후 collectParallelResults에서 단일 스레드로 add하므로
+        // 동시 접근 없음. CopyOnWriteArrayList의 O(n) per add overhead 제거.
+        val toolsUsed = mutableListOf<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
         enrichMetadataWithModelInfo(hookContext, command)
@@ -539,7 +542,9 @@ class SpringAiAgentExecutor(
      */
     override fun executeStream(command: AgentCommand): Flow<String> = flow {
         val startTime = System.currentTimeMillis()
-        val toolsUsed = java.util.concurrent.CopyOnWriteArrayList<String>()
+        // R271: 위 execute() 함수와 동일한 이유로 mutableListOf 사용. Streaming Flow 또한
+        // 단일 코루틴 sequential 흐름이며 toolsUsed는 collectParallelResults에서만 add됨.
+        val toolsUsed = mutableListOf<String>()
         val runContext = runContextManager.open(command, toolsUsed)
         val hookContext = runContext.hookContext
         enrichMetadataWithModelInfo(hookContext, command)
