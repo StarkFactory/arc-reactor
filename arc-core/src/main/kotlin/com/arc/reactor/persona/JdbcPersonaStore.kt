@@ -89,6 +89,21 @@ class JdbcPersonaStore(
         return persona
     }
 
+    /**
+     * 페르소나를 부분 갱신한다.
+     *
+     * R284 fix: TOCTOU race 제거. 이전 구현은 `get()`을 transaction 밖에서 호출한 뒤
+     * merge한 값을 transaction 안에서 UPDATE하여, 두 동시 PATCH 요청이 같은 stale snapshot
+     * 기준으로 merge할 때 다음 race가 발생할 수 있었다:
+     * 1. T1: 두 PATCH 요청이 동시에 `get()` → 같은 snapshot
+     * 2. T2: 두 요청이 같은 existing 기준으로 merge (다른 필드 업데이트라도 stale)
+     * 3. T3: 두 UPDATE 모두 실행 → 두 번째가 첫 번째의 일부 필드를 stale 값으로 덮어씀
+     * 4. 추가: 둘 다 isDefault=true면 양쪽 clearDefault → 양쪽 set true → dual-default
+     *
+     * R284 fix: SELECT...FOR UPDATE를 transaction 안에서 사용하여 row-level lock 획득.
+     * 두 번째 transaction은 첫 번째가 commit/rollback할 때까지 blocking → 항상 fresh 값
+     * 기준으로 merge. R275/R278 race fix와 동일한 "lock 안에서 read+merge+write" 패턴.
+     */
     override fun update(
         personaId: String,
         name: String?,
@@ -101,20 +116,21 @@ class JdbcPersonaStore(
         promptTemplateId: String?,
         isActive: Boolean?
     ): Persona? {
-        val existing = get(personaId) ?: return null
+        return transactionTemplate.execute<Persona?> { _ ->
+            // R284 fix: SELECT FOR UPDATE inside transaction prevents TOCTOU race
+            val existing = lockAndGet(personaId) ?: return@execute null
 
-        val updatedName = name ?: existing.name
-        val updatedPrompt = systemPrompt ?: existing.systemPrompt
-        val updatedDefault = isDefault ?: existing.isDefault
-        val updatedDescription = resolveNullableField(description, existing.description)
-        val updatedGuideline = resolveNullableField(responseGuideline, existing.responseGuideline)
-        val updatedWelcome = resolveNullableField(welcomeMessage, existing.welcomeMessage)
-        val updatedIcon = resolveNullableField(icon, existing.icon)
-        val updatedPromptTemplateId = resolveNullableField(promptTemplateId, existing.promptTemplateId)
-        val updatedActive = isActive ?: existing.isActive
-        val updatedAt = Instant.now()
+            val updatedName = name ?: existing.name
+            val updatedPrompt = systemPrompt ?: existing.systemPrompt
+            val updatedDefault = isDefault ?: existing.isDefault
+            val updatedDescription = resolveNullableField(description, existing.description)
+            val updatedGuideline = resolveNullableField(responseGuideline, existing.responseGuideline)
+            val updatedWelcome = resolveNullableField(welcomeMessage, existing.welcomeMessage)
+            val updatedIcon = resolveNullableField(icon, existing.icon)
+            val updatedPromptTemplateId = resolveNullableField(promptTemplateId, existing.promptTemplateId)
+            val updatedActive = isActive ?: existing.isActive
+            val updatedAt = Instant.now()
 
-        transactionTemplate.execute {
             if (isDefault == true) {
                 clearDefault()
             }
@@ -134,20 +150,37 @@ class JdbcPersonaStore(
                 java.sql.Timestamp.from(updatedAt),
                 personaId
             )
-        }
 
-        return existing.copy(
-            name = updatedName,
-            systemPrompt = updatedPrompt,
-            isDefault = updatedDefault,
-            description = updatedDescription,
-            responseGuideline = updatedGuideline,
-            welcomeMessage = updatedWelcome,
-            icon = updatedIcon,
-            isActive = updatedActive,
-            promptTemplateId = updatedPromptTemplateId,
-            updatedAt = updatedAt
+            existing.copy(
+                name = updatedName,
+                systemPrompt = updatedPrompt,
+                isDefault = updatedDefault,
+                description = updatedDescription,
+                responseGuideline = updatedGuideline,
+                welcomeMessage = updatedWelcome,
+                icon = updatedIcon,
+                isActive = updatedActive,
+                promptTemplateId = updatedPromptTemplateId,
+                updatedAt = updatedAt
+            )
+        }
+    }
+
+    /**
+     * R284: SELECT...FOR UPDATE로 row-level lock을 획득하며 페르소나를 조회한다.
+     *
+     * 반드시 active transaction 안에서 호출되어야 한다 (그렇지 않으면 lock이 즉시 해제된다).
+     * H2와 PostgreSQL 모두 FOR UPDATE 절을 지원한다.
+     */
+    private fun lockAndGet(personaId: String): Persona? {
+        val results = jdbcTemplate.query(
+            "SELECT id, name, system_prompt, is_default, description, response_guideline, " +
+                "welcome_message, icon, is_active, prompt_template_id, created_at, updated_at " +
+                "FROM personas WHERE id = ? FOR UPDATE",
+            ROW_MAPPER,
+            personaId
         )
+        return results.firstOrNull()
     }
 
     override fun delete(personaId: String) {
