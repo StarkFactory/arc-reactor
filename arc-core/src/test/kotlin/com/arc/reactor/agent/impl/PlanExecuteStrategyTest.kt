@@ -640,6 +640,155 @@ class PlanExecuteStrategyTest {
     }
 
     @Test
+    fun `R309 recordTokenUsage가 generatePlan synthesize directAnswer LLM 호출마다 호출되어야 한다`() = runTest {
+        // R309 회귀: 기존 구현은 PlanExecuteStrategy의 LLM 호출(generatePlan, synthesize, directAnswer)에
+        // recordTokenUsage를 연결하지 않아 PLAN_EXECUTE 모드의 LLM 비용이 메트릭에 누락되었다.
+        val recordedUsages = mutableListOf<com.arc.reactor.agent.model.TokenUsage>()
+        val recordedMetadata = mutableListOf<Map<String, Any>>()
+        val strategyWithMetrics = PlanExecuteStrategy(
+            toolCallOrchestrator = toolCallOrchestrator,
+            buildRequestSpec = { _, _, _, _, _ -> fixture.requestSpec },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> mockk(relaxed = true) },
+            recordTokenUsage = { usage, meta ->
+                recordedUsages.add(usage)
+                recordedMetadata.add(meta)
+            }
+        )
+
+        // 계획 생성 + 합성에 각각 다른 토큰 사용량 메타를 주입
+        val planJson = """[{"tool":"tool_ok","args":{},"description":"1단계"}]"""
+        val planResponse = simpleChatResponseWithUsage(planJson, 50, 20)
+        val synthesisResponse = simpleChatResponseWithUsage("응답", 100, 40)
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, synthesisResponse)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_ok",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "ok", success = true)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "run-r309",
+            userId = "user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf("tenantId" to "tenant-a")
+        )
+
+        val result = strategyWithMetrics.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("tool_ok")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertSuccess("성공 경로이어야 한다")
+        assertEquals(2, recordedUsages.size) {
+            "generatePlan(1) + synthesize(1) = 2회 recordTokenUsage 호출 기대, 실제: ${recordedUsages.size}"
+        }
+        assertEquals(50, recordedUsages[0].promptTokens) {
+            "첫 호출(generatePlan) promptTokens=50 기대"
+        }
+        assertEquals(100, recordedUsages[1].promptTokens) {
+            "두 번째 호출(synthesize) promptTokens=100 기대"
+        }
+        assertEquals("run-r309", recordedMetadata[0]["runId"]) {
+            "recordedMetadata에 hookContext.runId가 포함되어야 한다"
+        }
+        assertEquals("tenant-a", recordedMetadata[0]["tenantId"]) {
+            "recordedMetadata에 hookContext.metadata[tenantId]가 포함되어야 한다"
+        }
+    }
+
+    @Test
+    fun `R309 directAnswer 경로에서도 recordTokenUsage가 호출되어야 한다`() = runTest {
+        val recordedUsages = mutableListOf<com.arc.reactor.agent.model.TokenUsage>()
+        val strategyWithMetrics = PlanExecuteStrategy(
+            toolCallOrchestrator = toolCallOrchestrator,
+            buildRequestSpec = { _, _, _, _, _ -> fixture.requestSpec },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> mockk(relaxed = true) },
+            recordTokenUsage = { usage, _ -> recordedUsages.add(usage) }
+        )
+
+        // 빈 계획 → directAnswer 경로
+        val emptyPlanResponse = simpleChatResponseWithUsage("[]", 30, 10)
+        val directResponse = simpleChatResponseWithUsage("직접 응답", 70, 25)
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(emptyPlanResponse, directResponse)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "안녕",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "run-r309-direct",
+            userId = "user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategyWithMetrics.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("some_tool")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertSuccess("directAnswer 성공이어야 한다")
+        assertEquals(2, recordedUsages.size) {
+            "generatePlan(1) + directAnswer(1) = 2회 recordTokenUsage 호출 기대, 실제: ${recordedUsages.size}"
+        }
+        assertEquals(30, recordedUsages[0].promptTokens) {
+            "첫 호출(generatePlan, 빈 계획) promptTokens=30 기대"
+        }
+        assertEquals(70, recordedUsages[1].promptTokens) {
+            "두 번째 호출(directAnswer) promptTokens=70 기대"
+        }
+    }
+
+    private fun simpleChatResponseWithUsage(
+        content: String,
+        promptTokens: Int,
+        completionTokens: Int
+    ): ChatResponse {
+        val msg = AssistantMessage(content)
+        val usage = mockk<org.springframework.ai.chat.metadata.Usage>()
+        every { usage.promptTokens } returns promptTokens
+        every { usage.completionTokens } returns completionTokens
+        every { usage.totalTokens } returns promptTokens + completionTokens
+        // ChatResponse.Builder.metadata(...)가 내부적으로 getId()를 호출하므로 relaxed mock 필요.
+        val metadata = mockk<org.springframework.ai.chat.metadata.ChatResponseMetadata>(relaxed = true)
+        every { metadata.usage } returns usage
+        every { metadata.model } returns "test-model"
+        return ChatResponse.builder()
+            .generations(listOf(Generation(msg)))
+            .metadata(metadata)
+            .build()
+    }
+
+    @Test
     fun `R308 도구 실행 예외의 internal class name이 tool output 문자열에 포함되지 않아야 한다`() = runTest {
         val planJson = """[{"tool":"tool_fail","args":{},"description":"실패 단계"}]"""
         val planResponse = simpleChatResponse(planJson)

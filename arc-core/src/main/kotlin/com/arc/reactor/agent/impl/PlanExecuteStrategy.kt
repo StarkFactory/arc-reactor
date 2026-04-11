@@ -6,6 +6,7 @@ import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.ExecutionStage
 import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.recordError
+import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.ChatOptions
 
 private val logger = KotlinLogging.logger {}
@@ -48,8 +50,7 @@ internal class PlanExecuteStrategy(
         ChatClient, String, List<org.springframework.ai.chat.messages.Message>,
         ChatOptions, List<Any>
     ) -> ChatClient.ChatClientRequestSpec,
-    private val callWithRetry: suspend (suspend () -> org.springframework.ai.chat.model.ChatResponse?) ->
-        org.springframework.ai.chat.model.ChatResponse?,
+    private val callWithRetry: suspend (suspend () -> ChatResponse?) -> ChatResponse?,
     private val buildChatOptions: (AgentCommand, Boolean) -> ChatOptions,
     private val systemPromptBuilder: SystemPromptBuilder = SystemPromptBuilder(),
     private val planValidator: PlanValidator = DefaultPlanValidator(),
@@ -59,7 +60,16 @@ internal class PlanExecuteStrategy(
      * 기본값 NoOp으로 backward compat. `parsePlan()`이 fail-open으로 빈 리스트를 반환하는데,
      * 이 메트릭 없이는 LLM이 유효하지 않은 JSON 계획을 자주 생성해도 관측이 어렵다.
      */
-    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector
+    private val evaluationMetricsCollector: EvaluationMetricsCollector = NoOpEvaluationMetricsCollector,
+    /**
+     * R309: generatePlan / synthesize / directAnswer LLM 호출의 토큰 사용량을 기록한다.
+     *
+     * 기본값 no-op으로 backward compat. 기존 구현은 `ManualReActLoopExecutor`/`StreamingReActLoopExecutor`와
+     * 달리 토큰 사용량을 메트릭에 전달하지 않아 PLAN_EXECUTE 모드의 LLM 비용이 관측 파이프라인에서
+     * 누락되었다. `StepBudgetTracker`는 도구 호출 토큰(`hookContext.metadata["tokensUsed"]`)만 보고
+     * plan/synthesize LLM 호출 토큰은 추적되지 않았다.
+     */
+    private val recordTokenUsage: (TokenUsage, Map<String, Any>) -> Unit = { _, _ -> }
 ) {
 
     /**
@@ -89,11 +99,11 @@ internal class PlanExecuteStrategy(
     ): AgentResult {
         val toolDescriptions = describeTools(tools)
         val plan = generatePlan(
-            command, activeChatClient, systemPrompt, toolDescriptions
+            command, activeChatClient, systemPrompt, toolDescriptions, hookContext
         )
         if (plan.isEmpty()) {
             logger.warn { "PLAN_EXECUTE: 빈 계획 생성, 직접 응답 시도" }
-            return directAnswer(command, activeChatClient, systemPrompt)
+            return directAnswer(command, activeChatClient, systemPrompt, hookContext)
         }
         logger.info { "PLAN_EXECUTE: ${plan.size}개 단계 계획 생성" }
 
@@ -122,7 +132,7 @@ internal class PlanExecuteStrategy(
                 errorCode = AgentErrorCode.TOOL_ERROR
             )
         }
-        return synthesize(command, activeChatClient, systemPrompt, results)
+        return synthesize(command, activeChatClient, systemPrompt, results, hookContext)
     }
 
     /** 검증 실패 시 오류 목록을 포함한 실패 결과를 생성한다. */
@@ -168,7 +178,8 @@ internal class PlanExecuteStrategy(
         command: AgentCommand,
         chatClient: ChatClient,
         systemPrompt: String,
-        toolDescriptions: String
+        toolDescriptions: String,
+        hookContext: HookContext
     ): List<PlanStep> {
         val planningSystemPrompt = systemPromptBuilder.buildPlanningPrompt(
             command.userPrompt, toolDescriptions
@@ -184,6 +195,10 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
+        // R309: plan generation LLM 호출 토큰 사용량을 메트릭에 전달
+        ReActLoopUtils.emitTokenUsageMetric(
+            response?.metadata, hookContext, recordTokenUsage
+        )
         val text = response?.results?.firstOrNull()
             ?.output?.text.orEmpty()
         return parsePlan(text)
@@ -336,7 +351,8 @@ internal class PlanExecuteStrategy(
         command: AgentCommand,
         chatClient: ChatClient,
         systemPrompt: String,
-        results: List<StepResult>
+        results: List<StepResult>,
+        hookContext: HookContext
     ): AgentResult {
         val resultSummary = results.joinToString("\n\n") { r ->
             "[${r.tool}] ${r.description}\n${r.output.orEmpty()}"
@@ -356,6 +372,10 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
+        // R309: synthesize LLM 호출 토큰 사용량을 메트릭에 전달
+        ReActLoopUtils.emitTokenUsageMetric(
+            response?.metadata, hookContext, recordTokenUsage
+        )
         // R308 fix: LLM이 null 또는 빈 content를 반환하면 기존 구현은 AgentResult.success("")를
         // 반환하여 호출자가 LLM 실패와 정상 빈 응답을 구분할 수 없었다. INVALID_RESPONSE로 명시적
         // 실패 처리한다.
@@ -374,7 +394,8 @@ internal class PlanExecuteStrategy(
     private suspend fun directAnswer(
         command: AgentCommand,
         chatClient: ChatClient,
-        systemPrompt: String
+        systemPrompt: String,
+        hookContext: HookContext
     ): AgentResult {
         val messages = listOf(
             org.springframework.ai.chat.messages.UserMessage(command.userPrompt)
@@ -386,6 +407,10 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
+        // R309: directAnswer LLM 호출 토큰 사용량을 메트릭에 전달
+        ReActLoopUtils.emitTokenUsageMetric(
+            response?.metadata, hookContext, recordTokenUsage
+        )
         // R308 fix: synthesize()와 동일 — null/빈 응답을 INVALID_RESPONSE 실패로 승격.
         val content = response?.results?.firstOrNull()?.output?.text
         if (content.isNullOrBlank()) {

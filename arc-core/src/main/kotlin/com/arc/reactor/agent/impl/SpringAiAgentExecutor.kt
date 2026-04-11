@@ -252,7 +252,9 @@ class SpringAiAgentExecutor(
         systemPromptBuilder = systemPromptBuilder,
         toolApprovalPolicy = toolApprovalPolicy,
         // R254: JSON 계획 파싱 실패 → PARSING stage 자동 기록
-        evaluationMetricsCollector = evaluationMetricsCollector
+        evaluationMetricsCollector = evaluationMetricsCollector,
+        // R309: generatePlan / synthesize / directAnswer LLM 호출 토큰 사용량 기록
+        recordTokenUsage = { usage, meta -> agentMetrics.recordTokenUsage(usage, meta) }
     )
     // 스트리밍 ReAct 루프 실행기 — 실시간 청크 전송 버전
     private val streamingReActLoopExecutor = StreamingReActLoopExecutor(
