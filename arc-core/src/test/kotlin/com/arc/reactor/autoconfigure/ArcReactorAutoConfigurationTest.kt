@@ -370,6 +370,44 @@ class ArcReactorAutoConfigurationTest {
                     }
                 }
         }
+
+        @Test
+        fun `R287 type 기반 conditional은 다른 이름의 RateLimitStage bean이 default를 비활성화한다`() {
+            // R287 fix 검증: 이전 name 기반 conditional은 사용자가 다른 이름의 bean을 등록하면
+            // default도 함께 등록되어 double-rate-limiting 발생. type 기반으로 변경한 후에는
+            // 사용자가 어떤 이름이든 RateLimitStage bean을 제공하면 default가 자동 비활성화.
+            contextRunner
+                .withUserConfiguration(CustomRateLimitStageConfig::class.java)
+                .run { context ->
+                    val rateLimitBeans = context.getBeansOfType(
+                        com.arc.reactor.guard.RateLimitStage::class.java
+                    )
+                    assertEquals(1, rateLimitBeans.size) {
+                        "R287 fix: 다른 이름의 RateLimitStage 사용자 bean 등록 시 RateLimitStage 인스턴스는 " +
+                            "정확히 1개여야 하지만 ${rateLimitBeans.size}개 등록됨: ${rateLimitBeans.keys}. " +
+                            "name 기반 conditional이라면 default도 함께 등록되어 2개가 된다."
+                    }
+                    assertTrue(rateLimitBeans.containsKey("customRateLimit")) {
+                        "사용자 bean 'customRateLimit'이 등록되어야 한다"
+                    }
+                    assertFalse(rateLimitBeans.containsKey("rateLimitStage")) {
+                        "R287 fix: 사용자 override 시 default 'rateLimitStage'는 등록되지 않아야 한다"
+                    }
+                }
+        }
+    }
+
+    /** R287 회귀 테스트용 — 다른 이름으로 등록되는 RateLimitStage 사용자 구성. */
+    @Configuration
+    class CustomRateLimitStageConfig {
+        @Bean
+        fun customRateLimit(): com.arc.reactor.guard.RateLimitStage =
+            object : com.arc.reactor.guard.RateLimitStage {
+                override suspend fun enforce(
+                    command: com.arc.reactor.guard.model.GuardCommand
+                ): com.arc.reactor.guard.model.GuardResult =
+                    com.arc.reactor.guard.model.GuardResult.Allowed.DEFAULT
+            }
     }
 
     // ── Webhook ─────────────────────────────────────────────────────

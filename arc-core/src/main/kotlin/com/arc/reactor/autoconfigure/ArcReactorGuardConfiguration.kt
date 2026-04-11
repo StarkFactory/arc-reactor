@@ -3,7 +3,11 @@ package com.arc.reactor.autoconfigure
 import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.guard.ClassificationStage
 import com.arc.reactor.guard.GuardStage
+import com.arc.reactor.guard.InjectionDetectionStage
+import com.arc.reactor.guard.InputValidationStage
+import com.arc.reactor.guard.RateLimitStage
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.audit.GuardAuditPublisher
 import com.arc.reactor.guard.impl.CompositeClassificationStage
@@ -35,6 +39,13 @@ import org.springframework.context.annotation.Configuration
 )
 class GuardConfiguration {
 
+    /**
+     * Unicode 정규화 stage.
+     *
+     * R287 NOTE: marker interface 미존재 → name 기반 conditional 유지.
+     * 향후 UnicodeNormalizationStage impl을 DefaultUnicodeNormalizationStage로 rename하고
+     * `interface UnicodeNormalizationStage : GuardStage` 추가 시 type 기반으로 전환 가능.
+     */
     @Bean
     @ConditionalOnMissingBean(name = ["unicodeNormalizationStage"])
     @ConditionalOnProperty(
@@ -44,18 +55,30 @@ class GuardConfiguration {
     fun unicodeNormalizationStage(properties: AgentProperties): GuardStage =
         UnicodeNormalizationStage(maxZeroWidthRatio = properties.guard.maxZeroWidthRatio)
 
+    /**
+     * 속도 제한 stage.
+     *
+     * R287 fix: name 기반 → type 기반 [RateLimitStage] conditional. 사용자가 `@Bean fun
+     * customRateLimit(): RateLimitStage = ...` 형태로 다른 이름의 bean을 등록해도 default가
+     * 자동 비활성화되어 double-rate-limiting을 방지한다.
+     */
     @Bean
-    @ConditionalOnMissingBean(name = ["rateLimitStage"])
-    fun rateLimitStage(properties: AgentProperties): GuardStage =
+    @ConditionalOnMissingBean(RateLimitStage::class)
+    fun rateLimitStage(properties: AgentProperties): RateLimitStage =
         DefaultRateLimitStage(
             requestsPerMinute = properties.guard.rateLimitPerMinute,
             requestsPerHour = properties.guard.rateLimitPerHour,
             tenantRateLimits = properties.guard.tenantRateLimits
         )
 
+    /**
+     * 입력 검증 stage.
+     *
+     * R287 fix: name 기반 → type 기반 [InputValidationStage] conditional. 동일 사유.
+     */
     @Bean
-    @ConditionalOnMissingBean(name = ["inputValidationStage"])
-    fun inputValidationStage(properties: AgentProperties): GuardStage {
+    @ConditionalOnMissingBean(InputValidationStage::class)
+    fun inputValidationStage(properties: AgentProperties): InputValidationStage {
         return DefaultInputValidationStage(
             maxLength = properties.boundaries.inputMaxChars,
             minLength = properties.boundaries.inputMinChars,
@@ -63,16 +86,27 @@ class GuardConfiguration {
         )
     }
 
+    /**
+     * 인젝션 탐지 stage.
+     *
+     * R287 fix: name 기반 → type 기반 [InjectionDetectionStage] conditional. 동일 사유.
+     */
     @Bean
-    @ConditionalOnMissingBean(name = ["injectionDetectionStage"])
+    @ConditionalOnMissingBean(InjectionDetectionStage::class)
     @ConditionalOnProperty(
         prefix = "arc.reactor.guard", name = ["injection-detection-enabled"],
         havingValue = "true", matchIfMissing = true
     )
-    fun injectionDetectionStage(): GuardStage = DefaultInjectionDetectionStage()
+    fun injectionDetectionStage(): InjectionDetectionStage = DefaultInjectionDetectionStage()
 
+    /**
+     * 분류 stage.
+     *
+     * R287 fix: name 기반 → type 기반 [ClassificationStage] conditional. 동일 사유.
+     * 반환 타입을 GuardStage → ClassificationStage로 좁혀 marker contract 명시.
+     */
     @Bean
-    @ConditionalOnMissingBean(name = ["classificationStage"])
+    @ConditionalOnMissingBean(ClassificationStage::class)
     @ConditionalOnProperty(
         prefix = "arc.reactor.guard", name = ["classification-enabled"],
         havingValue = "true", matchIfMissing = false
@@ -80,7 +114,7 @@ class GuardConfiguration {
     fun classificationStage(
         properties: AgentProperties,
         chatClient: ObjectProvider<ChatClient>
-    ): GuardStage {
+    ): ClassificationStage {
         val ruleBasedStage = RuleBasedClassificationStage()
         val llmStage = if (properties.guard.classificationLlmEnabled) {
             chatClient.ifAvailable?.let { LlmClassificationStage(it) }
@@ -90,6 +124,13 @@ class GuardConfiguration {
         return CompositeClassificationStage(ruleBasedStage, llmStage)
     }
 
+    /**
+     * 주제 이탈 탐지 stage.
+     *
+     * R287 NOTE: marker interface 미존재 → name 기반 conditional 유지.
+     * 향후 TopicDriftDetectionStage impl을 DefaultTopicDriftDetectionStage로 rename하고
+     * marker interface 추가 시 type 기반으로 전환 가능.
+     */
     @Bean
     @ConditionalOnMissingBean(name = ["topicDriftDetectionStage"])
     @ConditionalOnProperty(
