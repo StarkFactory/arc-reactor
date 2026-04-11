@@ -38,7 +38,18 @@ internal class RagContextRetriever(
     private val retrievalTimeoutMs: Long = 5000,
     private val metrics: AgentMetrics = NoOpAgentMetrics(),
     private val queryRouter: QueryRouter? = null,
-    private val complexTopK: Int = 15
+    private val complexTopK: Int = 15,
+    /**
+     * R327: 필수 RAG 필터 키 목록 (cross-tenant leak 차단).
+     *
+     * 설정된 각 키는 `AgentCommand.metadata`에서 읽어 RAG 검색 필터에 **강제 주입**된다.
+     * 호출자가 `ragFilters` 또는 `rag.filter.*`에 동일 키를 제공해도 metadata 값이 우선한다
+     * (spoofing 차단). 설정된 키가 metadata에 없으면 fail-closed로 null 반환.
+     *
+     * 기본값 빈 리스트: backward compat. production에서는 `["tenantId"]` 또는
+     * `["tenantId", "userId"]` 설정 권장.
+     */
+    private val mandatoryFilterKeys: List<String> = emptyList()
 ) {
 
     /**
@@ -58,10 +69,22 @@ internal class RagContextRetriever(
                     ?: return@withTimeout null
                 // ── 단계 2: RAG 파이프라인으로 문서 검색 ──
                 val ragFilters = extractRagFilters(command.metadata)
+                // R327: 필수 필터 키를 metadata에서 강제 주입. 호출자가 제공한 ragFilters를 덮어쓴다.
+                // 필수 키가 metadata에 없으면 fail-closed로 null 반환 (cross-tenant leak 차단).
+                val enforcedFilters = applyMandatoryFilters(ragFilters, command.metadata)
+                    ?: run {
+                        val durationMs = System.currentTimeMillis() - startTime
+                        logger.warn {
+                            "RAG 필수 필터 누락 — 검색 생략 (mandatoryFilterKeys=$mandatoryFilterKeys, " +
+                                "metadata keys=${command.metadata.keys})"
+                        }
+                        metrics.recordRagRetrieval("mandatory_filter_missing", durationMs)
+                        return@withTimeout null
+                    }
                 val ragResult = ragPipeline.retrieve(
                     RagQuery(
                         query = command.userPrompt,
-                        filters = ragFilters,
+                        filters = enforcedFilters,
                         topK = effectiveTopK,
                         rerank = rerankEnabled
                     )
@@ -116,6 +139,28 @@ internal class RagContextRetriever(
                 complexTopK
             }
         }
+    }
+
+    /**
+     * R327: 필수 필터 키를 metadata에서 읽어 기존 필터에 강제 주입한다.
+     *
+     * 필수 키가 모두 metadata에 존재하면 병합된 필터를 반환한다. 하나라도 누락되면 null 반환.
+     * 호출자의 `ragFilters` 값은 metadata 원본 값으로 덮어써진다 (spoofing 차단).
+     *
+     * @return 병합된 필터 (모든 필수 키 존재 시) 또는 null (fail-closed)
+     */
+    private fun applyMandatoryFilters(
+        baseFilters: Map<String, Any>,
+        metadata: Map<String, Any>
+    ): Map<String, Any>? {
+        if (mandatoryFilterKeys.isEmpty()) return baseFilters
+        val merged = linkedMapOf<String, Any>()
+        merged.putAll(baseFilters)
+        for (key in mandatoryFilterKeys) {
+            val value = metadata[key] ?: return null
+            merged[key] = value  // metadata 원본으로 강제 덮어쓰기
+        }
+        return merged
     }
 
     /**

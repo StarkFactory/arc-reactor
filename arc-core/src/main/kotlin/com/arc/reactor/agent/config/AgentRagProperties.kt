@@ -44,7 +44,23 @@ data class RagProperties(
     val compression: RagCompressionProperties = RagCompressionProperties(),
 
     /** 적응형 쿼리 라우팅 설정 (Adaptive-RAG) */
-    val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties()
+    val adaptiveRouting: AdaptiveRoutingProperties = AdaptiveRoutingProperties(),
+
+    /**
+     * R327: 필수 RAG 필터 키 목록 (cross-tenant leak 차단).
+     *
+     * 여기에 나열된 키는 `AgentCommand.metadata`에서 자동으로 추출되어 RAG 검색 필터에 강제 주입된다.
+     * 호출자가 제공한 `ragFilters`는 이 키를 **덮어쓸 수 없다** (spoofing 차단).
+     *
+     * 예: `["tenantId", "userId"]` — 모든 RAG 검색이 tenant/user 스코프로 자동 격리됨.
+     *
+     * 기본값 빈 리스트: backward compat, 아무 키도 강제하지 않는다. **production 권장**: 최소한
+     * `tenantId` 또는 `userId` 하나는 설정하여 cross-tenant 벡터 검색 누출을 차단한다.
+     *
+     * **fail-closed 동작**: 설정된 키가 metadata에 없으면 RAG 검색은 null을 반환하고 warn 로그를
+     * 남긴다. 에이전트는 RAG 없이 계속 실행되므로 가용성은 유지된다.
+     */
+    val mandatoryFilterKeys: List<String> = emptyList()
 )
 
 /**

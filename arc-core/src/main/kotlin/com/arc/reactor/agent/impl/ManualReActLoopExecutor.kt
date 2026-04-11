@@ -297,15 +297,36 @@ internal class ManualReActLoopExecutor(
         return buildFinalResult(output, command, state, toolsUsed)
     }
 
-    /** 최종 응답을 검증·복구하여 LoopAction.Return으로 감싼다. */
+    /**
+     * 최종 응답을 검증·복구하여 LoopAction.Return으로 감싼다.
+     *
+     * R327 fix: output이 null 또는 빈 문자열이고 responseFormat이 TEXT가 아닌 경우(JSON/YAML),
+     * `validateAndRepairResponse`에 빈 문자열을 넘기면 `StructuredResponseRepairer`가 빈 본문으로
+     * "The following JSON is invalid. Fix it..." 프롬프트를 생성하여 **LLM이 환각으로 그럴듯한
+     * JSON을 발명**해 반환 → 원본 empty를 알리지 않고 조작된 응답을 caller에게 전달. 이를 차단하기
+     * 위해 empty + non-TEXT 조합은 즉시 INVALID_RESPONSE로 실패 반환. TEXT 형식은 기존 동작(빈
+     * 문자열이 유효) 유지.
+     */
     private suspend fun buildFinalResult(
         output: AssistantMessage?,
         command: AgentCommand,
         state: ReActLoopState,
         toolsUsed: List<String>
     ): LoopAction.Return {
+        val text = output?.text.orEmpty()
+        if (text.isBlank() && command.responseFormat != ResponseFormat.TEXT) {
+            logger.warn {
+                "빈 LLM 응답 + structured format=${command.responseFormat} → repair 우회, INVALID_RESPONSE 반환"
+            }
+            return LoopAction.Return(
+                AgentResult.failure(
+                    errorMessage = AgentErrorCode.INVALID_RESPONSE.defaultMessage,
+                    errorCode = AgentErrorCode.INVALID_RESPONSE
+                )
+            )
+        }
         val result = validateAndRepairResponse(
-            output?.text.orEmpty(), command.responseFormat,
+            text, command.responseFormat,
             command, state.totalTokenUsage, ArrayList(toolsUsed)
         )
         return LoopAction.Return(result)

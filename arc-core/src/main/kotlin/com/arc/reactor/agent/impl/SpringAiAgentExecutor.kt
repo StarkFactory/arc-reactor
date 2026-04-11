@@ -168,7 +168,10 @@ class SpringAiAgentExecutor(
         retrievalTimeoutMs = properties.rag.retrievalTimeoutMs,
         metrics = agentMetrics,
         queryRouter = queryRouter,
-        complexTopK = properties.rag.adaptiveRouting.complexTopK
+        complexTopK = properties.rag.adaptiveRouting.complexTopK,
+        // R327: 필수 RAG 필터 키 전달 (기본값 빈 리스트 = backward compat, production에서
+        // arc.reactor.rag.mandatoryFilterKeys 설정으로 cross-tenant leak 차단)
+        mandatoryFilterKeys = properties.rag.mandatoryFilterKeys
     )
     // 에러 분류기 — 일시적(transient) vs 영구(permanent) 에러 판별
     private val agentErrorPolicy = AgentErrorPolicy(transientErrorClassifier)

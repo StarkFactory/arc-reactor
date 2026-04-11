@@ -117,6 +117,68 @@ class RagContextRetrieverTest {
     }
 
     @Test
+    fun `R327 mandatoryFilterKeys 설정 시 metadata 값이 강제 주입되어야 한다`() = runTest {
+        val pipeline = mockk<RagPipeline>()
+        val querySlot = slot<RagQuery>()
+        coEvery { pipeline.retrieve(capture(querySlot)) } returns RagContext(
+            context = "ctx",
+            documents = listOf(RetrievedDocument(id = "doc-1", content = "c"))
+        )
+        val retriever = RagContextRetriever(
+            enabled = true,
+            topK = 5,
+            rerankEnabled = false,
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000,
+            mandatoryFilterKeys = listOf("tenantId")
+        )
+        // 호출자가 ragFilters에 엉뚱한 tenantId를 제공해도 metadata 원본 값이 우선해야 한다
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "q",
+            metadata = mapOf(
+                "tenantId" to "acme-real",
+                "ragFilters" to mapOf("tenantId" to "spoofed-evil")
+            )
+        )
+
+        val result = retriever.retrieve(command)
+
+        assertEquals("ctx", result?.context) { "정상 검색 결과 반환" }
+        assertEquals(
+            "acme-real",
+            querySlot.captured.filters["tenantId"],
+            "R327: metadata 원본 값이 spoofed 값을 덮어써야 한다 (cross-tenant leak 차단)"
+        )
+    }
+
+    @Test
+    fun `R327 mandatoryFilterKeys 값이 metadata에 없으면 fail-closed로 null 반환`() = runTest {
+        val pipeline = mockk<RagPipeline>()
+        val retriever = RagContextRetriever(
+            enabled = true,
+            topK = 5,
+            rerankEnabled = false,
+            ragPipeline = pipeline,
+            retrievalTimeoutMs = 5000,
+            mandatoryFilterKeys = listOf("tenantId")
+        )
+        // metadata에 tenantId가 아예 없음 → fail-closed
+        val command = AgentCommand(
+            systemPrompt = "sys",
+            userPrompt = "q",
+            metadata = mapOf("other" to "value")
+        )
+
+        val result = retriever.retrieve(command)
+
+        assertNull(result) {
+            "R327: 필수 필터 키가 metadata에 없으면 fail-closed로 null을 반환해야 한다"
+        }
+        coVerify(exactly = 0) { pipeline.retrieve(any()) }
+    }
+
+    @Test
     fun `pipeline exceeds retrieval timeout일 때 null를 반환한다`() = runTest {
         val pipeline = mockk<RagPipeline>()
         coEvery { pipeline.retrieve(any()) } coAnswers {
