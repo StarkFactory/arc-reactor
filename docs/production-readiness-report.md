@@ -228,6 +228,13 @@
 - 요약: R342 scanner LOW #2 처리. `ExecutionResultFinalizer.toolFamily`가 `confluence_`/`jira_`/`bitbucket_`/`work_`/`mcp_`만 인식하고 **`spec_`(Swagger/OpenAPI 도구) 분기가 없어 `"other"`로 폴백**. 반면 `VerifiedSourcesResponseFilter.WORKSPACE_TOOL_PREFIXES`는 이미 `spec_`을 workspace 도구로 인식해 두 코드 경로의 분류 의도가 silent 불일치. 결과: `spec_search`/`spec_detail` 같은 Swagger/OpenAPI 도구 호출이 `metadata["toolFamily"] = "other"`로 기록되어 Grafana "tool family usage" 패널에서 spec 도구 사용률이 invisible, `employee-value-rollout-300.md` "tool family correctness" KPI 저평가. 1줄 수정: `when` 분기에 `toolName.startsWith("spec_") -> "spec"` 추가. `mcp_` 앞에 배치해 prefix 순서 명시. 신규 회귀 2건(mockk slot capture로 `recordResponseObservation` event metadata 검증 + 7가지 prefix 매트릭스 cross-verify). 전체 arc-core PASS. **`employee_value` axis 3회 연속 완료 — R345부터 axis 전환 또는 cycle 10 cleanup 권장.**
 - 상세 위치: `docs/reports/rounds/R344.md`
 
+### Round 345 — 2026-04-13T05:30+09:00 — cycle 10 16차: stripSourcesBlock 본문 중간 절단 edge case 방어
+
+- axis: `employee_value` (4회 연속)
+- 분류: `direct_value`
+- 요약: R342 scanner LOW #4 처리. `VerifiedSourcesResponseFilter.stripSourcesBlock`이 `matches.first()`로 첫 "Sources" 헤딩 위치부터 본문 끝까지 무조건 substring으로 잘라내던 구현에서, LLM이 답변 중간에 서술적 `Sources:` 단독 라인을 작성하고 뒤에 URL 없는 설명 + 결론 본문이 이어지는 경우 **본문 결론 전체가 조기 절단**되는 user-visible 버그. 첫 매칭 시작점은 유지하되 below content에 실제 출처 목록 패턴(`- http`, `* http`, `- [`, `* [`, 또는 bare `http` 시작 라인)이 **존재할 때만** 절단하고, 없으면 서술적 언급으로 간주해 본문 보존. `BULLET_CHARS = setOf('-', '*')` 상수 추가. 기존 31개 VerifiedSourcesResponseFilter 테스트 전부 PASS 유지(Arc Reactor 정상 Sources 블록은 bullet + markdown link 형식이라 새 check 통과) + 신규 회귀 2건(영문/한글 서술적 Sources 언급 + URL 없음 → 본문 결론 보존 검증). 라운드 중간에 `McpToolCallback` 에러 메시지 sanitize 시도를 먼저 진행했으나 기존 테스트가 클래스명 포함을 명시적 lock하고 있어 정책 변경 성격이라 safety rail §0.6 #8에 따라 철회 후 R342 LOW #4로 전환. 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R345.md`
+
 ---
 
 ## 11. 아카이브

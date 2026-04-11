@@ -385,6 +385,65 @@ class VerifiedSourcesResponseFilterTest {
         }
     }
 
+    /**
+     * R345 regression: LLM이 본문 중간에 서술적으로 `Sources:` 헤딩을 작성하고 그 뒤에
+     * URL 없는 설명 + 결론 본문이 이어지는 경우, 기존 `matches.first()` 기반 절단이
+     * **본문 결론 전체를 substring으로 잘라내던** user-visible 응답 품질 저하를 수정했는지
+     * 검증. 수정 후에는 후보 match 이후 content에 실제 URL/markdown-link 패턴이 없으면
+     * 본문을 보존해야 한다.
+     */
+    @Test
+    fun `R345 본문 중간 서술적 Sources 언급은 본문을 보존해야 한다`() = runTest {
+        val result = filter.filter(
+            content = """
+                The approach I used was:
+
+                Sources:
+                - the internal knowledge base (not linked here)
+                - previous team discussions
+
+                Given the above, my conclusion is that we should ship feature X next week.
+            """.trimIndent(),
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "설명해줘"),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 100
+            )
+        )
+
+        assertTrue(result.contains("Given the above, my conclusion is that we should ship feature X")) {
+            "R345: Sources 헤딩 뒤에 URL이 없으면 본문 결론이 보존되어야 한다. " +
+                "실제 결과:\n$result"
+        }
+    }
+
+    @Test
+    fun `R345 본문 중간 서술적 출처 한글 언급도 본문 보존`() = runTest {
+        val result = filter.filter(
+            content = """
+                접근 방식은 다음과 같습니다.
+
+                출처:
+                - 내부 지식 베이스 (비공개 링크)
+                - 팀 회의록
+
+                따라서 다음 주 릴리스는 기능 X를 먼저 배포해야 합니다.
+            """.trimIndent(),
+            context = ResponseFilterContext(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "설명해줘"),
+                toolsUsed = emptyList(),
+                verifiedSources = emptyList(),
+                durationMs = 100
+            )
+        )
+
+        assertTrue(result.contains("따라서 다음 주 릴리스는 기능 X를 먼저 배포해야 합니다")) {
+            "R345: 한글 '출처:' 헤딩 뒤에 URL이 없으면 본문 결론이 보존되어야 한다. " +
+                "실제 결과:\n$result"
+        }
+    }
+
     @Test
     fun `internal read tools without links에 대해 not append empty sources footer해야 한다`() = runTest {
         val result = filter.filter(

@@ -296,13 +296,42 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         return BLANK_LINE_SPACING_REGEX.replace(withoutSourcesBlock, "\n\n").trim()
     }
 
-    /** 콘텐츠 끝에 있는 기존 출처 블록을 제거한다. */
+    /**
+     * 콘텐츠 끝에 있는 기존 출처 블록을 제거한다.
+     *
+     * **R345 fix**: 이전 구현은 `matches.first()`로 찾은 첫 번째 "Sources" 헤딩 위치부터
+     * 본문 끝까지 무조건 잘라냈다. 응답 중간에 LLM이 서술적으로 `Sources:` 단독 라인을
+     * 작성하고 그 뒤에 참고 설명 + 본문 결론이 이어지는 경우, **본문 결론이 조기 절단**되는
+     * 버그가 있었다. user-visible 응답 품질 저하(답변이 중간에 끊김).
+     *
+     * **수정 정책**: `matches.first()` 시작점은 유지하되, 첫 매칭 이후 content에 실제
+     * "출처 목록 패턴"(bullet + URL/markdown link 또는 bare URL 시작 라인)이 **존재할 때만**
+     * 제거한다. 출처 목록이 전혀 없으면 본문 중간의 서술적 "Sources" 언급일 가능성이 높으므로
+     * 본문을 보존한다(false negative는 안전). Arc Reactor가 추가하는 정상 출처 블록은 항상
+     * bullet + markdown link 형식이므로 정책이 기존 테스트 회귀를 모두 유지한다.
+     */
     private fun stripSourcesBlock(content: String): String {
         val trimmed = content.trimEnd()
         val matches = SOURCE_HEADING_REGEX.findAll(trimmed).toList()
         if (matches.isEmpty()) return trimmed
-        val match = matches.first()
-        return trimmed.substring(0, match.range.first).trimEnd()
+        val first = matches.first()
+        val below = trimmed.substring(first.range.last + 1)
+        if (below.isBlank()) {
+            return trimmed.substring(0, first.range.first).trimEnd()
+        }
+        val hasSourceListLine = below.lineSequence().any { line ->
+            val t = line.trim()
+            if (t.isEmpty()) return@any false
+            val firstChar = t.firstOrNull()
+            (firstChar in BULLET_CHARS && (t.contains("http") || t.contains("]("))) ||
+                t.startsWith("http")
+        }
+        return if (hasSourceListLine) {
+            trimmed.substring(0, first.range.first).trimEnd()
+        } else {
+            // 본문 중간의 서술적 "Sources" 언급 — 본문 보존 (조기 절단 방지)
+            trimmed
+        }
     }
 
     /** 마크다운 링크 제목에서 대괄호를 이스케이프한다. */
@@ -469,6 +498,9 @@ class VerifiedSourcesResponseFilter : ResponseFilter {
         /** 출처 헤딩 정규식. */
         private val SOURCE_HEADING_REGEX =
             Regex("(?m)^\\s*(?:\\*\\*)?(Sources|출처)(?:\\*\\*)?(?:\\s*:\\s*.*)?$")
+
+        /** R345: 출처 목록 bullet marker. `-` 와 `*` 둘 다 허용. */
+        private val BULLET_CHARS = setOf('-', '*')
 
         /** 연속 빈 줄 정규화 정규식. */
         private val BLANK_LINE_SPACING_REGEX = Regex("\\n{3,}")
