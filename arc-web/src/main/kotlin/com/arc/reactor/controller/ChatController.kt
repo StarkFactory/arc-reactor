@@ -401,8 +401,11 @@ class ChatController(
     /**
      * [MediaUrlRequest] 목록을 URI 기반 [MediaAttachment] 목록으로 변환한다.
      * 멀티모달이 비활성화되어 있으면 빈 목록을 반환한다.
+     *
+     * R293 fix: [parseMediaUri]가 suspend로 전환되어 함수 시그니처도 suspend.
+     * SSRF 검증의 blocking DNS resolution이 IO 디스패처로 격리된다.
      */
-    private fun resolveMediaUrls(mediaUrls: List<MediaUrlRequest>?): List<MediaAttachment> {
+    private suspend fun resolveMediaUrls(mediaUrls: List<MediaUrlRequest>?): List<MediaAttachment> {
         if (!properties.multimodal.enabled) return emptyList()
         if (mediaUrls.isNullOrEmpty()) return emptyList()
         return mediaUrls.map { req ->
@@ -427,8 +430,11 @@ class ChatController(
      * 미디어 URL 문자열을 URI로 파싱하고 안전성을 검증한다.
      * WHY: SSRF 방지를 위해 절대 URL, http/https 스킴, 유효한 호스트만 허용하고,
      * [SsrfUrlValidator]로 사설/예약 IP 접근을 차단한다.
+     *
+     * R293 fix: suspend 전환 — [SsrfUrlValidator.validate]의 blocking DNS resolution이
+     * IO 디스패처로 격리되어 Reactor Netty 이벤트 루프 차단 위험이 사라진다.
      */
-    private fun parseMediaUri(raw: String): URI {
+    private suspend fun parseMediaUri(raw: String): URI {
         val normalized = raw.trim()
         val uri = try {
             URI(normalized)

@@ -394,15 +394,23 @@ class McpServerController(
         return McpTransportType.entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
     }
 
-    /** SSE 전송 방식의 URL을 검증한다. SSRF 방지를 위해 URL 유효성을 확인한다. */
-    private fun validateSseUrl(config: Map<String, Any>): String? {
+    /**
+     * SSE 전송 방식의 URL을 검증한다. SSRF 방지를 위해 URL 유효성을 확인한다.
+     *
+     * R293 fix: [SsrfUrlValidator.validate]가 suspend로 전환되어 자동으로 IO 디스패치.
+     */
+    private suspend fun validateSseUrl(config: Map<String, Any>): String? {
         val url = config["url"]?.toString()
             ?: return "SSE transport requires a 'url' in config"
         return SsrfUrlValidator.validate(url, agentProperties.mcp.allowPrivateAddresses)
     }
 
-    /** admin URL이 제공된 경우 SSRF 검증을 수행한다. */
-    private fun validateAdminUrl(config: Map<String, Any>): String? {
+    /**
+     * admin URL이 제공된 경우 SSRF 검증을 수행한다.
+     *
+     * R293 fix: suspend 전환.
+     */
+    private suspend fun validateAdminUrl(config: Map<String, Any>): String? {
         val adminUrl = config["adminUrl"]?.toString() ?: return null
         if (adminUrl.isBlank()) return null
         return SsrfUrlValidator.validate(adminUrl, agentProperties.mcp.allowPrivateAddresses)

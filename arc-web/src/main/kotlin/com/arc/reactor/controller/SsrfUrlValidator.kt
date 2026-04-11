@@ -1,5 +1,7 @@
 package com.arc.reactor.controller
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import java.net.InetAddress
 import java.net.URI
@@ -24,9 +26,16 @@ object SsrfUrlValidator {
     /**
      * 주어진 URL 문자열의 SSRF 안전성을 검증한다.
      *
+     * R293 fix: `suspend fun`으로 전환 + `InetAddress.getByName`을 [withContext]
+     * `Dispatchers.IO`로 격리. 이전 구현은 blocking DNS resolution을 Reactor Netty NIO
+     * 이벤트 루프에서 직접 실행하여 WebFlux 핸들러를 차단할 수 있었다 (DNS latency
+     * 또는 미응답 호스트 시 수십 초~분 단위 차단 가능). suspend 전환으로 모든 callers
+     * (registerServer/updateServer/parseMediaUri 등 suspend chain)가 자연스럽게 IO
+     * dispatcher로 격리된다.
+     *
      * @return URL이 안전하면 null, 위반 사항이 있으면 오류 메시지를 반환
      */
-    fun validate(url: String, allowPrivateAddresses: Boolean = false): String? {
+    suspend fun validate(url: String, allowPrivateAddresses: Boolean = false): String? {
         val uri = try {
             URI(url)
         } catch (e: Exception) {
@@ -43,8 +52,11 @@ object SsrfUrlValidator {
             return "URL must contain a valid host: $url"
         }
 
+        // R293: blocking DNS resolution을 IO dispatcher로 격리
         val address = try {
-            InetAddress.getByName(host)
+            withContext(Dispatchers.IO) {
+                InetAddress.getByName(host)
+            }
         } catch (e: Exception) {
             logger.warn(e) { "호스트 DNS 확인 실패: host=$host" }
             return "호스트를 확인할 수 없습니다"
