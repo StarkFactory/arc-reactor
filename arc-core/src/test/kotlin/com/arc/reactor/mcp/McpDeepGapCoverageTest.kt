@@ -423,6 +423,70 @@ class McpDeepGapCoverageTest {
             assertTrue(result.degraded.isEmpty()) { "degraded가 비어있어야 한다" }
             assertFalse(result.allAvailable) { "missing 도구가 있으므로 allAvailable이 false여야 한다" }
         }
+
+        /**
+         * R279 reverse race fix: getAllToolCallbacks가 빈 리스트를 반환하지만 listServers
+         * + per-server callbacks에서 도구가 발견되는 경우 (서버 reconnect 직후 시나리오).
+         *
+         * 이전(R279 fix 이전): callbackNames = getAllToolCallbacks 결과만 사용 → 빈 set →
+         * 모든 도구가 unavailable로 잘못 분류.
+         * R279 fix: callbackNames = union(global, per-server) → per-server에서 발견 →
+         * 정상 분류 (server status에 따라 available/degraded).
+         */
+        @Test
+        fun `R279 reverse race - getAllToolCallbacks 빈 리스트지만 per-server에서 발견 시 available`() {
+            val mcpManager = mockk<McpManager>(relaxed = true)
+            val checker = McpToolAvailabilityChecker(mcpManager)
+
+            val serverA = server("serverA")
+            val tool = toolCallback("reconnected-tool")
+
+            // getAllToolCallbacks는 stale 빈 리스트 (서버 막 disconnect되었던 시점의 snapshot)
+            every { mcpManager.getAllToolCallbacks() } returns emptyList()
+            // listServers는 reconnect된 server를 포함
+            every { mcpManager.listServers() } returns listOf(serverA)
+            every { mcpManager.getStatus("serverA") } returns McpServerStatus.CONNECTED
+            // per-server callbacks는 reconnect된 도구 포함
+            every { mcpManager.getToolCallbacks("serverA") } returns listOf(tool)
+
+            val result = checker.check(listOf("reconnected-tool"))
+
+            // R279 fix: per-server에서 발견 + CONNECTED → available
+            assertTrue(result.available.contains("reconnected-tool")) {
+                "R279 fix: getAllToolCallbacks 빈 리스트라도 per-server에서 발견되면 available. " +
+                    "actual=$result"
+            }
+            assertTrue(result.unavailable.isEmpty()) {
+                "R279 fix: reverse race에서 unavailable로 잘못 분류되면 안 됨"
+            }
+        }
+
+        /**
+         * R279 forward race: per-server callbacks는 빈 리스트지만 getAllToolCallbacks에 도구가
+         * 있는 경우 (서버 disconnect 직후 floating tool 시나리오, 기존 floating-tool 테스트와 자매).
+         */
+        @Test
+        fun `R279 forward race - getAllToolCallbacks에 있지만 per-server에 없으면 floating으로 available`() {
+            val mcpManager = mockk<McpManager>(relaxed = true)
+            val checker = McpToolAvailabilityChecker(mcpManager)
+
+            val serverA = server("serverA")
+            val tool = toolCallback("disconnected-tool")
+
+            // getAllToolCallbacks는 stale 도구 포함
+            every { mcpManager.getAllToolCallbacks() } returns listOf(tool)
+            every { mcpManager.listServers() } returns listOf(serverA)
+            every { mcpManager.getStatus("serverA") } returns McpServerStatus.CONNECTED
+            // per-server callbacks는 disconnect 후 빈 리스트
+            every { mcpManager.getToolCallbacks("serverA") } returns emptyList()
+
+            val result = checker.check(listOf("disconnected-tool"))
+
+            // R279 fix: union으로 발견 + 서버 매핑 없음 → floating tool → available
+            assertTrue(result.available.contains("disconnected-tool")) {
+                "R279 fix: forward race에서 floating tool로 available 처리. actual=$result"
+            }
+        }
     }
 
     // ── McpHealthPinger 갭 ────────────────────────────────────────────────────

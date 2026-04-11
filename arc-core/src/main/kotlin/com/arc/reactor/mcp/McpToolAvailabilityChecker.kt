@@ -59,13 +59,25 @@ class McpToolAvailabilityChecker(
             )
         }
 
+        // R279 fix: TOCTOU 윈도우 완화 — 이전에는 getAllToolCallbacks()(global 스냅샷)
+        // 결과만으로 callbackNames를 구성했고, 그 후 listServers()를 호출했다. 두 호출
+        // 사이에 서버가 reconnect하면 다음 reverse race가 발생할 수 있었다:
+        //   - getAllToolCallbacks → []  (서버 막 disconnect 직전 snapshot)
+        //   - listServers → server_A CONNECTED with tool_X  (즉시 reconnect)
+        //   - 결과: tool_X NOT in callbackNames → unavailable로 잘못 분류
+        // R279 fix: callbackNames를 두 source의 union으로 구성하여 양방향 race 모두 대응:
+        //   - global 스냅샷에 있지만 per-server에 없음 → "floating tool" → available
+        //   - per-server에 있지만 global 스냅샷에 없음 → server reconnect 직후 → available/degraded
+        // 두 source가 같은 시점이 아니어도 union이 도구 존재 여부를 정확히 보존.
         val allCallbacks = mcpManager.getAllToolCallbacks()
-        val callbackNames = allCallbacks.map { it.name }.toSet()
+        val globalCallbackNames = allCallbacks.map { it.name }.toSet()
 
-        // 서버 목록을 한 번만 조회하여 상태맵과 도구맵을 동시에 구축한다
         val servers = mcpManager.listServers()
         val serverStatusMap = buildServerStatusMap(servers)
         val toolToServerMap = buildToolToServerMap(servers)
+
+        // R279 union: global 또는 per-server 어느 한 곳에라도 있으면 도구 존재로 간주
+        val callbackNames = globalCallbackNames + toolToServerMap.keys
 
         val available = mutableListOf<String>()
         val unavailable = mutableListOf<String>()
@@ -79,7 +91,10 @@ class McpToolAvailabilityChecker(
 
             val serverName = toolToServerMap[toolName]
             if (serverName == null) {
-                // 콜백은 존재하나 서버를 특정할 수 없음 — available로 처리
+                // 콜백은 global 스냅샷에 존재하나 어느 서버에도 매핑 안 됨 — "floating tool"
+                // (예: 서버가 막 disconnect되어 per-server callbacks에서 사라졌으나 global
+                // 캐시에 남아있는 경우, 또는 다른 메커니즘으로 등록된 stand-alone callback).
+                // 전통적으로 available로 처리 (stale 캐시지만 호출 시도는 허용).
                 available.add(toolName)
                 continue
             }
