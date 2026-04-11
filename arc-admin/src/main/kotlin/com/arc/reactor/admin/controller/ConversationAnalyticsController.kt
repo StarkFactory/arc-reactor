@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -32,45 +34,58 @@ class ConversationAnalyticsController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 채널별 성공/실패 통계. */
+    /**
+     * 채널별 성공/실패 통계.
+     *
+     * R302 fix: suspend + IO 격리.
+     */
     @Operation(summary = "채널별 대화 성공률")
     @GetMapping("/by-channel")
-    fun byChannel(
+    suspend fun byChannel(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(BY_CHANNEL_SQL, tenantId, Timestamp.from(from))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(BY_CHANNEL_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 실패 원인 분포 (에러 코드별). */
+    /** 실패 원인 분포 (에러 코드별). R302 fix: suspend + IO 격리. */
     @Operation(summary = "실패 원인 분포")
     @GetMapping("/failure-patterns")
-    fun failurePatterns(
+    suspend fun failurePatterns(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(FAILURE_SQL, tenantId, Timestamp.from(from))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(FAILURE_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 응답 시간 분포 (히스토그램). */
+    /** 응답 시간 분포 (히스토그램). R302 fix: suspend + IO 격리. */
     @Operation(summary = "응답 시간 분포")
     @GetMapping("/latency-distribution")
-    fun latencyDistribution(
+    suspend fun latencyDistribution(
         @RequestParam(defaultValue = "7") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(LATENCY_DIST_SQL, tenantId, Timestamp.from(from))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(LATENCY_DIST_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 

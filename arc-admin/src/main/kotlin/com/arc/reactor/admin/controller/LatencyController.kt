@@ -4,6 +4,8 @@ import com.arc.reactor.admin.collection.TenantResolver
 import com.arc.reactor.admin.query.MetricQueryService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -34,31 +36,42 @@ class LatencyController(
     private val jdbcTemplate: JdbcTemplate
 ) {
 
-    /** P50/P95/P99 퍼센타일 조회. */
+    /**
+     * P50/P95/P99 퍼센타일 조회.
+     *
+     * R302 fix: suspend + IO 격리. metricQueryService.getLatencyPercentiles 내부적으로
+     * blocking JdbcTemplate 호출이라 IO dispatcher로 격리.
+     */
     @Operation(summary = "레이턴시 퍼센타일 조회")
     @GetMapping("/summary")
-    fun summary(
+    suspend fun summary(
         @RequestParam(defaultValue = "7") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val (from, to) = timeRange(days)
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val percentiles = metricQueryService.getLatencyPercentiles(tenantId, from, to)
+        // R302: blocking metricQueryService(내부 JDBC)를 IO dispatcher로 격리
+        val percentiles = withContext(Dispatchers.IO) {
+            metricQueryService.getLatencyPercentiles(tenantId, from, to)
+        }
         return ResponseEntity.ok(percentiles)
     }
 
-    /** 시간대별 평균 레이턴시 시계열. */
+    /** 시간대별 평균 레이턴시 시계열. R302 fix: suspend + IO 격리. */
     @Operation(summary = "레이턴시 시계열 조회")
     @GetMapping("/timeseries")
-    fun timeSeries(
+    suspend fun timeSeries(
         @RequestParam(defaultValue = "7") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val (from, _) = timeRange(days)
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val rows = queryLatencyTimeSeries(tenantId, from)
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            queryLatencyTimeSeries(tenantId, from)
+        }
         return ResponseEntity.ok(rows)
     }
 

@@ -4,6 +4,8 @@ import com.arc.reactor.admin.collection.TenantResolver
 import com.arc.reactor.admin.query.MetricQueryService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -34,10 +36,14 @@ class UsageController(
     private val jdbc: JdbcTemplate
 ) {
 
-    /** 상위 사용자 목록 (요청 수 기준). */
+    /**
+     * 상위 사용자 목록 (요청 수 기준).
+     *
+     * R302 fix: suspend + IO 격리. metricQueryService.getTopUsers 내부 blocking JDBC.
+     */
     @Operation(summary = "상위 사용자 사용량 조회")
     @GetMapping("/top")
-    fun topUsers(
+    suspend fun topUsers(
         @RequestParam(defaultValue = "30") days: Int,
         @RequestParam(defaultValue = "20") limit: Int,
         exchange: ServerWebExchange
@@ -46,14 +52,17 @@ class UsageController(
         val now = Instant.now()
         val from = now.minus(days.toLong().coerceIn(1, 365), ChronoUnit.DAYS)
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val result = metricQueryService.getTopUsers(tenantId, from, now, limit.coerceIn(1, 100))
+        // R302: blocking metricQueryService(내부 JDBC)를 IO dispatcher로 격리
+        val result = withContext(Dispatchers.IO) {
+            metricQueryService.getTopUsers(tenantId, from, now, limit.coerceIn(1, 100))
+        }
         return ResponseEntity.ok(result)
     }
 
-    /** 사용자별 토큰/비용 상세 (metric_sessions 기반). */
+    /** 사용자별 토큰/비용 상세 (metric_sessions 기반). R302 fix: suspend + IO 격리. */
     @Operation(summary = "사용자별 토큰/비용 상세")
     @GetMapping("/cost")
-    fun userCost(
+    suspend fun userCost(
         @RequestParam(defaultValue = "30") days: Int,
         @RequestParam(defaultValue = "20") limit: Int,
         exchange: ServerWebExchange
@@ -61,21 +70,27 @@ class UsageController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 365), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(USER_COST_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 100))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(USER_COST_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 100))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 일별 전체 사용량 추이. */
+    /** 일별 전체 사용량 추이. R302 fix: suspend + IO 격리. */
     @Operation(summary = "일별 전체 사용량 추이")
     @GetMapping("/daily")
-    fun daily(
+    suspend fun daily(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 

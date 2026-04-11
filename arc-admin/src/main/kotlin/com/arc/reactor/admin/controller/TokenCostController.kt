@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -32,37 +34,47 @@ class TokenCostController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 세션(run_id)별 토큰/비용 내역 조회. */
+    /**
+     * 세션(run_id)별 토큰/비용 내역 조회.
+     *
+     * R302 fix: suspend + IO 격리. 이전 구현은 blocking JDBC를 NIO 워커에서 직접 실행.
+     */
     @Operation(summary = "세션별 토큰/비용 조회")
     @GetMapping("/by-session")
-    fun bySession(
+    suspend fun bySession(
         @RequestParam sessionId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val rows = jdbc.queryForList(BY_SESSION_SQL, tenantId, "$sessionId%")
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(BY_SESSION_SQL, tenantId, "$sessionId%")
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 모델별 토큰/비용 일별 추이. */
+    /** 모델별 토큰/비용 일별 추이. R302 fix: suspend + IO 격리. */
     @Operation(summary = "모델별 일별 토큰/비용 추이")
     @GetMapping("/daily")
-    fun daily(
+    suspend fun daily(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 비용 상위 세션 목록. */
+    /** 비용 상위 세션 목록. R302 fix: suspend + IO 격리. */
     @Operation(summary = "비용 상위 세션 조회")
     @GetMapping("/top-expensive")
-    fun topExpensive(
+    suspend fun topExpensive(
         @RequestParam(defaultValue = "7") days: Int,
         @RequestParam(defaultValue = "20") limit: Int,
         exchange: ServerWebExchange
@@ -70,7 +82,10 @@ class TokenCostController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(TOP_EXPENSIVE_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 100))
+        // R302: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(TOP_EXPENSIVE_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 100))
+        }
         return ResponseEntity.ok(rows)
     }
 
