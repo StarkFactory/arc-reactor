@@ -87,38 +87,46 @@ class SlackEventDeduplicatorEdgeCaseTest {
 
         @Test
         fun `TTL 만료 직전에는 여전히 중복으로 판정한다`() {
-            // ttlSeconds=1 → ttlMillis=1000
-            // 999ms 후면 아직 만료 전 → 중복
-            val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0)
+            // R292: Caffeine 마이그레이션 후 ticker로 시간 제어
+            val ticker = FakeTicker()
+            val deduplicator = SlackEventDeduplicator(
+                enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0, ticker = ticker
+            )
 
-            val t0 = 1_000_000L
-            deduplicator.isDuplicateAndMark("Ev-boundary", nowMillis = t0) shouldBe false
-            // t0 + 999ms: TTL 경과 < 1000ms → 아직 유효
-            deduplicator.isDuplicateAndMark("Ev-boundary", nowMillis = t0 + 999) shouldBe true
+            deduplicator.isDuplicateAndMark("Ev-boundary") shouldBe false
+            // 999ms 경과 — TTL 1초 미만 → 여전히 캐시
+            ticker.advanceMillis(999)
+            deduplicator.isDuplicateAndMark("Ev-boundary") shouldBe true
         }
 
         @Test
         fun `TTL 만료 직후에는 새 이벤트로 판정한다`() {
-            // ttlSeconds=1 → ttlMillis=1000
-            // 1001ms 후면 만료 → 신규
-            val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0)
+            // R292: Caffeine ticker로 정확한 만료 시간 제어
+            val ticker = FakeTicker()
+            val deduplicator = SlackEventDeduplicator(
+                enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0, ticker = ticker
+            )
 
-            val t0 = 2_000_000L
-            deduplicator.isDuplicateAndMark("Ev-after-ttl", nowMillis = t0) shouldBe false
-            deduplicator.isDuplicateAndMark("Ev-after-ttl", nowMillis = t0 + 1001) shouldBe false
+            deduplicator.isDuplicateAndMark("Ev-after-ttl") shouldBe false
+            // 1500ms 경과 — TTL 1초 초과 → 만료, 신규 판정
+            ticker.advanceMillis(1500)
+            deduplicator.isDuplicateAndMark("Ev-after-ttl") shouldBe false
         }
 
         @Test
         fun `만료 후 재등록된 이벤트는 다시 중복으로 탐지된다`() {
-            val deduplicator = SlackEventDeduplicator(enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0)
+            val ticker = FakeTicker()
+            val deduplicator = SlackEventDeduplicator(
+                enabled = true, ttlSeconds = 1, maxEntries = 100, cleanupIntervalSeconds = 0, ticker = ticker
+            )
 
-            val t0 = 3_000_000L
             // 최초 등록
-            deduplicator.isDuplicateAndMark("Ev-reinsert", nowMillis = t0) shouldBe false
+            deduplicator.isDuplicateAndMark("Ev-reinsert") shouldBe false
             // 만료 후 재등록
-            deduplicator.isDuplicateAndMark("Ev-reinsert", nowMillis = t0 + 1001) shouldBe false
-            // 재등록된 항목은 중복
-            deduplicator.isDuplicateAndMark("Ev-reinsert", nowMillis = t0 + 1002) shouldBe true
+            ticker.advanceMillis(1500)
+            deduplicator.isDuplicateAndMark("Ev-reinsert") shouldBe false
+            // 재등록된 항목은 중복 (TTL 안에서 다시 호출)
+            deduplicator.isDuplicateAndMark("Ev-reinsert") shouldBe true
         }
     }
 
@@ -130,58 +138,63 @@ class SlackEventDeduplicatorEdgeCaseTest {
     inner class MaxEntriesOverflow {
 
         /**
-         * cleanup은 putIfAbsent 이전에 실행되므로, 오버플로우는
-         * 캐시에 이미 maxEntries+1개가 존재할 때 다음 호출에서 정리된다.
-         *
-         * 흐름: maxEntries=2
-         * - 1st call: cleanup(size=0 ≤ 2), insert → size=1
-         * - 2nd call: cleanup(size=1 ≤ 2), insert → size=2
-         * - 3rd call: cleanup(size=2 ≤ 2), insert → size=3  (오버플로우 아직 미정리)
-         * - 4th call: cleanup(size=3 > 2 → "Ev-old" 제거), size=2, insert → size=3
-         *
-         * 따라서 오버플로우 정리를 확인하려면 maxEntries+2개 이상 삽입 후
-         * 추가 호출로 cleanup을 트리거해야 한다.
+         * R292: Caffeine은 maximumSize 초과 시 LRU eviction을 lazy/async로 수행한다.
+         * 테스트는 `cache.cleanUp()`을 명시적으로 호출하여 동기 eviction을 강제한 뒤
+         * size를 검증한다. (이전 구현은 putIfAbsent 이전에 동기 cleanup을 수행했음)
          */
         @Test
-        fun `maxEntries 초과 후 다음 호출에서 가장 오래된 항목이 제거된다`() {
-            // maxEntries=2, cleanupInterval=0 → 매 호출 시 cleanup 실행 가능
-            // cleanup은 putIfAbsent 이전에 실행된다:
-            //   call N:   cleanup(size=N-1), putIfAbsent → size=N
-            //   overflow 정리는 size가 maxEntries 초과일 때 cleanup 진입 시 동작
-            // call 1: cleanup(0≤2), insert → size=1
-            // call 2: cleanup(1≤2), insert → size=2
-            // call 3: cleanup(2≤2), insert → size=3
-            // call 4: cleanup(3>2) → "Ev-old" 제거 → size=2, insert "Ev-extra" → size=3
+        fun `maxEntries 초과 후 cleanup 시 maxEntries 이하로 정리된다`() {
             val deduplicator = SlackEventDeduplicator(
                 enabled = true, ttlSeconds = 3600, maxEntries = 2, cleanupIntervalSeconds = 0
             )
 
-            val t0 = 10_000_000L
-            deduplicator.isDuplicateAndMark("Ev-old", nowMillis = t0)        // size=1
-            deduplicator.isDuplicateAndMark("Ev-mid", nowMillis = t0 + 1)    // size=2
-            deduplicator.isDuplicateAndMark("Ev-new", nowMillis = t0 + 2)    // size=3 (cleanup 시 ≤2)
-            // 4번째: cleanup(size=3>2) → "Ev-old" 제거(size=2), insert → size=3
-            deduplicator.isDuplicateAndMark("Ev-extra", nowMillis = t0 + 3)
+            // 4개 삽입 → maxEntries=2 초과
+            deduplicator.isDuplicateAndMark("Ev-old")
+            deduplicator.isDuplicateAndMark("Ev-mid")
+            deduplicator.isDuplicateAndMark("Ev-new")
+            deduplicator.isDuplicateAndMark("Ev-extra")
 
-            // cleanup 후 insert이므로 size는 maxEntries+1
-            deduplicator.size() shouldBe 3
+            // R292: Caffeine cleanUp() 강제 → 동기 eviction
+            deduplicator.seenEventIds.cleanUp()
+
+            // R292: Caffeine 명세 — maximumSize 도달 후 cleanUp 시 size <= maximumSize 보장
+            // (Caffeine은 정확히 maximumSize까지 evict하므로 size == maxEntries 또는 그 이하)
+            val finalSize = deduplicator.size()
+            (finalSize <= 2) shouldBe true
         }
 
         @Test
-        fun `overflow cleanup 후 제거된 오래된 항목은 다시 신규로 판정된다`() {
+        fun `overflow cleanup 후 maxEntries 한도 내에서 적어도 일부 오래된 항목이 evict된다`() {
+            // R292: Caffeine W-TinyLFU는 frequency + recency 기반이며 정확한 LRU 보장은
+            // 하지 않는다. 5개를 maxEntries=2 캐시에 넣은 뒤 cleanUp() 강제 후 검증:
+            // (a) 캐시 size는 maxEntries 이하 (2)
+            // (b) 5개 모두가 살아있을 수는 없음 → 적어도 3개는 evict됨
             val deduplicator = SlackEventDeduplicator(
                 enabled = true, ttlSeconds = 3600, maxEntries = 2, cleanupIntervalSeconds = 0
             )
 
-            val t0 = 20_000_000L
-            deduplicator.isDuplicateAndMark("Ev-oldest", nowMillis = t0)
-            deduplicator.isDuplicateAndMark("Ev-second", nowMillis = t0 + 1)
-            deduplicator.isDuplicateAndMark("Ev-third", nowMillis = t0 + 2) // size→3
-            // 4번째 호출: cleanup(size=3 > 2) → "Ev-oldest" 제거 후 삽입
-            deduplicator.isDuplicateAndMark("Ev-fourth", nowMillis = t0 + 3)
+            val events = listOf("Ev-A", "Ev-B", "Ev-C", "Ev-D", "Ev-E")
+            for (eventId in events) {
+                deduplicator.isDuplicateAndMark(eventId)
+                Thread.sleep(2)
+            }
 
-            // "Ev-oldest"는 제거되었으므로 신규로 판정
-            deduplicator.isDuplicateAndMark("Ev-oldest", nowMillis = t0 + 4) shouldBe false
+            // R292: Caffeine cleanUp() 강제 → eviction
+            deduplicator.seenEventIds.cleanUp()
+
+            // (a) size 보장
+            (deduplicator.size() <= 2) shouldBe true
+
+            // (b) 적어도 3개는 evict되어 다시 신규로 판정 (maxEntries=2)
+            // 새 deduplicator를 만들어 검증 — 위의 deduplicator에 다시 호출하면 새로 insert되므로
+            // size 후 별도 dedup 인스턴스 변화 없이 isDuplicate 호출로만 검증
+            val freshCount = events.count { eventId ->
+                // isDuplicateAndMark은 여기서 두 번 호출되어 첫 호출이 false면 evict된 것
+                // 그러나 첫 호출이 cache에 다시 add하므로 동일 eventId 다수 호출은 안전.
+                // 대신 캐시의 현재 entry 수만 확인하면 충분.
+                deduplicator.seenEventIds.getIfPresent(eventId) == null
+            }
+            (freshCount >= 3) shouldBe true
         }
     }
 
@@ -222,39 +235,30 @@ class SlackEventDeduplicatorEdgeCaseTest {
     // cleanup 스로틀 — cleanupIntervalSeconds > 0
     // =========================================================================
 
+    /**
+     * R292: Caffeine 마이그레이션으로 throttledCleanup 제거됨. Caffeine은 자체 lazy
+     * eviction을 사용하므로 cleanupIntervalSeconds 파라미터는 backward compat을 위해
+     * 시그니처에만 유지되고 무시된다. CleanupThrottling 테스트들은 R292 후 실효성
+     * 없으므로 단일 sanity 테스트로 통합.
+     */
     @Nested
-    inner class CleanupThrottling {
+    inner class CleanupBehavior {
 
         @Test
-        fun `cleanup interval 이내에는 만료 항목이 즉시 제거되지 않는다`() {
-            // cleanupInterval=5초 → 5초 경과 전에는 cleanup 실행 안 됨
+        fun `R292 ticker 기반 TTL 만료가 정확히 동작한다`() {
+            val ticker = FakeTicker()
             val deduplicator = SlackEventDeduplicator(
-                enabled = true, ttlSeconds = 1, maxEntries = 1000, cleanupIntervalSeconds = 5
+                enabled = true, ttlSeconds = 1, maxEntries = 1000,
+                cleanupIntervalSeconds = 5, ticker = ticker
             )
 
-            val t0 = 30_000_000L
-            deduplicator.isDuplicateAndMark("Ev-throttle", nowMillis = t0)
-
-            // TTL 만료됐지만 cleanup interval 이내 → 캐시에 여전히 있음
-            val t1 = t0 + 1500 // TTL 만료되었지만 cleanup interval(5000ms) 미경과
-            // cleanup 실행 안 됨 → isDuplicate는 기존 존재 항목으로 true 반환
-            deduplicator.isDuplicateAndMark("Ev-throttle", nowMillis = t1) shouldBe true
-        }
-
-        @Test
-        fun `cleanup interval 경과 후에는 만료 항목이 정리된다`() {
-            // cleanupInterval=1초
-            val deduplicator = SlackEventDeduplicator(
-                enabled = true, ttlSeconds = 1, maxEntries = 1000, cleanupIntervalSeconds = 1
-            )
-
-            val t0 = 40_000_000L
-            deduplicator.isDuplicateAndMark("Ev-cleanup-test", nowMillis = t0)
-
-            // TTL(1000ms) + cleanup interval(1000ms) 모두 경과
-            val t1 = t0 + 2001
-            // cleanup이 실행되어 만료 항목 제거 → 신규로 판정
-            deduplicator.isDuplicateAndMark("Ev-cleanup-test", nowMillis = t1) shouldBe false
+            deduplicator.isDuplicateAndMark("Ev-cleanup-test") shouldBe false
+            // TTL 안 → 중복
+            ticker.advanceMillis(500)
+            deduplicator.isDuplicateAndMark("Ev-cleanup-test") shouldBe true
+            // TTL 초과 → 신규
+            ticker.advanceMillis(1000)
+            deduplicator.isDuplicateAndMark("Ev-cleanup-test") shouldBe false
         }
     }
 

@@ -107,21 +107,26 @@ class SlackThreadTrackerTest {
         fun `maxEntries 초과 시 퇴거하여 크기를 제한한다`() {
             val tracker = SlackThreadTracker(maxEntries = 3)
 
-            // 5개 추적 — cleanup은 track() 내부에서 추가 전에 실행
-            // track(C4): cleanup 시 size=3 → maxEntries 이하 → 퇴거 안 함 → C4 추가 → size=4
-            // track(C5): cleanup 시 size=4 → 1개 퇴거 → size=3 → C5 추가 → size=4
+            // 5개 추적
             tracker.track("C1", "1.0")
+            Thread.sleep(2)
             tracker.track("C2", "2.0")
+            Thread.sleep(2)
             tracker.track("C3", "3.0")
+            Thread.sleep(2)
             tracker.track("C4", "4.0")
-            tracker.track("C5", "5.0") // cleanup 시 overflow 1 → 가장 오래된 1개 퇴거
+            Thread.sleep(2)
+            tracker.track("C5", "5.0")
+
+            // R292: Caffeine cleanUp() 강제 → LRU eviction
+            tracker.trackedThreads.cleanUp()
 
             // 가장 최근 항목은 반드시 살아있어야 한다
             tracker.isTracked("C5", "5.0") shouldBe true
 
-            // 전체 생존 수가 maxEntries+1(=4) 이하여야 한다
+            // R292: Caffeine maximumSize 보장 — 생존 수는 maxEntries(=3) 이하여야 한다
             val surviving = (1..5).count { i -> tracker.isTracked("C$i", "$i.0") }
-            (surviving <= 4) shouldBe true
+            (surviving <= 3) shouldBe true
         }
 
         @Test
