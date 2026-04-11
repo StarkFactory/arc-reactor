@@ -1,6 +1,7 @@
 package com.arc.reactor.diagnostics
 
 import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
 import com.arc.reactor.approval.ApprovalContextResolver
 import com.arc.reactor.approval.AtlassianApprovalContextResolver
@@ -8,8 +9,10 @@ import com.arc.reactor.approval.RedactedApprovalContextResolver
 import com.arc.reactor.autoconfigure.ApprovalPiiRedactionConfiguration
 import com.arc.reactor.autoconfigure.AtlassianApprovalResolverConfiguration
 import com.arc.reactor.autoconfigure.DoctorDiagnosticsConfiguration
+import com.arc.reactor.autoconfigure.EvaluationMetricsConfiguration
 import com.arc.reactor.autoconfigure.ToolResponseSummarizerConfiguration
 import com.arc.reactor.autoconfigure.ToolResponseSummarizerPiiRedactionConfiguration
+import io.micrometer.core.instrument.MeterRegistry
 import com.arc.reactor.tool.summarize.NoOpToolResponseSummarizer
 import com.arc.reactor.tool.summarize.RedactedToolResponseSummarizer
 import com.arc.reactor.tool.summarize.ToolResponseSummarizer
@@ -560,6 +563,219 @@ class DoctorDiagnosticsTest {
                     // Evaluation = SKIPPED (별도 프로퍼티)
                     assertTrue(report.allHealthy()) {
                         "모든 섹션이 OK 또는 SKIPPED여야 한다: ${report.summary()}"
+                    }
+                }
+        }
+    }
+
+    /**
+     * R263: R261 6번째 섹션(Observability Assets)이 실제 Spring auto-config 흐름에서
+     * 정확히 wiring되는지 검증한다.
+     *
+     * 기존 `ObservabilityAssetsSection` 테스트는 mockk `ObjectProvider`로만 검증했고,
+     * `AutoConfigIntegration`은 `EvaluationMetricsConfiguration`을 포함하지 않아
+     * collector 활성 시나리오를 통합 레벨에서 검증할 수 없었다.
+     *
+     * R263은 `EvaluationMetricsConfiguration`을 contextRunner에 추가하고
+     * `MeterRegistry` 빈을 명시적으로 주입하여, 6번째 섹션이 다음 두 시나리오에서
+     * 올바르게 동작하는지 ApplicationContextRunner로 끝점부터 검증한다:
+     *
+     * 1. 기본(metrics 비활성) → NoOp collector → 6번째 섹션 SKIPPED
+     * 2. `arc.reactor.evaluation.metrics.enabled=true` + Micrometer → 6번째 섹션 OK + 3 자산
+     */
+    @Nested
+    inner class R263EvaluationMetricsContextIntegration {
+
+        /**
+         * MeterRegistry 빈이 있는 경우의 contextRunner.
+         *
+         * 주의: `EvaluationMetricsConfiguration`의 `micrometerEvaluationMetricsCollector` 빈은
+         * `@ConditionalOnBean(MeterRegistry::class)` 조건만 가지므로, **`arc.reactor.evaluation.metrics.enabled`
+         * 프로퍼티와 무관하게** MeterRegistry가 등록되어 있으면 Micrometer collector가 활성화된다.
+         * `enabled` 프로퍼티는 `EvaluationMetricsHook`의 자동 등록만 제어한다 (수집기 자체와 별개).
+         */
+        private val contextRunnerWithMeterRegistry = ApplicationContextRunner()
+            .withConfiguration(
+                AutoConfigurations.of(
+                    EvaluationMetricsConfiguration::class.java,
+                    DoctorDiagnosticsConfiguration::class.java
+                )
+            )
+            .withBean("simpleMeterRegistry", MeterRegistry::class.java, {
+                io.micrometer.core.instrument.simple.SimpleMeterRegistry()
+            })
+
+        /** MeterRegistry 빈이 없는 경우 — NoOp collector가 등록된다. */
+        private val contextRunnerWithoutMeterRegistry = ApplicationContextRunner()
+            .withConfiguration(
+                AutoConfigurations.of(
+                    EvaluationMetricsConfiguration::class.java,
+                    DoctorDiagnosticsConfiguration::class.java
+                )
+            )
+
+        @Test
+        fun `R263 MeterRegistry 미등록 시 NoOp collector + 6번째 섹션 SKIPPED`() {
+            contextRunnerWithoutMeterRegistry.run { context ->
+                // MeterRegistry가 없으면 NoOp collector가 fallback으로 등록된다
+                val collector = context.getBean(EvaluationMetricsCollector::class.java)
+                assertEquals(NoOpEvaluationMetricsCollector, collector) {
+                    "MeterRegistry 미등록 → NoOp collector fallback"
+                }
+
+                val doctor = context.getBean(DoctorDiagnostics::class.java)
+                val report = doctor.runDiagnostics()
+
+                assertEquals(6, report.sections.size) { "R261 이후 6 섹션" }
+
+                val observability = report.sections.find { it.name == "Observability Assets" }!!
+                assertEquals(DoctorStatus.SKIPPED, observability.status) {
+                    "NoOp collector → Observability Assets SKIPPED"
+                }
+                assertTrue(observability.message.contains("evaluation metrics")) {
+                    "안내 메시지에 활성화 지침"
+                }
+
+                // Evaluation Metrics Collector 섹션도 SKIPPED여야 함 (대칭)
+                val evaluation = report.sections.find {
+                    it.name == "Evaluation Metrics Collector"
+                }!!
+                assertEquals(DoctorStatus.SKIPPED, evaluation.status) {
+                    "NoOp collector → Evaluation Metrics Collector도 SKIPPED"
+                }
+            }
+        }
+
+        @Test
+        fun `R263 MeterRegistry 등록만으로도 Micrometer collector + 6번째 섹션 OK (enabled 프로퍼티 무관)`() {
+            // 흥미로운 동작: enabled 프로퍼티가 없어도 MeterRegistry가 있으면 Micrometer
+            // collector가 활성화된다. enabled는 Hook 등록만 제어.
+            contextRunnerWithMeterRegistry.run { context ->
+                val collector = context.getBean(EvaluationMetricsCollector::class.java)
+                assertTrue(collector is MicrometerEvaluationMetricsCollector) {
+                    "MeterRegistry만으로도 Micrometer collector 활성. " +
+                        "actual=${collector::class.java.simpleName}"
+                }
+
+                val doctor = context.getBean(DoctorDiagnostics::class.java)
+                val report = doctor.runDiagnostics()
+
+                val observability = report.sections.find {
+                    it.name == "Observability Assets"
+                }!!
+                assertEquals(DoctorStatus.OK, observability.status) {
+                    "MeterRegistry → Micrometer collector → Observability Assets OK"
+                }
+            }
+        }
+
+        @Test
+        fun `R263 metrics 활성 시 자산 detail이 Spring 컨텍스트를 거쳐 보존되어야 한다`() {
+            contextRunnerWithMeterRegistry
+                .withPropertyValues("arc.reactor.evaluation.metrics.enabled=true")
+                .run { context ->
+                    val doctor = context.getBean(DoctorDiagnostics::class.java)
+                    val report = doctor.runDiagnostics()
+
+                    assertEquals(6, report.sections.size)
+
+                    val observability = report.sections.find {
+                        it.name == "Observability Assets"
+                    }!!
+                    assertEquals(3, observability.checks.size) {
+                        "R256/R259/R260 = 3개 자산"
+                    }
+                    assertTrue(observability.message.contains("3개 자산")) {
+                        "메시지에 자산 개수"
+                    }
+                    assertTrue(observability.message.contains("R256/R259/R260")) {
+                        "메시지에 라운드 라벨"
+                    }
+
+                    // 자산 detail 무결성 — Spring 컨텍스트를 거쳐도 카탈로그 내용 유지
+                    val playbook = observability.checks.find { it.name.startsWith("R256") }!!
+                    assertTrue(playbook.detail.contains("docs/evaluation-metrics.md")) {
+                        "R256 path 보존"
+                    }
+                    val alerts = observability.checks.find { it.name.startsWith("R260") }!!
+                    assertTrue(alerts.detail.contains("docs/alertmanager-rules.yaml")) {
+                        "R260 path 보존"
+                    }
+                }
+        }
+
+        @Test
+        fun `R263 metrics 활성 시 Evaluation Metrics Collector 섹션과 Observability Assets 섹션이 동시에 OK`() {
+            // 두 섹션은 동일한 collector 빈을 본다 — 동기화 확인
+            contextRunnerWithMeterRegistry
+                .withPropertyValues("arc.reactor.evaluation.metrics.enabled=true")
+                .run { context ->
+                    val doctor = context.getBean(DoctorDiagnostics::class.java)
+                    val report = doctor.runDiagnostics()
+
+                    val evaluation = report.sections.find {
+                        it.name == "Evaluation Metrics Collector"
+                    }!!
+                    val observability = report.sections.find {
+                        it.name == "Observability Assets"
+                    }!!
+
+                    assertEquals(DoctorStatus.OK, evaluation.status) {
+                        "Evaluation Metrics Collector 섹션 OK"
+                    }
+                    assertEquals(DoctorStatus.OK, observability.status) {
+                        "Observability Assets 섹션 OK (Evaluation 섹션과 대칭)"
+                    }
+                }
+        }
+
+        @Test
+        fun `R263 사용자 커스텀 collector도 6번째 섹션을 활성화해야 한다`() {
+            // 사용자가 자체 EvaluationMetricsCollector 빈을 등록한 시나리오
+            val customCollector = object : EvaluationMetricsCollector {
+                override fun recordTaskCompleted(
+                    success: Boolean,
+                    durationMs: Long,
+                    errorCode: String?
+                ) { /* custom logic */ }
+
+                override fun recordToolCallCount(count: Int, toolNames: List<String>) {}
+
+                override fun recordTokenCost(costUsd: Double, model: String) {}
+
+                override fun recordHumanOverride(
+                    outcome: com.arc.reactor.agent.metrics.HumanOverrideOutcome,
+                    toolName: String
+                ) {}
+
+                override fun recordSafetyRejection(
+                    stage: com.arc.reactor.agent.metrics.SafetyRejectionStage,
+                    reason: String
+                ) {}
+            }
+
+            // MeterRegistry가 없는 contextRunner에 커스텀 collector를 등록
+            // → @ConditionalOnMissingBean으로 NoOp이 등록되지 않음
+            contextRunnerWithoutMeterRegistry
+                .withBean(
+                    "customCollector",
+                    EvaluationMetricsCollector::class.java,
+                    { customCollector }
+                )
+                .run { context ->
+                    val collector = context.getBean(EvaluationMetricsCollector::class.java)
+                    assertEquals(customCollector, collector) {
+                        "사용자 정의 collector가 우선 적용"
+                    }
+
+                    val doctor = context.getBean(DoctorDiagnostics::class.java)
+                    val report = doctor.runDiagnostics()
+
+                    val observability = report.sections.find {
+                        it.name == "Observability Assets"
+                    }!!
+                    assertEquals(DoctorStatus.OK, observability.status) {
+                        "커스텀 collector도 NoOp이 아니므로 Observability Assets OK"
                     }
                 }
         }
