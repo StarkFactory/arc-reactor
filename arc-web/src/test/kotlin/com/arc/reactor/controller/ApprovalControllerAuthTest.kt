@@ -30,7 +30,7 @@ class ApprovalControllerAuthTest {
     private val controller = ApprovalController(store, adminAuditStore)
 
     @Test
-    fun `listPending은(는) rejects anonymous request`() {
+    fun `listPending은(는) rejects anonymous request`() = kotlinx.coroutines.test.runTest {
         val ex = exchange()
 
         val response = controller.listPending(offset = 0, limit = 50, exchange = ex)
@@ -43,7 +43,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `listPending은(는) returns all for admin`() {
+    fun `listPending은(는) returns all for admin`() = kotlinx.coroutines.test.runTest {
         every { store.listPending() } returns listOf(summary("ap-1", "user-1"))
 
         val response = controller.listPending(
@@ -62,7 +62,7 @@ class ApprovalControllerAuthTest {
     }
 
     @Test
-    fun `listPending은(는) returns own requests for user`() {
+    fun `listPending은(는) returns own requests for user`() = kotlinx.coroutines.test.runTest {
         every { store.listPendingByUser("user-1") } returns listOf(summary("ap-2", "user-1"))
 
         val response = controller.listPending(

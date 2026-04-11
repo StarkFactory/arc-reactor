@@ -5,6 +5,8 @@ import com.arc.reactor.approval.PendingApprovalStore
 import com.arc.reactor.audit.AdminAuditStore
 import com.arc.reactor.auth.JwtAuthWebFilter
 import io.swagger.v3.oas.annotations.Operation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -48,22 +50,32 @@ class ApprovalController(
     private val adminAuditStore: AdminAuditStore
 ) {
 
-    /** 대기 중인 승인 요청 목록을 조회한다. 관리자는 전체, 일반 사용자는 본인 건만 조회 가능하다. */
+    /**
+     * 대기 중인 승인 요청 목록을 조회한다. 관리자는 전체, 일반 사용자는 본인 건만 조회 가능하다.
+     *
+     * R277: `suspend fun` + `withContext(Dispatchers.IO)`로 변경. 이전에는 일반 함수였으나
+     * `pendingApprovalStore.listPending()` / `listPendingByUser()`가 JDBC blocking I/O를
+     * Reactor netty event loop 스레드에서 직접 실행하여 reactive 처리량을 저하시켰다.
+     * R274 TopicDriftDetectionStage fix와 동일한 IO 디스패처 격리 패턴 적용.
+     */
     @Operation(summary = "대기 중인 승인 요청 목록 조회")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Paginated list of pending approvals"),
         ApiResponse(responseCode = "403", description = "Access denied")
     ])
     @GetMapping
-    fun listPending(
+    suspend fun listPending(
         @RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "50") limit: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         val userId = exchange.attributes[JwtAuthWebFilter.USER_ID_ATTRIBUTE] as? String
+        // R277: JDBC blocking I/O를 IO 디스패처로 격리. WebFlux event loop 보호.
         val pending = when {
-            isAdmin(exchange) -> pendingApprovalStore.listPending()
-            userId != null -> pendingApprovalStore.listPendingByUser(userId)
+            isAdmin(exchange) -> withContext(Dispatchers.IO) { pendingApprovalStore.listPending() }
+            userId != null -> withContext(Dispatchers.IO) {
+                pendingApprovalStore.listPendingByUser(userId)
+            }
             else -> return forbiddenResponse()
         }
         val clamped = clampLimit(limit)

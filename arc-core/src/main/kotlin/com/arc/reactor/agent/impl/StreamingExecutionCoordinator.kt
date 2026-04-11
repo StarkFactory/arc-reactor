@@ -246,7 +246,12 @@ internal class StreamingExecutionCoordinator(
     ) {
         logger.info { "스트리밍에서 차단된 인텐트: ${exception.intentName}" }
         state.streamErrorCode = AgentErrorCode.GUARD_REJECTED
-        state.streamErrorMessage = "요청이 보안 정책에 의해 차단되었습니다 (${exception.javaClass.simpleName})"
+        // R277: SSE 스트림에 노출되는 메시지에서 exception 클래스명 제거.
+        // R271(LLM 출력)/R274(audit 채널)에 이은 세 번째 노출 채널 보호. CLAUDE.md
+        // Critical Gotcha #9 정신 — `BlockedIntentException` 같은 내부 클래스명이
+        // SSE를 통해 클라이언트에 도달하면 내부 아키텍처 정보가 노출된다. 클래스명은
+        // logger.info에만 기록(이미 위에서 처리)하고 사용자 메시지는 일반 텍스트 유지.
+        state.streamErrorMessage = "요청이 보안 정책에 의해 차단되었습니다."
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 
