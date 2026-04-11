@@ -270,9 +270,16 @@ class PlanExecuteStrategyTest {
         )
 
         result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
+        // R326: errorMessage에서 LLM 생성 도구 이름 제거 (info leak 방지).
+        // 세부 정보는 서버 로그에만 기록되므로 여기서는 일반 메시지만 검증.
         assertTrue(
-            result.errorMessage?.contains("nonexistent_tool") == true,
-            "에러 메시지에 잘못된 도구 이름이 포함되어야 한다: ${result.errorMessage}"
+            result.errorMessage?.contains("계획 검증 실패") == true,
+            "에러 메시지에 일반 검증 실패 문구가 포함되어야 한다: ${result.errorMessage}"
+        )
+        // R326 회귀 테스트: LLM 생성 도구 이름이 errorMessage에 **노출되면 안 된다**
+        assertTrue(
+            result.errorMessage?.contains("nonexistent_tool") == false,
+            "R326: LLM 생성 도구 이름이 HTTP 응답에 노출되면 안 된다: ${result.errorMessage}"
         )
     }
 
@@ -307,9 +314,10 @@ class PlanExecuteStrategyTest {
         )
 
         result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
+        // R326: 검증 실패 상세는 서버 로그에만 기록. errorMessage는 일반 문구.
         assertTrue(
-            result.errorMessage?.contains("비어 있습니다") == true,
-            "에러 메시지에 빈 도구명 관련 사유가 포함되어야 한다: ${result.errorMessage}"
+            result.errorMessage?.contains("계획 검증 실패") == true,
+            "에러 메시지에 일반 검증 실패 문구가 포함되어야 한다: ${result.errorMessage}"
         )
     }
 

@@ -269,7 +269,9 @@ class PlanExecuteStrategyIntegrationTest {
                 )
 
                 result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
-                result.errorMessage!! shouldContain "nonexistent_tool"
+                // R326: errorMessage에서 LLM 생성 도구 이름 제거 (info leak 방지).
+                // 세부 정보는 서버 로그에만 기록되므로 여기서는 일반 메시지만 검증.
+                result.errorMessage!! shouldContain "계획 검증 실패"
 
                 // 검증 실패 시 도구 실행이 호출되지 않아야 한다
                 coVerify(exactly = 0) {
@@ -309,7 +311,8 @@ class PlanExecuteStrategyIntegrationTest {
             )
 
             result.assertErrorCode(AgentErrorCode.PLAN_VALIDATION_FAILED)
-            result.errorMessage!! shouldContain "unknown_tool"
+            // R326: errorMessage에서 LLM 생성 도구 이름 제거 (info leak 방지).
+            result.errorMessage!! shouldContain "계획 검증 실패"
 
             // 부분 실행 없이 전체 차단되어야 한다
             coVerify(exactly = 0) {

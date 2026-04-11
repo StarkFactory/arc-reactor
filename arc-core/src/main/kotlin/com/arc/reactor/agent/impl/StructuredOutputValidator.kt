@@ -62,12 +62,21 @@ internal class StructuredOutputValidator {
         }
     }
 
-    /** SnakeYAML의 SafeConstructor를 사용하여 YAML 유효성을 검증한다. */
+    /**
+     * SnakeYAML의 SafeConstructor를 사용하여 YAML 유효성을 검증한다.
+     *
+     * R326 fix: 기존 구현은 `result != null`만 검사하여 bare scalar("hello", 42, true 등)도
+     * YAML로 유효하다고 통과시켰다. 결과적으로 에이전트가 YAML 구조를 기대하는 caller에게
+     * **LLM이 생성한 평문**이 silent pass되어 스키마 제약이 vacuously 만족되는 버그. 구조화
+     * 출력 계약을 엄격히 적용하기 위해 `Map` 또는 `List`만 허용한다. 단일 값만 필요한 경우에는
+     * `ResponseFormat.TEXT`를 사용해야 한다.
+     */
     private fun validateYaml(content: String): Boolean {
         return try {
             val yaml = Yaml(SafeConstructor(LoaderOptions()))
             val result = yaml.load<Any>(content)
-            result != null
+            // bare scalar(String/Int/Boolean 등)는 구조화 출력이 아니므로 거부
+            result is Map<*, *> || result is List<*>
         } catch (e: Exception) {
             false
         }

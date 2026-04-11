@@ -95,7 +95,8 @@ internal class PlanExecuteStrategy(
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         maxToolCalls: Int,
-        budgetTracker: StepBudgetTracker? = null
+        budgetTracker: StepBudgetTracker? = null,
+        allowedTools: Set<String>? = null
     ): AgentResult {
         val toolDescriptions = describeTools(tools)
         val plan = generatePlan(
@@ -117,7 +118,7 @@ internal class PlanExecuteStrategy(
         }
 
         val results = executeSteps(
-            plan, tools, hookContext, toolsUsed, maxToolCalls, budgetTracker
+            plan, tools, hookContext, toolsUsed, maxToolCalls, budgetTracker, allowedTools
         )
         // R308 fix: 실행된 단계가 **전부 실패**했을 때 synthesis LLM 호출을 우회하고 즉시 실패 반환.
         // 기존 동작은 "Error: ..." 문자열만 있는 results로 synthesize를 호출 → LLM 환각 응답 생성.
@@ -135,12 +136,22 @@ internal class PlanExecuteStrategy(
         return synthesize(command, activeChatClient, systemPrompt, results, hookContext)
     }
 
-    /** 검증 실패 시 오류 목록을 포함한 실패 결과를 생성한다. */
+    /**
+     * 검증 실패 시 실패 결과를 생성한다.
+     *
+     * R326 fix: 기존 구현은 `errors.joinToString("; ")`를 그대로 `errorMessage`에 포함하여
+     * LLM이 생성한 도구 이름이 HTTP 응답에 노출됐다 (예: `"단계 1: 도구 'sql_injection_payload'
+     * 이(가) 등록된 도구 목록에 존재하지 않습니다."`). `PlanValidator`의 errors는 LLM 출력에서
+     * 유래한 `step.tool` 값을 포함하므로 prompt injection으로 조작 가능 → 공격자가 도구 이름에
+     * 임의 문자열을 삽입하여 클라이언트에 에코. CLAUDE.md Gotcha #9(HTTP 응답 메시지 노출 금지)의
+     * LLM 출력 경로 확장판. 일반 메시지만 `errorMessage`에 포함하고 상세 내역은 서버 로그에만 기록.
+     */
     private fun buildValidationFailure(errors: List<String>): AgentResult {
         val errorDetail = errors.joinToString("; ")
+        // 상세 errorDetail은 서버 로그에만 기록 (LLM 생성 도구 이름 포함 가능)
         logger.warn { "PLAN_EXECUTE: 계획 검증 실패 — $errorDetail" }
         return AgentResult.failure(
-            errorMessage = "계획 검증 실패: $errorDetail",
+            errorMessage = "계획 검증 실패: 요청된 도구를 사용할 수 없습니다.",
             errorCode = AgentErrorCode.PLAN_VALIDATION_FAILED
         )
     }
@@ -249,7 +260,8 @@ internal class PlanExecuteStrategy(
         hookContext: HookContext,
         toolsUsed: MutableList<String>,
         maxToolCalls: Int,
-        budgetTracker: StepBudgetTracker?
+        budgetTracker: StepBudgetTracker?,
+        allowedTools: Set<String>?
     ): List<StepResult> {
         val results = mutableListOf<StepResult>()
         var totalCalls = 0
@@ -261,7 +273,7 @@ internal class PlanExecuteStrategy(
                 break
             }
             val result = executeSingleStep(
-                step, tools, hookContext, toolsUsed
+                step, tools, hookContext, toolsUsed, allowedTools
             )
             results.add(result)
             totalCalls++
@@ -307,12 +319,20 @@ internal class PlanExecuteStrategy(
             else BudgetStatus.OK
     }
 
-    /** 단일 계획 단계를 실행한다. */
+    /**
+     * 단일 계획 단계를 실행한다.
+     *
+     * R326 fix: `allowedTools`(intent 기반 도구 허용 목록)를 `executeDirectToolCall`로 전달한다.
+     * 기존 구현은 PLAN_EXECUTE 경로에서 `allowedTools`를 누락하여 ReAct 경로에서만 적용되던 intent
+     * 허용 목록이 PLAN_EXECUTE에서는 무시되었다. 공격자가 `command.mode=PLAN_EXECUTE`로 전환한 후
+     * intent가 차단한 도구를 LLM 계획에 포함시키면 그대로 실행되는 우회 경로.
+     */
     private suspend fun executeSingleStep(
         step: PlanStep,
         tools: List<Any>,
         hookContext: HookContext,
-        toolsUsed: MutableList<String>
+        toolsUsed: MutableList<String>,
+        allowedTools: Set<String>?
     ): StepResult {
         logger.debug { "PLAN_EXECUTE 실행: ${step.description} (${step.tool})" }
         return try {
@@ -321,7 +341,8 @@ internal class PlanExecuteStrategy(
                 toolParams = step.args,
                 tools = tools,
                 hookContext = hookContext,
-                toolsUsed = toolsUsed
+                toolsUsed = toolsUsed,
+                allowedTools = allowedTools
             )
             StepResult(
                 description = step.description,

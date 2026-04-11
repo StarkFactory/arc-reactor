@@ -749,7 +749,11 @@ class SpringAiAgentExecutor(
                 hookContext = hookContext,
                 toolsUsed = toolsUsed,
                 maxToolCalls = maxToolCalls,
-                budgetTracker = createBudgetTracker()
+                budgetTracker = createBudgetTracker(),
+                // R326 fix: intent 기반 도구 허용 목록을 PLAN_EXECUTE 경로에도 전달.
+                // 기존 구현은 ReAct 경로에만 전달하여 PLAN_EXECUTE 모드로 전환하면 intent 차단이
+                // 우회되는 보안 hole. 본 수정으로 두 전략이 동일한 allowedTools 정책을 적용한다.
+                allowedTools = allowedTools
             )
         } else {
             manualReActLoopExecutor.execute(

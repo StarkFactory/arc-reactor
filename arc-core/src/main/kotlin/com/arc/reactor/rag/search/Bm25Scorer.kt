@@ -63,10 +63,17 @@ class Bm25Scorer(
     /**
      * 평균 문서 길이 (토큰 기준).
      * BM25 공식에서 문서 길이 정규화(b 파라미터)에 사용된다.
-     * 문서가 없으면 0으로 나누는 것을 방지하기 위해 1.0을 반환한다.
+     *
+     * R326 fix: `totalLength == 0L` 가드를 추가한다. 기존 가드는 `termFrequencies.isEmpty()`만
+     * 검사하여 모든 문서가 빈 토큰 배열로 인덱싱된 경우(예: `MIN_TOKEN_LENGTH` 필터로 전부 제거)
+     * `averageLength = 0.0` → BM25 공식 `denominator = k1 * (1 - b + b * docLength / 0.0)`
+     * = `Infinity` → `score = idfScore * (numerator / Infinity) = 0.0` → 모든 쿼리가 0점 반환
+     * → BM25 검색이 **결과 없이 조용히 degrade**되는 silent failure. 문서가 있지만 길이가 0인
+     * 엣지 케이스에서도 1.0 폴백을 적용하여 NaN/Infinity 전파를 차단한다.
      */
     private val averageLength: Double get() =
-        if (termFrequencies.isEmpty()) 1.0 else totalLength.toDouble() / termFrequencies.size
+        if (termFrequencies.isEmpty() || totalLength == 0L) 1.0
+        else totalLength.toDouble() / termFrequencies.size
 
     /**
      * 인덱스에 문서를 추가하거나 교체한다.
