@@ -4,6 +4,7 @@ import com.arc.reactor.agent.model.Message
 import com.arc.reactor.agent.model.MessageRole
 import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.transaction.support.TransactionTemplate
 import java.sql.ResultSet
 import java.time.Instant
 
@@ -31,7 +32,13 @@ private val logger = KotlinLogging.logger {}
 class JdbcMemoryStore(
     private val jdbcTemplate: JdbcTemplate,
     private val maxMessagesPerSession: Int = 100,
-    private val tokenEstimator: TokenEstimator = DefaultTokenEstimator()
+    private val tokenEstimator: TokenEstimator = DefaultTokenEstimator(),
+    /**
+     * R276: addMessage의 INSERT + evictOldMessages DELETE를 단일 트랜잭션으로 묶기 위한
+     * TransactionTemplate. null이면 backward-compat을 위해 트랜잭션 없이 실행
+     * (테스트나 단순 환경용). 운영 환경에서는 [JdbcMemoryStoreConfiguration]에서 주입한다.
+     */
+    private val transactionTemplate: TransactionTemplate? = null
 ) : MemoryStore {
 
     override fun get(sessionId: String): ConversationMemory? {
@@ -53,23 +60,45 @@ class JdbcMemoryStore(
     }
 
     override fun addMessage(sessionId: String, role: String, content: String) {
-        jdbcTemplate.update(
-            "INSERT INTO conversation_messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-            sessionId, role, content, Instant.now().toEpochMilli()
-        )
-
-        // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
-        evictOldMessages(sessionId)
+        // R276: INSERT + evictOldMessages DELETE를 단일 트랜잭션으로 묶어 atomicity 보장.
+        // 이전에는 두 statement가 별개 autocommit으로 실행되어 INSERT 후 DELETE 사이에
+        // 다른 connection이 동일 세션에 INSERT를 수행하는 race window가 존재했다.
+        // PostgreSQL 같은 고동시성 환경에서는 evict 결과가 의도와 다를 수 있다.
+        executeInTransaction {
+            jdbcTemplate.update(
+                "INSERT INTO conversation_messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+                sessionId, role, content, Instant.now().toEpochMilli()
+            )
+            // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
+            evictOldMessages(sessionId)
+        }
     }
 
     override fun addMessage(sessionId: String, role: String, content: String, userId: String) {
-        jdbcTemplate.update(
-            "INSERT INTO conversation_messages (session_id, role, content, timestamp, user_id) VALUES (?, ?, ?, ?, ?)",
-            sessionId, role, content, Instant.now().toEpochMilli(), userId
-        )
+        // R276: INSERT + evictOldMessages DELETE를 단일 트랜잭션으로 묶어 atomicity 보장.
+        executeInTransaction {
+            jdbcTemplate.update(
+                "INSERT INTO conversation_messages (session_id, role, content, timestamp, user_id) VALUES (?, ?, ?, ?, ?)",
+                sessionId, role, content, Instant.now().toEpochMilli(), userId
+            )
+            // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
+            evictOldMessages(sessionId)
+        }
+    }
 
-        // 세션당 최대 메시지 수 초과 시 FIFO 퇴거
-        evictOldMessages(sessionId)
+    /**
+     * R276: TransactionTemplate이 제공되면 트랜잭션 안에서 실행하고, 없으면 직접 실행.
+     * `transactionTemplate.execute`는 콜백 결과를 반환하지만 여기서는 Unit이라 무시.
+     */
+    private inline fun executeInTransaction(crossinline block: () -> Unit) {
+        if (transactionTemplate != null) {
+            transactionTemplate.execute {
+                block()
+                null
+            }
+        } else {
+            block()
+        }
     }
 
     override fun listSessions(): List<SessionSummary> {

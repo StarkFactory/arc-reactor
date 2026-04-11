@@ -66,8 +66,14 @@ class JdbcMemoryStoreConfiguration {
     @ConditionalOnMissingBean(name = ["jdbcMemoryStore"])
     fun jdbcMemoryStore(
         jdbcTemplate: JdbcTemplate,
-        tokenEstimator: TokenEstimator
-    ): MemoryStore = JdbcMemoryStore(jdbcTemplate = jdbcTemplate, tokenEstimator = tokenEstimator)
+        tokenEstimator: TokenEstimator,
+        transactionTemplate: TransactionTemplate
+    ): MemoryStore = JdbcMemoryStore(
+        jdbcTemplate = jdbcTemplate,
+        tokenEstimator = tokenEstimator,
+        // R276: addMessage INSERT + evictOldMessages DELETE atomic 트랜잭션
+        transactionTemplate = transactionTemplate
+    )
 
     @Bean
     @Primary
