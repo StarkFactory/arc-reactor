@@ -85,10 +85,38 @@ class ToolResponseSummarizerHook(
         incrementCounter(context)
     }
 
-    /** toolSummaryCount 카운터를 원자적으로 증가시킨다. */
+    /**
+     * `toolSummaryCount` 카운터를 원자적으로 증가시킨다.
+     *
+     * **R335 fix**: 기존 구현은 `metadata[KEY]` 읽기 → `+1` 계산 → `metadata[KEY] = ...` 쓰기의
+     * 3-step read-modify-write 였다. `HookContext.metadata`의 `put`/`get`은 스레드 안전하나
+     * 3-step 조합은 atomic이 아니다. `ToolCallOrchestrator.executeInParallel`이
+     * `async { }.awaitAll()`로 tool을 병렬 실행하고 각 코루틴이 `afterToolCall` → 이 Hook을
+     * 호출하면, 두 코루틴이 동시에 `current=0`을 읽고 각자 `1`을 쓰면서 한 번의 증가로 귀결된다
+     * → 카운터 언더카운트 → 관측 레이어 집계 누락. 기존 주석은 "원자적"이라고 거짓을 기재하고
+     * 있었다.
+     *
+     * **수정**: `HookContext.metadata`의 default backing은 `ConcurrentHashMap`([HookModels.kt:72])
+     * 이므로 `compute` 함수를 사용해 read-modify-write를 atomic하게 수행한다. 인터페이스 타입은
+     * `MutableMap<String, Any>`이므로 runtime 체크 후 fallback path를 함께 제공한다 —
+     * 테스트 double이나 커스텀 Map implementation이 주입되는 경우를 위한 것으로, 일반 운영에서는
+     * concurrent 경로만 사용된다.
+     */
     private fun incrementCounter(context: ToolCallContext) {
-        val current = (context.agentContext.metadata[COUNTER_KEY] as? Int) ?: 0
-        context.agentContext.metadata[COUNTER_KEY] = current + 1
+        val metadata = context.agentContext.metadata
+        @Suppress("UNCHECKED_CAST")
+        val concurrent = metadata as? java.util.concurrent.ConcurrentMap<String, Any>
+        if (concurrent != null) {
+            concurrent.compute(COUNTER_KEY) { _, existing ->
+                ((existing as? Int) ?: 0) + 1
+            }
+            return
+        }
+        // R335: non-ConcurrentMap fallback (테스트/커스텀 구현) — 최소한의 원자성 제공
+        synchronized(metadata) {
+            val current = (metadata[COUNTER_KEY] as? Int) ?: 0
+            metadata[COUNTER_KEY] = current + 1
+        }
     }
 
     companion object {

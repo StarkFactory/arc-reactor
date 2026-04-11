@@ -7,7 +7,13 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -107,6 +113,55 @@ class ToolResponseSummarizerHookTest {
             assertNotNull(agentContext.metadata[ToolResponseSummarizerHook.buildKey(2, "bitbucket_list_prs")]) {
                 "2번 호출 요약 존재"
             }
+        }
+
+        /**
+         * R335 regression: 병렬 tool call 환경에서 카운터 read-modify-write가 원자적으로
+         * 수행되는지 검증. 이전 구현은 non-atomic 3-step 이라 두 코루틴이 동시에
+         * `current=0`을 읽고 각자 `1`을 쓰면 최종 카운터가 1(실제 2회 호출인데)이 되는
+         * 언더카운트 버그가 있었다.
+         *
+         * `runBlocking + Dispatchers.Default + async/awaitAll`로 다중 스레드 병렬 실행을
+         * 강제한다. `runTest` 단일 쓰레드로는 race를 재현할 수 없다.
+         */
+        @Test
+        fun `R335 병렬 호출에서도 카운터가 정확한 횟수만큼 증가해야 한다`() {
+            val hook = ToolResponseSummarizerHook(DefaultToolResponseSummarizer())
+            val agentContext = HookContext(runId = "run-parallel", userId = "u", userPrompt = "p")
+            val callCount = 200
+
+            runBlocking {
+                withContext(Dispatchers.Default) {
+                    coroutineScope {
+                        (0 until callCount).map { i ->
+                            async {
+                                val ctx = ToolCallContext(
+                                    agentContext = agentContext,
+                                    toolName = "jira_search_$i",
+                                    toolParams = emptyMap(),
+                                    callIndex = i
+                                )
+                                hook.afterToolCall(
+                                    ctx,
+                                    ToolCallResult(
+                                        success = true,
+                                        output = """[{"key":"A-$i"}]""",
+                                        durationMs = 1L
+                                    )
+                                )
+                            }
+                        }.awaitAll()
+                    }
+                }
+            }
+
+            val counter = agentContext.metadata[ToolResponseSummarizerHook.COUNTER_KEY] as? Int
+            assertEquals(
+                callCount,
+                counter,
+                "R335: $callCount 회 병렬 afterToolCall 후 카운터는 정확히 $callCount 이어야 한다 " +
+                    "(non-atomic RMW면 언더카운트 발생). 실제=$counter"
+            )
         }
 
         @Test
