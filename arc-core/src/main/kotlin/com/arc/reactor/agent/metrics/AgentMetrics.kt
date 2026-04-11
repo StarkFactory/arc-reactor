@@ -3,9 +3,10 @@ package com.arc.reactor.agent.metrics
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.ConcurrentMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -328,11 +329,29 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     private val blockedResponses = AtomicLong()
     private val interactiveResponses = AtomicLong()
     private val scheduledResponses = AtomicLong()
-    private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val channelCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
-    private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
+    /**
+     * R282: 5개 ConcurrentHashMap → Caffeine bounded cache 마이그레이션 (CLAUDE.md 준수).
+     *
+     * **마이그레이션 사유**:
+     * - `channelCounts`, `missingQueryCounts`는 사용자 입력(Slack 채널, queryCluster)에서 키가
+     *   유래하므로 카디널리티가 사실상 unbounded → 메모리 누수 위험
+     * - `answerModeCounts`, `toolFamilyCounts`, `laneSummaries`는 enum-like 카디널리티지만
+     *   CLAUDE.md "ConcurrentHashMap 금지" 규칙 일관 준수를 위해 함께 마이그레이션
+     *
+     * **bound 선택 근거**: 카디널리티 추정값의 100배 헤드룸. eviction 발생 시 일부 카운터가
+     * 0부터 재시작되어 메트릭 정확도가 약간 떨어지지만, 운영 메트릭은 비율/추세 분석이
+     * 본질이라 허용 가능. eviction 자체가 운영 이상 신호.
+     */
+    private val answerModeCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_MODE_BUCKETS).build()
+    private val channelCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_CHANNEL_BUCKETS).build()
+    private val toolFamilyCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_FAMILY_BUCKETS).build()
+    private val laneSummaries: com.github.benmanes.caffeine.cache.Cache<String, ResponseLaneAggregate> =
+        Caffeine.newBuilder().maximumSize(MAX_LANE_BUCKETS).build()
+    private val missingQueryCounts: com.github.benmanes.caffeine.cache.Cache<String, MissingQueryAggregate> =
+        Caffeine.newBuilder().maximumSize(MAX_MISSING_QUERY_BUCKETS).build()
 
     override fun recordExecution(result: AgentResult) {}
     override fun recordToolCall(toolName: String, durationMs: Long, success: Boolean) {}
@@ -413,9 +432,9 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             interactiveResponses.incrementAndGet()
         }
         if (blocked) blockedResponses.incrementAndGet()
-        incrementBucket(answerModeCounts, answerMode, "unknown")
-        incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
-        incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
+        incrementBucket(answerModeCounts.asMap(), answerMode, "unknown")
+        incrementBucket(channelCounts.asMap(), metadata["channel"]?.toString(), "unknown")
+        incrementBucket(toolFamilyCounts.asMap(), metadata["toolFamily"]?.toString(), "none")
         trackLaneSummary(answerMode, grounded, blocked)
         trackMissingQuery(metadata)
     }
@@ -432,15 +451,15 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             blockedResponses = blockedResponses.get(),
             interactiveResponses = interactiveResponses.get(),
             scheduledResponses = scheduledResponses.get(),
-            answerModeCounts = snapshotCounts(answerModeCounts),
-            channelCounts = snapshotCounts(channelCounts),
-            toolFamilyCounts = snapshotCounts(toolFamilyCounts),
+            answerModeCounts = snapshotCounts(answerModeCounts.asMap()),
+            channelCounts = snapshotCounts(channelCounts.asMap()),
+            toolFamilyCounts = snapshotCounts(toolFamilyCounts.asMap()),
             laneSummaries = snapshotLaneSummaries()
         )
     }
 
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
-        return missingQueryCounts.values
+        return missingQueryCounts.asMap().values
             .sortedWith(
                 compareByDescending<MissingQueryAggregate> { it.count.get() }
                     .thenByDescending { it.lastOccurredAt }
@@ -468,7 +487,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         val blockReason = metadata["blockReason"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
         val queryCluster = metadata["queryCluster"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
         val queryLabel = metadata["queryLabel"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
-        val aggregate = missingQueryCounts.computeIfAbsent(queryCluster) {
+        val aggregate = missingQueryCounts.asMap().computeIfAbsent(queryCluster) {
             MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
@@ -476,7 +495,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     }
 
     private fun incrementBucket(
-        counts: ConcurrentHashMap<String, AtomicLong>,
+        counts: ConcurrentMap<String, AtomicLong>,
         rawKey: String?,
         fallback: String
     ) {
@@ -484,21 +503,21 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         counts.computeIfAbsent(key) { AtomicLong() }.incrementAndGet()
     }
 
-    private fun snapshotCounts(counts: ConcurrentHashMap<String, AtomicLong>): Map<String, Long> {
+    private fun snapshotCounts(counts: ConcurrentMap<String, AtomicLong>): Map<String, Long> {
         return counts.entries
             .sortedByDescending { it.value.get() }
             .associate { it.key to it.value.get() }
     }
 
     private fun trackLaneSummary(answerMode: String, grounded: Boolean, blocked: Boolean) {
-        val aggregate = laneSummaries.computeIfAbsent(answerMode) { ResponseLaneAggregate() }
+        val aggregate = laneSummaries.asMap().computeIfAbsent(answerMode) { ResponseLaneAggregate() }
         aggregate.observedResponses.incrementAndGet()
         if (grounded) aggregate.groundedResponses.incrementAndGet()
         if (blocked) aggregate.blockedResponses.incrementAndGet()
     }
 
     private fun snapshotLaneSummaries(): List<ResponseLaneSummary> {
-        return laneSummaries.entries
+        return laneSummaries.asMap().entries
             .sortedByDescending { it.value.observedResponses.get() }
             .map { (answerMode, aggregate) ->
                 ResponseLaneSummary(
@@ -512,5 +531,15 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
 
     companion object {
         private const val MAX_TRUST_EVENTS = 100
+        /** R282: 응답 모드는 enum-like, 100 슬롯이면 충분 */
+        private const val MAX_MODE_BUCKETS = 100L
+        /** R282: Slack 채널 ID는 카디널리티 높음, 10000 슬롯 */
+        private const val MAX_CHANNEL_BUCKETS = 10_000L
+        /** R282: 도구 계열은 수십~수백 개, 500 슬롯 */
+        private const val MAX_FAMILY_BUCKETS = 500L
+        /** R282: 응답 lane은 mode와 1:1, 100 슬롯 */
+        private const val MAX_LANE_BUCKETS = 100L
+        /** R282: queryCluster는 사용자 입력 카디널리티, 10000 슬롯 */
+        private const val MAX_MISSING_QUERY_BUCKETS = 10_000L
     }
 }

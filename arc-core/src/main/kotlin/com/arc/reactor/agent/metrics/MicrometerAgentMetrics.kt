@@ -3,13 +3,14 @@ package com.arc.reactor.agent.metrics
 import com.arc.reactor.agent.model.AgentResult
 import com.arc.reactor.agent.model.TokenUsage
 import com.arc.reactor.resilience.CircuitBreakerState
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
@@ -45,11 +46,21 @@ class MicrometerAgentMetrics(
     private val blockedResponses = AtomicLong()
     private val interactiveResponses = AtomicLong()
     private val scheduledResponses = AtomicLong()
-    private val answerModeCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val channelCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val toolFamilyCounts = ConcurrentHashMap<String, AtomicLong>()
-    private val laneSummaries = ConcurrentHashMap<String, ResponseLaneAggregate>()
-    private val missingQueryCounts = ConcurrentHashMap<String, MissingQueryAggregate>()
+    /**
+     * R282: 5개 ConcurrentHashMap → Caffeine bounded cache 마이그레이션 (CLAUDE.md 준수).
+     * NoOpAgentMetrics와 동일한 마이그레이션. bound 근거 및 trade-off는
+     * [NoOpAgentMetrics] R282 KDoc 참조.
+     */
+    private val answerModeCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_MODE_BUCKETS).build()
+    private val channelCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_CHANNEL_BUCKETS).build()
+    private val toolFamilyCounts: com.github.benmanes.caffeine.cache.Cache<String, AtomicLong> =
+        Caffeine.newBuilder().maximumSize(MAX_FAMILY_BUCKETS).build()
+    private val laneSummaries: com.github.benmanes.caffeine.cache.Cache<String, ResponseLaneAggregate> =
+        Caffeine.newBuilder().maximumSize(MAX_LANE_BUCKETS).build()
+    private val missingQueryCounts: com.github.benmanes.caffeine.cache.Cache<String, MissingQueryAggregate> =
+        Caffeine.newBuilder().maximumSize(MAX_MISSING_QUERY_BUCKETS).build()
 
     // -- 현재 활성 요청 수 게이지 --
     private val activeRequestCount = AtomicInteger(0)
@@ -308,9 +319,9 @@ class MicrometerAgentMetrics(
         if (blocked) blockedResponses.incrementAndGet()
 
         // 버킷별 카운트 갱신
-        incrementBucket(answerModeCounts, answerMode, "unknown")
-        incrementBucket(channelCounts, metadata["channel"]?.toString(), "unknown")
-        incrementBucket(toolFamilyCounts, metadata["toolFamily"]?.toString(), "none")
+        incrementBucket(answerModeCounts.asMap(), answerMode, "unknown")
+        incrementBucket(channelCounts.asMap(), metadata["channel"]?.toString(), "unknown")
+        incrementBucket(toolFamilyCounts.asMap(), metadata["toolFamily"]?.toString(), "none")
         trackLaneSummary(answerMode, grounded, blocked)
         trackMissingQuery(metadata)
     }
@@ -435,16 +446,16 @@ class MicrometerAgentMetrics(
             blockedResponses = blockedResponses.get(),
             interactiveResponses = interactiveResponses.get(),
             scheduledResponses = scheduledResponses.get(),
-            answerModeCounts = snapshotCounts(answerModeCounts),
-            channelCounts = snapshotCounts(channelCounts),
-            toolFamilyCounts = snapshotCounts(toolFamilyCounts),
+            answerModeCounts = snapshotCounts(answerModeCounts.asMap()),
+            channelCounts = snapshotCounts(channelCounts.asMap()),
+            toolFamilyCounts = snapshotCounts(toolFamilyCounts.asMap()),
             laneSummaries = snapshotLaneSummaries()
         )
     }
 
     /** 누락 쿼리 상위 [limit]건을 빈도 내림차순으로 반환한다. */
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
-        return missingQueryCounts.values
+        return missingQueryCounts.asMap().values
             .sortedWith(
                 compareByDescending<MissingQueryAggregate> { it.count.get() }
                     .thenByDescending { it.lastOccurredAt }
@@ -476,7 +487,7 @@ class MicrometerAgentMetrics(
         val blockReason = metadataValue(metadata, "blockReason") ?: return
         val queryCluster = metadataValue(metadata, "queryCluster") ?: return
         val queryLabel = metadataValue(metadata, "queryLabel") ?: return
-        val aggregate = missingQueryCounts.computeIfAbsent(queryCluster) {
+        val aggregate = missingQueryCounts.asMap().computeIfAbsent(queryCluster) {
             MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
@@ -485,7 +496,7 @@ class MicrometerAgentMetrics(
 
     /** 동시성 안전한 버킷 카운터를 1 증가시킨다. */
     private fun incrementBucket(
-        counts: ConcurrentHashMap<String, AtomicLong>,
+        counts: ConcurrentMap<String, AtomicLong>,
         rawKey: String?,
         fallback: String
     ) {
@@ -494,7 +505,7 @@ class MicrometerAgentMetrics(
     }
 
     /** 버킷 카운터의 현재 스냅샷을 빈도 내림차순 맵으로 반환한다. */
-    private fun snapshotCounts(counts: ConcurrentHashMap<String, AtomicLong>): Map<String, Long> {
+    private fun snapshotCounts(counts: ConcurrentMap<String, AtomicLong>): Map<String, Long> {
         return counts.entries
             .sortedByDescending { it.value.get() }
             .associate { it.key to it.value.get() }
@@ -502,7 +513,7 @@ class MicrometerAgentMetrics(
 
     /** 응답 모드별 레인 집계를 갱신한다. */
     private fun trackLaneSummary(answerMode: String, grounded: Boolean, blocked: Boolean) {
-        val aggregate = laneSummaries.computeIfAbsent(answerMode) { ResponseLaneAggregate() }
+        val aggregate = laneSummaries.asMap().computeIfAbsent(answerMode) { ResponseLaneAggregate() }
         aggregate.observedResponses.incrementAndGet()
         if (grounded) aggregate.groundedResponses.incrementAndGet()
         if (blocked) aggregate.blockedResponses.incrementAndGet()
@@ -510,7 +521,7 @@ class MicrometerAgentMetrics(
 
     /** 레인 집계의 현재 스냅샷을 관측 수 내림차순 리스트로 반환한다. */
     private fun snapshotLaneSummaries(): List<ResponseLaneSummary> {
-        return laneSummaries.entries
+        return laneSummaries.asMap().entries
             .sortedByDescending { it.value.observedResponses.get() }
             .map { (answerMode, aggregate) ->
                 ResponseLaneSummary(
@@ -529,6 +540,16 @@ class MicrometerAgentMetrics(
 
     companion object {
         private const val MAX_TRUST_EVENTS = 100
+        /** R282: 응답 모드는 enum-like, 100 슬롯 */
+        private const val MAX_MODE_BUCKETS = 100L
+        /** R282: Slack 채널 ID는 카디널리티 높음, 10000 슬롯 */
+        private const val MAX_CHANNEL_BUCKETS = 10_000L
+        /** R282: 도구 계열은 수십~수백 개, 500 슬롯 */
+        private const val MAX_FAMILY_BUCKETS = 500L
+        /** R282: 응답 lane은 mode와 1:1, 100 슬롯 */
+        private const val MAX_LANE_BUCKETS = 100L
+        /** R282: queryCluster는 사용자 입력 카디널리티, 10000 슬롯 */
+        private const val MAX_MISSING_QUERY_BUCKETS = 10_000L
         private const val METRIC_EXECUTIONS = "arc.agent.executions"
         private const val METRIC_EXECUTION_DURATION = "arc.agent.execution.duration"
         private const val METRIC_ERRORS = "arc.agent.errors"
