@@ -56,8 +56,11 @@ class DefaultRateLimitStage(
     /**
      * 캐시 키별 공유 Mutex.
      * 분당 캐시와 시간당 캐시의 만료가 독립적이므로, 캐시 엔트리가 아닌
-     * 별도의 ConcurrentHashMap에서 키별 Mutex를 관리하여 항상 동일한 Mutex로
+     * 별도의 Caffeine 캐시에서 키별 Mutex를 관리하여 항상 동일한 Mutex로
      * 두 카운터를 보호한다. 24시간 후 미사용 Mutex를 자동 정리한다.
+     *
+     * R316 doc fix: 이전 KDoc은 "ConcurrentHashMap"을 언급했으나 실제 구현은
+     * 처음부터 Caffeine이었다. 스테일 주석을 정정한다.
      */
     private val mutexCache: Cache<String, kotlinx.coroutines.sync.Mutex> = Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofHours(24))

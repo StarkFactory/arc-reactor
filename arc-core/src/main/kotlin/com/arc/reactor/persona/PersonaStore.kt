@@ -3,7 +3,8 @@ package com.arc.reactor.persona
 import com.arc.reactor.prompt.PromptTemplateStore
 import mu.KotlinLogging
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 
 private val logger = KotlinLogging.logger {}
 
@@ -123,17 +124,25 @@ internal const val DEFAULT_SYSTEM_PROMPT =
 /**
  * 인메모리 페르소나 저장소
  *
- * [ConcurrentHashMap]을 사용한 스레드 안전 구현.
+ * Caffeine bounded cache 기반 스레드 안전 구현. save/update/delete는 `synchronized`
+ * 블록으로 직렬화되어 clearDefault/upsert/remove의 원자성을 유지한다.
  * 생성 시 기본 페르소나를 사전 로딩한다.
  * 영속적이지 않음 — 서버 재시작 시 데이터가 소실된다.
  *
- * WHY: DB 없이도 기본 동작을 보장하기 위한 기본 구현.
+ * R316 fix: ConcurrentHashMap → Caffeine bounded cache. REST API로 페르소나 등록이
+ * 반복되면 무제한 성장 가능성이 있었다. 이제 [maxPersonas] 상한(기본 1000)을 넘으면
+ * W-TinyLFU 정책으로 evict. R285에서 적용한 synchronized(this) 직렬화는 유지하여
+ * save/update/delete/clearDefault 경로의 resurrection race를 차단한다.
  *
  * @see JdbcPersonaStore 운영 환경용 JDBC 구현
  */
-class InMemoryPersonaStore : PersonaStore {
+class InMemoryPersonaStore(
+    maxPersonas: Long = DEFAULT_MAX_PERSONAS
+) : PersonaStore {
 
-    private val personas = ConcurrentHashMap<String, Persona>()
+    private val personas: Cache<String, Persona> = Caffeine.newBuilder()
+        .maximumSize(maxPersonas)
+        .build()
 
     init {
         // 기본 페르소나를 사전 로딩한다
@@ -143,16 +152,16 @@ class InMemoryPersonaStore : PersonaStore {
             systemPrompt = DEFAULT_SYSTEM_PROMPT,
             isDefault = true
         )
-        personas[defaultPersona.id] = defaultPersona
+        personas.put(defaultPersona.id, defaultPersona)
     }
 
     override fun list(): List<Persona> {
-        return personas.values.sortedBy { it.createdAt }
+        return personas.asMap().values.sortedBy { it.createdAt }
     }
 
-    override fun get(personaId: String): Persona? = personas[personaId]
+    override fun get(personaId: String): Persona? = personas.getIfPresent(personaId)
 
-    override fun getDefault(): Persona? = personas.values.firstOrNull { it.isDefault }
+    override fun getDefault(): Persona? = personas.asMap().values.firstOrNull { it.isDefault }
 
     override fun save(persona: Persona): Persona {
         synchronized(this) {
@@ -160,7 +169,7 @@ class InMemoryPersonaStore : PersonaStore {
             if (persona.isDefault) {
                 clearDefault()
             }
-            personas[persona.id] = persona
+            personas.put(persona.id, persona)
         }
         return persona
     }
@@ -178,7 +187,7 @@ class InMemoryPersonaStore : PersonaStore {
         isActive: Boolean?
     ): Persona? {
         synchronized(this) {
-            val existing = personas[personaId] ?: return null
+            val existing = personas.getIfPresent(personaId) ?: return null
 
             if (isDefault == true) {
                 clearDefault()
@@ -196,7 +205,7 @@ class InMemoryPersonaStore : PersonaStore {
                 isActive = isActive ?: existing.isActive,
                 updatedAt = Instant.now()
             )
-            personas[personaId] = updated
+            personas.put(personaId, updated)
             return updated
         }
     }
@@ -215,7 +224,7 @@ class InMemoryPersonaStore : PersonaStore {
      */
     override fun delete(personaId: String) {
         synchronized(this) {
-            personas.remove(personaId)
+            personas.invalidate(personaId)
         }
     }
 
@@ -235,11 +244,21 @@ class InMemoryPersonaStore : PersonaStore {
 
     /** 모든 페르소나의 isDefault를 false로 설정한다 */
     private fun clearDefault() {
-        for ((id, persona) in personas) {
+        for ((id, persona) in personas.asMap()) {
             if (persona.isDefault) {
-                personas[id] = persona.copy(isDefault = false, updatedAt = Instant.now())
+                personas.put(id, persona.copy(isDefault = false, updatedAt = Instant.now()))
             }
         }
+    }
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        personas.cleanUp()
+    }
+
+    companion object {
+        /** 기본 페르소나 저장소 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_PERSONAS: Long = 1_000L
     }
 }
 

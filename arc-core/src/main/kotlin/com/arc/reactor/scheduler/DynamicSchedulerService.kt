@@ -44,7 +44,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
@@ -118,10 +117,20 @@ class DynamicSchedulerService(
         private const val METRIC_JOBS_ACTIVE = "arc.scheduler.jobs.active"
     }
 
-    private val scheduledFutures = ConcurrentHashMap<String, ScheduledFuture<*>>()
+    /**
+     * 스케줄 Job ID → ScheduledFuture 매핑 (Caffeine bounded cache).
+     *
+     * R316 fix: ConcurrentHashMap → Caffeine bounded cache. 기존 구현은 스케줄 Job 수만큼
+     * 무제한 성장 가능했고, 같은 파일의 [jobMutexes]는 이미 Caffeine이었으나 `scheduledFutures`만
+     * CHM으로 남아있던 불완전 migration. `JOB_MUTEX_CACHE_MAX_SIZE`와 동일 상한을 공유하여
+     * Job lifecycle 일관성 유지.
+     */
+    private val scheduledFutures: Cache<String, ScheduledFuture<*>> = Caffeine.newBuilder()
+        .maximumSize(JOB_MUTEX_CACHE_MAX_SIZE)
+        .build()
 
     init {
-        meterRegistry?.gauge(METRIC_JOBS_ACTIVE, scheduledFutures) { it.size.toDouble() }
+        meterRegistry?.gauge(METRIC_JOBS_ACTIVE, scheduledFutures) { it.estimatedSize().toDouble() }
     }
 
     /** 작업별 Mutex. cancel/delete와 in-flight 실행의 race condition을 방지한다. */
@@ -145,10 +154,10 @@ class DynamicSchedulerService(
     }
 
     override fun destroy() {
-        val count = scheduledFutures.size
+        val count = scheduledFutures.estimatedSize()
         logger.info { "동적 스케줄러: 예약 작업 ${count}개 취소" }
-        scheduledFutures.values.forEach { it.cancel(false) }
-        scheduledFutures.clear()
+        scheduledFutures.asMap().values.forEach { it.cancel(false) }
+        scheduledFutures.invalidateAll()
         jobScope.cancel()
     }
 
@@ -202,7 +211,7 @@ class DynamicSchedulerService(
             // TaskScheduler 스레드를 즉시 반환하고 IO 디스패처에서 비동기 실행
             val future = taskScheduler.schedule({ jobScope.launch { runScheduledJob(job) } }, trigger)
             if (future != null) {
-                scheduledFutures[job.id] = future
+                scheduledFutures.put(job.id, future)
                 val target = when (job.jobType) {
                     ScheduledJobType.MCP_TOOL -> "-> ${job.mcpServerName}/${job.toolName}"
                     ScheduledJobType.AGENT -> "-> agent(personaId=${job.personaId})"
@@ -290,7 +299,7 @@ class DynamicSchedulerService(
      * per-job Mutex로 실행 중인 작업과의 race condition을 방지한다.
      */
     private fun cancelJob(id: String) {
-        scheduledFutures.remove(id)?.cancel(false)
+        scheduledFutures.asMap().remove(id)?.cancel(false)
         runBlocking { mutexFor(id).withLock { /* in-flight 실행 완료 대기 */ } }
     }
 
