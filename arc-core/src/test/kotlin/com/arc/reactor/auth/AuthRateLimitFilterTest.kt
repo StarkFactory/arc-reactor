@@ -154,6 +154,33 @@ class AuthRateLimitFilterTest {
             verify(exactly = 3) { chain.filter(exchange) }
             verify(atLeast = 1) { response.statusCode = HttpStatus.TOO_MANY_REQUESTS }
         }
+
+        @Test
+        fun `R325 null status 응답은 failure counter를 리셋하지 않아야 한다`() {
+            // R325: 기존 구현은 null status를 성공으로 간주하여 cache.invalidate 호출 →
+            // 공격자가 null status 응답을 유도할 수 있다면 brute-force 한도 우회 가능.
+            // 2번의 실패 후 null status 응답이 와도 카운터가 남아있어야 하며, 추가 2번의
+            // 실패로 3번째 실패 + 1번의 차단이 정확히 발생해야 한다.
+            every { request.uri } returns URI.create("http://localhost/api/auth/login")
+
+            // 1-2번째: 401 실패 → 카운터 2
+            currentStatus = HttpStatus.UNAUTHORIZED
+            repeat(2) { filter.filter(exchange, chain).block() }
+
+            // 3번째: null status (중간에 응답 commit 전 fire) → 카운터 유지
+            currentStatus = null
+            filter.filter(exchange, chain).block()
+
+            // 4번째: 401 → 카운터 3 (maxAttemptsPerMinute=3에 도달)
+            currentStatus = HttpStatus.UNAUTHORIZED
+            filter.filter(exchange, chain).block()
+
+            // 5번째: isBlocked=true → 429 차단되어야 한다 (카운터가 리셋되지 않았음)
+            filter.filter(exchange, chain).block()
+
+            verify(exactly = 4) { chain.filter(exchange) }
+            verify(atLeast = 1) { response.statusCode = HttpStatus.TOO_MANY_REQUESTS }
+        }
     }
 
     @Nested

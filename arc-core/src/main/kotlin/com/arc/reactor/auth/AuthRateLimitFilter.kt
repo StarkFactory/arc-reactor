@@ -94,10 +94,24 @@ class AuthRateLimitFilter(
         return failures >= maxAttemptsPerMinute
     }
 
-    /** 요청 완료 후 결과에 따라 카운터를 처리한다 */
+    /**
+     * 요청 완료 후 결과에 따라 카운터를 처리한다.
+     *
+     * R325 fix: 기존 구현은 `status == null || status.is2xxSuccessful`로 null 상태를 성공으로
+     * 취급하여 `cache.invalidate(key)`를 호출했다. Spring WebFlux의 `doOnSuccess` 콜백은 응답
+     * 커밋 전에 발생할 수 있고, 그 시점에 `exchange.response.statusCode`가 아직 설정되지
+     * 않은 경우 null이 반환된다. **공격자가 null status 응답을 유도할 수 있다면 실패 카운터가
+     * 리셋되어 brute-force 한도를 우회할 수 있다**. null 상태는 "확정 불가"로 간주하여 카운터를
+     * 그대로 두고, **명시적 2xx만** 카운터를 리셋한다. 4xx/5xx는 기존대로 실패로 기록.
+     */
     private fun handleCompletedAttempt(exchange: ServerWebExchange, key: String) {
         val status = exchange.response.statusCode
-        if (status == null || status.is2xxSuccessful) {
+        if (status == null) {
+            // 상태 코드가 확정되지 않은 경우 카운터를 건드리지 않는다 (conservative):
+            // null로 실패 카운터를 리셋하면 brute-force 우회 경로가 된다.
+            return
+        }
+        if (status.is2xxSuccessful) {
             // 성공 시 카운터 초기화 — 정상 사용자의 카운터를 즉시 해제
             cache.invalidate(key)
             return
