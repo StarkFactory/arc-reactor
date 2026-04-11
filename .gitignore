@@ -36,6 +36,8 @@ Thumbs.db
 *.log
 logs/
 runtime-progress*.txt
+.qa-runtime/
+.qa-live/
 
 # Python
 __pycache__/

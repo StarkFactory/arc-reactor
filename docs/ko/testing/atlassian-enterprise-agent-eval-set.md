@@ -24,6 +24,10 @@
 2. cross-source synthesis 품질 확인
 3. safe action workflow 품질 확인
 
+실제 Atlassian 데이터를 이 케이스 실행에 사용할 수는 있지만, 평가셋 문서나 Round 보고서에는
+실제 제목/본문/URL/식별자를 남기지 않는다. 남기는 것은 케이스 id, pass/fail, tool family,
+익명화된 실패 유형 같은 메타데이터뿐이다.
+
 ---
 
 ## 2. 운영 규칙

@@ -22,6 +22,7 @@
 - safe action workflow friction
 
 환경 문제만 있는 항목은 분리해서 적고, 제품 문제와 섞지 않는다.
+실제 Atlassian 데이터에서 관찰한 증상을 backlog에 올릴 수는 있지만, raw 제목/본문/URL/식별자는 적지 않는다.
 
 ---
 
@@ -41,7 +42,7 @@
 - suspected_layer: `routing | prompt | mcp | policy | retrieval | synthesis | approval | unknown`
 - status: `open | in_progress | mitigated | closed | env_only`
 - evidence:
-  - `path:line`
+  - `path:line` 또는 익명화된 내부 근거
 - next_action: (다음 Round에서 가장 작은 수정 1개)
 ```
 
@@ -133,6 +134,7 @@
 3. `env_only`는 제품 품질 개선으로 계산하지 않는다.
 4. 항목을 닫으려면 최소 1개 eval case PASS + evidence가 필요하다.
 5. 닫힌 항목도 바로 삭제하지 말고 `closed`로 남긴다.
+6. 실제 데이터에서 온 관찰이라도 tracked backlog에는 익명화된 증상과 메타데이터만 남긴다.
 
 ---
 

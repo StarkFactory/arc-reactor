@@ -31,6 +31,7 @@
 | `empty_or_timeout_rate` | 빈 응답 또는 timeout 비율 |
 | `safe_action_correctness` | preview/approval/write-policy가 정확히 동작하는가 |
 | `evidence_completeness` | baseline, after, test, report evidence가 모두 남았는가 |
+| `live_data_sanitization` | 실제 MCP 데이터를 써도 tracked 문서에는 익명화 메타데이터만 남겼는가 |
 
 ### 2.1 루프 건강도 메트릭
 
@@ -42,6 +43,15 @@
 | `gate_decision_completeness` | round/overnight/release/self-dev gate 판정이 기록됐는가 |
 | `recovery_candidate_presence` | 실패 Round에서 다음 복구 작업 1개가 남았는가 |
 | `loop_health_delta` | self-development Round가 루프 자체를 개선했는가 |
+
+### 2.2 실제 데이터 취급 원칙
+
+실제 Atlassian MCP 응답을 활용할 수는 있지만, gate를 통과하려면 아래가 반드시 필요하다.
+
+1. tracked 파일에는 raw data가 없어야 한다
+2. evidence는 익명화된 메타데이터여야 한다
+3. 실제 응답 저장이 필요하면 `.qa-runtime/` 또는 `.qa-live/` 같은 ignored 경로만 사용한다
+4. 실제 데이터 조각이 커밋되면 gate는 즉시 실패다
 
 ---
 
@@ -60,6 +70,7 @@
 | empty_or_timeout_rate | baseline 악화 금지 |
 | safe_action_correctness | touched action cases는 100% |
 | evidence_completeness | 100% |
+| live_data_sanitization | 100% |
 
 하나라도 어기면 그 Round는 실패다.
 
@@ -77,6 +88,7 @@
 | empty_or_timeout_rate | 10% 이하 |
 | safe_action_correctness | 100% |
 | evidence_completeness | 100% |
+| live_data_sanitization | 100% |
 
 이 gate를 만족하지 못하면 watchdog는 같은 방향을 확장하지 말고 더 작은 fix로 돌아가야 한다.
 
@@ -94,6 +106,7 @@
 | empty_or_timeout_rate | 3% 이하 |
 | safe_action_correctness | 100% |
 | evidence_completeness | 100% |
+| live_data_sanitization | 100% |
 
 ### 3.4 self_dev_round_gate
 
@@ -108,6 +121,7 @@
 | gate_decision_completeness | 100% |
 | loop_health_delta | 최소 1개 명시 |
 | product metric guardrail | touched product metric baseline 악화 금지 |
+| live_data_sanitization | 100% |
 
 하나라도 어기면 self-development Round는 실패다.
 
