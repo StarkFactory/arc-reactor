@@ -221,6 +221,13 @@
 - 요약: R342 scanner LOW #1 처리. `VerifiedSourceExtractor.extract`의 `distinctBy { it.url }`이 문자열 raw 비교라 `https://wiki.company.com/page/123`, `.../page/123/`(trailing slash), `.../page/123#section`(fragment)이 각각 별개 source로 취급되어 직원이 응답 Sources 블록에서 같은 페이지 링크를 중복으로 보는 user-visible 버그. Confluence/Jira 도구가 `self.href` + `webUrl` + path 표현 변형을 동시에 반환하는 현실적 케이스에서 자주 트리거. MAX_SOURCES=12 한도가 동일 페이지 중복으로 낭비되어 실제 다른 출처가 잘려나가는 2차 영향도. `normalizeUrlForDedup` private helper 추가: fragment 제거 + trailing slash 정리 (scheme:// 엣지 케이스 보존). `distinctBy { normalizeUrlForDedup(it.url) }`로 key selector만 변경. 원본 URL은 `distinctBy`의 "첫 번째 발견 유지" 의미로 보존되어 사용자 링크 표시 자연스러움 유지. 신규 회귀 3건(trailing slash dedup, fragment dedup, 조합 dedup) + 기존 VerifiedSourceTest 3건 PASS 유지. 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R343.md`
 
+### Round 344 — 2026-04-13T05:00+09:00 — cycle 10 15차: toolFamily 분류에 spec_ 추가
+
+- axis: `employee_value` (3회 연속)
+- 분류: `direct_value`
+- 요약: R342 scanner LOW #2 처리. `ExecutionResultFinalizer.toolFamily`가 `confluence_`/`jira_`/`bitbucket_`/`work_`/`mcp_`만 인식하고 **`spec_`(Swagger/OpenAPI 도구) 분기가 없어 `"other"`로 폴백**. 반면 `VerifiedSourcesResponseFilter.WORKSPACE_TOOL_PREFIXES`는 이미 `spec_`을 workspace 도구로 인식해 두 코드 경로의 분류 의도가 silent 불일치. 결과: `spec_search`/`spec_detail` 같은 Swagger/OpenAPI 도구 호출이 `metadata["toolFamily"] = "other"`로 기록되어 Grafana "tool family usage" 패널에서 spec 도구 사용률이 invisible, `employee-value-rollout-300.md` "tool family correctness" KPI 저평가. 1줄 수정: `when` 분기에 `toolName.startsWith("spec_") -> "spec"` 추가. `mcp_` 앞에 배치해 prefix 순서 명시. 신규 회귀 2건(mockk slot capture로 `recordResponseObservation` event metadata 검증 + 7가지 prefix 매트릭스 cross-verify). 전체 arc-core PASS. **`employee_value` axis 3회 연속 완료 — R345부터 axis 전환 또는 cycle 10 cleanup 권장.**
+- 상세 위치: `docs/reports/rounds/R344.md`
+
 ---
 
 ## 11. 아카이브

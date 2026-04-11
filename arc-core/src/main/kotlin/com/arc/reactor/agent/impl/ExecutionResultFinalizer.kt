@@ -787,12 +787,27 @@ internal class ExecutionResultFinalizer(
         return if (families.size == 1) families.first() else "mixed"
     }
 
+    /**
+     * 도구 이름 prefix로 tool family를 분류한다.
+     *
+     * **R344 fix**: `spec_` prefix(Swagger/OpenAPI 도구 — `spec_search`, `spec_detail` 등)가
+     * 이전에는 분기가 없어 `"other"` bucket으로 떨어졌다. `VerifiedSourcesResponseFilter.
+     * WORKSPACE_TOOL_PREFIXES`는 이미 `spec_`을 workspace 도구로 인식하고 있어 두 곳의 분류
+     * 의도가 **불일치**했다. 그 결과:
+     * - `metadata["toolFamily"]` 메트릭이 spec 도구 호출을 `"other"` bucket에 집계
+     * - `MicrometerAgentMetrics.incrementBucket(toolFamilyCounts, "other")`로 기록되어
+     *   Grafana "tool family usage" 패널에서 spec 도구 사용률이 invisible
+     * - `employee_value` axis 핵심 지표(tool family correctness)가 저평가
+     *
+     * **수정**: `spec_` → `"spec"` 분기 추가. 두 곳의 분류 의도를 일치시킨다.
+     */
     private fun toolFamily(toolName: String): String {
         return when {
             toolName.startsWith("confluence_") -> "confluence"
             toolName.startsWith("jira_") -> "jira"
             toolName.startsWith("bitbucket_") -> "bitbucket"
             toolName.startsWith("work_") -> "work"
+            toolName.startsWith("spec_") -> "spec"
             toolName.startsWith("mcp_") -> "mcp"
             else -> "other"
         }

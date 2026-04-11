@@ -24,7 +24,9 @@ import com.arc.reactor.response.VerifiedSource
 import com.arc.reactor.response.impl.VerifiedSourcesResponseFilter
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -40,6 +42,100 @@ import org.junit.jupiter.api.Test
  * 실행 결과 최종 처리 로직을 검증합니다.
  */
 class ExecutionResultFinalizerTest {
+
+    /**
+     * R344 regression: `spec_` prefix(Swagger/OpenAPI 도구 — `spec_search`, `spec_detail` 등)가
+     * `toolFamily` 분류에서 `"other"` bucket으로 떨어지던 metrics drift를 수정했는지 검증.
+     * `VerifiedSourcesResponseFilter.WORKSPACE_TOOL_PREFIXES`는 이미 `spec_`을 workspace 도구로
+     * 인식하고 있으므로 두 곳의 분류 의도가 일치해야 한다.
+     */
+    /**
+     * R344 regression: `spec_` prefix 도구가 `recordResponseObservation`에 전달되는 event
+     * metadata의 `toolFamily`에서 `"spec"`으로 분류되어야 한다. 이전에는 해당 분기가 없어
+     * `"other"` bucket으로 떨어지며 Grafana "tool family usage" 패널에서 Swagger/OpenAPI
+     * 도구 사용률이 invisible한 metrics drift.
+     *
+     * `toolFamily`는 `metadata["toolFamily"]`에 실리지만 `result.metadata`가 아니라
+     * `AgentMetrics.recordResponseObservation`에 전달되는 event metadata로 기록된다.
+     * mockk slot으로 capture하여 검증.
+     */
+    @Test
+    fun `R344 spec_ prefix 도구는 recordResponseObservation event의 toolFamily로 spec을 기록해야 한다`() = runTest {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val capturedEvents = mutableListOf<Map<String, Any>>()
+        every { metrics.recordResponseObservation(capture(capturedEvents)) } returns Unit
+
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        finalizer.finalize(
+            result = AgentResult.success(
+                content = "OpenAPI spec: Pet Store",
+                toolsUsed = listOf("spec_detail")
+            ),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+            toolsUsed = listOf("spec_detail"),
+            startTime = 1_000L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(capturedEvents.isNotEmpty()) {
+            "recordResponseObservation이 최소 한 번 호출되어야 한다"
+        }
+        assertEquals(
+            "spec",
+            capturedEvents.first()["toolFamily"],
+            "R344: spec_ prefix 도구는 toolFamily=\"spec\"으로 분류되어야 한다 (이전에는 \"other\")"
+        )
+    }
+
+    @Test
+    fun `R344 다양한 prefix의 toolFamily 분류 회귀`() = runTest {
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val capturedEvents = mutableListOf<Map<String, Any>>()
+        every { metrics.recordResponseObservation(capture(capturedEvents)) } returns Unit
+
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        suspend fun runWith(toolName: String): String? {
+            capturedEvents.clear()
+            finalizer.finalize(
+                result = AgentResult.success(content = "ok", toolsUsed = listOf(toolName)),
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = listOf(toolName),
+                startTime = 1_000L,
+                attemptLongerResponse = { _, _, _ -> null }
+            )
+            return capturedEvents.firstOrNull()?.get("toolFamily") as? String
+        }
+
+        assertEquals("confluence", runWith("confluence_answer_question")) { "confluence_ prefix" }
+        assertEquals("jira", runWith("jira_my_open_issues")) { "jira_ prefix" }
+        assertEquals("bitbucket", runWith("bitbucket_list_prs")) { "bitbucket_ prefix" }
+        assertEquals("work", runWith("work_morning_briefing")) { "work_ prefix" }
+        assertEquals("spec", runWith("spec_search")) { "R344: spec_ prefix" }
+        assertEquals("mcp", runWith("mcp_generic_call")) { "mcp_ prefix" }
+        assertEquals("other", runWith("unknown_tool_xyz")) { "unrecognized prefix → other" }
+    }
 
     /**
      * R342 regression: tool이 명시적으로 `grounded=false` 신호를 보냈더라도, 실제
