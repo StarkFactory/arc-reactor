@@ -202,7 +202,11 @@ class JdbcMemoryStore(
     /**
      * 지정된 TTL보다 오래 비활성 상태인 세션을 일괄 삭제한다.
      *
-     * N+1 쿼리 방지: 만료 세션 조회 1회 + 일괄 DELETE 1회 = 총 2 쿼리.
+     * R320 fix: 이전 구현은 단일 `DELETE ... WHERE session_id IN (?, ?, ...)`로
+     * 만료 세션을 전부 바인딩했다. 수천 세션이 쌓이면 JDBC 드라이버의 bind parameter
+     * 상한(드라이버별 1000~32,767)을 초과할 위험이 있고, PostgreSQL의 parse tree가
+     * 거대해져 plan 품질이 저하된다. [CLEANUP_CHUNK_SIZE] 단위로 청크 DELETE하여
+     * bind parameter 폭주와 쿼리 파싱 오버헤드를 제한한다.
      *
      * @param ttlMs 밀리초 단위 TTL
      * @return 삭제된 세션 수
@@ -219,15 +223,22 @@ class JdbcMemoryStore(
             cutoff
         )
 
-        if (expiredSessions.isNotEmpty()) {
-            val placeholders = expiredSessions.joinToString(",") { "?" }
-            jdbcTemplate.update(
-                "DELETE FROM conversation_messages WHERE session_id IN ($placeholders)",
-                *expiredSessions.toTypedArray()
-            )
-            logger.info { "만료 세션 ${expiredSessions.size}개 일괄 삭제 완료" }
-        }
+        if (expiredSessions.isEmpty()) return 0
 
+        // R320 fix: CLEANUP_CHUNK_SIZE 단위로 청크 DELETE 수행
+        var totalDeleted = 0
+        expiredSessions.chunked(CLEANUP_CHUNK_SIZE).forEach { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            val deleted = jdbcTemplate.update(
+                "DELETE FROM conversation_messages WHERE session_id IN ($placeholders)",
+                *chunk.toTypedArray()
+            )
+            totalDeleted += deleted
+        }
+        logger.info {
+            "만료 세션 ${expiredSessions.size}개 일괄 삭제 완료 " +
+                "(chunk_size=$CLEANUP_CHUNK_SIZE, chunks=${(expiredSessions.size + CLEANUP_CHUNK_SIZE - 1) / CLEANUP_CHUNK_SIZE})"
+        }
         return expiredSessions.size
     }
 

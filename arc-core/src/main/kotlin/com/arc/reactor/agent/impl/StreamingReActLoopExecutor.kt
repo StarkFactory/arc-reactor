@@ -323,7 +323,24 @@ internal class StreamingReActLoopExecutor(
             }
         }
         val byId = (resolved + executedResponses).associateBy { it.id() }
-        return pendingToolCalls.mapNotNull { byId[it.id()] }
+        // R320 fix: mapNotNull은 id 매칭 실패를 silent drop하여 AssistantMessage.toolCalls와
+        // ToolResponseMessage.responses 수가 불일치할 수 있다. 이는 CLAUDE.md Gotcha #4
+        // (메시지 쌍 무결성) 위반이며 이후 LLM 호출이 API 에러 또는 undefined behavior로 이어진다.
+        // map + 누락 감지로 전환 — id가 누락되면 placeholder 에러 응답을 주입하여 쌍 무결성 유지.
+        val missing = mutableListOf<String>()
+        val result = pendingToolCalls.map { tc ->
+            byId[tc.id()] ?: run {
+                missing += tc.id()
+                ToolResponseMessage.ToolResponse(tc.id(), tc.name(), "Error: TOOL_RESPONSE_MISSING")
+            }
+        }
+        if (missing.isNotEmpty()) {
+            logger.warn {
+                "mergeToolResponsesInOrder: ${missing.size}개 toolCall 응답 누락 — " +
+                    "placeholder 에러 응답으로 쌍 무결성 보존 (ids=${missing.take(3)})"
+            }
+        }
+        return result
     }
 
     /**

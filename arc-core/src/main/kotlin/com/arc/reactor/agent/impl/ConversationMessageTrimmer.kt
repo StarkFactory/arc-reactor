@@ -102,6 +102,49 @@ internal class ConversationMessageTrimmer(
         totalTokens = trimLeadingMemoryMessages(messages, messageTokens, totalTokens, budget)
         // Phase 2: 마지막 UserMessage 이후의 도구 히스토리 쌍 제거
         trimToolHistory(messages, messageTokens, totalTokens, budget)
+        // R320 fix: budget과 무관한 최종 orphan 정리 — Phase 1/1.5/2의 budget-based 루프는
+        // 중간에 예산을 만족하면 멈추므로 ToolResponseMessage가 고아 상태로 선두(또는 leading
+        // SystemMessage 뒤)에 남을 수 있다. Spring AI는 선행 AssistantMessage(toolCalls) 없는
+        // ToolResponseMessage가 포함된 메시지 시퀀스를 API 에러로 거부하므로 정확성 불변으로 정리.
+        removeOrphanToolResponseMessages(messages, messageTokens)
+    }
+
+    /**
+     * R320 fix: orphan ToolResponseMessage를 제거한다.
+     *
+     * AssistantMessage(toolCalls) → ToolResponseMessage 쌍 무결성이 깨진 상태를 정리.
+     * 아래 두 경우를 제거한다:
+     * 1. 시퀀스 시작(SystemMessage 이후)에 ToolResponseMessage가 있는 경우
+     * 2. ToolResponseMessage 직전이 AssistantMessage(toolCalls) 가 아닌 경우
+     */
+    private fun removeOrphanToolResponseMessages(
+        messages: MutableList<Message>,
+        messageTokens: MutableList<Int>
+    ) {
+        var idx = 0
+        while (idx < messages.size) {
+            val msg = messages[idx]
+            if (msg !is ToolResponseMessage) {
+                idx++
+                continue
+            }
+            // idx 이전의 비-SystemMessage 앞 메시지가 AssistantMessage(toolCalls)인지 확인
+            val prev = if (idx > 0) messages[idx - 1] else null
+            val hasValidPrecedingAssistant =
+                prev is AssistantMessage && !prev.toolCalls.isNullOrEmpty()
+            if (!hasValidPrecedingAssistant) {
+                logger.warn {
+                    "orphan ToolResponseMessage 제거 (idx=$idx, 총 ${messages.size}건 중)"
+                }
+                messages.removeAt(idx)
+                if (idx < messageTokens.size) {
+                    messageTokens.removeAt(idx)
+                }
+                // 같은 idx를 재검사: 다음 메시지가 또 orphan일 수 있음
+                continue
+            }
+            idx++
+        }
     }
 
     /**

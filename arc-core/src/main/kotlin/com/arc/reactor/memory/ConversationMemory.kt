@@ -435,6 +435,13 @@ class InMemoryMemoryStore(
 internal const val PREVIEW_MAX_LENGTH = 50
 
 /**
+ * R320 fix: `JdbcMemoryStore.cleanupExpiredSessions`에서 `DELETE ... WHERE session_id IN (?, ?, ...)`
+ * 쿼리의 bind parameter 수 상한. PostgreSQL은 이론상 32,767까지 허용하지만 드라이버별
+ * 한계(1000)와 parse tree 오버헤드를 고려해 500 청크로 제한한다.
+ */
+internal const val CLEANUP_CHUNK_SIZE = 500
+
+/**
  * 대화 이력에서 미리보기 문자열을 추출한다.
  * 첫 번째 사용자 메시지를 [PREVIEW_MAX_LENGTH]자로 잘라 사용한다.
  */
