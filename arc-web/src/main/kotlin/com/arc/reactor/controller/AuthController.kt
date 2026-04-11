@@ -219,7 +219,13 @@ class AuthController(
         return ResponseEntity.ok(mapOf("message" to "Logged out"))
     }
 
-    /** aslan-iam RS256 토큰을 arc-reactor HS256 토큰으로 교환한다. */
+    /**
+     * aslan-iam RS256 토큰을 arc-reactor HS256 토큰으로 교환한다.
+     *
+     * R324 fix: `suspend fun`으로 전환. 내부 `IamTokenExchangeService.exchange`가 blocking
+     * HTTP(`HttpClient.send`)과 blocking JDBC(`userStore.findByEmail`)를 호출하므로 reactor
+     * Netty 이벤트 루프 스레드를 최대 5초간 블로킹했다. suspend로 만들고 IO 디스패처로 위임.
+     */
     @Operation(summary = "IAM 토큰을 arc-reactor 토큰으로 교환")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Token exchanged, arc-reactor JWT returned"),
@@ -228,7 +234,7 @@ class AuthController(
         ApiResponse(responseCode = "401", description = "IAM token verification failed")
     ])
     @PostMapping("/exchange")
-    fun exchange(@Valid @RequestBody request: TokenExchangeRequest): ResponseEntity<AuthResponse> {
+    suspend fun exchange(@Valid @RequestBody request: TokenExchangeRequest): ResponseEntity<AuthResponse> {
         if (iamTokenExchangeService == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 AuthResponse(token = "", user = null, error = "IAM token exchange is not enabled")
