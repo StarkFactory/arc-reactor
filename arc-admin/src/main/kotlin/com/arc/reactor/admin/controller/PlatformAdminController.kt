@@ -19,10 +19,13 @@ import com.arc.reactor.auth.User
 import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
 import com.arc.reactor.cache.ResponseCache
+import com.arc.reactor.support.throwIfCancellation
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
@@ -80,31 +83,38 @@ class PlatformAdminController(
 
     // ── 단계: 플랫폼 헬스 ──
 
-    /** 파이프라인 버퍼, 캐시, 활성 알림 등 플랫폼 전체 상태를 반환한다. */
+    /**
+     * 파이프라인 버퍼, 캐시, 활성 알림 등 플랫폼 전체 상태를 반환한다.
+     *
+     * R304 fix: suspend + IO 격리. alertStore.findActiveAlerts는 JDBC 경로.
+     */
     @Operation(summary = "Get platform health dashboard")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Platform health dashboard"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/health")
-    fun health(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun health(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
-        val snapshot = healthMonitor.snapshot()
-        val dashboard = PlatformHealthDashboard(
-            pipelineBufferUsage = snapshot.bufferUsagePercent,
-            pipelineDropRate = snapshot.droppedTotal.toDouble(),
-            pipelineWriteLatencyMs = snapshot.writeLatencyMs,
-            activeAlerts = alertStore.findActiveAlerts().size,
-            cacheExactHits = snapshot.cacheExactHitsTotal,
-            cacheSemanticHits = snapshot.cacheSemanticHitsTotal,
-            cacheMisses = snapshot.cacheMissesTotal
-        )
+        // R304: healthMonitor는 in-memory, alertStore는 JDBC → 묶어서 IO 격리
+        val dashboard = withContext(Dispatchers.IO) {
+            val snapshot = healthMonitor.snapshot()
+            PlatformHealthDashboard(
+                pipelineBufferUsage = snapshot.bufferUsagePercent,
+                pipelineDropRate = snapshot.droppedTotal.toDouble(),
+                pipelineWriteLatencyMs = snapshot.writeLatencyMs,
+                activeAlerts = alertStore.findActiveAlerts().size,
+                cacheExactHits = snapshot.cacheExactHitsTotal,
+                cacheSemanticHits = snapshot.cacheSemanticHitsTotal,
+                cacheMisses = snapshot.cacheMissesTotal
+            )
+        }
         return ResponseEntity.ok(dashboard)
     }
 
     // ── 단계: 테넌트 관리 ──
 
-    /** 이메일로 사용자를 조회한다. */
+    /** 이메일로 사용자를 조회한다. R304 fix: suspend + IO 격리. userStore JDBC. */
     @Operation(summary = "Get user by email")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "User details"),
@@ -113,7 +123,7 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "User not found")
     ])
     @GetMapping("/users/by-email")
-    fun getUserByEmail(
+    suspend fun getUserByEmail(
         @RequestParam email: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
@@ -124,11 +134,17 @@ class PlatformAdminController(
             return badRequestResponse("email is required")
         }
 
-        val user = userStore.findByEmail(normalizedEmail) ?: return notFoundResponse("User not found: $normalizedEmail")
+        // R304: blocking userStore.findByEmail을 IO dispatcher로 격리
+        val user = withContext(Dispatchers.IO) { userStore.findByEmail(normalizedEmail) }
+            ?: return notFoundResponse("User not found: $normalizedEmail")
         return ResponseEntity.ok(user.toAdminUserResponse())
     }
 
-    /** 사용자 역할을 변경한다. 자기 자신의 개발자 권한 삭제를 방지한다. */
+    /**
+     * 사용자 역할을 변경한다. 자기 자신의 개발자 권한 삭제를 방지한다.
+     *
+     * R304 fix: suspend + IO 격리. userStore + audit 모두 JDBC.
+     */
     @Operation(summary = "Update user role")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "User role updated"),
@@ -137,7 +153,7 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "User not found")
     ])
     @PostMapping("/users/{id}/role")
-    fun updateUserRole(
+    suspend fun updateUserRole(
         @PathVariable id: String,
         @Valid @RequestBody request: UpdateUserRoleRequest,
         exchange: ServerWebExchange
@@ -152,33 +168,38 @@ class PlatformAdminController(
             return badRequestResponse("cannot remove developer scope from current actor")
         }
 
-        val user = userStore.findById(id) ?: return notFoundResponse("User not found: $id")
-        val updated = userStore.update(user.copy(role = nextRole))
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "platform_user",
-            action = "ROLE_UPDATE",
-            actor = currentActor(exchange),
-            resourceType = "user",
-            resourceId = id,
-            detail = "role:${user.role.name}->${nextRole.name}"
-        )
-        return ResponseEntity.ok(updated.toAdminUserResponse())
+        // R304: blocking userStore + audit을 IO dispatcher로 격리
+        val result = withContext(Dispatchers.IO) {
+            val user = userStore.findById(id) ?: return@withContext null
+            val updated = userStore.update(user.copy(role = nextRole))
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_user",
+                action = "ROLE_UPDATE",
+                actor = currentActor(exchange),
+                resourceType = "user",
+                resourceId = id,
+                detail = "role:${user.role.name}->${nextRole.name}"
+            )
+            updated
+        } ?: return notFoundResponse("User not found: $id")
+        return ResponseEntity.ok(result.toAdminUserResponse())
     }
 
-    /** 전체 테넌트 목록을 조회한다. */
+    /** 전체 테넌트 목록을 조회한다. R304 fix: suspend + IO 격리. tenantStore JDBC. */
     @Operation(summary = "List all tenants")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of tenants"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/tenants")
-    fun listTenants(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun listTenants(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(tenantStore.findAll())
+        // R304: blocking tenantStore를 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { tenantStore.findAll() })
     }
 
-    /** ID로 단일 테넌트 상세를 조회한다. */
+    /** ID로 단일 테넌트 상세를 조회한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "Get tenant by ID")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant details"),
@@ -186,17 +207,22 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
     @GetMapping("/tenants/{id}")
-    fun getTenant(
+    suspend fun getTenant(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val tenant = tenantStore.findById(id)
+        // R304: blocking tenantStore.findById를 IO dispatcher로 격리
+        val tenant = withContext(Dispatchers.IO) { tenantStore.findById(id) }
             ?: return notFoundResponse("Tenant not found: $id")
         return ResponseEntity.ok(tenant)
     }
 
-    /** 신규 테넌트를 생성한다. slug 중복 시 400을 반환한다. */
+    /**
+     * 신규 테넌트를 생성한다. slug 중복 시 400을 반환한다.
+     *
+     * R304 fix: suspend + IO 격리. tenantService + audit JDBC.
+     */
     @Operation(summary = "Create a new tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "201", description = "Tenant created"),
@@ -204,35 +230,40 @@ class PlatformAdminController(
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/tenants")
-    fun createTenant(
+    suspend fun createTenant(
         @Valid @RequestBody request: CreateTenantRequest,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
+        val plan = try {
+            com.arc.reactor.admin.model.TenantPlan.valueOf(request.plan.uppercase())
+        } catch (_: IllegalArgumentException) {
+            return badRequestResponse("Invalid plan: ${request.plan}")
+        }
         return try {
-            val plan = try {
-                com.arc.reactor.admin.model.TenantPlan.valueOf(request.plan.uppercase())
-            } catch (_: IllegalArgumentException) {
-                return badRequestResponse("Invalid plan: ${request.plan}")
+            // R304: blocking tenantService.create + audit을 IO dispatcher로 격리
+            val tenant = withContext(Dispatchers.IO) {
+                val created = tenantService.create(request.name, request.slug, plan)
+                recordAdminAudit(
+                    store = adminAuditStore,
+                    category = "platform_tenant",
+                    action = "CREATE",
+                    actor = currentActor(exchange),
+                    resourceType = "tenant",
+                    resourceId = created.id,
+                    detail = "slug=${created.slug};plan=${created.plan.name}"
+                )
+                created
             }
-            val tenant = tenantService.create(request.name, request.slug, plan)
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "platform_tenant",
-                action = "CREATE",
-                actor = currentActor(exchange),
-                resourceType = "tenant",
-                resourceId = tenant.id,
-                detail = "slug=${tenant.slug};plan=${tenant.plan.name}"
-            )
             ResponseEntity.status(201).body(tenant)
         } catch (e: IllegalArgumentException) {
+            e.throwIfCancellation()
             logger.warn(e) { "테넌트 생성 요청 유효성 검증 실패" }
             badRequestResponse("Invalid request")
         }
     }
 
-    /** 테넌트를 일시 정지한다. */
+    /** 테넌트를 일시 정지한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "Suspend a tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant suspended"),
@@ -240,28 +271,33 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
     @PostMapping("/tenants/{id}/suspend")
-    fun suspendTenant(
+    suspend fun suspendTenant(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         return try {
-            val tenant = tenantService.suspend(id)
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "platform_tenant",
-                action = "SUSPEND",
-                actor = currentActor(exchange),
-                resourceType = "tenant",
-                resourceId = tenant.id
-            )
+            // R304: blocking tenantService.suspend + audit을 IO dispatcher로 격리
+            val tenant = withContext(Dispatchers.IO) {
+                val t = tenantService.suspend(id)
+                recordAdminAudit(
+                    store = adminAuditStore,
+                    category = "platform_tenant",
+                    action = "SUSPEND",
+                    actor = currentActor(exchange),
+                    resourceType = "tenant",
+                    resourceId = t.id
+                )
+                t
+            }
             ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
+            e.throwIfCancellation()
             notFoundResponse("Tenant not found: $id")
         }
     }
 
-    /** 정지된 테넌트를 재활성화한다. */
+    /** 정지된 테넌트를 재활성화한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "Activate a tenant")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant activated"),
@@ -269,98 +305,119 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
     @PostMapping("/tenants/{id}/activate")
-    fun activateTenant(
+    suspend fun activateTenant(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         return try {
-            val tenant = tenantService.activate(id)
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "platform_tenant",
-                action = "ACTIVATE",
-                actor = currentActor(exchange),
-                resourceType = "tenant",
-                resourceId = tenant.id
-            )
+            // R304: blocking tenantService.activate + audit을 IO dispatcher로 격리
+            val tenant = withContext(Dispatchers.IO) {
+                val t = tenantService.activate(id)
+                recordAdminAudit(
+                    store = adminAuditStore,
+                    category = "platform_tenant",
+                    action = "ACTIVATE",
+                    actor = currentActor(exchange),
+                    resourceType = "tenant",
+                    resourceId = t.id
+                )
+                t
+            }
             ResponseEntity.ok(tenant)
         } catch (e: IllegalArgumentException) {
+            e.throwIfCancellation()
             notFoundResponse("Tenant not found: $id")
         }
     }
 
-    /** 전체 테넌트별 요청 수, 비용, 쿼터 사용률 요약을 반환한다. */
+    /**
+     * 전체 테넌트별 요청 수, 비용, 쿼터 사용률 요약을 반환한다.
+     *
+     * R304 fix: suspend + IO 격리. tenantStore + queryService 모두 JDBC.
+     */
     @Operation(summary = "Get tenant analytics summary")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Tenant analytics summary"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/tenants/analytics")
-    fun tenantAnalytics(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun tenantAnalytics(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
-        val tenants = tenantStore.findAll()
-        // 전체 테넌트 사용량을 한 번에 조회 (N+1 → 배치 2쿼리)
-        val usageByTenant = try {
-            queryService.getAllTenantsCurrentMonthUsage()
-        } catch (e: Exception) {
-            logger.warn(e) { "전체 테넌트 사용량 배치 조회 실패" }
-            emptyMap()
-        }
-        val summaries = tenants.map { tenant ->
-            val usage = usageByTenant[tenant.id]
-            TenantAnalyticsSummary(
-                tenantId = tenant.id,
-                tenantName = tenant.name,
-                plan = tenant.plan.name,
-                requests = usage?.requests ?: 0,
-                cost = usage?.costUsd ?: java.math.BigDecimal.ZERO,
-                quotaUsagePercent = if (tenant.quota.maxRequestsPerMonth > 0 && usage != null)
-                    usage.requests.toDouble() / tenant.quota.maxRequestsPerMonth * 100 else 0.0
-            )
+        // R304: blocking tenantStore + queryService를 IO dispatcher로 격리
+        val summaries = withContext(Dispatchers.IO) {
+            val tenants = tenantStore.findAll()
+            val usageByTenant = try {
+                queryService.getAllTenantsCurrentMonthUsage()
+            } catch (e: Exception) {
+                e.throwIfCancellation()
+                logger.warn(e) { "전체 테넌트 사용량 배치 조회 실패" }
+                emptyMap()
+            }
+            tenants.map { tenant ->
+                val usage = usageByTenant[tenant.id]
+                TenantAnalyticsSummary(
+                    tenantId = tenant.id,
+                    tenantName = tenant.name,
+                    plan = tenant.plan.name,
+                    requests = usage?.requests ?: 0,
+                    cost = usage?.costUsd ?: java.math.BigDecimal.ZERO,
+                    quotaUsagePercent = if (tenant.quota.maxRequestsPerMonth > 0 && usage != null)
+                        usage.requests.toDouble() / tenant.quota.maxRequestsPerMonth * 100 else 0.0
+                )
+            }
         }
         return ResponseEntity.ok(summaries)
     }
 
     // ── 단계: 가격 정책 관리 ──
 
-    /** 등록된 모든 모델 가격 정책을 조회한다. */
+    /** 등록된 모든 모델 가격 정책을 조회한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "List all model pricing entries")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of model pricing entries"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/pricing")
-    fun listPricing(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun listPricing(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(pricingStore.findAll())
+        // R304: blocking pricingStore를 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { pricingStore.findAll() })
     }
 
-    /** 모델 가격 정책을 생성하거나 갱신한다 (upsert). */
+    /** 모델 가격 정책을 생성하거나 갱신한다 (upsert). R304 fix: suspend + IO 격리. */
     @Operation(summary = "Create or update model pricing")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Model pricing saved"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/pricing")
-    fun upsertPricing(
+    suspend fun upsertPricing(
         @Valid @RequestBody pricing: ModelPricing,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val saved = pricingStore.save(pricing)
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "platform_pricing",
-            action = "UPSERT",
-            actor = currentActor(exchange),
-            resourceType = "model_pricing",
-            resourceId = "${saved.provider}:${saved.model}"
-        )
+        // R304: blocking pricingStore + audit을 IO dispatcher로 격리
+        val saved = withContext(Dispatchers.IO) {
+            val s = pricingStore.save(pricing)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_pricing",
+                action = "UPSERT",
+                actor = currentActor(exchange),
+                resourceType = "model_pricing",
+                resourceId = "${s.provider}:${s.model}"
+            )
+            s
+        }
         return ResponseEntity.ok(saved)
     }
 
-    /** 응답 캐시 전체를 무효화한다. 캐시 미활성 시 안내 메시지를 반환한다. */
+    /**
+     * 응답 캐시 전체를 무효화한다. 캐시 미활성 시 안내 메시지를 반환한다.
+     *
+     * R304 fix: suspend + IO 격리. responseCache + audit blocking 경로.
+     */
     @Operation(summary = "Invalidate response cache entries")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Response cache invalidated"),
@@ -368,7 +425,7 @@ class PlatformAdminController(
         ApiResponse(responseCode = "500", description = "Cache invalidation failed")
     ])
     @PostMapping("/cache/invalidate")
-    fun invalidateResponseCache(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun invalidateResponseCache(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val cache = responseCache
         if (cache == null) {
@@ -381,14 +438,17 @@ class PlatformAdminController(
             )
         }
         return try {
-            cache.invalidateAll()
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "platform_cache",
-                action = "INVALIDATE_ALL",
-                actor = currentActor(exchange),
-                resourceType = "response_cache"
-            )
+            // R304: blocking cache.invalidateAll + audit을 IO dispatcher로 격리
+            withContext(Dispatchers.IO) {
+                cache.invalidateAll()
+                recordAdminAudit(
+                    store = adminAuditStore,
+                    category = "platform_cache",
+                    action = "INVALIDATE_ALL",
+                    actor = currentActor(exchange),
+                    resourceType = "response_cache"
+                )
+            }
             ResponseEntity.ok(
                 CacheInvalidationResponse(
                     invalidated = true,
@@ -397,6 +457,7 @@ class PlatformAdminController(
                 )
             )
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.warn(e) { "응답 캐시 무효화 실패" }
             ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "cache invalidation failed"))
@@ -405,43 +466,48 @@ class PlatformAdminController(
 
     // ── 단계: 알림 관리 ──
 
-    /** 등록된 모든 알림 규칙을 조회한다. */
+    /** 등록된 모든 알림 규칙을 조회한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "List all alert rules")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of alert rules"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/alerts/rules")
-    fun listAlertRules(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun listAlertRules(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(alertStore.findAllRules())
+        // R304: blocking alertStore.findAllRules를 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { alertStore.findAllRules() })
     }
 
-    /** 알림 규칙을 생성하거나 갱신한다 (upsert). */
+    /** 알림 규칙을 생성하거나 갱신한다 (upsert). R304 fix: suspend + IO 격리. */
     @Operation(summary = "Create or update an alert rule")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert rule saved"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/alerts/rules")
-    fun saveAlertRule(
+    suspend fun saveAlertRule(
         @Valid @RequestBody rule: AlertRule,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val saved = alertStore.saveRule(rule)
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "platform_alert",
-            action = "RULE_UPSERT",
-            actor = currentActor(exchange),
-            resourceType = "alert_rule",
-            resourceId = saved.id
-        )
+        // R304: blocking alertStore.saveRule + audit을 IO dispatcher로 격리
+        val saved = withContext(Dispatchers.IO) {
+            val s = alertStore.saveRule(rule)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_alert",
+                action = "RULE_UPSERT",
+                actor = currentActor(exchange),
+                resourceType = "alert_rule",
+                resourceId = s.id
+            )
+            s
+        }
         return ResponseEntity.ok(saved)
     }
 
-    /** 알림 규칙을 삭제한다. 존재하지 않으면 404를 반환한다. */
+    /** 알림 규칙을 삭제한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "Delete an alert rule")
     @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "Alert rule deleted"),
@@ -449,79 +515,97 @@ class PlatformAdminController(
         ApiResponse(responseCode = "404", description = "Alert rule not found")
     ])
     @DeleteMapping("/alerts/rules/{id}")
-    fun deleteAlertRule(
+    suspend fun deleteAlertRule(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return if (alertStore.deleteRule(id)) {
-            recordAdminAudit(
-                store = adminAuditStore,
-                category = "platform_alert",
-                action = "RULE_DELETE",
-                actor = currentActor(exchange),
-                resourceType = "alert_rule",
-                resourceId = id
-            )
+        // R304: blocking alertStore.deleteRule + audit을 IO dispatcher로 격리
+        val deleted = withContext(Dispatchers.IO) {
+            val ok = alertStore.deleteRule(id)
+            if (ok) {
+                recordAdminAudit(
+                    store = adminAuditStore,
+                    category = "platform_alert",
+                    action = "RULE_DELETE",
+                    actor = currentActor(exchange),
+                    resourceType = "alert_rule",
+                    resourceId = id
+                )
+            }
+            ok
+        }
+        return if (deleted) {
             ResponseEntity.noContent().build()
         } else {
             notFoundResponse("Alert rule not found: $id")
         }
     }
 
-    /** 플랫폼 전체에서 활성 상태인 알림 목록을 조회한다. */
+    /** 플랫폼 전체에서 활성 상태인 알림 목록을 조회한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "List all active alerts (platform-wide)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "List of active alerts"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @GetMapping("/alerts")
-    fun activeAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun activeAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        return ResponseEntity.ok(alertStore.findActiveAlerts())
+        // R304: blocking alertStore.findActiveAlerts를 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { alertStore.findActiveAlerts() })
     }
 
-    /** 활성 알림을 해결(resolve) 처리한다. */
+    /** 활성 알림을 해결(resolve) 처리한다. R304 fix: suspend + IO 격리. */
     @Operation(summary = "Resolve an alert")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert resolved"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/alerts/{id}/resolve")
-    fun resolveAlert(
+    suspend fun resolveAlert(
         @PathVariable id: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        alertStore.resolveAlert(id)
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "platform_alert",
-            action = "ALERT_RESOLVE",
-            actor = currentActor(exchange),
-            resourceType = "alert",
-            resourceId = id
-        )
+        // R304: blocking alertStore.resolveAlert + audit을 IO dispatcher로 격리
+        withContext(Dispatchers.IO) {
+            alertStore.resolveAlert(id)
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_alert",
+                action = "ALERT_RESOLVE",
+                actor = currentActor(exchange),
+                resourceType = "alert",
+                resourceId = id
+            )
+        }
         return ResponseEntity.ok().build()
     }
 
-    /** 알림 규칙 전체를 즉시 평가한다 (스케줄러 사이클 대기 없이). */
+    /**
+     * 알림 규칙 전체를 즉시 평가한다 (스케줄러 사이클 대기 없이).
+     *
+     * R304 fix: suspend + IO 격리. alertEvaluator 내부 JDBC 다량 호출.
+     */
     @Operation(summary = "Trigger alert evaluation now")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Alert evaluation completed"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
     @PostMapping("/alerts/evaluate")
-    fun evaluateAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun evaluateAlerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        alertEvaluator.evaluateAll()
-        recordAdminAudit(
-            store = adminAuditStore,
-            category = "platform_alert",
-            action = "ALERT_EVALUATE",
-            actor = currentActor(exchange),
-            resourceType = "alert_rule_set"
-        )
+        // R304: blocking alertEvaluator.evaluateAll + audit을 IO dispatcher로 격리
+        withContext(Dispatchers.IO) {
+            alertEvaluator.evaluateAll()
+            recordAdminAudit(
+                store = adminAuditStore,
+                category = "platform_alert",
+                action = "ALERT_EVALUATE",
+                actor = currentActor(exchange),
+                resourceType = "alert_rule_set"
+            )
+        }
         return ResponseEntity.ok(mapOf("status" to "evaluation complete"))
     }
 
