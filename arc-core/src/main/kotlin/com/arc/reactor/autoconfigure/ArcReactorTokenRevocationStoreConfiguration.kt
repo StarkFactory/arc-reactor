@@ -24,6 +24,11 @@ private val logger = KotlinLogging.logger {}
  * - `jdbc` -> JDBC store if JdbcTemplate exists, otherwise in-memory fallback
  * - `redis` -> Redis store when template exists and connectivity probe succeeds,
  *   otherwise in-memory fallback
+ *
+ * R288 보안 강화: `arc.reactor.auth.token-revocation-store-strict=true` 설정 시
+ * backend 미가용 시 silent fallback 대신 [BeanCreationException]을 throw하여 startup 실패.
+ * 운영자가 즉시 인지하고 조치할 수 있어 revoked tokens가 silent하게 영속성 없이
+ * 재검증되는 보안 회귀를 방지한다.
  */
 @Configuration
 class ArcReactorTokenRevocationStoreConfiguration {
@@ -44,11 +49,11 @@ class ArcReactorTokenRevocationStoreConfiguration {
                 if (jdbc != null) {
                     JdbcTokenRevocationStore(jdbc)
                 } else {
-                    logger.warn {
-                        "token-revocation-store=jdbc requested but JdbcTemplate is unavailable; " +
-                            "falling back to in-memory token revocation store"
-                    }
-                    InMemoryTokenRevocationStore()
+                    handleBackendUnavailable(
+                        backend = "jdbc",
+                        reason = "JdbcTemplate bean이 ApplicationContext에 없음",
+                        strict = authProperties.tokenRevocationStoreStrict
+                    )
                 }
             }
 
@@ -57,14 +62,44 @@ class ArcReactorTokenRevocationStoreConfiguration {
                 if (redisStore != null) {
                     redisStore
                 } else {
-                    logger.warn {
-                        "token-revocation-store=redis requested but Redis is unavailable; " +
-                            "falling back to in-memory token revocation store"
-                    }
-                    InMemoryTokenRevocationStore()
+                    handleBackendUnavailable(
+                        backend = "redis",
+                        reason = "RedisTemplate 미가용 또는 연결 probe 실패 또는 인스턴스화 실패",
+                        strict = authProperties.tokenRevocationStoreStrict
+                    )
                 }
             }
         }
+    }
+
+    /**
+     * R288: backend 미가용 시 strict 모드면 fail-fast, 아니면 in-memory fallback.
+     *
+     * fail-fast 모드는 운영자가 의도한 영속성 backend가 사용 불가능할 때 즉시 startup을
+     * 실패시켜 silent 보안 회귀(revoked tokens가 restart 시 모두 revalidate)를 방지한다.
+     *
+     * @throws org.springframework.beans.factory.BeanCreationException strict 모드일 때
+     */
+    private fun handleBackendUnavailable(
+        backend: String,
+        reason: String,
+        strict: Boolean
+    ): TokenRevocationStore {
+        if (strict) {
+            val message = "token-revocation-store=$backend requested but backend is unavailable: " +
+                "$reason. tokenRevocationStoreStrict=true 설정으로 fail-fast — silent in-memory " +
+                "fallback은 보안 회귀 위험(restart 시 revoked tokens 모두 revalidate)으로 차단됨. " +
+                "backend를 복구하거나 strict=false로 변경하여 dev 모드로 진행하세요."
+            logger.error { message }
+            throw org.springframework.beans.factory.BeanCreationException(message)
+        }
+        logger.warn {
+            "token-revocation-store=$backend requested but backend is unavailable: $reason. " +
+                "Falling back to in-memory token revocation store. " +
+                "WARNING: revoked tokens will not survive restart. " +
+                "Set arc.reactor.auth.token-revocation-store-strict=true to fail-fast in production."
+        }
+        return InMemoryTokenRevocationStore()
     }
 
     private fun buildRedisStoreOrNull(

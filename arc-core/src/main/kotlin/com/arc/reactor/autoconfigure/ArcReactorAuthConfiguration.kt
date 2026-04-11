@@ -103,7 +103,11 @@ class AuthConfiguration {
             loginRateLimitPerMinute = environment.getProperty(
                 "arc.reactor.auth.login-rate-limit-per-minute", Int::class.java, 10
             ),
-            tokenRevocationStore = parseTokenRevocationStore(environment)
+            tokenRevocationStore = parseTokenRevocationStore(environment),
+            // R288: production fail-fast 모드 (default false, backward compat)
+            tokenRevocationStoreStrict = environment.getProperty(
+                "arc.reactor.auth.token-revocation-store-strict", Boolean::class.java, false
+            )
         )
     }
 

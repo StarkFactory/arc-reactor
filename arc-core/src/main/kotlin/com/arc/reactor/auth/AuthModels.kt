@@ -90,6 +90,11 @@ data class User(
  * @param loginRateLimitPerMinute IP당 분당 최대 인증 시도 횟수 (무차별 대입 방지)
  * @param trustForwardedHeaders 클라이언트 IP 추출 시 X-Forwarded-For 헤더 신뢰 여부. 신뢰할 수 있는 리버스 프록시 뒤에서만 활성화
  * @param tokenRevocationStore 폐기된 JWT 토큰 ID 추적에 사용할 백엔드
+ * @param tokenRevocationStoreStrict R288: 백엔드 미가용 시 silent in-memory fallback 차단.
+ *   기본 false(backward compat). production에서는 true 권장 — Redis/JDBC가 일시적으로
+ *   미가용일 때 startup이 fail-fast로 실패하여 운영자가 즉시 인지하고 조치할 수 있다.
+ *   false로 두면 backend 장애 시 silent fallback이 발생하여 revoked tokens가 영속성 없이
+ *   restart 시 모두 revalidate되는 보안 회귀 위험이 있다.
  */
 data class AuthProperties(
     val jwtSecret: String = "",
@@ -105,5 +110,7 @@ data class AuthProperties(
     val loginRateLimitPerMinute: Int = 10,
     /** X-Forwarded-For 헤더 신뢰 여부. 신뢰할 수 있는 리버스 프록시 뒤에서만 활성화 */
     val trustForwardedHeaders: Boolean = false,
-    val tokenRevocationStore: TokenRevocationStoreType = TokenRevocationStoreType.MEMORY
+    val tokenRevocationStore: TokenRevocationStoreType = TokenRevocationStoreType.MEMORY,
+    /** R288: backend 미가용 시 fail-fast 모드 (production 권장 true) */
+    val tokenRevocationStoreStrict: Boolean = false
 )
