@@ -172,6 +172,13 @@
 - 요약: `cross_source_synthesis` 3회 연속 후 tie-break 다음 우선순위인 `safe_action_workflows`로 axis 전환. approval 경로 scanner가 P1 HIGH 1건 발견 — `ToolApprovalResponse.modifiedArguments`가 `ApprovalModels`/`Inmemory|Jdbc PendingApprovalStore`에는 완벽히 구현되어 있으나 `ToolCallOrchestrator`에 참조 0건이라 **사람이 승인 단계에서 파라미터를 수정해도 원본 LLM 인자로 실행**되던 silent 버그. HITL 핵심 UX("사람이 금액/대상 범위 조정하여 승인")가 모델/API 레이어까지만 동작하고 실행 레이어에서 완전히 무효화된 상태였다. `recordApprovalMetadata`에 side-channel 저장(`hitlModifiedArgs_{suffix}` — 기존 `hitlWaitMs_`/`hitlApproved_` 패턴 재사용) + `applyApprovedModifications` 헬퍼로 단일/병렬 두 실행 경로 모두에서 `toolCallContext.copy(toolParams=...)` 교체. 병렬 경로는 `serializeToolInput`으로 toolInput 재직렬화. 기존 `checkToolApproval` 체인의 `String?` signature 완전 불변 유지(minimum-invasive). 신규 end-to-end 회귀 1건(TrackingTool.capturedArgs로 amount 1000→500 수정 반영 검증 + orderId 비수정 필드 원본 유지 검증). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R336.md`
 
+### Round 337 — 2026-04-13T01:30+09:00 — cycle 10 8차: InMemoryPendingApprovalStore evict overflow 응답 전달
+
+- axis: `safe_action_workflows` (2회 연속)
+- 분류: `direct_value`
+- 요약: `InMemoryPendingApprovalStore`의 Caffeine bounded cache가 `maximumSize` 초과 시 entry를 evict하면서 `PendingEntry.deferred`를 완료시키지 않아 (1) 사용자 요청은 `withTimeoutOrNull` 전체 타임아웃(기본 5분)까지 대기, (2) 관리자 `approve(id)` 호출은 `getIfPresent(id) == null`이라 `false` 반환 → "승인 실패"로 보이는 silent UX 버그 수정. Caffeine builder에 `removalListener`를 등록해 `SIZE` cause evict 시 `deferred.complete(ToolApprovalResponse(approved=false, reason="Approval store overflow ..."))` 호출하여 대기 사용자에게 **즉시** overflow 응답 전달. `EXPLICIT`/`REPLACED`/`EXPIRED`/`COLLECTED` 등 정상 흐름은 무시. 테스트 전용 `internal forceCleanUp` helper 추가로 Caffeine 비동기 eviction을 deterministic하게 drain. 신규 회귀 1건(maxPending=1, 두 요청 중 W-TinyLFU admission 결과에 따라 "하나라도" overflow 응답을 받는지 검증). 기존 R310 bounded cache 회귀 전부 유지 PASS. 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R337.md`
+
 ---
 
 ## 11. 아카이브

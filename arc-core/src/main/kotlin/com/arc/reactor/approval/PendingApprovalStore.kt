@@ -2,6 +2,7 @@ package com.arc.reactor.approval
 
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.github.benmanes.caffeine.cache.RemovalCause
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
@@ -103,10 +104,52 @@ class InMemoryPendingApprovalStore(
         val deferred: CompletableDeferred<ToolApprovalResponse>
     )
 
-    /** approvalId → 대기 엔트리 매핑 (Caffeine bounded cache) */
+    /**
+     * approvalId → 대기 엔트리 매핑 (Caffeine bounded cache)
+     *
+     * **R337 fix**: `RemovalListener`를 등록해 `maximumSize` 초과로 인한 `SIZE` evict 시
+     * 대기 중인 `CompletableDeferred`를 **overflow 응답으로 즉시 완료**한다. 이전 구현은
+     * evict 후 `deferred`가 완료되지 않아 (1) 사용자 요청은 `withTimeoutOrNull`의 전체
+     * 타임아웃이 끝날 때까지 대기 + (2) 관리자가 `approve(id)`를 호출해도
+     * `pending.getIfPresent(id) == null`이라 `false`를 반환하여 "승인 실패"로 보이는
+     * silent UX 버그가 있었다.
+     *
+     * `SIZE`만 처리하고 `EXPLICIT`(정상 `invalidate`) / `REPLACED`(`put` 재호출) 등은
+     * 정상 흐름이므로 건드리지 않는다. `approve`/`reject` 경로는 이미 `deferred.complete`를
+     * 먼저 호출한 뒤 `finally`에서 `invalidate`를 호출하므로 listener는 이중 완료를
+     * 시도해도 `CompletableDeferred.complete`가 idempotent하게 `false`만 반환한다.
+     */
     private val pending: Cache<String, PendingEntry> = Caffeine.newBuilder()
         .maximumSize(maxPending)
+        .removalListener<String, PendingEntry> { key, entry, cause ->
+            if (cause == RemovalCause.SIZE && entry != null) {
+                val completed = entry.deferred.complete(
+                    ToolApprovalResponse(
+                        approved = false,
+                        reason = "Approval store overflow — request dropped (maxPending exceeded)"
+                    )
+                )
+                if (completed) {
+                    logger.warn {
+                        "R337: 승인 저장소 overflow evict 로 대기 엔트리 드롭 — " +
+                            "id=$key, tool=${entry.request.toolName}, user=${entry.request.userId}"
+                    }
+                }
+            }
+        }
         .build()
+
+    /**
+     * R337: Caffeine의 비동기 eviction을 즉시 실행하기 위한 테스트 전용 helper.
+     *
+     * Caffeine은 `maximumSize` 초과 시 eviction을 **비동기**로 스케줄하기 때문에
+     * `put` 직후 곧바로 eviction을 관찰할 수 없다. 테스트에서 R337 회귀를 재현하려면
+     * 명시적 `cleanUp()`으로 maintenance 태스크를 drain해야 한다. production 경로에서는
+     * Caffeine의 자동 maintenance에 맡기고 이 메서드를 호출하지 않는다.
+     */
+    internal fun forceCleanUp() {
+        pending.cleanUp()
+    }
 
     override suspend fun requestApproval(
         runId: String,
