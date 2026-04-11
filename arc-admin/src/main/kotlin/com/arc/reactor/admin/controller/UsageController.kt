@@ -23,6 +23,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Usage", description = "사용자별 사용량 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/users/usage")
 class UsageController(
     private val metricQueryService: MetricQueryService,

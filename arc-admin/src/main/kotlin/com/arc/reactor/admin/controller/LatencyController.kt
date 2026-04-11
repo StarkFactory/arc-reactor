@@ -23,6 +23,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Latency", description = "레이턴시 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/metrics/latency")
 class LatencyController(
     private val metricQueryService: MetricQueryService,

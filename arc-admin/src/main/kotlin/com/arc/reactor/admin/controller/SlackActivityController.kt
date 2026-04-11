@@ -22,6 +22,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Slack Activity", description = "Slack 활동 통계 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/slack-activity")
 class SlackActivityController(
     private val jdbc: JdbcTemplate,

@@ -22,6 +22,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Conversation Analytics", description = "대화 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/conversation-analytics")
 class ConversationAnalyticsController(
     private val jdbc: JdbcTemplate,

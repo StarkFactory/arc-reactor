@@ -22,6 +22,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Eval Dashboard", description = "평가 결과 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/evals")
 class EvalDashboardController(
     private val jdbc: JdbcTemplate,

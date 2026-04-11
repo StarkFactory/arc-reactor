@@ -22,6 +22,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Tool Calls", description = "도구 호출 상세 이력 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/tool-calls")
 class ToolCallController(
     private val jdbc: JdbcTemplate,

@@ -22,6 +22,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Token Cost", description = "토큰 소비/비용 분석 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/token-cost")
 class TokenCostController(
     private val jdbc: JdbcTemplate,

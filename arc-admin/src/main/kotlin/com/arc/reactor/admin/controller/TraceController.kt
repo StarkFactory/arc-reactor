@@ -24,6 +24,10 @@ import java.time.temporal.ChronoUnit
  */
 @Tag(name = "Traces", description = "실행 트레이스 (ADMIN)")
 @RestController
+@ConditionalOnProperty(
+    prefix = "arc.reactor.admin", name = ["enabled"],
+    havingValue = "true", matchIfMissing = false
+)
 @RequestMapping("/api/admin/traces")
 class TraceController(
     private val jdbc: JdbcTemplate,
