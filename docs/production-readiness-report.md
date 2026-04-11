@@ -18877,3 +18877,187 @@ JSON `status` 필드를 Grafana의 status history 패널에 매핑.
 #### 📊 R257 요약
 
 🔗 **DoctorController summary Content Negotiation 완료 — R244 패턴 완결** — R244에서 `report()` 엔드포인트에만 적용했던 Content Negotiation을 형제 엔드포인트 `/summary`에도 추가하여 **두 엔드포인트 모두 3가지 포맷 지원**(JSON/text/plain/text/markdown) 달성. `resolveFormat()` 헬퍼와 `ReportFormat` enum은 R244 그대로 재사용하여 일관성 확보. 신규 private 헬퍼 2개 추가: `formatSummaryAsPlainText()`는 `"4 섹션 — OK 3, WARN 1 | 경고 포함 | 2026-04-11T11:30:00Z"` 형태 한 줄 텍스트 (한국어 `overallStatusLabel` 활용), `formatSummaryAsMarkdown()`은 `"*[WARN]* 4 섹션 — OK 3, WARN 1 _(2026-04-11T11:30:00Z)_"` 형태 Slack mrkdwn 한 줄 (OK/WARN/ERROR 3단계 bold badge). 두 헬퍼 모두 summary는 **모든 포맷에서 한 줄** 유지 — report(멀티라인)와 의도적 차별화. 기존 JSON 맵 응답은 backward compat 완전 유지 — Accept 없음/`*/*`/`application/json` 모두 기존 `{summary, status, generatedAt, allHealthy}` 맵 반환. `@GetMapping("/summary", produces = [JSON, TEXT_PLAIN, TEXT_MARKDOWN])` 확장. ERROR/WARN/OK HTTP 상태와 `X-Doctor-Status` 헤더는 포맷과 무관하게 보존. 수정 파일 2개 (Controller +55줄 / Test +130줄). 신규 테스트 **10 PASS** (R257SummaryContentNegotiation @Nested): Accept 없음 JSON 맵 / application/json JSON 맵 / text/plain 한 줄 (섹션/한국어/파이프) / text/markdown WARN badge / text/markdown OK badge / text/markdown ERROR badge + 500 / text/plain ERROR + 500 + 오류 포함 / wildcard JSON / 여러 타입 markdown 우선 / USER 403 유지. 기존 32 tests backward compat 유지 → **총 42 DoctorControllerTest PASS**. 전체 `arc-admin` + `com.arc.reactor.diagnostics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R257**. swagger-mcp 8181 **88 라운드 연속**. **R244 패턴 완결**: 두 엔드포인트 매트릭스 (report JSON/plain/markdown + summary JSON/plain/markdown)가 **2/2 완성**. 이제 CLI 프로브 (`curl -H "Accept: text/plain" /summary`), Slack 봇 한 줄 알림 (`curl -H "Accept: text/markdown" /summary | slack-send`), Grafana status 위젯(기존 JSON 유지) 3가지 워크플로우를 같은 엔드포인트에서 지원. 운영자는 상황에 맞는 포맷을 클라이언트에서 선택만 하면 된다.
+
+### Round 258 — 🐛 2026-04-11T22:00+09:00 — RetryTest flaky 수정: standaloneStatusPattern 거짓 양성 버그
+
+**작업 종류**: 버그 수정 — pre-existing flaky 조사 및 해결 (QA 측정 없음)
+**Directive 패턴**: 코드 품질 개선 (R254/R255에서 관찰된 이슈)
+**완료 태스크**: #133
+
+#### 작업 배경
+
+R254와 R255에서 **두 번 연속 관찰된** pre-existing flaky 이슈: `RetryTest.숫자가 포함된 오류 메시지에 대해 거짓 양성이 발생하지 않아야 한다`. 테스트가 때때로 실패하여 빌드 안정성을 해치고 있었다.
+
+R258은 이 문제를 조사하여 **단순 test flakiness가 아니라 명백한 regex 버그**임을 확인하고 수정했다. 테스트는 실제로는 **항상 실패해야 했는데**, 다른 테스트와의 실행 순서에 따라 mock 상태가 공유되면서 우연히 통과하는 경우가 있었을 뿐이다.
+
+#### 근본 원인 분석
+
+**버그 위치**: `arc-core/.../AgentErrorPolicy.kt` line 13
+
+```kotlin
+// 이전 패턴 (R258 전)
+private val standaloneStatusPattern = Regex("(?:^|\\s)(429|500|502|503|504)(?:\\s|$|\\.)")
+```
+
+**문제**: 패턴이 **"공백에 둘러싸인 상태 코드"** 를 매치하는데, 이는 다음 거짓 양성을 발생시킨다:
+
+| 입력 | 기존 동작 | 의도 |
+|------|----------|------|
+| `"Processed 500 records successfully"` | ✗ 매치 (거짓 양성) | 일시적 오류 아님 |
+| `"Uploaded 429 files to bucket"` | ✗ 매치 (거짓 양성) | 일시적 오류 아님 |
+| `"Deleted 503 old records"` | ✗ 매치 (거짓 양성) | 일시적 오류 아님 |
+| `"429 Too Many Requests"` | ✓ 매치 (정상) | Google AI 스타일 |
+| `"ClientException: 500 Internal"` | ✓ 매치 (정상) | 콜론 뒤 |
+
+**실패 경로 재현**:
+```
+1. 테스트 실행: RuntimeException("Processed 500 records successfully") throw
+2. RetryExecutor.isTransient(e) 호출
+3. defaultTransientErrorClassifier → fullMessageChain → "processed 500 records successfully"
+4. standaloneStatusPattern 체크: " 500 " (공백-500-공백) → MATCH ✗
+5. 일시적 오류로 판정 → 재시도 → 3 calls
+6. 테스트 assertEquals(1, callCount) 실패: expected 1, was 3
+```
+
+**테스트 주석과 실제 동작 불일치**:
+```kotlin
+// 이 맥락에서 "500"은 일시적 오류가 아니므로 재시도하면 안 됩니다
+// 정규식이 단어 경계를 사용하므로 "Processed 500 records"의 "500"은 매치되지 않습니다
+```
+주석은 "단어 경계"를 언급하지만 실제 패턴은 **공백 경계만** 체크했다. 작성자의 의도와 구현이 어긋난 고전적 regex 버그.
+
+#### 수정 전략
+
+**새 패턴 (R258 후)**:
+```kotlin
+private val standaloneStatusPattern = Regex("(?:^|:\\s*|\\n\\s*)(429|500|502|503|504)(?:\\s|$|\\.)")
+```
+
+**변경점**: 이전 prefix `(?:^|\\s)` → `(?:^|:\\s*|\\n\\s*)`
+- `^` — 메시지 시작에서 매치 (유지)
+- `:\s*` — 콜론 뒤 (옵션 공백 포함) **신규**
+- `\n\s*` — 개행 뒤 (멀티라인 스택 트레이스) **신규**
+- ~~`\s`~~ — **제거**: 중간 공백 매치 제거 (거짓 양성 원인)
+
+**매치 검증 (수정 후)**:
+
+| 입력 | 새 동작 | 비고 |
+|------|---------|------|
+| `"Processed 500 records successfully"` | ✓ 매치 안 함 (정상) | 거짓 양성 해소 |
+| `"429 Too Many Requests"` | ✓ 매치 (정상) | `^` prefix |
+| `"ClientException: 429 Resource exhausted"` | ✓ 매치 (정상) | `:\s*` prefix |
+| `"Request failed:\n500 Internal"` | ✓ 매치 (정상) | `\n\s*` prefix (신규 지원) |
+| `"HTTP 500 returned"` | ✓ 매치 (정상) | `httpStatusPattern` (별도) |
+| `"Uploaded 429 files"` | ✓ 매치 안 함 (정상) | 중간 공백 제거 |
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../AgentErrorPolicy.kt` | `standaloneStatusPattern` regex 수정 + R258 주석 강화 (+14줄 / -1줄) |
+| `test/.../AgentErrorPolicyTest.kt` | R258 regression 테스트 **7개** 추가 (+85줄) |
+
+**코드 변경은 regex 한 줄** — 하지만 수십 라인의 주석과 7개의 회귀 방지 테스트로 **의도를 명확히** 했다.
+
+#### 테스트 결과
+
+**AgentErrorPolicyTest — R258 신규 7 tests PASS**:
+```
+- Processed 500 records는 거짓 양성이 아니어야 한다
+- 메시지 중간의 상태 코드 숫자는 매치되지 않아야 한다 (6개 거짓 양성 후보 리스트)
+  - "Uploaded 429 files to bucket"
+  - "Deleted 500 old records"
+  - "Processed 502 events from queue"
+  - "Scheduled 503 jobs for cleanup"
+  - "Received 504 webhooks"
+  - "The API returned 500 results in the response"
+- 메시지 시작의 429는 여전히 매치되어야 한다 (Google AI 스타일)
+- 콜론 뒤의 상태 코드는 매치되어야 한다 (4개 legitimate 케이스)
+  - "ClientException: 429 Resource has been exhausted"
+  - "HttpServerErrorException: 500 Internal Server Error"
+  - "Error: 503 Service Unavailable"
+  - "Failed to call upstream: 502 Bad Gateway"
+- HTTP keyword 패턴은 위치와 무관하게 매치 유지 (회귀 방지)
+- rate limit 키워드는 위치와 무관하게 매치 유지 (회귀 방지)
+- 개행 뒤의 상태 코드도 매치되어야 한다 (신규 지원)
+```
+
+**기존 회귀**:
+- `RetryTest.숫자가 포함된 오류 메시지에 대해 거짓 양성이 발생하지 않아야 한다` → **PASS** (R254/R255에서 2회 실패했던 테스트)
+- 전체 `com.arc.reactor.agent.RetryTest` PASS (9 tests)
+- 전체 `com.arc.reactor.agent.impl.RetryExecutorTest` PASS
+- 전체 `com.arc.reactor.agent.impl.RetryExecutorMatrixTest` PASS
+- 전체 `com.arc.reactor.agent.*` + `com.arc.reactor.agent.impl.*` PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 미접근
+- ✅ regex 수정은 에러 분류 로직만 — MCP tool 호출 경로와 독립
+- ✅ 정당한 LLM API 에러(`"429 Too Many Requests"`, `"ClientException: 500"`)는 여전히 재시도 — **LLM API 호출 재시도 동작 불변**
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### 영향 분석 — 정당한 재시도 경로 유지 확인
+
+**R258 수정이 실수로 중요한 재시도 경로를 차단했는지** 검증하기 위해 프로덕션에서 자주 등장하는 에러 메시지 패턴을 테스트로 나열:
+
+| 실제 프로덕션 에러 메시지 | 기대 | R258 실제 |
+|--------------------------|------|-----------|
+| `"429 Too Many Requests from Google AI"` | 재시도 | ✓ 재시도 |
+| `"ClientException: 429 Resource has been exhausted"` | 재시도 | ✓ 재시도 |
+| `"HttpServerErrorException: 500 Internal Server Error"` | 재시도 | ✓ 재시도 |
+| `"Rate limit exceeded"` | 재시도 | ✓ 재시도 |
+| `"Quota exceeded for project"` | 재시도 | ✓ 재시도 |
+| `"Request timed out"` | 재시도 | ✓ 재시도 |
+| `"Connection refused"` | 재시도 | ✓ 재시도 |
+| `"Service unavailable"` | 재시도 | ✓ 재시도 |
+
+**정당한 재시도 경로는 8/8 모두 유지** — 거짓 양성만 제거하고 진짜 양성은 보존했다.
+
+#### Pre-existing flaky 이슈의 본질
+
+이번 조사로 확인한 것: **테스트 flakiness로 보였던 문제가 실제로는 deterministic 버그**였다.
+
+- **왜 가끔 통과했나?**: JUnit이 다른 테스트를 먼저 실행하면서 mock 상태가 남아있거나, 여러 @Nested 클래스의 실행 순서가 달라지면서 `fixture.requestSpec.call()` answers가 인접 테스트의 설정을 물려받는 경우가 있었을 것. (실제 코드 경로는 항상 3회 재시도했지만, 일부 상황에서 초기 상태가 달라 다르게 나타남)
+- **왜 R254/R255에서 baseline도 실패했나?**: baseline이라도 regex 버그는 그대로 존재. 특정 실행 환경에서 실행 순서가 바뀌어 노출됐을 뿐.
+
+**교훈**: "가끔 실패하는 테스트는 항상 deterministic bug의 징후" — 단순히 재시도로 넘기지 말고 근본 조사를 해야 한다.
+
+#### 연속 지표
+
+| 지표 | R257 | R258 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 88 | **89** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R257 | **4/5 + R224~R258** | - |
+| Pre-existing flaky 이슈 | 1건 관찰 | **해결** ✅ | 수정 |
+| Regression 방지 테스트 | - | **7개 추가** | 신규 |
+
+#### 다음 Round 후보
+
+- **R259+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용
+  3. **Grafana 대시보드 JSON 확장** — R256 문서의 9개 stage 쿼리 통합
+  4. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254 분리 작업
+  5. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R258 요약
+
+🐛 **RetryTest flaky 수정 — standaloneStatusPattern 거짓 양성 버그** — R254/R255에서 두 번 관찰된 "pre-existing flaky" 이슈를 조사하여 **실제로는 deterministic regex 버그**임을 확인하고 수정. 이전 패턴 `(?:^|\s)(429|500|...)(?:\s|$|\.)`가 "Processed **500** records successfully" 같은 **데이터 카운트 숫자를 서버 오류로 오분류**하여 불필요한 재시도(3회)를 유발하던 버그. 원인: 작성자는 "단어 경계"를 의도했다고 주석에 명시했지만 실제 정규식은 **공백 경계만** 체크. 수정: prefix를 `(?:^|:\s*|\n\s*)`로 강화하여 메시지 시작 / 콜론 뒤 / 개행 뒤에서만 상태 코드 매치. 이전의 중간 공백 매치(`\s`) 제거로 거짓 양성 해소. 코드 변경은 regex 한 줄이지만 의도를 명확히 하기 위해 14줄 상세 주석 추가 및 7개 regression 방지 테스트 추가. 회귀 방지 테스트: Processed 500 records 거짓 양성 방지 / 메시지 중간 상태 코드 6개 거짓 양성 후보 방지 / 메시지 시작 429 legitimate 매치 유지 / 콜론 뒤 4개 legitimate 케이스 매치 유지 / HTTP keyword 패턴 회귀 방지 / rate limit 키워드 회귀 방지 / 개행 뒤 매치 신규 지원. **정당한 재시도 경로 8/8 유지 확인** — Google AI 스타일 "429 Too Many", Spring AI `HttpServerErrorException: 500`, `"Rate limit exceeded"`, `"Quota exceeded"`, `"Request timed out"`, `"Connection refused"`, `"Service unavailable"` 모두 여전히 재시도. `RetryTest.숫자가 포함된 오류 메시지에 대해 거짓 양성이 발생하지 않아야 한다` 테스트 → **PASS** (R254/R255에서 2회 실패). 전체 `com.arc.reactor.agent.*` + `com.arc.reactor.agent.impl.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R258**. swagger-mcp 8181 **89 라운드 연속**. **교훈**: "가끔 실패하는 테스트는 deterministic bug의 징후" — R254/R255에서 단순히 "pre-existing flaky"로 넘기지 말고 즉시 조사했어야 했다. R258 수정은 빌드 안정성 개선 + 미래 QA 측정 루프 재개 시 신뢰할 수 있는 baseline 확보의 기반.

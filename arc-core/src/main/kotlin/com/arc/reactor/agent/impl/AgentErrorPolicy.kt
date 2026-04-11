@@ -9,8 +9,24 @@ import com.arc.reactor.resilience.CircuitBreakerOpenException
  */
 private val httpStatusPattern = Regex("(status|http|error|code)[^a-z0-9]*(429|500|502|503|504)")
 
-/** 쿼터 소진 패턴 — Google GenAI 등 일부 SDK는 429를 prefix 없이 노출한다. */
-private val standaloneStatusPattern = Regex("(?:^|\\s)(429|500|502|503|504)(?:\\s|$|\\.)")
+/**
+ * 쿼터 소진 패턴 — Google GenAI 등 일부 SDK는 상태 코드를 prefix 없이 노출한다.
+ *
+ * R258 수정: 이전 패턴 `(?:^|\s)(429|500|...)(?:\s|$|\.)`는 "Processed 500 records
+ * successfully" 같은 데이터 카운트를 서버 오류로 오분류하는 거짓 양성 버그가 있었다.
+ * 새 패턴은 상태 코드를 **메시지 시작** 또는 **콜론/개행 뒤**에서만 매치하여 오류 맥락을
+ * 명확히 한다.
+ *
+ * 매치되는 패턴:
+ * - `"429 Too Many Requests"` — 메시지 시작 ✓
+ * - `"ClientException: 429 Resource has been exhausted"` — 콜론 뒤 ✓
+ * - `"HTTP 500"` — 이미 httpStatusPattern에 잡힘
+ * - `"Error:\n500"` — 개행 뒤 ✓
+ *
+ * 매치되지 않는 패턴 (이전 패턴은 오매치):
+ * - `"Processed 500 records successfully"` — 중간 공백만 있음 → 거짓 양성 방지 ✓
+ */
+private val standaloneStatusPattern = Regex("(?:^|:\\s*|\\n\\s*)(429|500|502|503|504)(?:\\s|$|\\.)")
 
 /**
  * 예외 체인 전체의 메시지를 소문자로 연결하여 반환한다.

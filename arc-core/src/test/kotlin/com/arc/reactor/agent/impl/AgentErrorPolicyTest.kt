@@ -138,4 +138,104 @@ class AgentErrorPolicyTest {
         val chain = e.fullMessageChain()
         assertTrue(chain.contains("self-referencing"), "최상위 메시지는 포함되어야 한다")
     }
+
+    // ========================================================================
+    // R258: standaloneStatusPattern 거짓 양성 방지 (regression test)
+    // ========================================================================
+
+    @Test
+    fun `R258 Processed 500 records는 거짓 양성이 아니어야 한다`() {
+        // "Processed 500 records successfully" — 500은 데이터 카운트, 서버 오류가 아님
+        // 이전 패턴은 공백만 체크해서 매치됐지만, 새 패턴은 메시지 시작/콜론 뒤만 매치
+        assertFalse(
+            policy.isTransient(RuntimeException("Processed 500 records successfully"))
+        ) {
+            "데이터 카운트로서의 500은 일시적 오류가 아님"
+        }
+    }
+
+    @Test
+    fun `R258 메시지 중간의 상태 코드 숫자는 매치되지 않아야 한다`() {
+        // 다양한 거짓 양성 후보들
+        val falsePositives = listOf(
+            "Uploaded 429 files to bucket",
+            "Deleted 500 old records",
+            "Processed 502 events from queue",
+            "Scheduled 503 jobs for cleanup",
+            "Received 504 webhooks",
+            "The API returned 500 results in the response"
+        )
+        falsePositives.forEach { msg ->
+            assertFalse(
+                policy.isTransient(RuntimeException(msg))
+            ) {
+                "중간에 위치한 상태 코드 숫자는 매치되면 안 됨: '$msg'"
+            }
+        }
+    }
+
+    @Test
+    fun `R258 메시지 시작의 429는 여전히 매치되어야 한다`() {
+        // 원래 standaloneStatusPattern이 잡아야 하는 정당한 케이스 — 유지 확인
+        assertTrue(
+            policy.isTransient(RuntimeException("429 Too Many Requests from Google AI"))
+        ) {
+            "메시지 시작의 429는 정상 매치 (Google AI 스타일)"
+        }
+    }
+
+    @Test
+    fun `R258 콜론 뒤의 상태 코드는 매치되어야 한다`() {
+        val legitimate = listOf(
+            "ClientException: 429 Resource has been exhausted",
+            "HttpServerErrorException: 500 Internal Server Error",
+            "Error: 503 Service Unavailable",
+            "Failed to call upstream: 502 Bad Gateway"
+        )
+        legitimate.forEach { msg ->
+            assertTrue(
+                policy.isTransient(RuntimeException(msg))
+            ) {
+                "콜론 뒤의 상태 코드는 정상 매치: '$msg'"
+            }
+        }
+    }
+
+    @Test
+    fun `R258 HTTP keyword 패턴은 위치와 무관하게 매치 유지`() {
+        // httpStatusPattern은 이 라운드에서 변경되지 않음 — 유지 확인
+        assertTrue(
+            policy.isTransient(RuntimeException("Request failed with status 429"))
+        )
+        assertTrue(
+            policy.isTransient(RuntimeException("HTTP 503 returned by upstream"))
+        )
+        assertTrue(
+            policy.isTransient(RuntimeException("Error code 500 received"))
+        )
+    }
+
+    @Test
+    fun `R258 rate limit 키워드는 위치와 무관하게 매치 유지`() {
+        assertTrue(
+            policy.isTransient(RuntimeException("received rate limit response"))
+        )
+        assertTrue(
+            policy.isTransient(RuntimeException("too many requests from client"))
+        )
+        assertTrue(
+            policy.isTransient(RuntimeException("quota exceeded for project"))
+        )
+    }
+
+    @Test
+    fun `R258 개행 뒤의 상태 코드도 매치되어야 한다`() {
+        // 멀티라인 스택 트레이스 등에서 나타날 수 있는 패턴
+        val multiline = "Request failed:\n429 Too Many Requests"
+        assertTrue(
+            policy.isTransient(RuntimeException(multiline))
+        ) {
+            "개행 뒤 상태 코드 매치"
+        }
+    }
 }
