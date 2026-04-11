@@ -1,6 +1,6 @@
 # Assistant Quality Gates
 
-> 목적: Arc Reactor를 상용급 assistant로 개선할 때 각 Round, 새벽 자동 실행, 출시 판단에 공통으로 쓰는 pass/fail 기준
+> 목적: Arc Reactor를 상용급 assistant이자 스스로 개선 가능한 agent loop로 만들기 위해 각 Round, 새벽 자동 실행, 출시 판단에 공통으로 쓰는 pass/fail 기준
 > 기본 범위: Jira / Confluence / Bitbucket 중심 assistant
 
 ---
@@ -15,6 +15,7 @@
 - `round_gate`
 - `overnight_gate`
 - `release_gate`
+- `self_dev_round_gate`
 
 ---
 
@@ -30,6 +31,17 @@
 | `empty_or_timeout_rate` | 빈 응답 또는 timeout 비율 |
 | `safe_action_correctness` | preview/approval/write-policy가 정확히 동작하는가 |
 | `evidence_completeness` | baseline, after, test, report evidence가 모두 남았는가 |
+
+### 2.1 루프 건강도 메트릭
+
+| 메트릭 | 의미 |
+|---|---|
+| `eval_case_execution_rate` | 계획한 eval case를 실제로 실행했는가 |
+| `backlog_linkage_rate` | 각 Round가 backlog item과 실제로 연결돼 있는가 |
+| `report_schema_compliance` | `R{N}.md` 필수 필드가 빠짐없이 채워졌는가 |
+| `gate_decision_completeness` | round/overnight/release/self-dev gate 판정이 기록됐는가 |
+| `recovery_candidate_presence` | 실패 Round에서 다음 복구 작업 1개가 남았는가 |
+| `loop_health_delta` | self-development Round가 루프 자체를 개선했는가 |
 
 ---
 
@@ -83,6 +95,22 @@
 | safe_action_correctness | 100% |
 | evidence_completeness | 100% |
 
+### 3.4 self_dev_round_gate
+
+`self_development` Round에서 추가로 만족해야 하는 기준이다.
+
+| 메트릭 | 기준 |
+|---|---|
+| self_dev_item linkage | 100% |
+| eval_case_execution_rate | 100% |
+| backlog_linkage_rate | 100% |
+| report_schema_compliance | 100% |
+| gate_decision_completeness | 100% |
+| loop_health_delta | 최소 1개 명시 |
+| product metric guardrail | touched product metric baseline 악화 금지 |
+
+하나라도 어기면 self-development Round는 실패다.
+
 ---
 
 ## 4. 판정 규칙
@@ -103,6 +131,11 @@
 - push 금지
 - 실패 보고서 작성 후 stop
 
+### Blue
+
+- self-development Round가 self_dev_round_gate까지 통과
+- 다음 product_improvement Round의 입력 품질이 직접 좋아진 상태
+
 ---
 
 ## 5. Atlassian 기본 운영 규칙
@@ -118,6 +151,9 @@
 
 Swagger나 기타 work 도구는 보조 지표로 다룬다.
 
+self-development도 허용되지만, 기본 원칙은 **product_improvement 우선**이다.
+최근 5개 Round에서 self-development가 2개를 넘으면 다음 Round는 product_improvement가 기본이다.
+
 ---
 
 ## 6. Round 보고서에 남겨야 할 gate 필드
@@ -132,6 +168,7 @@ Swagger나 기타 work 도구는 보조 지표로 다룬다.
 - round_gate: `PASS | FAIL`
 - overnight_gate: `PASS | FAIL | NOT_EVALUATED`
 - release_gate: `PASS | FAIL | NOT_EVALUATED`
+- self_dev_round_gate: `PASS | FAIL | NOT_APPLICABLE`
 - gate_notes: (어떤 메트릭이 통과/실패했는지)
 ```
 
@@ -143,3 +180,4 @@ Swagger나 기타 work 도구는 보조 지표로 다룬다.
 2. release_gate는 rolling trend가 뒷받침돼야 한다.
 3. cross-source synthesis는 단일 source보다 더 엄격하게 본다.
 4. safe action은 부분 점수보다 **정확한 차단과 승인**을 더 중시한다.
+5. self-development는 product axis를 unblock할 때만 높은 우선순위를 가진다.
