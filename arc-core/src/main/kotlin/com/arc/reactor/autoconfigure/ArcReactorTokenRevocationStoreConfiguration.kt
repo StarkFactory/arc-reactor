@@ -135,20 +135,18 @@ class ArcReactorTokenRevocationStoreConfiguration {
         }
     }
 
+    /**
+     * Redis 가용성 probe.
+     *
+     * R290 fix: ForkJoinPool.commonPool() → 전용 daemon executor 격리.
+     * 자세한 사유는 [RedisProbeSupport] KDoc 참조.
+     */
     private fun isRedisAvailable(redisTemplate: Any): Boolean {
-        return try {
-            val hasKeyMethod = redisTemplate.javaClass.methods.firstOrNull { method ->
-                method.name == "hasKey" && method.parameterCount == 1
-            } ?: return false
-            // 타임아웃으로 감싸서 Redis 미응답 시 앱 시작 60초 멈춤 방지
-            val future = java.util.concurrent.ForkJoinPool.commonPool().submit<Any?> {
-                hasKeyMethod.invoke(redisTemplate, "__arc:redis:probe__")
-            }
-            future.get(5, java.util.concurrent.TimeUnit.SECONDS)
-            true
-        } catch (e: Exception) {
-            logger.warn(e) { "토큰 폐기 저장소 선택 중 Redis 연결 프로브 실패" }
-            false
+        val hasKeyMethod = redisTemplate.javaClass.methods.firstOrNull { method ->
+            method.name == "hasKey" && method.parameterCount == 1
+        } ?: return false
+        return RedisProbeSupport.isAvailable("토큰 폐기 저장소") {
+            hasKeyMethod.invoke(redisTemplate, "__arc:redis:probe__")
         }
     }
 

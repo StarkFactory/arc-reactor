@@ -173,17 +173,17 @@ class ArcReactorSemanticCacheConfiguration {
         return NoOpCacheMetricsRecorder()
     }
 
+    /**
+     * Redis 가용성 probe.
+     *
+     * R290 fix: ForkJoinPool.commonPool() → 전용 daemon executor 격리.
+     * 이전 구현은 commonPool을 사용해 5초 probe를 실행하여 application의 다른 commonPool
+     * 사용자(parallel streams, CompletableFuture)를 starve시킬 수 있었다. R290에서
+     * [RedisProbeSupport]로 통합하여 daemon single-thread executor로 격리하고 즉시 cleanup.
+     */
     private fun isRedisAvailable(redisTemplate: StringRedisTemplate): Boolean {
-        return try {
-            // 타임아웃으로 감싸서 Redis 미응답 시 앱 시작 60초 멈춤 방지
-            val future = java.util.concurrent.ForkJoinPool.commonPool().submit<Boolean> {
-                redisTemplate.hasKey("__arc:redis:availability__")
-            }
-            future.get(5, java.util.concurrent.TimeUnit.SECONDS)
-            true
-        } catch (e: Exception) {
-            logger.warn(e) { "시맨틱 캐시 선택 중 Redis 연결 프로브 실패" }
-            false
+        return RedisProbeSupport.isAvailable("시맨틱 캐시") {
+            redisTemplate.hasKey("__arc:redis:availability__")
         }
     }
 }
