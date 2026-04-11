@@ -6,6 +6,7 @@ import com.arc.reactor.support.throwIfCancellation
 import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -25,11 +26,15 @@ private val logger = KotlinLogging.logger {}
  * @param mcpManager MCP 서버 매니저 (상태 조회 및 재연결 시도용)
  * @param properties 헬스체크 설정
  * @param scope 헬스체크 코루틴 실행 스코프
+ * @param ownsScope true면 [close]에서 [scope]을 cancel한다 (production bean factory용).
+ *                  false(기본)면 외부에서 관리하는 스코프(테스트의 backgroundScope 등)를
+ *                  존중하여 cancel하지 않는다. R283 추가.
  */
 class McpHealthPinger(
     private val mcpManager: McpManager,
     private val properties: McpHealthProperties,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val ownsScope: Boolean = false
 ) : AutoCloseable {
 
     /** 헬스체크 루프 Job */
@@ -98,9 +103,20 @@ class McpHealthPinger(
         logger.info { "MCP 헬스체크 중지됨" }
     }
 
-    /** Spring 컨테이너 종료 시 코루틴 스코프를 정리한다. */
+    /**
+     * Spring 컨테이너 종료 시 코루틴 스코프를 정리한다.
+     *
+     * R283 fix: [ownsScope]가 true면 child pingJob 외에도 부모 스코프를 cancel하여
+     * SupervisorJob과 dispatcher 참조까지 정리한다. 이전 구현은 child job만 cancel하여
+     * 부모 SupervisorJob이 영원히 살아남는 leak이 있었다. 외부 주입 스코프(테스트의
+     * backgroundScope)는 cancel하지 않아 호출자 lifecycle을 침해하지 않는다.
+     */
     override fun close() {
         stop()
+        if (ownsScope) {
+            scope.cancel()
+            logger.debug { "MCP 헬스체크 스코프 cancel 완료 (ownsScope=true)" }
+        }
     }
 
     /**

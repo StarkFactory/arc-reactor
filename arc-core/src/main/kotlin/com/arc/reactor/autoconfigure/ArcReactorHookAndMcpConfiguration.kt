@@ -174,10 +174,15 @@ class ArcReactorHookAndMcpConfiguration {
         mcpManager: McpManager,
         properties: AgentProperties
     ): McpHealthPinger {
+        // R283 fix: ownsScope=true로 close() 시 SupervisorJob까지 cancel.
+        // 이 anonymous scope는 이 bean 외에는 참조되지 않으므로 pinger가 lifecycle을
+        // 책임지는 것이 안전하다. 이전에는 close()가 child pingJob만 cancel하여
+        // 부모 SupervisorJob이 컨테이너 종료 후에도 leak되었다.
         val pinger = McpHealthPinger(
             mcpManager = mcpManager,
             properties = properties.mcp.health,
-            scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+            ownsScope = true
         )
         pinger.start()
         return pinger

@@ -12,10 +12,16 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -302,5 +308,50 @@ class McpHealthPingerTest {
     fun `인스턴스를 생성할 수 있다`() {
         val pinger = createPinger()
         assertNotNull(pinger, "McpHealthPinger 인스턴스를 생성할 수 있어야 한다")
+    }
+
+    @Test
+    fun `R283 ownsScope true이면 close가 부모 SupervisorJob까지 cancel한다`() {
+        val parentJob = SupervisorJob()
+        val ownedScope = CoroutineScope(Dispatchers.IO + parentJob)
+        val pinger = McpHealthPinger(
+            mcpManager = mcpManager,
+            properties = McpHealthProperties(enabled = false),
+            scope = ownedScope,
+            ownsScope = true
+        )
+
+        assertTrue(parentJob.isActive) {
+            "close 호출 전 parent SupervisorJob은 active 상태여야 한다"
+        }
+
+        pinger.close()
+
+        assertFalse(parentJob.isActive) {
+            "R283 fix: ownsScope=true에서 close 호출 후 parent SupervisorJob이 cancel되어야 한다"
+        }
+        assertTrue(parentJob.isCancelled) {
+            "R283 fix: parent SupervisorJob이 cancelled 상태여야 한다"
+        }
+    }
+
+    @Test
+    fun `R283 ownsScope false이면 close가 외부 스코프를 cancel하지 않는다`() {
+        val externalJob = SupervisorJob()
+        val externalScope = CoroutineScope(Dispatchers.IO + externalJob)
+        val pinger = McpHealthPinger(
+            mcpManager = mcpManager,
+            properties = McpHealthProperties(enabled = false),
+            scope = externalScope
+            // ownsScope 기본값 false
+        )
+
+        pinger.close()
+
+        assertTrue(externalJob.isActive) {
+            "R283 fix: ownsScope=false(기본)에서 close 호출 후 외부 스코프는 영향받지 않아야 한다 " +
+                "(테스트의 backgroundScope 등 외부 lifecycle 보호)"
+        }
+        externalJob.cancel() // 테스트 정리
     }
 }
