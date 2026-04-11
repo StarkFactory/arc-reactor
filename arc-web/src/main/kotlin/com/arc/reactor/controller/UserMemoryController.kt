@@ -111,10 +111,34 @@ class UserMemoryController(
         return ResponseEntity.noContent().build()
     }
 
-    /** 호출자가 해당 userId의 메모리에 접근할 수 있는지 판단한다. 본인만 접근 가능하다. */
+    /**
+     * 호출자가 해당 userId의 메모리에 접근할 수 있는지 판단한다. 본인만 접근 가능하다.
+     *
+     * R296 fix — Anonymous bypass 차단: JWT 비활성/누락 시 [currentActor]가 "anonymous"
+     * 폴백을 반환한다. 이전 구현은 `callerId == userId`만 검사했으므로 userId="anonymous"
+     * 요청에서 callerId 폴백("anonymous")과 일치하여 **인증되지 않은 모든 호출자가
+     * "anonymous" 메모리 레코드에 read/write/delete 가능**했다 (보안 회귀).
+     *
+     * R296 fix: ANONYMOUS sentinel을 양쪽(userId와 callerId)에서 명시적으로 거부하여
+     * JWT 미활성 시에도 self-impersonation이 발생하지 않도록 한다.
+     *
+     * 본인-only 정책은 그대로 유지한다 (관리자라도 다른 사용자 메모리 비접근). 운영자가
+     * GDPR 삭제 등을 처리해야 하는 경우 별도 admin endpoint가 필요하다 — 본 컨트롤러는
+     * 사용자 본인 access만 노출.
+     */
     private fun canAccess(userId: String, exchange: ServerWebExchange): Boolean {
+        // R296 보안: anonymous sentinel 명시적 거부 — userId 자체가 "anonymous"이면
+        // 모든 미인증 요청이 동일한 callerId 폴백을 갖게 되어 self-impersonation 발생
+        if (userId.equals(ANONYMOUS_USER_ID, ignoreCase = true)) return false
         val callerId = currentActor(exchange)
+        // R296: callerId가 anonymous 폴백이면 인증되지 않은 요청 — 거부
+        if (callerId.equals(ANONYMOUS_USER_ID, ignoreCase = true)) return false
         return callerId.isNotBlank() && callerId == userId
+    }
+
+    companion object {
+        /** R296: AdminAuthorizationSupport.currentActor가 미인증 시 반환하는 폴백 sentinel */
+        private const val ANONYMOUS_USER_ID = "anonymous"
     }
 }
 

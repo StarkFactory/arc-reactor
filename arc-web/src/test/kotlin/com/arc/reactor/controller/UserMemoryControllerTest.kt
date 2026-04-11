@@ -122,6 +122,47 @@ class UserMemoryControllerTest {
         coVerify(exactly = 0) { userMemoryManager.delete(any()) }
     }
 
+    @Test
+    fun `R296 reject anonymous userId in path even when caller has anonymous fallback`() = runTest {
+        // R296 fix 검증: JWT 미활성 시 currentActor가 "anonymous" 폴백을 반환하므로
+        // userId="anonymous"인 요청은 callerId="anonymous"와 일치하여 self-impersonation
+        // 발생. 모든 미인증 호출자가 anonymous 메모리에 read/write/delete 가능했다.
+        // R296: ANONYMOUS sentinel을 명시적으로 거부.
+        val response = controller.deleteUserMemory("anonymous", noJwtExchange())
+
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "R296 fix: anonymous userId 경로는 어떤 호출자에게도 거부되어야 한다 " +
+                "(JWT 미활성 시 self-impersonation 차단)"
+        }
+        coVerify(exactly = 0) { userMemoryManager.delete(any()) }
+    }
+
+    @Test
+    fun `R296 reject anonymous userId case insensitive`() = runTest {
+        // R296: 대소문자 변형도 차단 (Anonymous, ANONYMOUS, AnOnYmOuS 등)
+        val variants = listOf("Anonymous", "ANONYMOUS", "AnOnYmOuS")
+        for (variant in variants) {
+            val response = controller.deleteUserMemory(variant, noJwtExchange())
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "R296 fix: anonymous 대소문자 변형 '$variant'도 차단되어야 한다"
+            }
+        }
+        coVerify(exactly = 0) { userMemoryManager.delete(any()) }
+    }
+
+    @Test
+    fun `R296 reject any request when caller has anonymous fallback`() = runTest {
+        // R296: callerId가 anonymous 폴백인 경우(JWT 미활성), userId가 다른 값이라도 거부.
+        // 이전 구현은 userId="bob"와 callerId="anonymous"가 다르면 false로 차단했지만,
+        // 그 차단은 우연한 결과였고 본질적으로 anonymous bypass의 절반만 막혀있던 셈.
+        // R296: callerId가 anonymous면 무조건 거부 — 인증되지 않은 호출 전체를 차단.
+        val response = controller.getUserMemory("bob", noJwtExchange())
+
+        assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+            "R296 fix: 미인증 호출(callerId=anonymous)은 어떤 userId 요청도 거부되어야 한다"
+        }
+    }
+
     private fun userExchange(userId: String): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
         every { exchange.attributes } returns mutableMapOf<String, Any>(
@@ -137,6 +178,16 @@ class UserMemoryControllerTest {
             JwtAuthWebFilter.USER_ROLE_ATTRIBUTE to UserRole.ADMIN,
             JwtAuthWebFilter.USER_ID_ATTRIBUTE to userId
         )
+        return exchange
+    }
+
+    /**
+     * R296: JWT 미활성 시나리오 — USER_ID_ATTRIBUTE가 없어 currentActor가
+     * "anonymous" 폴백을 반환하는 상태.
+     */
+    private fun noJwtExchange(): ServerWebExchange {
+        val exchange = mockk<ServerWebExchange>()
+        every { exchange.attributes } returns mutableMapOf<String, Any>()
         return exchange
     }
 }
