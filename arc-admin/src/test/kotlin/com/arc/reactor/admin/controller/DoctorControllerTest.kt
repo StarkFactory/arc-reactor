@@ -9,6 +9,7 @@ import com.arc.reactor.diagnostics.DoctorStatus
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
@@ -246,8 +247,12 @@ class DoctorControllerTest {
     inner class FailSafeBehavior {
 
         @Test
-        fun `DoctorDiagnostics 예외 시에도 500과 ERROR 보고서를 반환해야 한다`() {
-            every { doctor.runDiagnostics() } throws RuntimeException("simulated failure")
+        fun `R291 DoctorDiagnostics 예외 시 500 ERROR 응답 반환하되 e_message는 노출하지 않아야 한다`() {
+            // R291 fix 검증: 이전 구현은 e.message ("simulated failure")가 detail에 포함되어
+            // CLAUDE.md 규칙 #9 위반. R291 fix 후에는 일반 한국어 메시지만 포함하고 원본
+            // 예외는 server log에만 기록.
+            val sensitiveMessage = "JDBC error at /sensitive/internal/path: column 'secret' not found"
+            every { doctor.runDiagnostics() } throws RuntimeException(sensitiveMessage)
             val response = controller.report(exchangeWithRole(UserRole.ADMIN))
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) {
@@ -260,7 +265,23 @@ class DoctorControllerTest {
             val section = body.sections[0]
             assertEquals(DoctorStatus.ERROR, section.status)
             assertTrue(section.name == "Doctor Diagnostics")
-            assertTrue(section.checks.first().detail.contains("simulated failure"))
+
+            val detail = section.checks.first().detail
+            // R291 fix: detail에 원본 예외 메시지가 포함되면 안 됨 (CLAUDE.md #9)
+            assertFalse(detail.contains(sensitiveMessage)) {
+                "R291 fix: 예외 메시지가 HTTP 응답에 노출되면 안 된다. " +
+                    "민감 정보(SQL 단편, 내부 경로, 컬럼 이름) 누출 위험. detail: $detail"
+            }
+            assertFalse(detail.contains("RuntimeException")) {
+                "R291 fix: 예외 클래스 이름도 노출되면 안 된다. detail: $detail"
+            }
+            // 일반 한국어 메시지가 포함되어야 함 (사용자에게 의미 있는 안내)
+            assertTrue(detail.contains("진단 실행 중") || detail.contains("내부 오류")) {
+                "R291 fix: 일반 한국어 안내 메시지가 포함되어야 한다. detail: $detail"
+            }
+            assertTrue(detail.contains("서버 로그")) {
+                "R291 fix: 운영자가 server log를 확인하라는 안내가 포함되어야 한다. detail: $detail"
+            }
         }
 
         @Test

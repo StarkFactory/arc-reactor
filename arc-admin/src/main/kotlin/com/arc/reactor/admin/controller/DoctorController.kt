@@ -268,6 +268,12 @@ class DoctorController(
     /**
      * 진단 실행을 안전하게 래핑한다. `DoctorDiagnostics` 자체가 이미 fail-safe 설계이지만,
      * 혹시라도 예외가 새어 나오면 여기서 catch하여 ERROR 보고서를 합성한다.
+     *
+     * R291 fix: 이전 구현은 `e.javaClass.simpleName + e.message`를 HTTP 응답 body의
+     * `DoctorCheck.detail`에 포함하여 CLAUDE.md 규칙 #9(`e.message` HTTP 노출 금지)를
+     * 위반했다. 예외 메시지는 SQL 단편, 내부 경로, 클래스 이름, 스택 컨텍스트 등 민감
+     * 정보를 포함할 수 있다. R291에서 일반 한국어 메시지로 대체하고 원본 예외는 server
+     * log에만 기록한다.
      */
     private fun runDiagnosticsSafely(): DoctorReport {
         return try {
@@ -284,8 +290,8 @@ class DoctorController(
                             com.arc.reactor.diagnostics.DoctorCheck(
                                 name = "runDiagnostics",
                                 status = com.arc.reactor.diagnostics.DoctorStatus.ERROR,
-                                detail = "예외: ${e.javaClass.simpleName}: " +
-                                    (e.message ?: "메시지 없음")
+                                // R291: e.message HTTP 노출 금지 (CLAUDE.md #9). 일반 메시지만 포함, 원본은 server log
+                                detail = "진단 실행 중 내부 오류가 발생했습니다. 자세한 사유는 서버 로그를 확인하세요."
                             )
                         ),
                         message = "진단 실행 실패"
