@@ -187,11 +187,19 @@ class AuthController(
         return ResponseEntity.ok(mapOf("message" to "Password changed successfully"))
     }
 
-    /** 현재 JWT를 폐기하여 로그아웃한다. */
+    /**
+     * 현재 JWT를 폐기하여 로그아웃한다.
+     *
+     * R323 fix: 토큰에 `jti` 또는 `exp` claim이 없으면 폐기할 수 없으므로 401을 반환한다.
+     * 기존 구현은 `tokenId`/`expiresAt` 둘 중 하나라도 null이면 `revoke`를 건너뛰고도 200 OK를
+     * 반환했다 → 클라이언트가 로그아웃되었다고 믿지만 토큰이 계속 유효한 silent mismatch 발생.
+     * 또한 `JwtAuthWebFilter`가 jti 없는 토큰을 이미 거부하므로 이 경로는 실제로 도달할 수
+     * 없는 edge case지만 — 커스텀 `JwtTokenProvider` 주입이나 외부 발급 토큰으로 도달 가능.
+     */
     @Operation(summary = "현재 JWT 폐기로 로그아웃")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Logout succeeded"),
-        ApiResponse(responseCode = "401", description = "Missing or invalid JWT")
+        ApiResponse(responseCode = "401", description = "Missing or invalid JWT (jti/exp claim 누락 포함)")
     ])
     @PostMapping("/logout")
     fun logout(exchange: ServerWebExchange): ResponseEntity<Any> {
@@ -203,9 +211,11 @@ class AuthController(
         val token = authHeader.substring(7)
         val tokenId = jwtTokenProvider.extractTokenId(token)
         val expiresAt = jwtTokenProvider.extractExpiration(token)
-        if (tokenId != null && expiresAt != null) {
-            tokenRevocationStore.revoke(tokenId, expiresAt)
+        if (tokenId == null || expiresAt == null) {
+            // 폐기 불가능한 토큰 — 200을 반환하면 클라이언트가 잘못된 로그아웃 확인을 받음
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
+        tokenRevocationStore.revoke(tokenId, expiresAt)
         return ResponseEntity.ok(mapOf("message" to "Logged out"))
     }
 

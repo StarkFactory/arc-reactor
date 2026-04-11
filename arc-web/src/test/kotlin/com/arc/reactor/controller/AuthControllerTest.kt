@@ -330,5 +330,45 @@ class AuthControllerTest {
                 "Missing Authorization header should return 401 UNAUTHORIZED"
             }
         }
+
+        @Test
+        fun `R323 tokenId null이면 폐기 생략하지 말고 401 반환해야 한다`() {
+            val exchange = mockk<ServerWebExchange>()
+            val request = mockk<ServerHttpRequest>()
+            val headers = HttpHeaders().apply {
+                set(HttpHeaders.AUTHORIZATION, "Bearer no-jti-token")
+            }
+            every { exchange.request } returns request
+            every { request.headers } returns headers
+            every { jwtTokenProvider.extractTokenId("no-jti-token") } returns null
+            every { jwtTokenProvider.extractExpiration("no-jti-token") } returns Instant.now().plusSeconds(3600)
+
+            val response = controller.logout(exchange)
+
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "jti claim이 없는 토큰은 폐기 불가능하므로 silent 200이 아니라 401을 반환해야 한다"
+            }
+            verify(exactly = 0) { tokenRevocationStore.revoke(any(), any()) }
+        }
+
+        @Test
+        fun `R323 expiresAt null이면 401 반환해야 한다`() {
+            val exchange = mockk<ServerWebExchange>()
+            val request = mockk<ServerHttpRequest>()
+            val headers = HttpHeaders().apply {
+                set(HttpHeaders.AUTHORIZATION, "Bearer no-exp-token")
+            }
+            every { exchange.request } returns request
+            every { request.headers } returns headers
+            every { jwtTokenProvider.extractTokenId("no-exp-token") } returns "jti-123"
+            every { jwtTokenProvider.extractExpiration("no-exp-token") } returns null
+
+            val response = controller.logout(exchange)
+
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "exp claim이 없으면 revoke TTL을 계산할 수 없으므로 401 반환"
+            }
+            verify(exactly = 0) { tokenRevocationStore.revoke(any(), any()) }
+        }
     }
 }

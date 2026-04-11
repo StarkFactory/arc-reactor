@@ -339,6 +339,22 @@ class JwtAuthWebFilterTest {
             verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
             verify(exactly = 0) { chain.filter(exchange) }
         }
+
+        @Test
+        fun `R323 revocation store 예외는 fail-closed로 401 반환해야 한다`() {
+            every { request.uri } returns URI.create("http://localhost/api/chat")
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer store-error-token")
+            every { jwtTokenProvider.validateToken("store-error-token") } returns "user-42"
+            every { jwtTokenProvider.extractTokenId("store-error-token") } returns "jti-42"
+            every { tokenRevocationStore.isRevoked("jti-42") } throws RuntimeException("DB down")
+
+            // revocation store 예외 발생 시 fail-closed로 401을 반환해야 한다 (500 전파 금지)
+            val result = filter.filter(exchange, chain)
+            result.block()
+
+            verify(exactly = 1) { response.statusCode = HttpStatus.UNAUTHORIZED }
+            verify(exactly = 0) { chain.filter(exchange) }
+        }
     }
 
     @Nested

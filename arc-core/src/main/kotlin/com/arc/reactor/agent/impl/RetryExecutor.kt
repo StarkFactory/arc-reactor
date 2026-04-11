@@ -90,9 +90,15 @@ internal class RetryExecutor(
                     // +/-25% jitter로 thundering herd 방지
                     val jitter = (baseDelay * 0.25 * (randomFn() * 2 - 1)).toLong()
                     val delayMs = (baseDelay + jitter).coerceAtLeast(0)
+                    // R323 fix: `e.message`를 로그에 그대로 쓰면 Google GenAI ClientException 등
+                    // 외부 SDK가 전달하는 메시지에 API key fragment/내부 endpoint URL/quota account ID가
+                    // 포함될 수 있다 → log shipper(Datadog, Slack alert)로 전달되면 정보 노출.
+                    // CLAUDE.md Gotcha #9(HTTP 응답 노출 금지)의 log shipper 확장 — message 대신
+                    // 클래스명만 기록하여 debuggability 유지. 원본 예외는 아래 `throw e` 경로에서 이미
+                    // 서버 로그로 캡처됨.
                     logger.warn {
                         "Transient error (attempt ${attempt + 1}/$maxAttempts), " +
-                            "retrying in ${delayMs}ms: ${e.message}"
+                            "retrying in ${delayMs}ms: ${e.javaClass.simpleName}"
                     }
                     delayFn(delayMs)
                 }

@@ -164,6 +164,14 @@ class JwtAuthWebFilter(
     /**
      * 토큰의 jti(토큰 ID)가 폐기되었는지 확인한다.
      * 폐기 저장소가 구성된 상태에서 jti가 없는 토큰은 폐기 불가능하므로 거부한다.
+     *
+     * R323 fix: 저장소 조회 중 발생한 예외를 catch하여 **fail-closed**(폐기된 것으로 간주)로
+     * 처리한다. 기존 구현은 `JdbcTokenRevocationStore.isRevoked`/`RedisTokenRevocationStore.isRevoked`
+     * 에서 발생한 `DataAccessException`/`RedisConnectionFailureException`이 필터 체인까지 전파되어
+     * 모든 인증 요청이 HTTP 500으로 실패했다. DB/Redis 일시 장애 시 인증은 동작해야 하지만
+     * 동시에 폐기 확인이 불가능한 요청을 허용하면 이미 폐기된 토큰이 통과할 수 있다. 운영 측면
+     * 가용성보다 보안 무결성을 우선하여 fail-closed(거부)로 전환한다. 경고 로그로 백엔드 장애를
+     * 즉시 인지 가능.
      */
     private fun isRevoked(token: String): Boolean {
         val tokenId = jwtTokenProvider.extractTokenId(token)
@@ -175,7 +183,17 @@ class JwtAuthWebFilter(
             }
             return false
         }
-        val revoked = tokenRevocationStore?.isRevoked(tokenId) == true
+        val store = tokenRevocationStore ?: return false
+        val revoked = try {
+            store.isRevoked(tokenId)
+        } catch (e: Exception) {
+            // CancellationException이면 즉시 전파 (suspend 컨텍스트가 아니지만 방어적으로 유지)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            logger.warn(e) {
+                "토큰 폐기 저장소 조회 실패 — fail-closed로 거부: jti=$tokenId, cause=${e.javaClass.simpleName}"
+            }
+            true
+        }
         if (revoked) {
             logger.warn { "폐기된 토큰 거부: jti=$tokenId" }
         }

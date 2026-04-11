@@ -252,28 +252,30 @@ class WebCoverageGapTest {
         }
 
         @Test
-        fun `tokenId가 null이면 revoke를 호출하지 않고 200을 반환해야 한다`() {
+        fun `tokenId가 null이면 revoke를 호출하지 않고 401을 반환해야 한다`() {
+            // R323: 폐기 불가능한 토큰을 200 OK로 응답하면 클라이언트가 잘못된 로그아웃 확인을
+            // 받으므로, 명시적으로 401을 반환해야 한다. JwtAuthWebFilter의 jti 거부와 대칭.
             every { jwtTokenProvider.extractTokenId("valid-but-no-jti") } returns null
             every { jwtTokenProvider.extractExpiration("valid-but-no-jti") } returns Instant.now().plusSeconds(3600)
 
             val response = controller.logout(exchangeWithAuthHeader("Bearer valid-but-no-jti"))
 
-            assertEquals(HttpStatus.OK, response.statusCode) {
-                "tokenId가 null이어도 로그아웃 요청은 200 OK여야 한다"
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "R323: tokenId가 null인 토큰은 폐기 불가능하므로 401을 반환해야 한다"
             }
-            // tokenId가 null이면 revoke를 호출하지 않는다
             verify(exactly = 0) { tokenRevocationStore.revoke(any(), any()) }
         }
 
         @Test
-        fun `만료시간이 null이면 revoke를 호출하지 않고 200을 반환해야 한다`() {
+        fun `만료시간이 null이면 revoke를 호출하지 않고 401을 반환해야 한다`() {
+            // R323: exp claim이 없으면 revoke TTL을 계산할 수 없으므로 401 반환.
             every { jwtTokenProvider.extractTokenId("valid-token") } returns "jti-999"
             every { jwtTokenProvider.extractExpiration("valid-token") } returns null
 
             val response = controller.logout(exchangeWithAuthHeader("Bearer valid-token"))
 
-            assertEquals(HttpStatus.OK, response.statusCode) {
-                "만료시간이 null이어도 로그아웃 요청은 200 OK여야 한다"
+            assertEquals(HttpStatus.UNAUTHORIZED, response.statusCode) {
+                "R323: 만료시간이 null인 토큰은 폐기할 수 없으므로 401을 반환해야 한다"
             }
             verify(exactly = 0) { tokenRevocationStore.revoke(any(), any()) }
         }
