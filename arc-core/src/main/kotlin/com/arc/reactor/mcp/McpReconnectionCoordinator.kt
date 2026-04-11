@@ -3,13 +3,14 @@ package com.arc.reactor.mcp
 import com.arc.reactor.agent.config.McpReconnectionProperties
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.support.throwIfCancellation
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.pow
 
 private val logger = KotlinLogging.logger {}
@@ -44,21 +45,30 @@ internal class McpReconnectionCoordinator(
     private val properties: McpReconnectionProperties,
     private val statusProvider: (String) -> McpServerStatus?,
     private val serverExists: (String) -> Boolean,
-    private val reconnectAction: suspend (String) -> Boolean
+    private val reconnectAction: suspend (String) -> Boolean,
+    maxServers: Long = DEFAULT_MAX_SERVERS
 ) {
 
-    /** 서버별 재연결 Job 관리 */
-    private val reconnectionJobs = ConcurrentHashMap<String, Job>()
+    /**
+     * 서버별 재연결 Job 관리 (Caffeine bounded cache).
+     *
+     * R315 fix: ConcurrentHashMap → Caffeine bounded cache. 기존 구현은 서버 수만큼
+     * 무제한 성장 가능했다. `asMap()`이 반환하는 `ConcurrentMap` 뷰를 통해 기존 atomic
+     * 연산(putIfAbsent, remove-if-equal)을 그대로 유지한다.
+     */
+    private val reconnectionJobs: Cache<String, Job> = Caffeine.newBuilder()
+        .maximumSize(maxServers)
+        .build()
 
     /** 특정 서버의 재연결 Job을 취소한다 */
     fun clear(serverName: String) {
-        reconnectionJobs.remove(serverName)?.cancel()
+        reconnectionJobs.asMap().remove(serverName)?.cancel()
     }
 
     /** 모든 재연결 Job을 취소한다 */
     fun clearAll() {
-        for (job in reconnectionJobs.values) { job.cancel() }
-        reconnectionJobs.clear()
+        for (job in reconnectionJobs.asMap().values) { job.cancel() }
+        reconnectionJobs.invalidateAll()
     }
 
     /**
@@ -72,7 +82,7 @@ internal class McpReconnectionCoordinator(
      */
     fun schedule(serverName: String) {
         if (!properties.enabled) return
-        if (reconnectionJobs[serverName]?.isActive == true) return
+        if (reconnectionJobs.getIfPresent(serverName)?.isActive == true) return
 
         val job = scope.launch(start = CoroutineStart.LAZY) {
             val maxAttempts = properties.maxAttempts
@@ -124,17 +134,26 @@ internal class McpReconnectionCoordinator(
                 logger.warn { "MCP 재연결 한도 소진 (${properties.maxAttempts}회): '$serverName'" }
             } finally {
                 // 완료된 Job을 맵에서 제거한다 (현재 Job과 일치하는 경우에만)
-                reconnectionJobs.remove(serverName, kotlinx.coroutines.currentCoroutineContext()[Job])
+                // Caffeine의 asMap()은 ConcurrentMap 뷰로 2-arg remove(key, value)를 제공한다
+                reconnectionJobs.asMap().remove(
+                    serverName,
+                    kotlinx.coroutines.currentCoroutineContext()[Job]
+                )
             }
         }
 
-        // putIfAbsent로 경합을 안전하게 처리한다
-        val existing = reconnectionJobs.putIfAbsent(serverName, job)
+        // putIfAbsent로 경합을 안전하게 처리한다 (Caffeine asMap 뷰 사용)
+        val existing = reconnectionJobs.asMap().putIfAbsent(serverName, job)
         if (existing != null) {
             // 이미 다른 Job이 등록되어 있으면 새 Job을 취소한다
             job.cancel()
             return
         }
         job.start()
+    }
+
+    companion object {
+        /** 기본 재연결 Job 추적 상한. InMemoryMcpServerStore와 동일 값. */
+        const val DEFAULT_MAX_SERVERS: Long = 1_000L
     }
 }

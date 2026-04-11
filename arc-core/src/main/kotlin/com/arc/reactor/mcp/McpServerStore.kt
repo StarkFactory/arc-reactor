@@ -1,8 +1,9 @@
 package com.arc.reactor.mcp
 
 import com.arc.reactor.mcp.model.McpServer
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * MCP 서버 설정을 영속하기 위한 저장소 인터페이스.
@@ -64,47 +65,68 @@ interface McpServerStore {
 /**
  * [McpServerStore]의 인메모리 구현.
  *
- * [ConcurrentHashMap]을 사용하여 스레드 안전 접근을 보장한다.
+ * Caffeine bounded cache로 스레드 안전 접근을 보장한다.
  * 애플리케이션 재시작 시 데이터가 소실된다.
+ *
+ * R315 fix: ConcurrentHashMap → Caffeine bounded cache. 기존 구현은 REST API로
+ * 서버 등록이 반복되면 무제한 성장 가능성이 있었다. 이제 [maxServers] 상한
+ * (기본 1000)으로 제한. 일반 운영에서 MCP 서버 수는 수십 개 수준이라 충분하며,
+ * 악의적 대량 등록 시에도 메모리 압박 없음.
  *
  * WHY: DB 없이도 기본 동작을 보장하기 위한 기본 구현.
  *
  * @see JdbcMcpServerStore 운영 환경용 JDBC 구현
  */
-class InMemoryMcpServerStore : McpServerStore {
+class InMemoryMcpServerStore(
+    maxServers: Long = DEFAULT_MAX_SERVERS
+) : McpServerStore {
 
-    /** 서버 이름을 키로 하는 동시성 안전 맵 */
-    private val servers = ConcurrentHashMap<String, McpServer>()
+    /** 서버 이름을 키로 하는 Caffeine bounded cache */
+    private val servers: Cache<String, McpServer> = Caffeine.newBuilder()
+        .maximumSize(maxServers)
+        .build()
 
     override fun list(): List<McpServer> {
-        return servers.values.sortedBy { it.createdAt }
+        return servers.asMap().values.sortedBy { it.createdAt }
     }
 
     override fun findByName(name: String): McpServer? {
-        return servers[name]
+        return servers.getIfPresent(name)
     }
 
     override fun save(server: McpServer): McpServer {
-        require(!servers.containsKey(server.name)) { "MCP 서버 '${server.name}'가 이미 존재합니다" }
+        require(servers.getIfPresent(server.name) == null) {
+            "MCP 서버 '${server.name}'가 이미 존재합니다"
+        }
         val now = Instant.now()
         val toSave = server.copy(createdAt = now, updatedAt = now)
-        servers[server.name] = toSave
+        servers.put(server.name, toSave)
         return toSave
     }
 
     override fun update(name: String, server: McpServer): McpServer? {
-        val existing = servers[name] ?: return null
+        val existing = servers.getIfPresent(name) ?: return null
         val updated = server.copy(
             id = existing.id,
             name = name,
             createdAt = existing.createdAt,
             updatedAt = Instant.now()
         )
-        servers[name] = updated
+        servers.put(name, updated)
         return updated
     }
 
     override fun delete(name: String) {
-        servers.remove(name)
+        servers.invalidate(name)
+    }
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        servers.cleanUp()
+    }
+
+    companion object {
+        /** 기본 MCP 서버 저장소 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_SERVERS: Long = 1_000L
     }
 }

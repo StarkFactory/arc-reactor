@@ -1,8 +1,9 @@
 package com.arc.reactor.guard.output.policy
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 동적 출력 Guard 규칙 데이터 클래스
@@ -77,43 +78,62 @@ interface OutputGuardRuleStore {
 /**
  * 메모리 기반 출력 Guard 규칙 저장소
  *
- * [ConcurrentHashMap]을 사용하여 스레드 안전하게 규칙을 관리한다.
+ * Caffeine bounded cache로 스레드 안전하게 규칙을 관리한다.
  * 서버 재시작 시 데이터가 유실되므로 단일 인스턴스 또는 개발 환경에 적합하다.
+ *
+ * R315 fix: ConcurrentHashMap → Caffeine bounded cache. 기존 구현은 REST API로
+ * 규칙이 반복 등록되면 무제한 성장 가능성이 있었다. 이제 [maxRules] 상한(기본 1000)을
+ * 넘으면 W-TinyLFU 정책으로 evict.
  *
  * @see JdbcOutputGuardRuleStore 영구 저장이 필요한 프로덕션 환경용
  */
-class InMemoryOutputGuardRuleStore : OutputGuardRuleStore {
-    private val rules = ConcurrentHashMap<String, OutputGuardRule>()
+class InMemoryOutputGuardRuleStore(
+    maxRules: Long = DEFAULT_MAX_RULES
+) : OutputGuardRuleStore {
+
+    private val rules: Cache<String, OutputGuardRule> = Caffeine.newBuilder()
+        .maximumSize(maxRules)
+        .build()
 
     override fun list(): List<OutputGuardRule> {
-        return rules.values.sortedWith(
+        return rules.asMap().values.sortedWith(
             compareBy<OutputGuardRule> { it.priority }
                 .thenBy { it.createdAt }
                 .thenBy { it.id }
         )
     }
 
-    override fun findById(id: String): OutputGuardRule? = rules[id]
+    override fun findById(id: String): OutputGuardRule? = rules.getIfPresent(id)
 
     override fun save(rule: OutputGuardRule): OutputGuardRule {
         val now = Instant.now()
         val toSave = rule.copy(createdAt = now, updatedAt = now)
-        rules[toSave.id] = toSave
+        rules.put(toSave.id, toSave)
         return toSave
     }
 
     override fun update(id: String, rule: OutputGuardRule): OutputGuardRule? {
-        val existing = rules[id] ?: return null
+        val existing = rules.getIfPresent(id) ?: return null
         val updated = rule.copy(
             id = id,
             createdAt = existing.createdAt,
             updatedAt = Instant.now()
         )
-        rules[id] = updated
+        rules.put(id, updated)
         return updated
     }
 
     override fun delete(id: String) {
-        rules.remove(id)
+        rules.invalidate(id)
+    }
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        rules.cleanUp()
+    }
+
+    companion object {
+        /** 기본 출력 Guard 규칙 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_RULES: Long = 1_000L
     }
 }
