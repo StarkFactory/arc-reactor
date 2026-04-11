@@ -69,7 +69,9 @@ class LlmIntentClassifier(
             val tokenCost = estimateTokenCost(prompt, response)
 
             if (parsed == null) {
-                logger.warn { "LLM 분류기: 응답 파싱 실패: $response" }
+                // R307 fix: LLM raw response 전체를 로깅하면 prompt injection/민감 정보 노출.
+                // 첫 100자 + 전체 길이만 출력하여 디버그 정보는 유지하되 정보 노출은 차단.
+                logger.warn { "LLM 분류기: 응답 파싱 실패: ${sanitizeForLog(response)}" }
                 return IntentResult.unknown(
                     classifiedBy = CLASSIFIER_NAME,
                     tokenCost = tokenCost,
@@ -247,6 +249,9 @@ class LlmIntentClassifier(
         /** 분류기 식별 이름 */
         const val CLASSIFIER_NAME = "llm"
 
+        /** 로그 출력 시 노출할 응답 최대 길이 */
+        internal const val LOG_RESPONSE_MAX_CHARS = 100
+
         /** JSON 코드 펜스 제거용 정규식 */
         private val CODE_FENCE_REGEX = Regex("```(?:json)?\\s*|```")
 
@@ -255,5 +260,22 @@ class LlmIntentClassifier(
             "Classify the user's intent. Return JSON only, no explanation."
 
         private val objectMapper = jacksonObjectMapper()
+
+        /**
+         * LLM 응답 문자열을 로그 출력용으로 안전하게 자른다.
+         *
+         * R307 fix: LLM raw 응답은 prompt injection/민감 정보/사용자 입력 echo를 포함할 수
+         * 있으므로 전체를 application log에 남기면 안 된다. 첫 [LOG_RESPONSE_MAX_CHARS]
+         * 문자 + 전체 길이만 출력하여 디버그에 필요한 정보는 남기고 노출은 차단한다.
+         *
+         * @param response LLM raw 응답
+         * @return `"<처음 100자>... (total N자)"` 또는 짧은 응답은 그대로
+         */
+        internal fun sanitizeForLog(response: String): String {
+            if (response.length <= LOG_RESPONSE_MAX_CHARS) {
+                return "${'"'}$response${'"'} (${response.length}자)"
+            }
+            return "${'"'}${response.take(LOG_RESPONSE_MAX_CHARS)}${'"'}... (total ${response.length}자)"
+        }
     }
 }
