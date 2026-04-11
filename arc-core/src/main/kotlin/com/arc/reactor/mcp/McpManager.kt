@@ -470,11 +470,33 @@ class DefaultMcpManager(
 
     /**
      * 연결이 끊어진 서버에 대해 온디맨드 재연결을 시도한다.
-     * FAILED 또는 DISCONNECTED 상태이고 재연결이 활성화된 경우에만 시도한다.
+     *
+     * **처리 매트릭스**:
+     * - `CONNECTED` → 즉시 `true` 반환
+     * - `PENDING` + `autoConnect=true` → **R332**: 첫 연결 시도 (자동 관리 서버)
+     * - `PENDING` + `autoConnect=false` → `false` (수동 관리 서버는 명시적 `connect()` 대기)
+     * - `FAILED` / `DISCONNECTED` + `reconnection.enabled=true` → 재연결 시도
+     * - 그 외 → `false`
+     *
+     * **R332 배경**: `McpHealthPinger.pingAllConnectedServers`는 R173에서 PENDING 서버도
+     * `attemptReconnectWithCooldown → ensureConnected` 경로로 첫 연결을 시도하도록 확장됐다.
+     * 그러나 `ensureConnected`는 PENDING 상태에서 무조건 `false`를 반환해 R173의 의도가
+     * 무효화되고 있었다(silent 모듈 간 의도 불일치).
+     * 이제 `autoConnect=true` 서버만 PENDING에서 첫 연결을 허용해 HealthPinger 의도를
+     * 복원하면서도, 수동 관리 서버(`autoConnect=false`)의 "명시적 connect 대기" 약속은
+     * 보존한다.
      */
     override suspend fun ensureConnected(serverName: String): Boolean {
         val status = statuses.getIfPresent(serverName)
         if (status == McpServerStatus.CONNECTED) return true
+        // R332: PENDING + autoConnect=true만 첫 연결 허용. reconnection.enabled 플래그는
+        // "degradation 이후 재연결" 용도이므로 첫 연결에는 적용하지 않는다.
+        if (status == McpServerStatus.PENDING) {
+            val server = servers.getIfPresent(serverName) ?: return false
+            if (!server.autoConnect) return false
+            logger.info { "MCP 서버 '$serverName' PENDING & autoConnect=true — 첫 연결 시도 (R332)" }
+            return connect(serverName)
+        }
         if (status != McpServerStatus.FAILED && status != McpServerStatus.DISCONNECTED) return false
         if (!reconnectionProperties.enabled) return false
 

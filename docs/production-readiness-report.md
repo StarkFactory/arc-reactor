@@ -137,6 +137,13 @@
 - 요약: `checkConnectedHealth`가 `tools.isEmpty()`을 무조건 degradation으로 간주해 legitimately 0-tool MCP 서버(MCP 프로토콜 상 유효)를 5분 쿨다운마다 영원히 재연결 루프에 태우던 버그를 수정. `seenNonEmptyServers` Caffeine 트래커를 도입해 "이전에 non-empty를 관찰한 적 있는 서버"에 한해서만 empty 전이를 퇴화로 간주. 기존 테스트 2개 semantics 업데이트 + R331 회귀 2건 신규(0-tool 안정 케이스 + non-empty → empty 전이 케이스). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R331.md`
 
+### Round 332 — 2026-04-12T23:00+09:00 — cycle 10 3차: ensureConnected PENDING + autoConnect=true 첫 연결 지원
+
+- axis: `connector_permissions`
+- 분류: `direct_value`
+- 요약: `McpHealthPinger.pingAllConnectedServers`(R173)는 PENDING 서버에 대해 `attemptReconnectWithCooldown → ensureConnected` 경로로 첫 연결을 시도하도록 확장됐으나, `DefaultMcpManager.ensureConnected`가 PENDING 상태를 거부해 R173 의도가 silent하게 무효화되고 있었다. autoConnect=true 서버만 PENDING에서 첫 연결을 허용하도록 분기 추가. autoConnect=false(수동 관리) 서버는 기존 대로 명시적 connect를 기다린다. 기존 테스트 1개 이름/의미 명확화 + R332 회귀 1건 신규(PENDING → FAILED 전이 검증으로 connect 도달 입증). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R332.md`
+
 ---
 
 ## 11. 아카이브

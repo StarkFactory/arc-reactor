@@ -141,16 +141,55 @@ class McpReconnectionTest {
     inner class EnsureConnected {
 
         @Test
-        fun `ensureConnected은(는) returns false for PENDING status`() = runBlocking {
+        fun `ensureConnected은(는) PENDING + autoConnect=false 서버를 건너뛴다`() = runBlocking {
             val manager = DefaultMcpManager(
                 reconnectionProperties = McpReconnectionProperties(enabled = true)
             )
+            // fastFailServer는 autoConnect=false (default) — 수동 관리 서버
             manager.register(fastFailServer("ensure-test"))
 
-            // PENDING status — not FAILED or DISCONNECTED, so ensureConnected returns false
+            // R332: PENDING + autoConnect=false는 사용자의 명시적 connect()를 기다린다
             val result = manager.ensureConnected("ensure-test")
             assertFalse(result) {
-                "ensureConnected should return false for PENDING status (not reconnectable)"
+                "autoConnect=false 서버는 PENDING 상태에서 ensureConnected가 false를 반환해야 한다"
+            }
+
+            manager.close()
+        }
+
+        /**
+         * R332 regression: `McpHealthPinger`가 PENDING 서버에 `ensureConnected`를 호출하면
+         * `autoConnect=true` 서버는 첫 연결을 시도해야 한다. 이전에는 `ensureConnected`가
+         * PENDING 상태를 거부해 HealthPinger의 R173 의도가 무효화되어 있었다.
+         *
+         * `fastFailServer`를 autoConnect=true로 만들어 첫 연결이 즉시 실패하도록 유도한 뒤,
+         * 상태가 PENDING → FAILED로 실제 전이되었는지 확인한다. 이는 ensureConnected가
+         * connect()까지 실제로 도달했다는 증거다.
+         */
+        @Test
+        fun `R332 ensureConnected은(는) PENDING + autoConnect=true 서버의 첫 연결을 시도한다`() = runBlocking {
+            val manager = DefaultMcpManager(
+                reconnectionProperties = McpReconnectionProperties(enabled = true)
+            )
+            // autoConnect=true로 명시한 서버 — HealthPinger가 방치해서는 안 되는 케이스
+            val server = McpServer(
+                name = "ensure-pending-auto",
+                transportType = McpTransportType.STDIO,
+                config = emptyMap(), // 'command' 누락 → 연결 시도는 실패
+                autoConnect = true
+            )
+            manager.register(server)
+            assertEquals(McpServerStatus.PENDING, manager.getStatus("ensure-pending-auto")) {
+                "register 직후 상태는 PENDING이어야 한다"
+            }
+
+            // R332: ensureConnected는 connect()까지 도달하고, connect가 즉시 실패하면 FAILED로 전이
+            val result = manager.ensureConnected("ensure-pending-auto")
+            assertFalse(result) {
+                "연결 자체는 command 누락으로 실패해야 하나, ensureConnected는 connect()를 시도해야 한다"
+            }
+            assertEquals(McpServerStatus.FAILED, manager.getStatus("ensure-pending-auto")) {
+                "ensureConnected가 connect()에 도달했음을 입증 — PENDING에서 FAILED로 전이되어야 한다"
             }
 
             manager.close()
