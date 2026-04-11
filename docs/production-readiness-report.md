@@ -186,6 +186,13 @@
 - 요약: `JdbcPendingApprovalStore.cleanupResolvedRows`의 DELETE 쿼리가 `AND resolved_at IS NOT NULL`만 조건으로 사용해, `resolved_at`이 NULL인 채 남은 resolved 상태 행(특히 폴링 루프 TIMED_OUT early return 경로, 다중 인스턴스 race, legacy migration, 외부 DBA 조작 등)이 retention 기간과 무관하게 **영구 잔류**하는 silent DB leak 수정. WHERE 절을 `(resolved_at IS NOT NULL AND resolved_at < cutoff) OR (resolved_at IS NULL AND requested_at < cutoff)`로 확장해 병적 행을 `requested_at` fallback으로 회수. 같은 cutoff 파라미터를 두 번 바인딩. 기존 정상 경로(`resolved_at` 세팅)는 behavior 완전 불변. 신규 회귀 1건(H2 embedded DB에 TIMED_OUT + resolved_at=NULL 행 3가지 변형 insert → listPending 호출로 cleanup 트리거 → 병적 old 행은 삭제되고 fresh 행과 정상 old 행은 기존 로직 대로 처리되는지 검증). 기존 R23 cleanup 회귀 PASS 유지. 전체 arc-core PASS. **`safe_action_workflows` 3회 연속 — R339부터 axis 전환 권장** (admin_productization 또는 employee_value).
 - 상세 위치: `docs/reports/rounds/R338.md`
 
+### Round 339 — 2026-04-13T02:30+09:00 — axis 전환 / cycle 10 10차: safety rejection reason tag 카디널리티 정규화
+
+- axis: `admin_productization`
+- 분류: `direct_value`
+- 요약: `safe_action_workflows` 3회 연속 후 tie-break 다음 우선순위인 `admin_productization`으로 axis 전환. metrics/diagnostics scanner가 발견한 P2 MED 3건 중 가장 작은 scope + 직접 가치인 `eval.safety.rejection` reason tag unbounded 카디널리티 처리. `MicrometerEvaluationMetricsCollector.recordSafetyRejection`이 Guard/Hook이 자유 문자열로 설정하는 `blockReason`을 그대로 Micrometer Counter tag로 등록해 Prometheus 시계열 카디널리티 폭발 위험(PII/동적 ID 포함 시 장기 운영 중 registry OOM, scrape 지연, Grafana 대시보드 가치 저하). `EvaluationMetricsHook.normalizeReasonTag` private helper로 `recordSafetyRejections` 호출 직전 64자 상한 + `A-Za-z0-9_.-` 외 문자 `_` 치환 + blank `"unknown"` 폴백 적용. Collector 인터페이스는 완전 불변(caller 측 normalize로 모든 구현체 동시 보호). 신규 회귀 2건(긴 자유 문자열 한글/특수문자 정규화 + blank unknown 폴백) + 기존 3개 safety rejection 테스트 공백→`_` 정규화 의도로 업데이트. 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R339.md`
+
 ---
 
 ## 11. 아카이브

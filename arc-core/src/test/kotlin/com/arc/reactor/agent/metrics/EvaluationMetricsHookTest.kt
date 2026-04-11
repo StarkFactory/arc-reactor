@@ -251,10 +251,11 @@ class EvaluationMetricsHookTest {
 
             hook.afterAgentComplete(context, response)
 
+            // R339: 공백은 `_`로 정규화되어 Prometheus tag에 안전한 형태로 기록됨
             verify(exactly = 1) {
                 collector.recordSafetyRejection(
                     stage = SafetyRejectionStage.GUARD,
-                    reason = "injection detected"
+                    reason = "injection_detected"
                 )
             }
         }
@@ -273,10 +274,11 @@ class EvaluationMetricsHookTest {
 
             hook.afterAgentComplete(context, response)
 
+            // R339: 공백 정규화 — "pii detected" → "pii_detected"
             verify(exactly = 1) {
                 collector.recordSafetyRejection(
                     stage = SafetyRejectionStage.OUTPUT_GUARD,
-                    reason = "pii detected"
+                    reason = "pii_detected"
                 )
             }
         }
@@ -291,10 +293,63 @@ class EvaluationMetricsHookTest {
 
             hook.afterAgentComplete(context, response)
 
+            // R339: 공백 정규화 — "rate limited" → "rate_limited"
             verify(exactly = 1) {
                 collector.recordSafetyRejection(
                     stage = SafetyRejectionStage.GUARD,
-                    reason = "rate limited"
+                    reason = "rate_limited"
+                )
+            }
+        }
+
+        /**
+         * R339 regression: `blockReason`은 Guard/Hook이 자유롭게 설정하는 자유 문자열이라
+         * 사용자 쿼리 일부, PII, 한글, 동적 식별자 등을 포함할 수 있다. Micrometer `reason`
+         * tag에 그대로 전달하면 Prometheus 시계열 카디널리티가 폭발하므로 고정 길이 + alphanumeric
+         * 집합으로 정규화되어야 한다.
+         */
+        @Test
+        fun `R339 긴 자유 문자열 blockReason은 64자 + alphanumeric tag로 정규화되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "user-1", userPrompt = "test")
+            // 한글 + 특수문자 + 쿼리 ID + 80자 길이 — 전형적인 병적 자유 문자열
+            context.metadata["blockReason"] =
+                "사용자 쿼리에서 PII 감지: email=alice@example.com, id=#12345 (IP: 10.0.0.1)"
+            val response = AgentResponse(success = false, totalDurationMs = 100L)
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordSafetyRejection(
+                    stage = SafetyRejectionStage.GUARD,
+                    reason = match { tag ->
+                        val lengthOk = tag.length <= 64
+                        val charsOk = tag.all { it.isLetterOrDigit() || it in setOf('_', '-', '.') }
+                        lengthOk && charsOk && tag.isNotBlank()
+                    }
+                )
+            }
+        }
+
+        @Test
+        fun `R339 blank blockReason은 unknown으로 폴백되어야 한다`() = runTest {
+            val collector = mockk<EvaluationMetricsCollector>(relaxed = true)
+            val hook = EvaluationMetricsHook(collector)
+            val context = HookContext(runId = "run-1", userId = "user-1", userPrompt = "test")
+            context.metadata["blockReason"] = "   " // 공백만
+            val response = AgentResponse(
+                success = false,
+                errorCode = "GUARD_REJECTED",
+                totalDurationMs = 50L
+            )
+
+            hook.afterAgentComplete(context, response)
+
+            verify(exactly = 1) {
+                collector.recordSafetyRejection(
+                    stage = SafetyRejectionStage.GUARD,
+                    reason = MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
                 )
             }
         }

@@ -143,8 +143,33 @@ class EvaluationMetricsHook(
             null -> if (blockReason != null) SafetyRejectionStage.GUARD else return
             else -> return
         }
-        val reason = blockReason ?: errorCode ?: MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
-        collector.recordSafetyRejection(stage, reason)
+        val rawReason = blockReason ?: errorCode ?: MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
+        // R339: Prometheus/Micrometer tag 카디널리티 보호 — 호출 직전 normalize
+        collector.recordSafetyRejection(stage, normalizeReasonTag(rawReason))
+    }
+
+    /**
+     * R339: `reason` tag 값을 Micrometer/Prometheus에 안전한 형태로 정규화한다.
+     *
+     * **배경**: `blockReason`은 Guard/Hook이 자유롭게 설정하는 문자열이고, 커스텀 Guard 구현체가
+     * 사용자 쿼리 일부나 PII, 동적 식별자를 포함할 수 있다. `MicrometerEvaluationMetricsCollector.
+     * recordSafetyRejection`은 이 값을 그대로 Counter tag로 등록하므로 장기 운영 중 **Micrometer
+     * 레지스트리에 무제한 카디널리티**가 쌓여 Prometheus scrape 성능 저하, 시계열 DB 비용 폭발,
+     * Actuator exporter timeout을 유발할 수 있다. Caffeine bounded in-memory map은 이 경로를
+     * 보호하지 않는다(`MicrometerAgentMetrics`의 다른 경로와 독립).
+     *
+     * **정책**:
+     * 1. 최대 [MAX_REASON_TAG_LENGTH]자로 절단
+     * 2. `A-Z a-z 0-9 _ - .` 외의 모든 문자는 `_`로 치환 (공백·한글·특수문자 등)
+     * 3. 정규화 결과가 빈 문자열이면 `"unknown"` 폴백
+     *
+     * 이는 Prometheus label value 관례(소문자 alphanumeric + 일부 구분자)에 맞추고 카디널리티를
+     * 한정된 enum-like 공간으로 수렴시킨다.
+     */
+    private fun normalizeReasonTag(reason: String): String {
+        if (reason.isBlank()) return MicrometerEvaluationMetricsCollector.UNKNOWN_TAG
+        val sanitized = reason.take(MAX_REASON_TAG_LENGTH).replace(REASON_TAG_SANITIZE_REGEX, "_")
+        return sanitized.ifBlank { MicrometerEvaluationMetricsCollector.UNKNOWN_TAG }
     }
 
     /**
@@ -223,5 +248,17 @@ class EvaluationMetricsHook(
 
         /** 차단 사유 메타데이터 키. */
         const val BLOCK_REASON_KEY = "blockReason"
+
+        /**
+         * R339: safety rejection `reason` tag 최대 길이.
+         * 64자로 제한해 Micrometer/Prometheus label value 길이 관례를 따른다.
+         */
+        internal const val MAX_REASON_TAG_LENGTH = 64
+
+        /**
+         * R339: `reason` tag에서 허용되지 않는 문자를 매칭하는 정규식 (top-level const 대신 companion).
+         * 허용 집합: 대소문자 alphanumeric + `_`/`-`/`.`. 공백·한글·특수문자 등은 모두 `_`로 치환.
+         */
+        private val REASON_TAG_SANITIZE_REGEX = Regex("[^A-Za-z0-9_.\\-]")
     }
 }
