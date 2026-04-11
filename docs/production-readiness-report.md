@@ -179,6 +179,13 @@
 - 요약: `InMemoryPendingApprovalStore`의 Caffeine bounded cache가 `maximumSize` 초과 시 entry를 evict하면서 `PendingEntry.deferred`를 완료시키지 않아 (1) 사용자 요청은 `withTimeoutOrNull` 전체 타임아웃(기본 5분)까지 대기, (2) 관리자 `approve(id)` 호출은 `getIfPresent(id) == null`이라 `false` 반환 → "승인 실패"로 보이는 silent UX 버그 수정. Caffeine builder에 `removalListener`를 등록해 `SIZE` cause evict 시 `deferred.complete(ToolApprovalResponse(approved=false, reason="Approval store overflow ..."))` 호출하여 대기 사용자에게 **즉시** overflow 응답 전달. `EXPLICIT`/`REPLACED`/`EXPIRED`/`COLLECTED` 등 정상 흐름은 무시. 테스트 전용 `internal forceCleanUp` helper 추가로 Caffeine 비동기 eviction을 deterministic하게 drain. 신규 회귀 1건(maxPending=1, 두 요청 중 W-TinyLFU admission 결과에 따라 "하나라도" overflow 응답을 받는지 검증). 기존 R310 bounded cache 회귀 전부 유지 PASS. 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R337.md`
 
+### Round 338 — 2026-04-13T02:00+09:00 — cycle 10 9차: JdbcPendingApprovalStore cleanup 쿼리 확장 (TIMED_OUT + resolved_at NULL 회수)
+
+- axis: `safe_action_workflows` (3회 연속)
+- 분류: `direct_value`
+- 요약: `JdbcPendingApprovalStore.cleanupResolvedRows`의 DELETE 쿼리가 `AND resolved_at IS NOT NULL`만 조건으로 사용해, `resolved_at`이 NULL인 채 남은 resolved 상태 행(특히 폴링 루프 TIMED_OUT early return 경로, 다중 인스턴스 race, legacy migration, 외부 DBA 조작 등)이 retention 기간과 무관하게 **영구 잔류**하는 silent DB leak 수정. WHERE 절을 `(resolved_at IS NOT NULL AND resolved_at < cutoff) OR (resolved_at IS NULL AND requested_at < cutoff)`로 확장해 병적 행을 `requested_at` fallback으로 회수. 같은 cutoff 파라미터를 두 번 바인딩. 기존 정상 경로(`resolved_at` 세팅)는 behavior 완전 불변. 신규 회귀 1건(H2 embedded DB에 TIMED_OUT + resolved_at=NULL 행 3가지 변형 insert → listPending 호출로 cleanup 트리거 → 병적 old 행은 삭제되고 fresh 행과 정상 old 행은 기존 로직 대로 처리되는지 검증). 기존 R23 cleanup 회귀 PASS 유지. 전체 arc-core PASS. **`safe_action_workflows` 3회 연속 — R339부터 axis 전환 권장** (admin_productization 또는 employee_value).
+- 상세 위치: `docs/reports/rounds/R338.md`
+
 ---
 
 ## 11. 아카이브

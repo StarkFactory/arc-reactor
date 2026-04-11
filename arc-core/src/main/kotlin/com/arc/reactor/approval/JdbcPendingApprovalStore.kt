@@ -229,21 +229,46 @@ class JdbcPendingApprovalStore(
         cleanupResolvedRows()
     }
 
-    /** 보관 기간이 지난 해결된 행을 삭제한다 */
+    /**
+     * 보관 기간이 지난 해결된 행을 삭제한다.
+     *
+     * **R338 fix**: 이전 쿼리는 `AND resolved_at IS NOT NULL`만 조건으로 사용해
+     * `resolved_at`이 NULL인 채로 남은 resolved 상태 행(특히 `TIMED_OUT`)이
+     * retention 기간과 무관하게 **영구 잔류**하는 silent DB leak이 있었다.
+     *
+     * 이 상태가 발생하는 경로:
+     * 1. `requestApproval` 폴링 루프가 `findState`에서 `TIMED_OUT`을 감지하고
+     *    early return → 단계 3 UPDATE(`resolved_at` 세팅)를 건너뜀. 다중 인스턴스
+     *    배포에서 다른 프로세스가 해당 id를 TIMED_OUT으로 마킹했거나, 이전 버전
+     *    버그/수동 DBA 조작으로 NULL 상태가 남은 경우에 해당한다.
+     * 2. 과거 마이그레이션이 resolved 상태를 만들면서 `resolved_at`을 채우지 않은
+     *    legacy row.
+     * 3. 외부 스크립트/툴이 직접 INSERT한 테스트 데이터.
+     *
+     * **수정**: `(resolved_at IS NOT NULL AND resolved_at < cutoff)` OR
+     * `(resolved_at IS NULL AND requested_at < cutoff)`. `resolved_at`이 없을 때는
+     * `requested_at`을 fallback 기준으로 사용해 동일 retention 윈도우 안에서
+     * 모든 resolved 행이 회수되도록 보장한다. 파라미터는 cutoff 하나를 **두 번**
+     * 바인딩한다.
+     */
     private fun cleanupResolvedRows() {
         val retentionMs = resolvedRetentionMs.coerceAtLeast(0)
         val cutoff = Instant.now().minusMillis(retentionMs)
+        val cutoffTs = Timestamp.from(cutoff)
         jdbcTemplate.update(
             """
             DELETE FROM pending_approvals
              WHERE status IN (?, ?, ?)
-               AND resolved_at IS NOT NULL
-               AND resolved_at < ?
+               AND (
+                   (resolved_at IS NOT NULL AND resolved_at < ?)
+                   OR (resolved_at IS NULL AND requested_at < ?)
+               )
             """.trimIndent(),
             ApprovalStatus.APPROVED.name,
             ApprovalStatus.REJECTED.name,
             ApprovalStatus.TIMED_OUT.name,
-            Timestamp.from(cutoff)
+            cutoffTs,
+            cutoffTs
         )
     }
 

@@ -72,6 +72,45 @@ class JdbcPendingApprovalStoreCleanupTest {
         assertEquals(listOf("fresh-approved"), ids)
     }
 
+    /**
+     * R338 regression: resolved 상태(`TIMED_OUT` 등)인데 `resolved_at`이 NULL인 행도
+     * `requested_at` fallback 기준으로 회수되어야 한다. 이전 cleanup 쿼리는
+     * `AND resolved_at IS NOT NULL`만 가지고 있어 이런 행이 영구 잔류했다.
+     *
+     * 시나리오:
+     * - `old-timeout-null`: TIMED_OUT 상태 + resolved_at=NULL + requested_at=2시간 전
+     *   → retention(60초) 초과 → R338 fix 적용 후 삭제되어야 한다
+     * - `fresh-timeout-null`: TIMED_OUT 상태 + resolved_at=NULL + requested_at=지금
+     *   → retention 내 → 유지되어야 한다
+     * - `old-timeout-resolved`: TIMED_OUT 상태 + resolved_at=2시간 전 (정상 경로)
+     *   → 기존 로직으로도 삭제되어야 한다 (회귀 검증)
+     */
+    @Test
+    fun `R338 resolved_at NULL인 TIMED_OUT 행도 requested_at 기준으로 cleanup 되어야 한다`() {
+        val oldRequestedAt = Instant.now().minusSeconds(7_200)
+        val freshRequestedAt = Instant.now()
+        val oldResolvedAt = Instant.now().minusSeconds(7_200)
+
+        // (1) 오래된 TIMED_OUT + resolved_at NULL — R338 fix가 requested_at fallback으로 회수
+        insertTimedOutNull(id = "old-timeout-null", requestedAt = oldRequestedAt)
+        // (2) 신선한 TIMED_OUT + resolved_at NULL — retention 내이므로 유지되어야 한다
+        insertTimedOutNull(id = "fresh-timeout-null", requestedAt = freshRequestedAt)
+        // (3) 오래된 TIMED_OUT + resolved_at 세팅 (정상 경로) — 기존 로직으로도 삭제
+        insertResolved(id = "old-timeout-resolved", status = ApprovalStatus.TIMED_OUT, resolvedAt = oldResolvedAt)
+
+        // cleanup 트리거 — listPending 호출 시 cleanupIfNeeded 실행
+        store.listPending()
+
+        val remainingIds = jdbcTemplate.queryForList(
+            "SELECT id FROM pending_approvals ORDER BY id",
+            String::class.java
+        )
+        assertEquals(listOf("fresh-timeout-null"), remainingIds) {
+            "R338: resolved_at이 NULL이어도 requested_at 기준으로 retention 초과 행이 삭제되어야 한다. " +
+                "실제 잔류 id=$remainingIds"
+        }
+    }
+
     private fun insertResolved(id: String, status: ApprovalStatus, resolvedAt: Instant) {
         jdbcTemplate.update(
             """
@@ -88,6 +127,28 @@ class JdbcPendingApprovalStoreCleanupTest {
             status.name,
             Timestamp.from(Instant.now().minusSeconds(7_200)),
             Timestamp.from(resolvedAt)
+        )
+    }
+
+    /**
+     * R338 테스트 헬퍼: `TIMED_OUT` 상태이면서 `resolved_at`이 NULL인 "병적" 행을 주입한다.
+     * 실제 운영에서는 다중 인스턴스 race, legacy migration, 외부 스크립트 조작 등으로 발생할 수 있다.
+     */
+    private fun insertTimedOutNull(id: String, requestedAt: Instant) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO pending_approvals
+            (id, run_id, user_id, tool_name, arguments, timeout_ms, status, requested_at, resolved_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            """.trimIndent(),
+            id,
+            "run-1",
+            "user-1",
+            "tool-a",
+            "{}",
+            10_000L,
+            ApprovalStatus.TIMED_OUT.name,
+            Timestamp.from(requestedAt)
         )
     }
 }
