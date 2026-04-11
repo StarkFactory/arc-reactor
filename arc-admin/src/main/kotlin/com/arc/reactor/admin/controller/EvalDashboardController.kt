@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -32,31 +34,42 @@ class EvalDashboardController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 평가 런 목록 조회. */
+    /**
+     * 평가 런 목록 조회.
+     *
+     * R301 fix: suspend + IO 격리. 이전 구현은 blocking JdbcTemplate.queryForList를
+     * Reactor Netty 이벤트 루프에서 직접 실행했다.
+     */
     @Operation(summary = "Eval 런 목록")
     @GetMapping("/runs")
-    fun runs(
+    suspend fun runs(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(RUNS_SQL, tenantId, Timestamp.from(from))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(RUNS_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 합격률 일별 추이. */
+    /** 합격률 일별 추이. R301 fix: suspend + IO 격리. */
     @Operation(summary = "Eval 합격률 추이")
     @GetMapping("/pass-rate")
-    fun passRate(
+    suspend fun passRate(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(PASS_RATE_SQL, tenantId, Timestamp.from(from))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(PASS_RATE_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 

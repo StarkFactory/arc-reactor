@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -32,31 +34,42 @@ class SlackActivityController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 채널별 활동 통계. */
+    /**
+     * 채널별 활동 통계.
+     *
+     * R301 fix: blocking JdbcTemplate.queryForList를 IO dispatcher로 격리. 이전 구현은
+     * Reactor Netty 이벤트 루프에서 직접 JDBC 호출하여 워커 차단 위험.
+     */
     @Operation(summary = "Slack 채널별 활동 통계")
     @GetMapping("/channels")
-    fun channelStats(
+    suspend fun channelStats(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(CHANNEL_STATS_SQL, tenantId, Timestamp.from(from))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(CHANNEL_STATS_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 일별 Slack 메시지 수 추이. */
+    /** 일별 Slack 메시지 수 추이. R301 fix: suspend + IO 격리. */
     @Operation(summary = "일별 Slack 활동 추이")
     @GetMapping("/daily")
-    fun daily(
+    suspend fun daily(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(DAILY_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 

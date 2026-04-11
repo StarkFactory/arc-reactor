@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -32,10 +34,15 @@ class ToolCallController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 도구 호출 이력 조회 (run_id 또는 기간 필터). */
+    /**
+     * 도구 호출 이력 조회 (run_id 또는 기간 필터).
+     *
+     * R301 fix: suspend + IO 격리. 이전 구현은 blocking JdbcTemplate.queryForList를
+     * Reactor Netty 이벤트 루프에서 직접 실행했다.
+     */
     @Operation(summary = "도구 호출 이력 조회")
     @GetMapping
-    fun list(
+    suspend fun list(
         @RequestParam(required = false) runId: String?,
         @RequestParam(defaultValue = "7") days: Int,
         @RequestParam(defaultValue = "100") limit: Int,
@@ -43,26 +50,32 @@ class ToolCallController(
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val rows = if (!runId.isNullOrBlank()) {
-            jdbc.queryForList(BY_RUN_SQL, tenantId, runId)
-        } else {
-            val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-            jdbc.queryForList(BY_PERIOD_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 500))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            if (!runId.isNullOrBlank()) {
+                jdbc.queryForList(BY_RUN_SQL, tenantId, runId)
+            } else {
+                val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
+                jdbc.queryForList(BY_PERIOD_SQL, tenantId, Timestamp.from(from), limit.coerceIn(1, 500))
+            }
         }
         return ResponseEntity.ok(rows)
     }
 
-    /** 도구별 사용 랭킹. */
+    /** 도구별 사용 랭킹. R301 fix: suspend + IO 격리. */
     @Operation(summary = "도구별 사용 통계")
     @GetMapping("/ranking")
-    fun ranking(
+    suspend fun ranking(
         @RequestParam(defaultValue = "30") days: Int,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 365), ChronoUnit.DAYS)
-        val rows = jdbc.queryForList(RANKING_SQL, tenantId, Timestamp.from(from))
+        // R301: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            jdbc.queryForList(RANKING_SQL, tenantId, Timestamp.from(from))
+        }
         return ResponseEntity.ok(rows)
     }
 
