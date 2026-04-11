@@ -201,8 +201,22 @@ class InMemoryPersonaStore : PersonaStore {
         }
     }
 
+    /**
+     * 페르소나를 삭제한다.
+     *
+     * R285 fix: synchronized(this) 추가. 이전 구현은 delete를 동기화하지 않아 다음 race가
+     * 발생했다:
+     * 1. T1: update(personaId, ...) → synchronized 진입 → existing 읽음 → modify 후 personas[id]=updated
+     * 2. T2: delete(personaId) → synchronized 없이 personas.remove(personaId)
+     * 3. 만약 T2.remove가 T1.put 직전에 실행되면 T1이 deleted persona를 **resurrect**
+     * 4. 결과: 사용자는 delete API 호출 후 persona가 살아있는 것을 발견 — contract 위반
+     *
+     * save/update/delete를 동일한 monitor로 직렬화하여 항상 일관된 상태 유지.
+     */
     override fun delete(personaId: String) {
-        personas.remove(personaId)
+        synchronized(this) {
+            personas.remove(personaId)
+        }
     }
 
     /**

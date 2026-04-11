@@ -323,5 +323,54 @@ class PersonaStoreTest {
                 executor.shutdown()
             }
         }
+
+        @Test
+        fun `R285 concurrent update and delete은(는) never resurrect deleted persona해야 한다`() {
+            // R285 fix 검증: delete가 synchronized 블록 안에 있어야 update가 deleted persona를
+            // resurrect하지 않는다. 이전 구현(unsynchronized delete)에서는 다음 race가 가능했다:
+            // 1. T1: update(id, ...) → synchronized 진입 → existing 읽음 → modify 후 personas[id]=updated
+            // 2. T2: delete(id) → unsynchronized → personas.remove(id)
+            // 3. T2.remove가 T1.put 직전에 실행되면 T1이 deleted persona를 resurrect
+            val iterations = 200
+            val seedId = "race-target"
+            var resurrections = 0
+
+            for (i in 1..iterations) {
+                store.save(Persona(id = seedId, name = "iter-$i", systemPrompt = "p"))
+
+                val executor = Executors.newFixedThreadPool(2)
+                val latch = CountDownLatch(1)
+                try {
+                    val updateFuture = executor.submit {
+                        latch.await()
+                        store.update(seedId, name = "updated-$i")
+                    }
+                    val deleteFuture = executor.submit {
+                        latch.await()
+                        store.delete(seedId)
+                    }
+                    latch.countDown()
+                    updateFuture.get()
+                    deleteFuture.get()
+                } finally {
+                    executor.shutdown()
+                }
+
+                // delete가 항상 update 이후 또는 이전에 직렬화되어 실행되어야 한다.
+                // 직렬화 후 가능한 최종 상태:
+                // (a) update → delete: persona 삭제됨 (get == null)
+                // (b) delete → update: update가 null 반환, persona 없음 (get == null)
+                // 어느 경우든 get은 null이어야 한다. resurrection이 있으면 get != null.
+                if (store.get(seedId) != null) {
+                    resurrections++
+                }
+            }
+
+            assertEquals(0, resurrections) {
+                "R285 fix: $iterations 회 동시 update/delete 후 deleted persona가 resurrect된 횟수는 " +
+                    "0이어야 하지만 ${resurrections}회 발생함. delete가 synchronized 블록 안에서 " +
+                    "실행되지 않으면 update가 deleted persona를 다시 살리는 race condition 발생."
+            }
+        }
     }
 }
