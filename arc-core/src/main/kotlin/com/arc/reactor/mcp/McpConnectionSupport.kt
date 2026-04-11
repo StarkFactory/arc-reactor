@@ -2,6 +2,7 @@ package com.arc.reactor.mcp
 
 import com.arc.reactor.mcp.model.McpServer
 import com.arc.reactor.mcp.model.McpTransportType
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.ToolCallback
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.Counter
@@ -383,6 +384,12 @@ internal class McpConnectionSupport(
     /**
      * MCP 서버에서 도구 콜백 목록을 로딩한다.
      * 각 MCP 도구를 Arc Reactor의 McpToolCallback으로 래핑한다.
+     *
+     * R278: catch 블록 첫 줄에 `e.throwIfCancellation()` 추가. 이 함수는 일반 함수
+     * (suspend 아님)이지만 호출자(McpConnectionSupport.connect 등)는 suspend 컨텍스트에서
+     * `withContext(Dispatchers.IO) { loadToolCallbacks(...) }` 형태로 호출하므로,
+     * `client.listTools()`가 코루틴 컨텍스트와 상호작용하는 경우 CancellationException이
+     * leak할 수 있다. 방어적으로 cancellation을 재전파하여 사용자 요청 취소 응답성 보장.
      */
     private fun loadToolCallbacks(client: McpSyncClient, serverName: String): List<ToolCallback> {
         return try {
@@ -401,6 +408,8 @@ internal class McpConnectionSupport(
                 )
             }
         } catch (e: Exception) {
+            // R278: 방어적 cancellation 전파. R270 findMcpToolCallback fix와 동일 패턴.
+            e.throwIfCancellation()
             logger.error(e) { "$serverName 에서 도구 로딩 실패" }
             emptyList()
         }

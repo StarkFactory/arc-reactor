@@ -376,9 +376,19 @@ class DefaultMcpManager(
         val blocked = servers.keys.filterNot(::allowedBySecurity)
         for (serverName in blocked) {
             logger.info { "허용 목록 변경으로 MCP 서버 퇴출: $serverName" }
-            disconnectInternal(serverName)
-            servers.remove(serverName)
-            statuses.remove(serverName)
+            // R278 fix: 동시에 진행 중일 수 있는 connect(serverName) 코루틴과 race 방지를
+            // 위해 mutex 안에서 disconnectInternal을 호출하고 bookkeeping까지 처리.
+            // 이 메서드는 비-suspend이므로 runBlocking으로 mutex 획득 (대기 시간은 짧음 —
+            // 진행 중인 connect 1회만 기다림). 호출자가 상태 변경 완료를 기대하므로 sync 의미
+            // 유지가 필요하다 (테스트도 이 의미를 잠금).
+            kotlinx.coroutines.runBlocking {
+                mutexFor(serverName).withLock {
+                    disconnectInternal(serverName)
+                    servers.remove(serverName)
+                    statuses.remove(serverName)
+                }
+            }
+            // serverMutexes.remove는 mutex 자체를 제거하므로 락 해제 후 실행
             serverMutexes.remove(serverName)
         }
 
