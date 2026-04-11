@@ -169,6 +169,68 @@ class SchedulerControllerAuthTest {
         assertTrue(result["dryRun"] as Boolean) { "드라이런 응답에 dryRun=true가 포함되어야 한다" }
     }
 
+    @Test
+    fun `R297 triggerJob hang하면 timeout 504를 반환한다`() {
+        // R297 fix 검증: hang하는 schedulerService.trigger 호출이 timeout 후 504 반환.
+        // 짧은 timeout(500ms)을 가진 컨트롤러 인스턴스로 빠른 검증.
+        val controllerWithShortTimeout = SchedulerController(
+            schedulerService,
+            agentProperties = com.arc.reactor.agent.config.AgentProperties(
+                scheduler = com.arc.reactor.agent.config.SchedulerProperties(
+                    enabled = true,
+                    defaultExecutionTimeoutMs = 500
+                )
+            )
+        )
+        every { schedulerService.findById("hung-job") } returns ScheduledJob(
+            id = "hung-job", name = "hung", cronExpression = "0 0 * * *",
+            jobType = ScheduledJobType.MCP_TOOL
+        )
+        // schedulerService.trigger가 5초 sleep — timeout(500ms) 한참 초과
+        every { schedulerService.trigger("hung-job") } answers {
+            Thread.sleep(5000)
+            "should not reach here"
+        }
+
+        val response = controllerWithShortTimeout
+            .triggerJob("hung-job", exchange(userId = "admin-1", role = UserRole.ADMIN))
+            .block()
+
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, response?.statusCode) {
+            "R297 fix: hang하는 trigger는 504 Gateway Timeout 반환해야 한다 " +
+                "(boundedElastic 풀 고갈 방지)"
+        }
+    }
+
+    @Test
+    fun `R297 dryRunJob hang하면 timeout 504를 반환한다`() {
+        val controllerWithShortTimeout = SchedulerController(
+            schedulerService,
+            agentProperties = com.arc.reactor.agent.config.AgentProperties(
+                scheduler = com.arc.reactor.agent.config.SchedulerProperties(
+                    enabled = true,
+                    defaultExecutionTimeoutMs = 500
+                )
+            )
+        )
+        every { schedulerService.findById("hung-dry") } returns ScheduledJob(
+            id = "hung-dry", name = "hung", cronExpression = "0 0 * * *",
+            jobType = ScheduledJobType.MCP_TOOL
+        )
+        every { schedulerService.dryRun("hung-dry") } answers {
+            Thread.sleep(5000)
+            "should not reach here"
+        }
+
+        val response = controllerWithShortTimeout
+            .dryRunJob("hung-dry", exchange(userId = "admin-1", role = UserRole.ADMIN))
+            .block()
+
+        assertEquals(HttpStatus.GATEWAY_TIMEOUT, response?.statusCode) {
+            "R297 fix: hang하는 dryRun은 504 Gateway Timeout 반환해야 한다"
+        }
+    }
+
     private fun exchange(userId: String? = null, role: UserRole? = null): ServerWebExchange {
         val exchange = mockk<ServerWebExchange>()
         val attrs = mutableMapOf<String, Any>()

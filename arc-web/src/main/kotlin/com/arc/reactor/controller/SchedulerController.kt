@@ -1,5 +1,6 @@
 package com.arc.reactor.controller
 
+import com.arc.reactor.agent.config.AgentProperties
 import com.arc.reactor.scheduler.DynamicSchedulerService
 import mu.KotlinLogging
 import com.arc.reactor.scheduler.ScheduledJob
@@ -27,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
+import java.time.Duration
+import java.util.concurrent.TimeoutException
 /**
  * 동적 스케줄러 API 컨트롤러.
  *
@@ -55,8 +58,17 @@ private val logger = KotlinLogging.logger {}
 @RequestMapping("/api/scheduler/jobs")
 @ConditionalOnProperty(prefix = "arc.reactor.scheduler", name = ["enabled"], havingValue = "true")
 class SchedulerController(
-    private val schedulerService: DynamicSchedulerService
+    private val schedulerService: DynamicSchedulerService,
+    private val agentProperties: AgentProperties = AgentProperties()
 ) {
+
+    /**
+     * R297: Mono 기반 trigger/dryRun 작업의 timeout. SchedulerProperties의 기본 실행
+     * timeout과 동일 값(기본 5분)을 사용하여 hang하는 작업이 boundedElastic 풀을 고갈
+     * 시키지 못하도록 보장한다.
+     */
+    private val executionTimeout: Duration =
+        Duration.ofMillis(agentProperties.scheduler.defaultExecutionTimeoutMs.coerceAtLeast(1000))
 
     /** 전체 예약 작업 목록을 조회한다. 선택적으로 태그로 필터링한다. */
     @Operation(summary = "전체 예약 작업 목록 조회 (태그 필터 선택)")
@@ -155,12 +167,20 @@ class SchedulerController(
         return ResponseEntity.noContent().build()
     }
 
-    /** 예약 작업을 즉시 실행한다. */
+    /**
+     * 예약 작업을 즉시 실행한다.
+     *
+     * R297 fix: `.timeout(executionTimeout)` 추가. 이전 구현은 hang하는 작업이
+     * boundedElastic 워커 스레드를 무한히 점유할 수 있어 풀 고갈 → 다른 trigger/dryRun
+     * 요청 처리 불가. R297에서는 SchedulerProperties.defaultExecutionTimeoutMs (기본 5분)
+     * 초과 시 [TimeoutException] → 504 Gateway Timeout 반환.
+     */
     @Operation(summary = "예약 작업 즉시 실행 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Job triggered"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
-        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+        ApiResponse(responseCode = "404", description = "Scheduled job not found"),
+        ApiResponse(responseCode = "504", description = "Job execution timed out")
     ])
     @PostMapping("/{id}/trigger")
     fun triggerJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
@@ -169,15 +189,26 @@ class SchedulerController(
         return Mono.fromCallable {
             val result = schedulerService.trigger(id)
             ResponseEntity.ok<Any>(mapOf("result" to result))
-        }.subscribeOn(Schedulers.boundedElastic())
+        }
+            .subscribeOn(Schedulers.boundedElastic())
+            .timeout(executionTimeout) // R297: hang 방지
+            .onErrorResume(TimeoutException::class.java) { _ ->
+                logger.warn { "예약 작업 trigger timeout: id=$id, timeout=${executionTimeout.toSeconds()}s" }
+                Mono.just(timeoutResponse(id))
+            }
     }
 
-    /** 상태 기록이나 알림 전송 없이 예약 작업을 드라이런한다. */
+    /**
+     * 상태 기록이나 알림 전송 없이 예약 작업을 드라이런한다.
+     *
+     * R297 fix: triggerJob과 동일한 timeout 적용.
+     */
     @Operation(summary = "예약 작업 드라이런 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Dry-run result"),
         ApiResponse(responseCode = "403", description = "Admin access required"),
-        ApiResponse(responseCode = "404", description = "Scheduled job not found")
+        ApiResponse(responseCode = "404", description = "Scheduled job not found"),
+        ApiResponse(responseCode = "504", description = "Dry-run execution timed out")
     ])
     @PostMapping("/{id}/dry-run")
     fun dryRunJob(@PathVariable id: String, exchange: ServerWebExchange): Mono<ResponseEntity<Any>> {
@@ -186,7 +217,24 @@ class SchedulerController(
         return Mono.fromCallable {
             val result = schedulerService.dryRun(id)
             ResponseEntity.ok<Any>(mapOf("result" to result, "dryRun" to true))
-        }.subscribeOn(Schedulers.boundedElastic())
+        }
+            .subscribeOn(Schedulers.boundedElastic())
+            .timeout(executionTimeout) // R297: hang 방지
+            .onErrorResume(TimeoutException::class.java) { _ ->
+                logger.warn { "예약 작업 dryRun timeout: id=$id, timeout=${executionTimeout.toSeconds()}s" }
+                Mono.just(timeoutResponse(id))
+            }
+    }
+
+    /** R297: 504 Gateway Timeout 응답. e.message는 노출하지 않고 일반 안내만. */
+    private fun timeoutResponse(jobId: String): ResponseEntity<Any> {
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(
+            ErrorResponse(
+                error = "Job execution timed out after ${executionTimeout.toSeconds()}s. " +
+                    "작업이 지정된 timeout 내에 완료되지 않았습니다. (jobId=$jobId)",
+                timestamp = java.time.Instant.now().toString()
+            )
+        )
     }
 
     /** 예약 작업의 실행 이력을 조회한다. */
