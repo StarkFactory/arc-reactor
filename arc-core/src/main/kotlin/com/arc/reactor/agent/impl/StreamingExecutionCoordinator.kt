@@ -260,9 +260,13 @@ internal class StreamingExecutionCoordinator(
         state: StreamingExecutionState,
         emit: suspend (String) -> Unit
     ) {
-        logger.warn { "스트리밍 요청 타임아웃: ${requestTimeoutMs}ms 경과" }
+        logger.warn(exception) { "스트리밍 요청 타임아웃: ${requestTimeoutMs}ms 경과" }
         state.streamErrorCode = AgentErrorCode.TIMEOUT
-        state.streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, exception.message)
+        // R321 fix: TimeoutCancellationException.message는 coroutine 내부 타이밍/context 세부 정보를
+        // 포함할 수 있어 SSE로 클라이언트에 노출되면 내부 상태 누출. CLAUDE.md Critical Gotcha #9
+        // 확장판(SSE 경로) 위반. exception.message 대신 null을 전달하여 errorCode.defaultMessage
+        // (localized safe message)만 사용하도록 강제한다.
+        state.streamErrorMessage = errorMessageResolver.resolve(AgentErrorCode.TIMEOUT, null)
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 
@@ -277,9 +281,11 @@ internal class StreamingExecutionCoordinator(
         logger.error(effectiveException) { "스트리밍 실행 실패" }
         val errorCode = agentErrorPolicy.classify(effectiveException)
         state.streamErrorCode = errorCode
-        state.streamErrorMessage = errorMessageResolver.resolve(
-            errorCode, effectiveException.message
-        )
+        // R321 fix: 예외 메시지에는 "Connection refused to 10.0.0.5:5432" 같은 내부 네트워크
+        // 세부 정보나 stack trace hint가 포함될 수 있다. 커스텀 ErrorMessageResolver가 이를 SSE에
+        // 에코할 경우 CLAUDE.md Critical Gotcha #9 위반. null을 전달하여 errorCode.defaultMessage
+        // 경로로 강제. 원본 exception은 logger.error로 서버 측에만 기록.
+        state.streamErrorMessage = errorMessageResolver.resolve(errorCode, null)
         emit(StreamEventMarker.error(state.streamErrorMessage.orEmpty()))
     }
 

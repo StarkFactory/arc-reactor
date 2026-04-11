@@ -248,7 +248,15 @@ class DefaultConversationManager(
 
         val existingSummary = summaryStore?.get(sessionId)
 
-        // 기존 요약이 분할 인덱스 이상까지 커버하면 재사용, 아니면 새로 생성
+        // R321 invariant 주석: `summarizedUpToIndex`는 summary가 커버하는 메시지 수(= 저장 시점의
+        // splitIndex)와 동일한 값으로 저장된다 (line: `summarizedUpToIndex = messages.size`).
+        // 새 턴이 추가되면 `splitIndex`가 증가하므로 `summarizedUpToIndex < splitIndex` → 재생성.
+        // 반대로 설정 변경 등으로 `recentMessageCount`가 줄면 `summarizedUpToIndex > splitIndex`가
+        // 가능하며 이 경우 `messagesToSummarize = allMessages[0, splitIndex)`가 summary의 일부만
+        // 커버하므로 기존 요약을 그대로 재사용해도 정확. 따라서 `>=` 조건은 올바르다.
+        // 유일한 오버랩 리스크: `summarizedUpToIndex`와 `splitIndex`가 완전 동일하지 않지만
+        // 재사용이 발생할 때 recent window와 summary 범위가 겹칠 수 있는데, `>= splitIndex`
+        // 조건이 이를 배제한다 (summary ⊇ [0, splitIndex), recent = [splitIndex, size)).
         val summary = if (existingSummary != null && existingSummary.summarizedUpToIndex >= splitIndex) {
             existingSummary
         } else {
