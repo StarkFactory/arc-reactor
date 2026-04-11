@@ -73,9 +73,12 @@ class ConversationMemoryStressTest {
         }
     }
 
+    // R318: populateSession이 userId="test-user"로 세션을 생성하므로 command도 동일 userId로
+    // 요청해야 session ownership 검증을 통과한다.
     private fun command(sessionId: String) = AgentCommand(
         systemPrompt = "",
         userPrompt = "next question",
+        userId = "test-user",
         metadata = mapOf("sessionId" to sessionId)
     )
 

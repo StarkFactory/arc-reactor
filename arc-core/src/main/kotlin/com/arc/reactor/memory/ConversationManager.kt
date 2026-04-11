@@ -386,7 +386,12 @@ class DefaultConversationManager(
      * 대화할 수 있으므로 소유권 검증을 생략한다.
      */
     private suspend fun verifySessionOwnership(sessionId: String, userId: String?) {
-        if (userId == null) return
+        // R318 fix: 이전 구현은 `if (userId == null) return`으로 null userId 요청을 조건 없이
+        // 통과시켰다 — saveMessages는 null → "anonymous"로 리졸브하는데 load 경로만 검사를
+        // 건너뛰어 null userId 호출이 임의 sessionId의 히스토리를 로드 가능했다. CLAUDE.md
+        // Gotcha #8 위반(Guard null userId → "anonymous" 폴백 필수, skip = 보안 취약점).
+        // 이제 save 경로와 동일하게 "anonymous"로 폴백한 뒤 소유권 검증을 수행한다.
+        val resolvedUserId = userId ?: "anonymous"
         if (sessionId.startsWith("slack-")) return
         val store = memoryStore ?: return
         val owner = try {
@@ -400,11 +405,11 @@ class DefaultConversationManager(
             logger.error(e) { "세션 소유권 조회 실패 — fail-close로 접근 차단: sessionId=$sessionId" }
             throw SessionOwnershipVerificationException(sessionId, e)
         } ?: return
-        if (owner != userId) {
+        if (owner != resolvedUserId) {
             logger.warn {
-                "세션 소유권 불일치: session=$sessionId, owner=$owner, requester=$userId"
+                "세션 소유권 불일치: session=$sessionId, owner=$owner, requester=$resolvedUserId"
             }
-            throw SessionOwnershipException(sessionId, userId)
+            throw SessionOwnershipException(sessionId, resolvedUserId)
         }
     }
 

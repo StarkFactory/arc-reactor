@@ -72,6 +72,7 @@ class ConversationManagerTest {
         @Test
         fun `no conversationHistory일 때 load from memoryStore해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
             every { memory.getHistory() } returns listOf(
@@ -96,6 +97,7 @@ class ConversationManagerTest {
         @Test
         fun `limit history by maxConversationTurns해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("session-1") } returns memory
 
@@ -184,6 +186,7 @@ class ConversationManagerTest {
         @Test
         fun `memoryStore save fails일 때 not throw해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             every { memoryStore.addMessage(any(), any(), any(), any()) } throws RuntimeException("DB error")
             val manager = DefaultConversationManager(memoryStore, properties)
             val command = AgentCommand(
@@ -386,6 +389,7 @@ class ConversationManagerTest {
         @Test
         fun `summary is disabled일 때 use takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("s1") } returns memory
             every { memory.getHistory() } returns generateMessages(30)
@@ -405,6 +409,7 @@ class ConversationManagerTest {
         @Test
         fun `message count below trigger일 때 use takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             every { memoryStore.get("s1") } returns memory
             every { memory.getHistory() } returns generateMessages(4)
@@ -426,6 +431,7 @@ class ConversationManagerTest {
         @Test
         fun `facts and narrative로 build hierarchical history해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
             val summaryService = mockk<ConversationSummaryService>()
@@ -465,6 +471,7 @@ class ConversationManagerTest {
         @Test
         fun `up to date일 때 reuse cached summary해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
             val summaryService = mockk<ConversationSummaryService>()
@@ -501,6 +508,7 @@ class ConversationManagerTest {
         @Test
         fun `fallback to takeLast on summarization failure해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
             val summaryService = mockk<ConversationSummaryService>()
@@ -529,6 +537,7 @@ class ConversationManagerTest {
         @Test
         fun `handle empty facts in hierarchical history해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
             val summaryService = mockk<ConversationSummaryService>()
@@ -732,6 +741,7 @@ class ConversationManagerTest {
         @Test
         fun `summary produces empty facts and narrative일 때 fallback to takeLast해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryStore = InMemoryConversationSummaryStore()
             val summaryService = mockk<ConversationSummaryService>()
@@ -769,6 +779,7 @@ class ConversationManagerTest {
         @Test
         fun `recentMessageCount exceeds total messages일 때 return all messages해야 한다`() = runTest {
             val memoryStore = mockk<MemoryStore>()
+            every { memoryStore.getSessionOwner(any()) } returns null
             val memory = mockk<ConversationMemory>()
             val summaryService = mockk<ConversationSummaryService>()
 

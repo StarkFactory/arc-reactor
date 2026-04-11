@@ -210,8 +210,8 @@ class StreamingGapCoverageTest {
                 emit = { emitted.add(it) }
             )
 
-            // Rejected → guardPassed=false → effectiveContent="" → 빈 히스토리 저장
-            coVerify(exactly = 1) { conversationManager.saveStreamingHistory(command, "") }
+            // R318 fix: Rejected → guard returns null → save 전체 생략 (executor.md 규칙)
+            coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
             val errorMarkers = emitted.mapNotNull { StreamEventMarker.parse(it) }.filter { it.first == "error" }
             assertTrue(errorMarkers.isNotEmpty()) {
                 "출력 가드 Rejected 결과 시 에러 마커가 emit되어야 한다, 실제 emit: $emitted"

@@ -69,16 +69,22 @@ internal class StreamingCompletionFinalizer(
         emit: suspend (String) -> Unit
     ) {
         if (streamSuccess) {
-            // ── 단계 1: 출력 가드 검사 — 가드 통과 시 어시스턴트 응답 포함 저장 ──
-            val guardPassed = applyStreamingOutputGuard(command, collectedContent, toolsUsed, startTime, emit)
-            val effectiveContent = if (guardPassed) lastIterationContent else ""
-            conversationManager.saveStreamingHistory(command, effectiveContent)
+            // ── 단계 1: 출력 가드 검사 — Modified 시 수정된 콘텐츠, Allowed 시 lastIterationContent ──
+            // R318 fix: 가드가 Modified 결과를 반환하면 원본(lastIterationContent)이 아닌
+            // result.content(마스킹된 내용)를 히스토리에 저장해야 한다. 기존 구현은 가드 수정
+            // 결과를 무시하고 원본을 저장하여 PII 마스킹이 히스토리에 반영되지 않는 버그.
+            val effectiveContent = applyStreamingOutputGuard(
+                command, collectedContent, lastIterationContent, toolsUsed, startTime, emit
+            )
+            if (effectiveContent != null) {
+                conversationManager.saveStreamingHistory(command, effectiveContent)
+            }
             // ── 단계 2: 출력 길이 경계값 위반 시 SSE 마커 발행 ──
             emitBoundaryMarkers(collectedContent, emit)
-        } else if (streamStarted) {
-            // ── 스트리밍 실패 시에도 사용자 메시지는 기록한다 ──
-            conversationManager.saveStreamingHistory(command, "")
         }
+        // R318 fix: 실패 시 saveStreamingHistory 건너뛴다 (executor.md 규칙).
+        // 기존 `else if (streamStarted) { saveStreamingHistory(command, "") }` 경로는
+        // 빈 assistant 응답으로 orphan user 턴을 생성하여 다음 턴 컨텍스트를 오염시켰다.
 
         // ── 단계 3: AfterAgentComplete 훅 실행 (fail-open) ──
         try {
@@ -102,17 +108,26 @@ internal class StreamingCompletionFinalizer(
     /**
      * 스트리밍 출력에 대해 출력 가드 파이프라인을 실행한다.
      *
-     * @return 가드 통과(Allowed 또는 Modified) 시 true, 거부(Rejected) 또는 에러 시 false.
-     *         true인 경우에만 히스토리를 저장해야 한다 (fail-close 정책).
+     * R318 fix: 반환 타입을 Boolean → String?로 변경. `Modified` 결과는 원본
+     * `lastIterationContent` 대신 `result.content`(마스킹된 내용)를 반환하여 히스토리에
+     * 마스킹된 버전이 저장되도록 한다. 기존 Boolean 반환 구현은 호출자가 항상
+     * `lastIterationContent`(원본)를 사용해 PII 마스킹이 히스토리에 반영되지 않았다.
+     *
+     * @return 저장할 콘텐츠. null이면 거부(히스토리 저장 건너뛰기).
+     *   - Allowed → lastIterationContent (원본)
+     *   - Modified → result.content (수정된 콘텐츠, 예: PII 마스킹 적용분)
+     *   - Rejected → null (fail-close)
+     *   - 가드 없음/빈 콘텐츠 → lastIterationContent
      */
     private suspend fun applyStreamingOutputGuard(
         command: AgentCommand,
         collectedContent: String,
+        lastIterationContent: String,
         toolsUsed: List<String>,
         startTime: Long,
         emit: suspend (String) -> Unit
-    ): Boolean {
-        if (outputGuardPipeline == null || collectedContent.isEmpty()) return true
+    ): String? {
+        if (outputGuardPipeline == null || collectedContent.isEmpty()) return lastIterationContent
 
         return try {
             val guardContext = OutputGuardContext(
@@ -123,7 +138,7 @@ internal class StreamingCompletionFinalizer(
             when (val result = outputGuardPipeline.check(collectedContent, guardContext)) {
                 is OutputGuardResult.Allowed -> {
                     agentMetrics.recordOutputGuardAction("pipeline", "allowed", "", command.metadata)
-                    true
+                    lastIterationContent
                 }
                 is OutputGuardResult.Modified -> {
                     agentMetrics.recordOutputGuardAction(
@@ -133,7 +148,8 @@ internal class StreamingCompletionFinalizer(
                     emit(StreamEventMarker.error(
                         "Output guard modified response: ${result.reason}"
                     ))
-                    true
+                    // R318 fix: 원본 대신 수정된 콘텐츠를 히스토리에 저장
+                    result.content
                 }
                 is OutputGuardResult.Rejected -> {
                     agentMetrics.recordOutputGuardAction(
@@ -143,14 +159,14 @@ internal class StreamingCompletionFinalizer(
                     emit(StreamEventMarker.error(
                         "Output guard rejected response: ${result.reason}"
                     ))
-                    false
+                    null
                 }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "스트리밍 출력 가드 실패, 거부 처리 (fail-close)" }
             emit(StreamEventMarker.error("Output guard check failed"))
-            false // fail-close: do not save potentially unsafe content to conversation history
+            null // fail-close: do not save potentially unsafe content to conversation history
         }
     }
 

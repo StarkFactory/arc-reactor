@@ -137,7 +137,9 @@ class StreamingCompletionFinalizerTest {
     }
 
     @Test
-    fun `output guard pipeline throws (fail-close)일 때 save user message only해야 한다`() = runTest {
+    fun `R318 output guard pipeline throws (fail-close)일 때 save를 건너뛰어야 한다`() = runTest {
+        // R318 fix: 이전 동작은 save(command, "")로 orphan user 턴을 생성했다.
+        // 이제 fail-close 시 history save 완전 생략하여 executor.md 규칙 준수.
         val conversationManager = mockk<ConversationManager>(relaxed = true)
         val outputGuardPipeline = mockk<OutputGuardPipeline>()
         coEvery { outputGuardPipeline.check(any(), any()) } throws RuntimeException("moderation API down")
@@ -165,7 +167,8 @@ class StreamingCompletionFinalizerTest {
             emit = { emitted.add(it) }
         )
 
-        coVerify(exactly = 1) { conversationManager.saveStreamingHistory(command, "") }
+        // R318: save는 호출되지 않아야 한다 (fail-close → skip)
+        coVerify(exactly = 0) { conversationManager.saveStreamingHistory(any(), any()) }
         assertTrue(emitted.any { it.contains("Output guard check failed") },
             "Should emit error marker when output guard crashes")
     }

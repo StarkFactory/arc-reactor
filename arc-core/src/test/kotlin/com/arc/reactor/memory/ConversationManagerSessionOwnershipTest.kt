@@ -121,24 +121,45 @@ class ConversationManagerSessionOwnershipTest {
         }
 
         @Test
-        fun `userId가 null이면 소유권 검증을 건너뛰고 이력을 로드한다`() = runTest {
+        fun `R318 userId가 null인 경우 anonymous로 리졸브되어 소유권 검증을 수행한다`() = runTest {
+            // R318 fix: 이전 구현은 null userId 요청을 조건 없이 통과시켜 CLAUDE.md Gotcha #8
+            // 위반(Guard null userId skip = 보안 취약점). 이제 save 경로와 동일하게 "anonymous"로
+            // 리졸브하여 소유권 검증을 수행한다 — session owner="alice"와 불일치 시 loadHistory가
+            // 내부 fail-close로 empty list 반환 (SessionOwnershipException을 catch 하여 empty 반환).
+            val store = mockk<MemoryStore>()
+
+            every { store.getSessionOwner("session-4") } returns "alice"
+
+            val manager = DefaultConversationManager(store, properties)
+            // userId=null → "anonymous"로 리졸브 → "alice" 세션과 불일치 → fail-close 빈 리스트
+            val command = makeCommand("session-4", userId = null)
+
+            val history = manager.loadHistory(command)
+
+            assertEquals(0, history.size) {
+                "null userId 요청은 anonymous로 리졸브되어 owner=alice와 불일치 시 fail-close로 빈 이력을 반환해야 한다"
+            }
+        }
+
+        @Test
+        fun `R318 userId가 null이고 session owner도 없으면 anonymous anonymous 매칭으로 통과한다`() = runTest {
             val store = mockk<MemoryStore>()
             val memory = mockk<ConversationMemory>()
 
-            every { store.getSessionOwner("session-4") } returns "alice"
-            every { store.get("session-4") } returns memory
+            // session owner 없음 → verifySessionOwnership이 early return (ownership 미보유)
+            every { store.getSessionOwner("session-5") } returns null
+            every { store.get("session-5") } returns memory
             every { memory.getHistory() } returns listOf(
                 Message(MessageRole.USER, "q1")
             )
 
             val manager = DefaultConversationManager(store, properties)
-            // userId=null → 소유권 검증 없이 진행
-            val command = makeCommand("session-4", userId = null)
+            val command = makeCommand("session-5", userId = null)
 
             val history = manager.loadHistory(command)
 
             assertEquals(1, history.size) {
-                "userId가 null이면 소유권 검증 없이 이력을 로드해야 한다"
+                "session owner가 없으면 null userId도 load 가능해야 한다"
             }
         }
     }
