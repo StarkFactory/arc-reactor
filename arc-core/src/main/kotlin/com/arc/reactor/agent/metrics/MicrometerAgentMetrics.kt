@@ -62,6 +62,22 @@ class MicrometerAgentMetrics(
     private val missingQueryCounts: com.github.benmanes.caffeine.cache.Cache<String, MissingQueryAggregate> =
         Caffeine.newBuilder().maximumSize(MAX_MISSING_QUERY_BUCKETS).build()
 
+    /**
+     * R341: Micrometer `channel` 태그 카디널리티 제한용 Caffeine budget cache.
+     *
+     * `recordUnverifiedResponse` / `recordStageLatency`는 이전에 `metadata["channel"]` raw 값을
+     * 그대로 Micrometer `Counter`/`Timer` 태그로 등록했다. `channelCounts` Caffeine 캐시(10k)는
+     * `recordResponseObservation` 경로의 in-memory bucket만 보호하고, Micrometer 레지스트리에
+     * 직접 등록되는 태그 경로는 무제한이었다. Slack 채널 ID처럼 카디널리티가 높은 값이 들어오면
+     * Prometheus 시계열이 선형으로 증가해 scrape 성능 저하/DB 비용 폭발을 유발한다.
+     *
+     * 이 budget cache는 **Micrometer 태그로 등록 가능한 고유 channel 값의 상한**을 [MAX_UNVERIFIED_CHANNEL_TAGS]로
+     * 제한한다. budget 내에 이미 있는 값은 재사용, 새로운 값은 size가 상한 미만일 때만 추가, 상한 초과 시
+     * [OVERFLOW_CHANNEL_TAG]로 폴백. LRU eviction은 Caffeine이 자동 관리.
+     */
+    private val unverifiedChannelTagBudget: com.github.benmanes.caffeine.cache.Cache<String, Boolean> =
+        Caffeine.newBuilder().maximumSize(MAX_UNVERIFIED_CHANNEL_TAGS).build()
+
     // -- 현재 활성 요청 수 게이지 --
     private val activeRequestCount = AtomicInteger(0)
 
@@ -280,11 +296,15 @@ class MicrometerAgentMetrics(
     /** 미검증 응답을 기록하고 신뢰 이벤트를 추가한다. */
     override fun recordUnverifiedResponse(metadata: Map<String, Any>) {
         unverifiedResponses.incrementAndGet()
+        // R341: Micrometer 태그에 등록하기 전에 budget cache로 카디널리티를 bounded하게 제한
+        val channelTag = boundedChannelTag(metadata["channel"]?.toString())
         Counter.builder(METRIC_UNVERIFIED_RESPONSES)
-            .tag("channel", metadata["channel"]?.toString()?.ifBlank { "unknown" } ?: "unknown")
+            .tag("channel", channelTag)
             .register(registry)
             .increment()
 
+        // RecentTrustEvent는 in-memory deque(MAX_TRUST_EVENTS=100)로 이미 bounded이므로
+        // Micrometer 레지스트리 카디널리티와 별개. dashboard drill-down용 raw 값을 보존.
         appendTrustEvent(
             RecentTrustEvent(
                 occurredAt = Instant.now(),
@@ -296,6 +316,31 @@ class MicrometerAgentMetrics(
                 reason = metadataValue(metadata, "blockReason")
             )
         )
+    }
+
+    /**
+     * R341: Micrometer 태그로 등록 가능한 channel 문자열을 bounded cardinality로 정규화한다.
+     *
+     * 흐름:
+     * 1. null/blank → [UNKNOWN_CHANNEL_TAG] ("unknown")
+     * 2. 길이 상한 [MAX_CHANNEL_TAG_LENGTH] 적용 (잘라내기)
+     * 3. budget cache에 이미 있는 값이면 그대로 사용 (LRU 재방문 hit 유지)
+     * 4. budget size < 상한이면 새 값 추가 후 그대로 사용
+     * 5. budget 상한 초과 시 [OVERFLOW_CHANNEL_TAG] ("other")로 폴백
+     *
+     * 이 접근의 trade-off: LRU로 오래된 channel이 evict되면 다음 방문에서 다시 상한에 추가될 수
+     * 있어 "최대 상한 + 약간의 churn"이 발생할 수 있다. 그러나 관측 목적상 수시 재방문 channel은
+     * 유지되고 1회성 channel만 overflow로 빠지므로 안정적인 soft 상한이다.
+     */
+    private fun boundedChannelTag(rawChannel: String?): String {
+        val trimmed = rawChannel?.trim()?.takeIf { it.isNotBlank() } ?: return UNKNOWN_CHANNEL_TAG
+        val cleaned = trimmed.take(MAX_CHANNEL_TAG_LENGTH)
+        if (unverifiedChannelTagBudget.getIfPresent(cleaned) != null) return cleaned
+        if (unverifiedChannelTagBudget.asMap().size < MAX_UNVERIFIED_CHANNEL_TAGS) {
+            unverifiedChannelTagBudget.put(cleaned, true)
+            return cleaned
+        }
+        return OVERFLOW_CHANNEL_TAG
     }
 
     // ── 응답 관측 메트릭 ──
@@ -423,9 +468,10 @@ class MicrometerAgentMetrics(
 
     /** 파이프라인 단계별 지연시간을 채널 태그와 함께 기록한다. */
     override fun recordStageLatency(stage: String, durationMs: Long, metadata: Map<String, Any>) {
+        // R341: 공유 budget cache로 stage latency timer의 channel 태그 카디널리티도 bounded
         Timer.builder(METRIC_STAGE_DURATION)
             .tag("stage", stage)
-            .tag("channel", metadata["channel"]?.toString()?.trim()?.ifBlank { "unknown" } ?: "unknown")
+            .tag("channel", boundedChannelTag(metadata["channel"]?.toString()))
             .register(registry)
             .record(durationMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
     }
@@ -563,6 +609,27 @@ class MicrometerAgentMetrics(
         private const val MAX_LANE_BUCKETS = 100L
         /** R282: queryCluster는 사용자 입력 카디널리티, 10000 슬롯 */
         private const val MAX_MISSING_QUERY_BUCKETS = 10_000L
+
+        /**
+         * R341: Micrometer `channel` 태그로 등록 가능한 고유 값 상한.
+         *
+         * Prometheus label cardinality 관례 상 tag 당 수백 bucket 이하를 권장한다.
+         * 128은 일반 운영 환경의 활성 Slack 채널 수(수십 개) + 여유를 커버한다.
+         * 상한 초과 시 [OVERFLOW_CHANNEL_TAG]로 폴백.
+         */
+        internal const val MAX_UNVERIFIED_CHANNEL_TAGS = 128L
+
+        /**
+         * R341: `channel` 태그 값의 최대 길이.
+         * 긴 자유 문자열이 Prometheus label에 등록되지 않도록 절단.
+         */
+        internal const val MAX_CHANNEL_TAG_LENGTH = 64
+
+        /** R341: null/blank channel에 대한 폴백 태그 값. */
+        internal const val UNKNOWN_CHANNEL_TAG = "unknown"
+
+        /** R341: channel 태그 budget 초과 시 할당되는 폴백 태그 값. */
+        internal const val OVERFLOW_CHANNEL_TAG = "other"
         private const val METRIC_EXECUTIONS = "arc.agent.executions"
         private const val METRIC_EXECUTION_DURATION = "arc.agent.execution.duration"
         private const val METRIC_ERRORS = "arc.agent.errors"

@@ -200,6 +200,13 @@
 - 요약: R339 scanner defer P2 MED #3 처리. `trackMissingQuery`가 `count.incrementAndGet()` 후 별도 라인에서 `lastOccurredAt = Instant.now()`를 실행하는 2-step non-atomic write → 병렬 스레드 간 write 순서 뒤바뀜으로 **stale timestamp**가 최종 값으로 남는 race. 운영자 Grafana "top missing query" 패널에 "count는 증가하는데 마지막 발생 시각은 정체"로 보이는 admin_productization 가시성 저하 버그. `MissingQueryAggregate.lastOccurredAt`을 `@Volatile var Instant` → `val AtomicReference<Instant>`로 변경하고 `updateAndGet { prev -> if (now.isAfter(prev)) now else prev }` CAS 루프로 atomic max 갱신. `MicrometerAgentMetrics` + `AgentMetrics` 두 공유 소비자 read/write 경로 업데이트, `topMissingQueries`의 정렬 키 및 `MissingQueryInsight` 생성 시 `.get()` 변환. public `MissingQueryInsight.lastOccurredAt: Instant` 타입 완전 불변. 신규 병렬 회귀 1건(runBlocking + Dispatchers.Default + 4 스레드 × 500회 = 2000회 호출 후 count 정확도 + lastOccurredAt이 [startAt, endAt] 범위 내 검증). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R340.md`
 
+### Round 341 — 2026-04-13T03:30+09:00 — cycle 10 12차: MicrometerAgentMetrics channel tag bounded cardinality
+
+- axis: `admin_productization` (3회 연속)
+- 분류: `direct_value`
+- 요약: R339 scanner defer P2 MED #2 처리 (scanner batch 완결). `MicrometerAgentMetrics.recordUnverifiedResponse`와 `recordStageLatency`가 `metadata["channel"]` raw 값을 Micrometer Counter/Timer 태그로 직접 등록해 Slack 채널 ID 등 무제한 카디널리티가 Prometheus 레지스트리에 누적되는 silent drift. `channelCounts` Caffeine(10k)는 `recordResponseObservation` 경로의 in-memory bucket만 보호하고 Micrometer 레지스트리 태그 경로는 무방비였다. 새 `unverifiedChannelTagBudget` Caffeine bounded cache(MAX_UNVERIFIED_CHANNEL_TAGS=128) + 공유 helper `boundedChannelTag`로 두 call site에 동일 정책 적용: null/blank→"unknown", 64자 절단, budget 내 재사용, budget 내 새 값 추가, 상한 초과 시 "other" 폴백. RecentTrustEvent는 이미 bounded deque라 raw 값 유지. companion object에 4개 상수(MAX_UNVERIFIED_CHANNEL_TAGS, MAX_CHANNEL_TAG_LENGTH, UNKNOWN_CHANNEL_TAG, OVERFLOW_CHANNEL_TAG) 추가. 신규 회귀 2건(budget+50개 고유 channel 주입 후 distinct 태그 수 ≤ budget+2 + "other" 존재 검증, null/empty/whitespace 3변형 → "unknown" 폴백 검증). **R339 admin_productization scanner batch(P2 MED #1/#2/#3) 완결.** 전체 arc-core PASS. **R342부터 axis 전환 권장** (employee_value).
+- 상세 위치: `docs/reports/rounds/R341.md`
+
 ---
 
 ## 11. 아카이브

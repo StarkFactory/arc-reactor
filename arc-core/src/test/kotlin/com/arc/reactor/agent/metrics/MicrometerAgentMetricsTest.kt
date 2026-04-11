@@ -159,6 +159,61 @@ class MicrometerAgentMetricsTest {
     }
 
     /**
+     * R341 regression: `recordUnverifiedResponse`의 `channel` 태그가 budget cache로 bounded
+     * cardinality 제한되는지 검증. `MAX_UNVERIFIED_CHANNEL_TAGS`(128) 이상의 고유 channel이
+     * 유입되면 상한 초과 값은 `OVERFLOW_CHANNEL_TAG`("other")로 폴백되어야 한다.
+     *
+     * SimpleMeterRegistry에서 `Counter`의 `channel` 태그별 시계열 수를 세어 budget 상한 근처에
+     * 수렴하는지 확인한다.
+     */
+    @Test
+    fun `R341 recordUnverifiedResponse는 channel 태그 카디널리티를 bounded 값으로 제한해야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+        val budget = MicrometerAgentMetrics.MAX_UNVERIFIED_CHANNEL_TAGS.toInt()
+        val totalUnique = budget + 50  // budget 초과
+
+        // budget + 50개의 고유 channel 주입
+        repeat(totalUnique) { idx ->
+            metrics.recordUnverifiedResponse(mapOf("channel" to "ch-$idx"))
+        }
+        // overflow 폴백도 호출되도록 한 번 더
+        metrics.recordUnverifiedResponse(mapOf("channel" to "ch-overflow-test"))
+
+        // Counter의 고유 channel 태그 수 조회
+        val distinctTags = registry.find("arc.agent.responses.unverified").counters()
+            .map { it.id.getTag("channel") }
+            .toSet()
+
+        // budget + overflow 태그("other") + 잠재 "unknown" 정도로 상한이 있어야 한다
+        // budget=128이면 distinctTags는 최대 128 + 1(other) = 129 정도
+        assertTrue(distinctTags.size <= budget + 2) {
+            "R341: distinct channel 태그 수는 budget($budget) + 상수 폴백 이하여야 한다. " +
+                "실제=${distinctTags.size}, 주입=$totalUnique"
+        }
+        assertTrue(distinctTags.contains("other")) {
+            "R341: budget 초과 시 'other' 폴백 태그가 등록되어야 한다. 실제 태그=$distinctTags"
+        }
+    }
+
+    @Test
+    fun `R341 recordUnverifiedResponse는 null_blank channel을 unknown으로 폴백해야 한다`() {
+        val registry = SimpleMeterRegistry()
+        val metrics = MicrometerAgentMetrics(registry)
+
+        metrics.recordUnverifiedResponse(emptyMap())
+        metrics.recordUnverifiedResponse(mapOf("channel" to ""))
+        metrics.recordUnverifiedResponse(mapOf("channel" to "   "))
+
+        val unknownCounter = registry.find("arc.agent.responses.unverified")
+            .tag("channel", "unknown")
+            .counter()
+        assertEquals(3.0, unknownCounter!!.count(), 0.0) {
+            "R341: null/empty/blank channel은 'unknown' 태그로 기록되어야 한다"
+        }
+    }
+
+    /**
      * R340 regression: 병렬 스레드에서 `trackMissingQuery`가 호출될 때 count는 정확히
      * 누적되고 `lastOccurredAt`이 stale timestamp로 고정되지 않아야 한다. 이전 구현은
      * `count.incrementAndGet()`과 `lastOccurredAt = Instant.now()` 사이의 순서가 뒤바뀌어
