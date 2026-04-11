@@ -2,9 +2,12 @@ package com.arc.reactor.agent
 
 import com.arc.reactor.agent.config.LlmProperties
 import com.arc.reactor.agent.impl.SpringAiAgentExecutor
+import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.ErrorMessageResolver
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.arc.reactor.guard.RequestGuard
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
@@ -616,6 +619,107 @@ class SpringAiAgentExecutorTest {
                     )
                 )
             }
+        }
+    }
+
+    // ========================================================================
+    // R255: OTHER stage 자동 기록 테스트
+    // ========================================================================
+
+    @Nested
+    inner class R255OtherStageRecording {
+
+        @Test
+        fun `R255 Guard에서 throw된 분류 불가 예외가 OTHER stage로 기록되어야 한다`() = runTest {
+            val registry = SimpleMeterRegistry()
+            val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+
+            // Guard가 예외를 throw → GuardPipeline이 아닌 커스텀 Guard이므로 GUARD stage 기록 없음
+            // → 최상위 catch-all로 propagate → OTHER stage 기록
+            val customGuard = object : RequestGuard {
+                override suspend fun guard(
+                    command: com.arc.reactor.guard.model.GuardCommand
+                ): GuardResult {
+                    throw IllegalStateException("custom guard boom")
+                }
+            }
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                guard = customGuard,
+                evaluationMetricsCollector = collector
+            )
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "sys", userPrompt = "hi")
+            )
+
+            // 실패 결과 (failure handler가 처리)
+            assertFalse(result.success) {
+                "분류 불가 예외는 failure로 반환"
+            }
+
+            // OTHER stage 기록 확인
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "other")
+                .tag(MicrometerEvaluationMetricsCollector.TAG_EXCEPTION, "IllegalStateException")
+                .counter()
+            assertNotNull(counter) {
+                "커스텀 Guard 예외는 OTHER stage로 기록되어야 한다"
+            }
+            assertEquals(1.0, counter!!.count())
+        }
+
+        @Test
+        fun `R255 정상 경로는 OTHER stage를 기록하지 않음`() = runTest {
+            val registry = SimpleMeterRegistry()
+            val collector: EvaluationMetricsCollector = MicrometerEvaluationMetricsCollector(registry)
+
+            every { fixture.callResponseSpec.chatResponse() } returns
+                AgentTestFixture.simpleChatResponse("Hello!")
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                evaluationMetricsCollector = collector
+            )
+
+            executor.execute(
+                AgentCommand(systemPrompt = "sys", userPrompt = "hi")
+            )
+
+            val counter = registry.find(MicrometerEvaluationMetricsCollector.METRIC_EXECUTION_ERROR)
+                .tag(MicrometerEvaluationMetricsCollector.TAG_STAGE, "other")
+                .counter()
+            assertNull(counter) {
+                "정상 경로는 OTHER stage 기록 없음"
+            }
+        }
+
+        @Test
+        fun `R255 기본 NoOp collector에서도 정상 fail-close 동작`() = runTest {
+            // evaluationMetricsCollector 생략 → NoOp 기본값
+            val customGuard = object : RequestGuard {
+                override suspend fun guard(
+                    command: com.arc.reactor.guard.model.GuardCommand
+                ): GuardResult {
+                    throw IllegalArgumentException("boom")
+                }
+            }
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                guard = customGuard
+            )
+
+            val result = executor.execute(
+                AgentCommand(systemPrompt = "sys", userPrompt = "hi")
+            )
+
+            // fail-close 동작은 그대로
+            assertFalse(result.success)
         }
     }
 }

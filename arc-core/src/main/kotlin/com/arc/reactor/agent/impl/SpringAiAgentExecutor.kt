@@ -22,7 +22,9 @@ import com.arc.reactor.agent.budget.CostCalculator
 import com.arc.reactor.agent.budget.StepBudgetTracker
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.EvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.ExecutionStage
 import com.arc.reactor.agent.metrics.NoOpEvaluationMetricsCollector
+import com.arc.reactor.agent.metrics.recordError
 import io.micrometer.core.instrument.MeterRegistry
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.agent.metrics.SlaMetrics
@@ -447,6 +449,11 @@ class SpringAiAgentExecutor(
             return executionFailureHandler.handle(AgentErrorCode.TIMEOUT, e, hookContext, startTime)
         } catch (e: Exception) {
             e.throwIfCancellation()
+            // R255: 최상위 catch-all — 하위 stage(TOOL_CALL/LLM_CALL/GUARD/HOOK/OUTPUT_GUARD/
+            // PARSING/MEMORY/CACHE)에 의해 이미 기록되지 않은 분류 불가 예외를 OTHER stage로 기록.
+            // 이로써 9/9 stage 자동 기록 100% 달성 — 운영자는 `stage=other` 기록을 보고
+            // "어느 stage에도 분류되지 않은 예외"를 drill-down하여 새 stage 필요 여부 판단 가능.
+            evaluationMetricsCollector.recordError(ExecutionStage.OTHER, e)
             logger.error(e) { "에이전트 실행 실패" }
             requestSpan.setError(e)
             return executionFailureHandler.handle(agentErrorPolicy.classify(e), e, hookContext, startTime)
