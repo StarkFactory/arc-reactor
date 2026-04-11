@@ -52,6 +52,8 @@
 2. evidence는 익명화된 메타데이터여야 한다
 3. 실제 응답 저장이 필요하면 `.qa-runtime/` 또는 `.qa-live/` 같은 ignored 경로만 사용한다
 4. 실제 데이터 조각이 커밋되면 gate는 즉시 실패다
+5. raw 데이터는 **해당 Round 안에서만** 쓰고, 메타데이터 추출 후 삭제해야 한다
+6. raw 응답을 다음 Round의 few-shot, fixture, prompt 예시로 승격하면 실패다
 
 ---
 
