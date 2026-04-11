@@ -366,4 +366,252 @@ class DoctorReportFormatterTest {
             assertTrue(human.contains("[OK] Section 4"))
         }
     }
+
+    @Nested
+    inner class R262ObservabilityAssetsGoldenScenarios {
+
+        /**
+         * R261 collector 활성 상태에서 `DoctorDiagnostics.runDiagnostics()`가 만들어낼
+         * 6 섹션 보고서를 충실히 재현한 실제 모양 골든 fixture.
+         *
+         * 시간 순서: Approval → Summarizer → Evaluation → Prompt Layer → Response Cache
+         * → **Observability Assets (R261)**.
+         */
+        private fun sixSectionProductionFixture(): DoctorReport = DoctorReport(
+            generatedAt = fixedTime,
+            sections = listOf(
+                DoctorSection(
+                    name = "Approval Context Resolver",
+                    status = DoctorStatus.OK,
+                    checks = listOf(
+                        DoctorCheck("resolver bean", DoctorStatus.OK,
+                            "등록됨: RedactedApprovalContextResolver")
+                    ),
+                    message = "활성 (RedactedApprovalContextResolver)"
+                ),
+                DoctorSection(
+                    name = "Tool Response Summarizer",
+                    status = DoctorStatus.OK,
+                    checks = listOf(
+                        DoctorCheck("summarizer bean", DoctorStatus.OK,
+                            "등록됨: RedactedToolResponseSummarizer")
+                    ),
+                    message = "활성 (RedactedToolResponseSummarizer)"
+                ),
+                DoctorSection(
+                    name = "Evaluation Metrics Collector",
+                    status = DoctorStatus.OK,
+                    checks = listOf(
+                        DoctorCheck("collector bean", DoctorStatus.OK,
+                            "등록됨: MicrometerEvaluationMetricsCollector"),
+                        DoctorCheck("metric catalog (R234)", DoctorStatus.OK, "9개 메트릭 등록")
+                    ),
+                    message = "활성 (MicrometerEvaluationMetricsCollector) — 9개 메트릭"
+                ),
+                DoctorSection(
+                    name = "Prompt Layer Registry",
+                    status = DoctorStatus.OK,
+                    checks = listOf(
+                        DoctorCheck("classified methods", DoctorStatus.OK,
+                            "20개 메서드 분류됨 (main 12 / planning 8)")
+                    ),
+                    message = "무결성 확인됨 (20개 메서드 / 6개 계층)"
+                ),
+                DoctorSection(
+                    name = "Response Cache",
+                    status = DoctorStatus.OK,
+                    checks = listOf(
+                        DoctorCheck("cache tier", DoctorStatus.OK,
+                            "의미적 캐시 구현체 — 프로덕션 권장 백엔드")
+                    ),
+                    message = "활성 (RedisSemanticResponseCache, tier=semantic)"
+                ),
+                // R261 6번째 섹션
+                DoctorSection(
+                    name = "Observability Assets",
+                    status = DoctorStatus.OK,
+                    checks = ObservabilityAssetsCatalog.all.map { asset ->
+                        DoctorCheck(
+                            name = "${asset.round} ${asset.kind}",
+                            status = DoctorStatus.OK,
+                            detail = "${asset.path} — ${asset.description}"
+                        )
+                    },
+                    message = "3개 자산 사용 가능 (R256/R259/R260)"
+                )
+            )
+        )
+
+        @Test
+        fun `R262 toHumanReadable은 6개 섹션을 모두 포함해야 한다`() {
+            val report = sixSectionProductionFixture()
+            val human = report.toHumanReadable()
+
+            assertTrue(human.contains("6 섹션")) {
+                "summary에 R261 이후 섹션 수 6 포함"
+            }
+            assertTrue(human.contains("전체 상태: 정상")) {
+                "모두 OK인 시나리오의 overall label"
+            }
+
+            // 6개 섹션이 정확한 순서로 등장
+            val sectionsInOrder = listOf(
+                "[OK] Approval Context Resolver",
+                "[OK] Tool Response Summarizer",
+                "[OK] Evaluation Metrics Collector",
+                "[OK] Prompt Layer Registry",
+                "[OK] Response Cache",
+                "[OK] Observability Assets"
+            )
+            sectionsInOrder.forEach { line ->
+                assertTrue(human.contains(line)) {
+                    "human-readable에 '$line' 라인 포함"
+                }
+            }
+        }
+
+        @Test
+        fun `R262 toHumanReadable은 R256 R259 R260 자산 라벨을 모두 노출해야 한다`() {
+            val report = sixSectionProductionFixture()
+            val human = report.toHumanReadable(includeDetails = true)
+
+            // 카탈로그의 모든 라운드 라벨이 detail 섹션에 등장
+            assertTrue(human.contains("R256 playbook")) {
+                "R256 playbook 체크 이름 포함"
+            }
+            assertTrue(human.contains("R259 dashboard")) {
+                "R259 dashboard 체크 이름 포함"
+            }
+            assertTrue(human.contains("R260 alerts")) {
+                "R260 alerts 체크 이름 포함"
+            }
+
+            // 자산 path가 detail에 포함
+            assertTrue(human.contains("docs/alertmanager-rules.yaml")) {
+                "R260 자산의 YAML 경로 포함"
+            }
+            assertTrue(human.contains("docs/evaluation-metrics.md")) {
+                "R256/R259 자산의 markdown 경로 포함"
+            }
+
+            // section message가 명시적으로 포함
+            assertTrue(human.contains("3개 자산 사용 가능 (R256/R259/R260)")) {
+                "section message 포함"
+            }
+        }
+
+        @Test
+        fun `R262 toSlackMarkdown은 6개 섹션을 한 줄씩 노출해야 한다`() {
+            val report = sixSectionProductionFixture()
+            val slack = report.toSlackMarkdown()
+
+            // 6 섹션 summary
+            assertTrue(slack.contains("> 6 섹션")) {
+                "Slack quote에 6 섹션 표시"
+            }
+
+            // 모든 섹션이 OK 라벨로 한 줄씩
+            val expectedLines = listOf(
+                "`[OK]` *Approval Context Resolver*",
+                "`[OK]` *Tool Response Summarizer*",
+                "`[OK]` *Evaluation Metrics Collector*",
+                "`[OK]` *Prompt Layer Registry*",
+                "`[OK]` *Response Cache*",
+                "`[OK]` *Observability Assets*"
+            )
+            expectedLines.forEach { line ->
+                assertTrue(slack.contains(line)) {
+                    "Slack 출력에 '$line' 포함"
+                }
+            }
+
+            // 새 섹션의 message가 em dash 뒤에 위치
+            assertTrue(slack.contains("*Observability Assets* — 3개 자산 사용 가능 (R256/R259/R260)")) {
+                "Observability Assets section의 message가 em dash 뒤에 노출"
+            }
+        }
+
+        @Test
+        fun `R262 toSlackMarkdown은 자산 detail을 포함하지 않아야 한다 (축약 유지)`() {
+            // R261 섹션은 검증 가능한 detail 3개를 가지지만 Slack 축약 포맷은 detail을 노출하지 않음
+            val report = sixSectionProductionFixture()
+            val slack = report.toSlackMarkdown()
+
+            // detail 라인은 빠져야 한다
+            assertFalse(slack.contains("R256 playbook")) {
+                "Slack 축약: 카탈로그 체크 이름 미노출"
+            }
+            assertFalse(slack.contains("alertmanager-rules.yaml")) {
+                "Slack 축약: 카탈로그 path 미노출"
+            }
+        }
+
+        @Test
+        fun `R262 collector 비활성 시나리오 - 6번째 섹션은 SKIPPED`() {
+            // collector 비활성 + 다른 섹션 모두 비활성
+            val report = DoctorReport(
+                generatedAt = fixedTime,
+                sections = listOf(
+                    DoctorSection("Approval Context Resolver", DoctorStatus.SKIPPED,
+                        emptyList(), "비활성"),
+                    DoctorSection("Tool Response Summarizer", DoctorStatus.SKIPPED,
+                        emptyList(), "비활성"),
+                    DoctorSection("Evaluation Metrics Collector", DoctorStatus.SKIPPED,
+                        emptyList(), "비활성"),
+                    DoctorSection("Prompt Layer Registry", DoctorStatus.OK,
+                        emptyList(), "무결성 확인됨"),
+                    DoctorSection("Response Cache", DoctorStatus.SKIPPED,
+                        emptyList(), "비활성 — 빈 미등록"),
+                    // R261 6번째 섹션이 SKIPPED 상태
+                    DoctorSection("Observability Assets", DoctorStatus.SKIPPED,
+                        listOf(
+                            DoctorCheck("metrics enabled", DoctorStatus.SKIPPED,
+                                "EvaluationMetricsCollector 비활성 — 운영 자산 안내 무관")
+                        ),
+                        "비활성 — evaluation metrics 활성화 후 자산 적용 가능")
+                )
+            )
+
+            val human = report.toHumanReadable()
+            assertTrue(human.contains("6 섹션"))
+            assertTrue(human.contains("전체 상태: 정상")) {
+                "SKIPPED + OK 조합은 정상으로 분류"
+            }
+            assertTrue(human.contains("[SKIP] Observability Assets")) {
+                "Observability Assets shortCode SKIP"
+            }
+            assertTrue(human.contains("evaluation metrics 활성화 후 자산 적용 가능")) {
+                "비활성 message 포함"
+            }
+
+            val slack = report.toSlackMarkdown()
+            assertTrue(slack.contains("`[SKIP]` *Observability Assets*"))
+            assertTrue(slack.contains("> 6 섹션"))
+        }
+
+        @Test
+        fun `R262 ObservabilityAssetsCatalog 변경이 골든 시나리오에 자동 반영되어야 한다`() {
+            // 골든 fixture가 ObservabilityAssetsCatalog.all을 동적으로 사용하므로
+            // 카탈로그에 자산이 추가되면 fixture 체크 수도 자동으로 늘어난다
+            val report = sixSectionProductionFixture()
+            val observability = report.sections.find { it.name == "Observability Assets" }!!
+
+            assertEquals(ObservabilityAssetsCatalog.all.size, observability.checks.size) {
+                "fixture의 체크 수가 카탈로그 자산 수와 일치"
+            }
+
+            // 모든 카탈로그 자산이 fixture에 등장
+            ObservabilityAssetsCatalog.all.forEach { asset ->
+                val matchingCheck = observability.checks.find {
+                    it.name == "${asset.round} ${asset.kind}"
+                }
+                assertTrue(matchingCheck != null) {
+                    "fixture에 ${asset.round} ${asset.kind} 체크가 존재"
+                }
+                assertTrue(matchingCheck!!.detail.contains(asset.path)) {
+                    "fixture detail에 자산 path 포함"
+                }
+            }
+        }
+    }
 }
