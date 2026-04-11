@@ -3,6 +3,7 @@ package com.arc.reactor.mcp
 import com.arc.reactor.agent.config.McpHealthProperties
 import com.arc.reactor.mcp.model.McpServerStatus
 import com.arc.reactor.support.throwIfCancellation
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -41,8 +42,16 @@ class McpHealthPinger(
      * WHY: Health Pinger가 60초마다 ensureConnected()를 호출하면
      * 매번 새 HttpClient가 생성되어 TCP TIME_WAIT 소켓이 누적된다.
      * 최소 5분 간격으로 재연결 시도를 제한하여 소켓 고갈을 방지한다.
+     *
+     * R281: ConcurrentHashMap → Caffeine bounded cache 마이그레이션 (CLAUDE.md 준수).
+     * 동적 MCP 서버 등록/해제 시나리오에서 unregister된 서버 키가 무한 누적되는 문제 방지.
+     * R280 McpManager 4개 캐시 마이그레이션과 함께 MCP 영역 ConcurrentHashMap 위반 모두 제거.
+     * MAX_TRACKED_SERVERS=1000은 일반 운영(1~10개)의 100배 헤드룸이며, eviction 발생 시
+     * 운영 이상 신호. 쿨다운 정보가 evict되어도 다음 재연결 시도가 즉시 진행될 뿐 정확성에는
+     * 영향 없음(쿨다운은 best-effort 소켓 보호 메커니즘).
      */
-    private val lastReconnectAttempt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val lastReconnectAttempt: com.github.benmanes.caffeine.cache.Cache<String, Long> =
+        Caffeine.newBuilder().maximumSize(MAX_TRACKED_SERVERS).build()
 
     /** 재연결 시도 최소 간격 (밀리초) — 기본 5분 */
     private val reconnectCooldownMs: Long = 300_000L
@@ -102,7 +111,7 @@ class McpHealthPinger(
      */
     private suspend fun attemptReconnectWithCooldown(serverName: String) {
         val now = System.currentTimeMillis()
-        val lastAttempt = lastReconnectAttempt[serverName] ?: 0L
+        val lastAttempt = lastReconnectAttempt.getIfPresent(serverName) ?: 0L
         if (now - lastAttempt < reconnectCooldownMs) {
             logger.debug {
                 "MCP '$serverName' 재연결 쿨다운 중 " +
@@ -110,13 +119,23 @@ class McpHealthPinger(
             }
             return
         }
-        lastReconnectAttempt[serverName] = now
+        lastReconnectAttempt.put(serverName, now)
         try {
             mcpManager.ensureConnected(serverName)
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "MCP 서버 '$serverName' 재연결 실패" }
         }
+    }
+
+    companion object {
+        /**
+         * R281: Caffeine bounded cache 최대 추적 서버 수.
+         * 일반 운영은 1~10개이므로 1000은 사실상 unbounded와 동일.
+         * 초과 시 LRU eviction으로 가장 오래된 쿨다운 정보가 evict되며,
+         * 그 자체가 운영 이상 신호(서버가 1000개 이상 등록되었거나 churn 폭증).
+         */
+        private const val MAX_TRACKED_SERVERS = 1000L
     }
 
     /**
