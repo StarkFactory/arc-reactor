@@ -60,6 +60,8 @@ private val logger = KotlinLogging.logger {}
  * 2. **Tool Response Summarizer** — R223~R232 ACI 요약 인프라
  * 3. **Evaluation Metrics Collector** — R222/R224/R234 관측 인프라
  * 4. **Prompt Layer Registry** — R220/R235 프롬프트 계층 classification
+ * 5. **Response Cache** — R238 캐시 tier 분류 (NoOp/Caffeine/Semantic)
+ * 6. **Observability Assets** — R261 R256/R259/R260 운영 자산 카탈로그
  *
  * ## Fail-Safe
  *
@@ -97,7 +99,8 @@ class DoctorDiagnostics(
             safeRun("Tool Response Summarizer") { diagnoseToolSummarizer() },
             safeRun("Evaluation Metrics Collector") { diagnoseEvaluationCollector() },
             safeRun("Prompt Layer Registry") { diagnosePromptLayerRegistry() },
-            safeRun("Response Cache") { diagnoseResponseCache() }
+            safeRun("Response Cache") { diagnoseResponseCache() },
+            safeRun("Observability Assets") { diagnoseObservabilityAssets() }
         )
         return DoctorReport(
             generatedAt = Instant.now(),
@@ -457,6 +460,58 @@ class DoctorDiagnostics(
             status = overallStatus,
             checks = checks,
             message = "활성 ($cacheType, tier=${tier.tierName})"
+        )
+    }
+
+    /**
+     * R261: Observability Assets 섹션 — R256/R259/R260 운영 자산 카탈로그.
+     *
+     * 평가 메트릭이 활성화된 상태에서만 의미가 있으므로, 비활성 시 SKIPPED.
+     * 활성 시 [ObservabilityAssetsCatalog]의 3종 자산(R256 플레이북, R259 Grafana,
+     * R260 Alertmanager)을 INFO 수준 체크로 노출한다. 자산 자체의 무결성은 검증하지
+     * 않고 (런타임 I/O 회피) 운영자에게 위치/import 지침만 안내한다.
+     *
+     * 결정 트리:
+     * - collector 미등록 또는 NoOp → SKIPPED
+     * - collector 활성 → 카탈로그 3개 자산 모두 OK 체크로 표시
+     */
+    private fun diagnoseObservabilityAssets(): DoctorSection {
+        val collector = evaluationCollectorProvider.ifAvailable
+        val checks = mutableListOf<DoctorCheck>()
+
+        val collectorActive = collector != null && collector !== NoOpEvaluationMetricsCollector
+
+        if (!collectorActive) {
+            checks.add(
+                DoctorCheck(
+                    name = "metrics enabled",
+                    status = DoctorStatus.SKIPPED,
+                    detail = "EvaluationMetricsCollector 비활성 — 운영 자산 안내 무관"
+                )
+            )
+            return DoctorSection(
+                name = "Observability Assets",
+                status = DoctorStatus.SKIPPED,
+                checks = checks,
+                message = "비활성 — evaluation metrics 활성화 후 자산 적용 가능"
+            )
+        }
+
+        for (asset in ObservabilityAssetsCatalog.all) {
+            checks.add(
+                DoctorCheck(
+                    name = "${asset.round} ${asset.kind}",
+                    status = DoctorStatus.OK,
+                    detail = "${asset.path} — ${asset.description}"
+                )
+            )
+        }
+
+        return DoctorSection(
+            name = "Observability Assets",
+            status = DoctorStatus.OK,
+            checks = checks,
+            message = "${ObservabilityAssetsCatalog.all.size}개 자산 사용 가능 (R256/R259/R260)"
         )
     }
 

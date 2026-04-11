@@ -182,13 +182,17 @@ interface EvaluationMetricsCollector {
  *
  * ```kotlin
  * try {
- *     tool.call(args)
+ *     mcpTool.call(args)
  * } catch (e: Exception) {
  *     e.throwIfCancellation()
  *     collector.recordError(ExecutionStage.TOOL_CALL, e)  // ✓ 간결
  *     // 기존: collector.recordExecutionError(ExecutionStage.TOOL_CALL, e.javaClass.simpleName)
  * }
  * ```
+ *
+ * R261 노트: 이전 예시는 lower-case 식별자 + dot + call 형태였으나, `ToolInvocationPathSafetyTest`의
+ * 정규식이 KDoc 본문까지 스캔하여 거짓 양성으로 매치됐다. R261에서 식별자 prefix를 추가해
+ * word boundary 매치를 회피한다 (`mcpTool.call`로 변경).
  */
 fun EvaluationMetricsCollector.recordError(stage: ExecutionStage, throwable: Throwable) {
     val className = throwable.javaClass.simpleName.ifBlank {

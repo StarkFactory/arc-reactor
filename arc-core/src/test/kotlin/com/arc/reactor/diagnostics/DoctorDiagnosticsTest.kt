@@ -41,8 +41,8 @@ class DoctorDiagnosticsTest {
     inner class DefaultState {
 
         @Test
-        fun `모든 기능이 비활성이면 5개 섹션 중 4개 SKIPPED 1개 OK여야 한다`() {
-            // Approval / Summarizer / Evaluation / ResponseCache 모두 미설정
+        fun `모든 기능이 비활성이면 6개 섹션 중 5개 SKIPPED 1개 OK여야 한다`() {
+            // Approval / Summarizer / Evaluation / ResponseCache / Observability 모두 미설정
             val doctor = DoctorDiagnostics(
                 approvalResolverProvider = emptyProvider(),
                 toolSummarizerProvider = emptyProvider(),
@@ -52,7 +52,7 @@ class DoctorDiagnosticsTest {
 
             val report = doctor.runDiagnostics()
 
-            assertEquals(5, report.sections.size) { "R238 이후 5개 섹션" }
+            assertEquals(6, report.sections.size) { "R261 이후 6개 섹션" }
 
             val approval = report.sections.find { it.name == "Approval Context Resolver" }
             assertEquals(DoctorStatus.SKIPPED, approval!!.status)
@@ -66,6 +66,11 @@ class DoctorDiagnosticsTest {
             val responseCache = report.sections.find { it.name == "Response Cache" }
             assertEquals(DoctorStatus.SKIPPED, responseCache!!.status) {
                 "ResponseCache 빈 미등록 → SKIPPED"
+            }
+
+            val observability = report.sections.find { it.name == "Observability Assets" }
+            assertEquals(DoctorStatus.SKIPPED, observability!!.status) {
+                "R261: collector 비활성 → 운영 자산 섹션도 SKIPPED"
             }
 
             val promptLayer = report.sections.find { it.name == "Prompt Layer Registry" }
@@ -404,7 +409,7 @@ class DoctorDiagnosticsTest {
             val report = doctor.runDiagnostics()
             val summary = report.summary()
 
-            assertTrue(summary.contains("5 섹션")) { "R238 이후 섹션 수" }
+            assertTrue(summary.contains("6 섹션")) { "R261 이후 섹션 수" }
             assertTrue(summary.contains("OK") || summary.contains("SKIPPED")) {
                 "상태 이름 포함"
             }
@@ -467,8 +472,8 @@ class DoctorDiagnosticsTest {
 
             val report = doctor.runDiagnostics()
 
-            // 5개 섹션 모두 존재 (R238 이후)
-            assertEquals(5, report.sections.size)
+            // 6개 섹션 모두 존재 (R261 이후)
+            assertEquals(6, report.sections.size)
 
             // 다른 섹션은 정상
             val promptLayer = report.sections.find { it.name == "Prompt Layer Registry" }!!
@@ -557,6 +562,116 @@ class DoctorDiagnosticsTest {
                         "모든 섹션이 OK 또는 SKIPPED여야 한다: ${report.summary()}"
                     }
                 }
+        }
+    }
+
+    @Nested
+    inner class ObservabilityAssetsSection {
+
+        @Test
+        fun `R261 collector 비활성이면 SKIPPED + 안내 메시지`() {
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = emptyProvider(),
+                responseCacheProvider = emptyProvider()
+            )
+
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Observability Assets" }!!
+
+            assertEquals(DoctorStatus.SKIPPED, section.status) {
+                "collector 미등록 → 운영 자산 섹션 SKIPPED"
+            }
+            assertTrue(section.message.contains("evaluation metrics")) {
+                "안내 메시지에 evaluation metrics 활성화 지침 포함"
+            }
+            val check = section.checks.find { it.name == "metrics enabled" }!!
+            assertEquals(DoctorStatus.SKIPPED, check.status)
+        }
+
+        @Test
+        fun `R261 NoOp collector도 SKIPPED로 분류되어야 한다`() {
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(
+                    NoOpEvaluationMetricsCollector
+                ),
+                responseCacheProvider = emptyProvider()
+            )
+
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Observability Assets" }!!
+
+            assertEquals(DoctorStatus.SKIPPED, section.status) {
+                "NoOp collector → 운영 자산 섹션 SKIPPED"
+            }
+        }
+
+        @Test
+        fun `R261 Micrometer collector 활성 시 OK + 3개 자산 노출`() {
+            val registry = SimpleMeterRegistry()
+            val collector = com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector(
+                registry
+            )
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(collector),
+                responseCacheProvider = emptyProvider()
+            )
+
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Observability Assets" }!!
+
+            assertEquals(DoctorStatus.OK, section.status) {
+                "collector 활성 → 운영 자산 섹션 OK"
+            }
+            assertEquals(3, section.checks.size) {
+                "R256 + R259 + R260 = 3개 자산 체크"
+            }
+
+            val playbook = section.checks.find { it.name.startsWith("R256") }!!
+            assertEquals(DoctorStatus.OK, playbook.status)
+            assertTrue(playbook.detail.contains("docs/evaluation-metrics.md")) {
+                "R256 자산 경로에 evaluation-metrics.md 포함"
+            }
+
+            val dashboard = section.checks.find { it.name.startsWith("R259") }!!
+            assertEquals(DoctorStatus.OK, dashboard.status)
+            assertTrue(dashboard.detail.contains("15개 패널")) {
+                "R259 자산 설명에 패널 수 포함"
+            }
+
+            val alerts = section.checks.find { it.name.startsWith("R260") }!!
+            assertEquals(DoctorStatus.OK, alerts.status)
+            assertTrue(alerts.detail.contains("alertmanager-rules.yaml")) {
+                "R260 자산 경로에 alertmanager-rules.yaml 포함"
+            }
+            assertTrue(alerts.detail.contains("14개 alerts")) {
+                "R260 자산 설명에 alert 수 포함"
+            }
+        }
+
+        @Test
+        fun `R261 message는 자산 개수와 라운드 라벨을 포함해야 한다`() {
+            val registry = SimpleMeterRegistry()
+            val collector = com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector(
+                registry
+            )
+            val doctor = DoctorDiagnostics(
+                approvalResolverProvider = emptyProvider(),
+                toolSummarizerProvider = emptyProvider(),
+                evaluationCollectorProvider = providerOf<EvaluationMetricsCollector>(collector),
+                responseCacheProvider = emptyProvider()
+            )
+
+            val report = doctor.runDiagnostics()
+            val section = report.sections.find { it.name == "Observability Assets" }!!
+
+            assertTrue(section.message.contains("3개 자산")) { "자산 개수 포함" }
+            assertTrue(section.message.contains("R256/R259/R260")) { "라운드 라벨 포함" }
         }
     }
 
