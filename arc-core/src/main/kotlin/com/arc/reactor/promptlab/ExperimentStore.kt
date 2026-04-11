@@ -57,13 +57,31 @@ interface ExperimentStore {
  *
  * WHY: DB 없이도 PromptLab 기본 동작을 보장하기 위한 기본 구현.
  * 완료/실패 상태의 오래된 실험을 자동 퇴출하여 메모리 사용을 제한한다.
+ *
+ * ## R317 CHM 감사 (의도적 CHM 유지)
+ *
+ * CLAUDE.md는 "unbounded ConcurrentHashMap" 사용을 금지한다. 이 저장소의 세 CHM 필드는
+ * **커스텀 도메인 인식 eviction으로 bounded** 되어 있어 규칙의 정신에 부합한다:
+ *
+ * - `experiments`: [evictIfNeeded]가 `maxEntries=1000` 상한 도달 시 **[TERMINAL_STATUSES]
+ *   (COMPLETED/FAILED/CANCELLED)만** 축출. 실행 중/대기 중 실험은 보호된다. Caffeine
+ *   W-TinyLFU는 도메인 상태를 모르므로 RUNNING/PENDING 실험을 실수로 evict하여
+ *   **실험 진행을 파괴**할 수 있다.
+ * - `trials`: 실험 ID → trial 리스트 매핑. `experiments` 삭제와 연동되어 [delete]에서
+ *   cascade remove. 크기는 `experiments` 상한을 초과할 수 없다.
+ * - `reports`: 실험 ID → 보고서. 동일하게 `experiments` 상한에 연동.
+ *
+ * 세 필드 모두 R317 감사를 통해 **의도적 CHM 유지**로 승인됨.
  */
 class InMemoryExperimentStore(
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES
 ) : ExperimentStore {
 
+    /** 실험 메타. [evictIfNeeded]가 TERMINAL 상태만 축출 (R317 audit: intentional CHM). */
     private val experiments = ConcurrentHashMap<String, Experiment>()
+    /** 실험별 trial. [delete]에서 experiments와 cascade (R317 audit: intentional CHM). */
     private val trials = ConcurrentHashMap<String, CopyOnWriteArrayList<Trial>>()
+    /** 실험별 보고서. experiments와 동일 수명주기 (R317 audit: intentional CHM). */
     private val reports = ConcurrentHashMap<String, ExperimentReport>()
     private val evictionLock = Any()
 

@@ -69,15 +69,32 @@ interface LiveExperimentStore {
  * 서버 재시작 시 데이터가 소실된다.
  * 용량 초과 시 가장 오래된 완료 실험을 자동 퇴출한다.
  *
- * @param maxEntries 최대 실험 수
- * @param maxResultsPerExperiment 실험당 최대 결과 수
+ * ## R317 CHM 감사 (의도적 CHM 유지)
+ *
+ * CLAUDE.md는 "unbounded ConcurrentHashMap" 사용을 금지한다. 이 저장소의 두 CHM 필드는
+ * **커스텀 도메인 인식 eviction으로 bounded 되어 있어** 규칙의 정신에 부합한다 — Caffeine
+ * 마이그레이션은 부적절하다:
+ *
+ * - `experiments`: [evictIfNeeded]가 `maxEntries=500` 상한 도달 시 **COMPLETED 상태의
+ *   오래된 실험만** 축출. Caffeine W-TinyLFU는 도메인 상태를 모르므로 RUNNING 실험을
+ *   실수로 evict하여 **실행 중 A/B 테스트를 파괴**할 수 있다.
+ * - `results`: 실험당 `maxResultsPerExperiment=10_000` 상한을 [trimResults]가 강제.
+ *   실험 결과 시계열이 시간 순 FIFO로 유지되어야 정확한 메트릭 집계가 가능하며,
+ *   Caffeine의 "hot data 우선" 정책과 상충.
+ *
+ * 두 필드 모두 bounded 이며 R317 감사를 통해 **의도적 CHM 유지** 로 승인됨.
+ *
+ * @param maxEntries 최대 실험 수 (기본 500)
+ * @param maxResultsPerExperiment 실험당 최대 결과 수 (기본 10,000)
  */
 class InMemoryLiveExperimentStore(
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
     private val maxResultsPerExperiment: Int = DEFAULT_MAX_RESULTS
 ) : LiveExperimentStore {
 
+    /** 실험 메타. [evictIfNeeded]로 COMPLETED 상태 FIFO 축출 (R317 audit: intentional CHM). */
     private val experiments = ConcurrentHashMap<String, PromptExperiment>()
+    /** 실험별 결과. [trimResults]로 maxResultsPerExperiment 강제 (R317 audit: intentional CHM). */
     private val results = ConcurrentHashMap<String, CopyOnWriteArrayList<ExperimentResult>>()
 
     override fun save(experiment: PromptExperiment): PromptExperiment {

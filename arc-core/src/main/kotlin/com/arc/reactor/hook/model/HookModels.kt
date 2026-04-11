@@ -41,6 +41,18 @@ sealed class HookResult {
  * @property toolsUsed 사용된 도구 이름 목록 (읽기 전용 뷰 — 내부에서만 추가 가능)
  * @property verifiedSources 검증된 출처 목록 (읽기 전용 뷰 — 내부에서만 추가 가능)
  * @property metadata 확장 메타데이터 (ConcurrentHashMap — 내부에서 직접 수정)
+ *
+ * ## R317 CHM 감사 (의도적 CHM 유지)
+ *
+ * [metadata] 필드는 CLAUDE.md "unbounded ConcurrentHashMap" 금지 규칙의 대상이 아니다:
+ * - **Per-request ephemeral**: 각 [HookContext] 인스턴스는 **단일 실행(request)** 범위이며
+ *   실행 완료 후 GC된다. 공유 캐시가 아니라 일회성 컨테이너.
+ * - **[StageTimingSupport] 바인딩**: `as ConcurrentHashMap<String, Any>` 캐스팅을 통해 내부
+ *   `stageTimings`를 `computeIfAbsent`로 삽입한다 — Caffeine Cache로 교체 시 해당 캐스팅이
+ *   파괴되어 기존 병렬 단계 타이밍 기록이 작동 불가.
+ * - 크기는 메타데이터 키 수(일반적으로 10~30개)로 자연 bounded.
+ *
+ * R317 감사를 통해 **의도적 CHM 유지**로 승인됨.
  */
 data class HookContext(
     val runId: String,
@@ -53,6 +65,10 @@ data class HookContext(
     val verifiedSources: List<VerifiedSource> = CopyOnWriteArrayList(),
     /** R192: 도구 응답에서 추출한 insights 항목. LLM 응답이 비어있을 때 fallback으로 사용. */
     val toolInsights: List<String> = CopyOnWriteArrayList(),
+    /**
+     * R317 audit: intentional CHM — per-request ephemeral + StageTimingSupport 캐스팅 바인딩.
+     * 자세한 rationale은 [HookContext] 클래스 KDoc의 "R317 CHM 감사" 섹션 참조.
+     */
     val metadata: MutableMap<String, Any> = ConcurrentHashMap()
 ) {
     /** 실행 시작 이후 경과 시간 (밀리초) */
