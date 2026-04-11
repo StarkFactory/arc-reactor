@@ -21866,6 +21866,233 @@ R268 1개 + R270 2개 + R271 2개 = **5개 production fix 완료**.
 
 #### 🧹 R271 요약
 
+🧹 R271 — CopyOnWriteArrayList overhead 제거 + exception class name LLM 노출 제거. [상세 본문 위 R271 섹션 참조]
+
+---
+
+### Round 272 — 🌊 2026-04-12T05:00+09:00 — StreamingReActLoopExecutor 멀티 청크 toolCall 누적 fix (R270 P2 처리 + P4 검증)
+
+**작업 종류**: production code fix — R270 스캐너 P2 처리, 멀티 청크 streaming 환경에서의 hidden bug 수정
+**완료 태스크**: #147
+
+#### 작업 배경
+
+R270 codebase scanner 미처리 후보 5개 중 R272는 두 가지 분석:
+
+1. **P4 (`mcpToolCallbacks` 람다 매번 재호출)** — 검증 결과 false positive: `McpManager.getAllToolCallbacks()`은 이미 `allToolCallbacksSnapshot` 내부 캐시로 O(1) 호출. 스캐너의 "blocking I/O" 가설은 사실이 아님. R272에서 fix 대상에서 제외.
+
+2. **P2 (`StreamingReActLoopExecutor.collectStreamChunks` 멀티 청크 toolCall 덮어쓰기)** — 검증 완료, hidden bug 확인. R272 fix 대상.
+
+#### Hidden bug 분석
+
+`collectStreamChunks` (line 614-617):
+
+```kotlin
+val chunkToolCalls = generation.output.toolCalls
+if (!chunkToolCalls.isNullOrEmpty()) {
+    pendingToolCalls = chunkToolCalls  // ← 마지막 청크만 보존, 이전 청크 손실
+}
+```
+
+**버그 시나리오**:
+- 청크 1: `[ToolCall(id="a", name="search", args="{q:1}")]` → `pendingToolCalls = [a]`
+- 청크 2: `[ToolCall(id="b", name="fetch", args="{u:'/x'}")]` → `pendingToolCalls = [b]` (a 손실!)
+- 청크 3: 텍스트만
+- 결과: `executeInParallel`에 전달되는 도구 호출은 `[b]`만 — `a`가 실행되지 않음
+
+**현재 숨어있는 이유**:
+- Spring AI Gemini/Anthropic 구현은 단일 청크에 모든 도구 호출을 담아 보냄 (현재 환경 안전)
+- OpenAI는 incremental tool call streaming 지원 (delta arguments 누적)
+- 미래 Spring AI 업데이트나 새 프로바이더 사용 시 즉시 발현 → P2 → P1 격상
+
+**위험도**:
+- 운영 가시성 손실: 사라진 도구 호출은 어떤 메트릭에도 잡히지 않음
+- 사용자 응답 품질 저하: LLM이 의도한 다중 도구 호출이 부분 실행됨
+- 디버깅 난이도 극상: 코드는 정상 동작처럼 보이고, 청크 단위 로그가 없으면 발견 불가
+
+#### Fix #1: 멀티 청크 누적 (LinkedHashMap by ID)
+
+**Before**:
+```kotlin
+var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
+// ...
+flux.asFlow().collect { chunk ->
+    val chunkToolCalls = generation.output.toolCalls
+    if (!chunkToolCalls.isNullOrEmpty()) {
+        pendingToolCalls = chunkToolCalls  // 덮어쓰기 — 이전 청크 손실
+    }
+}
+return StreamChunkResult(
+    pendingToolCalls = pendingToolCalls, ...
+)
+```
+
+**After (R272)**:
+```kotlin
+// R272: ID별 누적 (LinkedHashMap으로 삽입 순서 보존)
+val accumulatedToolCalls = LinkedHashMap<String, AssistantMessage.ToolCall>()
+// ...
+flux.asFlow().collect { chunk ->
+    val chunkToolCalls = generation.output.toolCalls
+    if (!chunkToolCalls.isNullOrEmpty()) {
+        // R272: 덮어쓰기 대신 ID별 누적. 동일 ID는 최신 청크의 ToolCall로 갱신.
+        for (tc in chunkToolCalls) {
+            accumulatedToolCalls[tc.id()] = tc
+        }
+    }
+}
+return StreamChunkResult(
+    pendingToolCalls = accumulatedToolCalls.values.toList(), ...
+)
+```
+
+**보존 동작**:
+1. **단일 청크 (현재 가장 흔한 케이스)**: 한 청크가 map을 채움 → 동일 동작
+2. **멀티 청크 full tool calls**: 각 청크의 도구 호출이 ID로 중복 없이 누적
+3. **동일 ID 재등장**: 최신 버전이 우선 (Spring AI는 청크별로 누적된 상태 전달, latest-wins 안전)
+4. **삽입 순서**: LinkedHashMap이 제공하므로 LLM이 의도한 호출 순서 유지
+
+#### 신규 회귀 테스트 (3개)
+
+`StreamingReActLoopExecutorTest`에 새 `R272MultiChunkToolCallAccumulation` nested 추가. `executeInParallel`에 전달된 toolCalls를 mockk로 캡처:
+
+| 테스트 | 시나리오 | 검증 |
+|---|---|---|
+| Test 1 | 청크1: A, 청크2: B (다른 ID), 청크3: 텍스트 | `executeInParallel(toolCalls=[A, B])` |
+| Test 2 | 청크1: ID=x args={x:1}, 청크2: ID=x args={x:2} | `executeInParallel(toolCalls=[x with args={x:2}])` (latest wins) |
+| Test 3 | 단일 청크 단일 도구 호출 (회귀 검증) | 동일 동작, 1개 도구 |
+
+핵심 mockk 패턴:
+```kotlin
+val capturedToolCalls = mutableListOf<List<AssistantMessage.ToolCall>>()
+coEvery {
+    toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+} coAnswers {
+    @Suppress("UNCHECKED_CAST")
+    val toolCalls = it.invocation.args[0] as List<AssistantMessage.ToolCall>
+    capturedToolCalls.add(toolCalls)
+    (it.invocation.args[4] as AtomicInteger).addAndGet(toolCalls.size)
+    toolCalls.map { tc -> ToolResponseMessage.ToolResponse(tc.id(), tc.name(), "ok-${tc.name()}") }
+}
+```
+
+#### 테스트 결과
+
+```
+StreamingReActLoopExecutorTest$R272MultiChunkToolCallAccumulation — 3/3 PASS
+- R272 fix - 여러 청크에 걸친 서로 다른 toolCall은 모두 누적되어야 한다()
+- R272 fix - 동일 ID가 여러 청크에 등장하면 최신 버전이 우선되어야 한다()
+- R272 회귀 - 단일 청크 시나리오는 동일하게 동작해야 한다()
+```
+
+전체 `agent.impl.*` 모듈 PASS — 회귀 없음. 기존 streaming 테스트 모두 동일하게 작동 (단일 청크 케이스이므로 새 동작과 호환).
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin
+# BUILD SUCCESSFUL in 966ms — 0 warnings
+
+./gradlew :arc-core:test --tests "com.arc.reactor.agent.impl.*"
+# BUILD SUCCESSFUL — all tests pass
+```
+
+#### opt-in 기본값
+
+- **production code 변경 1건** (`StreamingReActLoopExecutor.collectStreamChunks`)
+- **새 기능 없음** — hidden bug fix
+- **기존 정상 경로 영향**: 0 (단일 청크 케이스는 변경 후에도 동일 동작)
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ 도구 발견/호출 경로 미수정, streaming 청크 수집 로직만 강화
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint 미수정
+- **컨텍스트 관리**: ✅ MemoryStore/ConversationManager 미접근
+
+#### Hidden bug → Defensive fix 패턴
+
+R272는 R268 (`@Primary` 패턴 fix), R270 (`Hook metric loss` fix), R271 (`CopyOnWriteArrayList`/`exception class name`)에 이은 4번째 production fix 라운드. 이전 fix들과 R272의 차이:
+
+| 라운드 | 발견 시점 | 위험 시점 |
+|---|---|---|
+| R268 | doc-test에서 발견 | 사용자가 비-Default 구현체 사용 시 즉시 발현 |
+| R270 #1 | 코드 스캔 (방어적) | mcpToolCallbackProvider 변경 시 발현 |
+| R270 #2 | 코드 스캔 (실제 운영 영향) | failOnError=true Hook 사용 시 즉시 발현 |
+| R271 #1 | 코드 스캔 (성능/명확성) | 항상 (다만 미미함) |
+| R271 #2 | 코드 스캔 (보안/UX) | 도구 실패 시 항상 발현 |
+| **R272** | **코드 스캔 (hidden bug)** | **프로바이더가 멀티 청크 streaming 시 즉시 발현, 현재 환경에서는 잠재** |
+
+**R272의 가치**: 발견 시점에 발현하지 않은 hidden bug를 fix → 미래 Spring AI 업데이트나 OpenAI 사용 시 silent breakage 방지. 이러한 fix가 가장 비용 효율적 (지금 1줄 변경 vs 미래 production incident).
+
+#### R270 P4 false positive 분석
+
+R270 스캐너가 P4로 보고한 `AgentExecutionCoordinator.kt:384` `mcpToolCallbacks()` 람다 매번 재호출은 검증 결과 false positive로 판정:
+
+**스캐너 우려**: "blocking I/O를 수반할 경우 캐시 경로임에도 불필요한 비용 발생"
+
+**실제 동작**:
+```kotlin
+override fun getAllToolCallbacks(): List<ToolCallback> {
+    allToolCallbacksSnapshot?.let { return it }  // ← 캐시 반환
+    synchronized(toolCallbacksSnapshotLock) {
+        // ... initialize snapshot ...
+    }
+}
+```
+
+`McpManager.getAllToolCallbacks()`은 `allToolCallbacksSnapshot` 내부 캐시로 O(1) 호출. 첫 호출 후에는 atomic load만 발생하여 blocking I/O 없음. 람다 호출 자체의 미미한 객체 생성 비용만 있고, request당 2회 호출되므로 무시 가능.
+
+R272에서 fix 대상에서 제외하고 R272 보고서에 false positive 분류 명시.
+
+#### 능동 코드 검증 사이클 진척
+
+| 라운드 | 검증 영역 | 발견 → 처리 |
+|---|---|---|
+| R270 | hot path 6 파일 | 7 발견 → 2 fix (P1) |
+| R271 | R270 미처리 5개 | 2 fix (P1+P3) |
+| **R272** | **R270 미처리 3개** | **1 fix (P2) + 1 false positive (P4)** |
+
+R270~R272 누적: **5 fix + 1 false positive 검증 + 1 P2 미처리** (`findMcpToolCallback` TOCTOU만 남음)
+
+#### 운영자 영향
+
+R272는 현재 환경에서 즉각적 변화 없음. **간접 가치**:
+
+1. **미래 Spring AI 업데이트 안전성**: 프로바이더가 멀티 청크 도구 호출 streaming을 채택하면 자동으로 올바르게 동작
+2. **OpenAI 운영 환경 잠재적 보호**: OpenAI Spring AI 구현이 incremental tool call streaming을 지원하면 이미 fix 되어있음
+3. **silent breakage 방지**: hidden bug가 production incident로 발현하기 전에 미리 잠금
+4. **스트리밍 도구 호출 신뢰도**: 멀티 도구 호출 시 LLM이 의도한 모든 호출이 실행됨을 보장
+
+#### 연속 지표
+
+| 지표 | R271 | R272 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 102 | **103** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5956+ PASS | **5959+ PASS (+3)** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R271 | **4/5 + R224~R272** | - |
+| Production fix 누적 | 4 (R268+R270+R271) | **5 (+R272)** | +25% |
+| 코드 스캔 발견 처리 | 4/7 | **6/7** (1 fix + 1 false positive) | +29% |
+| Hidden bug fix | 0 | **1 (R272 첫 사례)** | 🆕 |
+
+#### 다음 Round 후보
+
+스캐너 미처리 1개 남음:
+- 🟡 P2: `findMcpToolCallback` 이중 호출 TOCTOU — 캐싱 추가로 fix 가능 (R273 예정)
+
+추가:
+1. 새 codebase scan (다른 영역 — guard/hook/memory/cache)
+2. ApprovalController REST 엔드포인트 (가장 큰 작업)
+3. Gemini 쿼터 회복 후 QA 측정 루프 재개
+
+#### 🌊 R272 요약
+
+🌊 **StreamingReActLoopExecutor.collectStreamChunks 멀티 청크 toolCall 덮어쓰기 hidden bug fix**. R270 codebase scanner P2 처리 + P4 false positive 검증. **버그 분석**: line 614-617에서 `pendingToolCalls = chunkToolCalls`로 매 청크마다 덮어쓰기 → 청크 1의 ToolCall A + 청크 2의 ToolCall B → 결과적으로 [B]만 보존, [A]는 손실. 현재 Spring AI Gemini/Anthropic 구현은 단일 청크에 모든 도구 호출을 담아 보내므로 안전하지만, OpenAI Spring AI 구현이 incremental tool call streaming을 지원하거나 미래 프로바이더 변경 시 즉시 발현되는 hidden bug. **위험도**: 운영 가시성 손실(어떤 메트릭에도 잡히지 않음) + 사용자 응답 품질 저하(LLM 의도 부분 실행) + 디버깅 난이도 극상(코드는 정상처럼 보임). **Fix**: `LinkedHashMap<String, AssistantMessage.ToolCall>`로 ID별 누적, `accumulatedToolCalls[tc.id()] = tc` 패턴. 보존 동작: (1) 단일 청크 동일 동작, (2) 멀티 청크 full tool calls 모두 누적, (3) 동일 ID 재등장 시 latest-wins (Spring AI는 청크별로 누적 상태 전달이라 안전), (4) LinkedHashMap이 삽입 순서 보존하여 LLM 의도 호출 순서 유지. **신규 R272 회귀 테스트 3개**: (Test 1) 청크1: A, 청크2: B, 청크3: 텍스트 → `executeInParallel(toolCalls=[A, B])` 검증, (Test 2) 청크1: ID=x v1, 청크2: ID=x v2 → `[x with v2]` 1개 latest-wins 검증, (Test 3) 단일 청크 회귀 검증. **테스트 패턴**: mockk `coAnswers`로 `executeInParallel`에 전달된 첫 번째 인자(`List<AssistantMessage.ToolCall>`)를 캡처하여 분석. **테스트 결과**: 3/3 신규 PASS + 전체 `agent.impl.*` 모듈 PASS (회귀 없음). **빌드**: `compileKotlin` 0 warnings. **3대 최상위 제약 자동 준수**: 도구 발견/호출 경로 미수정, SystemPromptBuilder/scopeFingerprint 미수정, MemoryStore 미접근. **R270 P4 false positive 분석**: `AgentExecutionCoordinator.kt:384` `mcpToolCallbacks()` 람다 매번 재호출은 스캐너의 "blocking I/O" 우려와 달리 `McpManager.getAllToolCallbacks()`이 `allToolCallbacksSnapshot` 내부 캐시로 O(1) 호출이므로 fix 대상에서 제외. **Hidden bug → Defensive fix 패턴**: R272는 4번째 production fix 라운드이고 처음으로 hidden bug(현재 발현 안 함)를 fix한 사례. **R272의 가치**: 발견 시점에 발현하지 않은 bug를 fix → 미래 silent breakage 방지. 1줄 변경 vs 미래 production incident 비교 시 가장 비용 효율적. **R270~R272 누적**: 5 fix + 1 false positive 검증 + 1 P2 미처리(`findMcpToolCallback` TOCTOU). **운영자 영향**: 즉각적 변화 없으나 (1) 미래 Spring AI 업데이트 안전성, (2) OpenAI 잠재적 보호, (3) silent breakage 방지, (4) 멀티 도구 호출 streaming 신뢰도. Production fix 누적: 4 → 5 (+25%). 코드 스캔 발견 처리: 4/7 → 6/7. Hidden bug fix 누적: 0 → 1 (R272 첫 사례). Directive 진행: **4/5 + R224~R272**. swagger-mcp 8181 **103 라운드 연속 PASS**. arc-core 5956 → 5959 (+3 신규). 다음 우선순위는 R270 마지막 미처리 P2(`findMcpToolCallback` TOCTOU 캐싱) 또는 새 코드 스캔(guard/hook/memory/cache 영역), 또는 ApprovalController REST 엔드포인트.
+
+#### 🧹 R271 요약 (legacy)
+
 🧹 **R270 스캐너 P1+P3 처리 — 4개 production code fix + 3개 회귀 테스트 갱신 + 2개 신규 테스트**. 두 fix를 한 라운드에 결합하여 능동적 코드 검증 사이클 가속화. **Fix #1 — CopyOnWriteArrayList → mutableListOf**: `SpringAiAgentExecutor.execute()` line 385 + `executeStream()` line 542 두 곳. **검증 과정**: R270 스캐너의 가설("병렬 add 발생")을 grep으로 검증 → 실제로는 `executeInParallel`이 async 코루틴에서 `ParallelToolExecution` 객체만 반환하고, `awaitAll()` 후 단일 스레드 `collectParallelResults`에서 add를 수행 → toolsUsed는 단일 코루틴 flow 내에서만 sequential 접근 → CopyOnWriteArrayList는 잘못된 thread-safety 가정에서 도입된 overkill. mutableListOf로 교체 시 add O(n)→O(1), N=10 도구 시 작업량 90% 감소(절대값 미미하지만 의도 명확화가 핵심). **Fix #2 — Exception class name LLM 노출 제거**: `ToolCallOrchestrator.executionErrorOutcome` (KDoc은 "e.message는 LLM에 노출되지 않도록" 명시했으나 실제로는 `${e.javaClass.simpleName}` 노출), 작업 중 신규 테스트가 `"... (NullPointerException)"` 형태 출력으로 실패하는 것을 보고 **`ArcToolCallbackAdapter.kt:79`에도 동일한 패턴이 있음을 추가 발견** → 두 곳 모두 fix. 두 호출자 모두 이미 `logger.error(e)`로 ops 로그에 전체 스택 + `evaluationCollector.recordError`로 stage 메트릭을 기록하므로 LLM 출력에 클래스명을 노출할 운영적 가치 0, 사용자 노출/LLM 추론 오염/CLAUDE.md Gotcha #9 위반의 3가지 위험만 존재. **신규 R271 테스트 2개**: NPE 도구 + 4가지 exception 타입에서 클래스명 미노출 검증. **테스트 fixture 버그 발견 및 fix**: 처음에 도구 이름에 `"tool_${exception.simpleName}"` 사용해서 출력에 자연스럽게 클래스명이 포함됨 → 중립 이름(`"neutral_a"` 등)으로 변경. **기존 회귀 테스트 3개 갱신**: ArcToolCallbackAdapterTest 2개 + ToolPreparationPlannerTest 1개 — OLD 동작(`assertTrue(output.contains("IllegalStateException"))`)을 NEW 동작(`assertFalse(...)` + `assertTrue(output.contains("failing_tool"))`)으로 변경, `assertFalse` import 추가. **테스트 작성 4단계 디버깅 사이클**: (1) R271 fix#2 첫 시도가 ArcToolCallbackAdapter 누락 → 추가 fix, (2) 신규 테스트 fixture 버그 → 중립 이름, (3) 기존 회귀 테스트 fail → fix가 작동한다는 신호로 해석 → OLD→NEW 전환, (4) `assertFalse` import 누락 → import 추가. **테스트 결과**: R271 신규 2/2 PASS + ArcToolCallbackAdapterTest (2개 갱신) PASS + ToolPreparationPlannerTest (1개 갱신) PASS + 전체 `agent.impl.*` PASS + 전체 arc-core 테스트 suite PASS (회귀 없음). **빌드**: `compileKotlin compileTestKotlin` 0 warnings. **R270~R271 누적 통계**: production fix 6 (R268 1 + R270 2 + R271 4 - 단 4 production code 수정, 일부는 동일 fix가 여러 파일에 적용된 것으로 4 distinct fix), 변경 파일 7개 (3 main + 2 test for R271), 신규 회귀 테스트 5개, 갱신 회귀 테스트 3개, 스캐너 미처리 후보 3개 남음. **3대 최상위 제약 자동 준수**: 도구 발견/호출 경로 미수정, SystemPromptBuilder/scopeFingerprint 미수정, MemoryStore 미접근 — 모든 변경은 robustness/security/performance 강화. **운영자 영향**: (1) Tool 호출 빈도 높은 환경에서 미미한 latency 개선 (O(N²)→O(N)), (2) 도구 실행 실패 시 LLM이 사용자에게 전달하는 에러 메시지에 내부 클래스명 미노출, (3) LLM 추론 정확도 향상 (잘못된 클래스명 추론 risk 제거). **Silent foot-gun 매트릭스**: R268 1개 + R270 2개 + R271 2개 = **5개 production fix 완료**, 🔴 Redis fallback만 잠금 상태(의도된 동작). Directive 진행: **4/5 + R224~R271**. swagger-mcp 8181 **102 라운드 연속 PASS**. arc-core 5954 → 5956 (+2 신규). 다음 우선순위는 R270 스캐너 미처리 3개(P2 findMcpToolCallback TOCTOU / P2 StreamingReActLoopExecutor 멀티 청크 / P4 mcpToolCallbacks 람다 캐시) 또는 새 코드 스캔(guard/hook/memory 영역).
 
 #### 🔬 R270 요약 (legacy)

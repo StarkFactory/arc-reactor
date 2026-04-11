@@ -590,6 +590,25 @@ internal class StreamingReActLoopExecutor(
     /**
      * 스트리밍 LLM 응답의 청크를 수집하고,
      * 텍스트/도구호출/메타데이터를 분리 반환한다.
+     *
+     * R272 fix: 도구 호출은 ID별로 누적한다 (이전: 청크별 덮어쓰기).
+     *
+     * **이전 동작 (버그)**:
+     * ```kotlin
+     * if (!chunkToolCalls.isNullOrEmpty()) {
+     *     pendingToolCalls = chunkToolCalls  // 마지막 청크만 보존
+     * }
+     * ```
+     * 멀티 청크 도구 호출 스트리밍 시(예: OpenAI incremental tool call delta)
+     * 첫 번째 청크의 도구 호출이 사라지고 마지막 청크만 남는다.
+     * 현 Spring AI Gemini/Anthropic 구현은 단일 청크에 모든 도구 호출을 담아 보내므로
+     * 숨어있던 P2 버그였으나, OpenAI Spring AI 구현 또는 미래 프로바이더 변경 시 즉시 발현.
+     *
+     * **R272 동작**:
+     * ID별 LinkedHashMap에 누적하여 (1) 단일 청크 케이스 — map에 한 번에 채워지므로
+     * 동일 동작, (2) 멀티 청크 full tool calls — 각 청크의 도구 호출이 ID로 중복 없이
+     * 누적, (3) 동일 ID 재등장 — 최신 버전이 우선 (Spring AI는 청크별로 누적된 상태를
+     * 전달하므로 latest-wins 정책이 안전).
      */
     private suspend fun collectStreamChunks(
         requestSpec: ChatClient.ChatClientRequestSpec,
@@ -598,7 +617,8 @@ internal class StreamingReActLoopExecutor(
         currentIterationContent: StringBuilder
     ): StreamChunkResult {
         val flux = callWithRetry { requestSpec.stream().chatResponse() }
-        var pendingToolCalls: List<AssistantMessage.ToolCall> = emptyList()
+        // R272: ID별 누적 (LinkedHashMap으로 삽입 순서 보존)
+        val accumulatedToolCalls = LinkedHashMap<String, AssistantMessage.ToolCall>()
         val currentChunkText = StringBuilder()
         var lastChunkMeta: ChatResponseMetadata? = null
 
@@ -613,7 +633,10 @@ internal class StreamingReActLoopExecutor(
             }
             val chunkToolCalls = generation.output.toolCalls
             if (!chunkToolCalls.isNullOrEmpty()) {
-                pendingToolCalls = chunkToolCalls
+                // R272: 덮어쓰기 대신 ID별 누적. 동일 ID는 최신 청크의 ToolCall로 갱신.
+                for (tc in chunkToolCalls) {
+                    accumulatedToolCalls[tc.id()] = tc
+                }
             }
             val chunkUsage = chunk.metadata.usage
             if (chunkUsage != null && chunkUsage.totalTokens > 0) {
@@ -622,7 +645,7 @@ internal class StreamingReActLoopExecutor(
         }
 
         return StreamChunkResult(
-            pendingToolCalls = pendingToolCalls,
+            pendingToolCalls = accumulatedToolCalls.values.toList(),
             chunkText = currentChunkText.toString(),
             lastChunkMeta = lastChunkMeta
         )

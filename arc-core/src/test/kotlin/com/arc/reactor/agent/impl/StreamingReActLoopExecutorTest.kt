@@ -392,4 +392,221 @@ class StreamingReActLoopExecutorTest {
             }
         }
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // R272: 멀티 청크 toolCall 누적 (collectStreamChunks 덮어쓰기 버그 fix)
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * R272 regression: 멀티 청크 스트리밍에서 도구 호출이 여러 청크에 걸쳐 도착할 때
+     * 모든 도구 호출이 누적되어야 한다 (이전: 마지막 청크만 보존).
+     *
+     * 이 시나리오는 OpenAI/일부 프로바이더의 incremental tool call streaming에서 발생할 수 있다.
+     * 현 Spring AI Gemini/Anthropic는 단일 청크에 모든 도구 호출을 담아 보내므로 숨어있던
+     * P2 버그였다.
+     */
+    @Nested
+    inner class R272MultiChunkToolCallAccumulation {
+
+        @Test
+        fun `R272 fix - 여러 청크에 걸친 서로 다른 toolCall은 모두 누적되어야 한다`() = runTest {
+            // 청크 1: tool call A
+            // 청크 2: tool call B (다른 ID)
+            // 청크 3: 텍스트만
+            // 누적 결과: [A, B] 모두 executeInParallel에 전달되어야 함
+            val toolCallA = AssistantMessage.ToolCall("id-a", "function", "tool_a", "{\"x\":1}")
+            val toolCallB = AssistantMessage.ToolCall("id-b", "function", "tool_b", "{\"y\":2}")
+
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+                Flux.just(
+                    AgentTestFixture.toolCallChunk(listOf(toolCallA), "thinking-1"),
+                    AgentTestFixture.toolCallChunk(listOf(toolCallB), "thinking-2"),
+                    AgentTestFixture.textChunk("more text")
+                ),
+                Flux.just(AgentTestFixture.textChunk("done"))
+            )
+
+            // executeInParallel에 전달된 toolCalls를 캡처
+            val capturedToolCalls = mutableListOf<List<AssistantMessage.ToolCall>>()
+            val toolOrchestrator = mockk<ToolCallOrchestrator>()
+            coEvery {
+                toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+            } coAnswers {
+                @Suppress("UNCHECKED_CAST")
+                val toolCalls = it.invocation.args[0] as List<AssistantMessage.ToolCall>
+                capturedToolCalls.add(toolCalls)
+                (it.invocation.args[4] as AtomicInteger).addAndGet(toolCalls.size)
+                toolCalls.map { tc ->
+                    ToolResponseMessage.ToolResponse(tc.id(), tc.name(), "ok-${tc.name()}")
+                }
+            }
+
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = toolOrchestrator,
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() }
+            )
+
+            loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 5),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = listOf(mockk<Any>(relaxed = true)),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 5,
+                emit = {}
+            )
+
+            // R272 fix 핵심: 첫 번째 executeInParallel 호출에 두 도구 호출이 모두 포함되어야 함
+            assertTrue(capturedToolCalls.isNotEmpty()) {
+                "executeInParallel이 호출되어야 한다"
+            }
+            val firstCall = capturedToolCalls.first()
+            assertEquals(2, firstCall.size) {
+                "R272 fix: 두 청크에 걸친 도구 호출이 모두 누적되어야 함. " +
+                    "이전 버그에서는 마지막 청크의 1개만 남았음. actual=${firstCall.map { it.id() }}"
+            }
+            assertTrue(firstCall.any { it.id() == "id-a" }) {
+                "첫 번째 청크의 toolCall A가 보존되어야 함"
+            }
+            assertTrue(firstCall.any { it.id() == "id-b" }) {
+                "두 번째 청크의 toolCall B가 보존되어야 함"
+            }
+        }
+
+        @Test
+        fun `R272 fix - 동일 ID가 여러 청크에 등장하면 최신 버전이 우선되어야 한다`() = runTest {
+            // 청크 1: tool call ID=x with arguments {x:1}
+            // 청크 2: tool call ID=x with arguments {x:2} (같은 ID, 갱신된 arguments)
+            // 누적 결과: [x with arguments {x:2}] 1개만, 최신 버전
+            val toolCallV1 = AssistantMessage.ToolCall("id-x", "function", "tool_x", "{\"x\":1}")
+            val toolCallV2 = AssistantMessage.ToolCall("id-x", "function", "tool_x", "{\"x\":2}")
+
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+                Flux.just(
+                    AgentTestFixture.toolCallChunk(listOf(toolCallV1)),
+                    AgentTestFixture.toolCallChunk(listOf(toolCallV2))
+                ),
+                Flux.just(AgentTestFixture.textChunk("done"))
+            )
+
+            val capturedToolCalls = mutableListOf<List<AssistantMessage.ToolCall>>()
+            val toolOrchestrator = mockk<ToolCallOrchestrator>()
+            coEvery {
+                toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+            } coAnswers {
+                @Suppress("UNCHECKED_CAST")
+                val toolCalls = it.invocation.args[0] as List<AssistantMessage.ToolCall>
+                capturedToolCalls.add(toolCalls)
+                (it.invocation.args[4] as AtomicInteger).addAndGet(toolCalls.size)
+                toolCalls.map { tc ->
+                    ToolResponseMessage.ToolResponse(tc.id(), tc.name(), "ok")
+                }
+            }
+
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = toolOrchestrator,
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() }
+            )
+
+            loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 5),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = listOf(mockk<Any>(relaxed = true)),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 5,
+                emit = {}
+            )
+
+            val firstCall = capturedToolCalls.first()
+            assertEquals(1, firstCall.size) {
+                "동일 ID는 1개로 dedup되어야 함. actual=${firstCall.map { it.id() }}"
+            }
+            // 최신 버전(arguments={x:2})이 우선
+            assertEquals("{\"x\":2}", firstCall.first().arguments()) {
+                "동일 ID 재등장 시 최신 버전이 우선"
+            }
+        }
+
+        @Test
+        fun `R272 회귀 - 단일 청크 시나리오는 동일하게 동작해야 한다`() = runTest {
+            // R272 변경이 기존 단일 청크 동작에 영향을 주지 않는지 검증
+            val toolCall = AssistantMessage.ToolCall("tc-1", "function", "search", "{}")
+            val requestSpec = mockk<ChatClient.ChatClientRequestSpec>()
+            val streamResponseSpec = mockk<ChatClient.StreamResponseSpec>()
+            every { requestSpec.stream() } returns streamResponseSpec
+            every { streamResponseSpec.chatResponse() } returnsMany listOf(
+                Flux.just(AgentTestFixture.toolCallChunk(listOf(toolCall), "thinking")),
+                Flux.just(AgentTestFixture.textChunk("done"))
+            )
+
+            val capturedToolCalls = mutableListOf<List<AssistantMessage.ToolCall>>()
+            val toolOrchestrator = mockk<ToolCallOrchestrator>()
+            coEvery {
+                toolOrchestrator.executeInParallel(any(), any(), any(), any(), any(), any(), any(), any())
+            } coAnswers {
+                @Suppress("UNCHECKED_CAST")
+                val toolCalls = it.invocation.args[0] as List<AssistantMessage.ToolCall>
+                capturedToolCalls.add(toolCalls)
+                (it.invocation.args[4] as AtomicInteger).addAndGet(toolCalls.size)
+                listOf(ToolResponseMessage.ToolResponse("tc-1", "search", "ok"))
+            }
+
+            val loopExecutor = StreamingReActLoopExecutor(
+                messageTrimmer = ConversationMessageTrimmer(
+                    maxContextWindowTokens = 10_000,
+                    outputReserveTokens = 100,
+                    tokenEstimator = TokenEstimator { it.length }
+                ),
+                toolCallOrchestrator = toolOrchestrator,
+                buildRequestSpec = { _, _, _, _, _ -> requestSpec },
+                callWithRetry = { block -> block() },
+                buildChatOptions = { _, _ -> ChatOptions.builder().build() }
+            )
+
+            loopExecutor.execute(
+                command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", maxToolCalls = 5),
+                activeChatClient = mockk(relaxed = true),
+                systemPrompt = "sys",
+                initialTools = listOf(mockk<Any>(relaxed = true)),
+                conversationHistory = emptyList(),
+                hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi"),
+                toolsUsed = mutableListOf(),
+                allowedTools = null,
+                maxToolCalls = 5,
+                emit = {}
+            )
+
+            assertEquals(1, capturedToolCalls.first().size) {
+                "단일 청크 단일 도구 호출은 동일하게 1개"
+            }
+            assertEquals("tc-1", capturedToolCalls.first().first().id())
+        }
+    }
 }
