@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * [MicrometerSlaMetrics] 유닛 테스트.
@@ -108,6 +112,54 @@ class MicrometerSlaMetricsTest {
                 0.001,
                 "101번째 샘플 추가 후 가용성은 0.99이어야 한다 (첫 번째 정상 샘플 제거)"
             )
+        }
+
+        @Test
+        fun `R286 동시 recordAvailabilitySample과 ratio 호출에서 ratio가 0_0과 1_0 사이를 항상 만족해야 한다`() {
+            // R286 fix 검증: 이전 구현은 deque.addLast → totalSampleCount++ → healthySampleCount++가
+            // atomic하지 않아, ratio 계산 중간에 두 카운터가 일시적으로 불일치하면 ratio가 1.0 초과
+            // 또는 음수가 될 수 있었다. lock으로 직렬화한 후에는 항상 [0.0, 1.0] 범위를 만족해야 한다.
+            val registry = SimpleMeterRegistry()
+            val metrics = MicrometerSlaMetrics(registry)
+            val gauge = registry.find("arc.sla.availability").gauge()!!
+
+            val executor = Executors.newFixedThreadPool(4)
+            val latch = CountDownLatch(1)
+            val outOfRange = AtomicBoolean(false)
+            val iterationsPerThread = 500
+
+            try {
+                // 2개 writer + 2개 reader 동시 실행
+                val writers = (1..2).map {
+                    executor.submit {
+                        latch.await()
+                        repeat(iterationsPerThread) { i ->
+                            metrics.recordAvailabilitySample(healthy = i % 2 == 0)
+                        }
+                    }
+                }
+                val readers = (1..2).map {
+                    executor.submit {
+                        latch.await()
+                        repeat(iterationsPerThread) {
+                            val ratio = gauge.value()
+                            if (ratio < 0.0 || ratio > 1.0) {
+                                outOfRange.set(true)
+                            }
+                        }
+                    }
+                }
+
+                latch.countDown()
+                (writers + readers).forEach { it.get(10, TimeUnit.SECONDS) }
+            } finally {
+                executor.shutdown()
+            }
+
+            assertTrue(!outOfRange.get()) {
+                "R286 fix: 동시 recordAvailabilitySample/availabilityRatio 호출에서 " +
+                    "ratio는 항상 [0.0, 1.0] 범위여야 하지만 범위 밖 값이 관측됨"
+            }
         }
     }
 
