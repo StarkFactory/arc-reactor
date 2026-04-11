@@ -43,7 +43,8 @@ class ToolRoutingConfigValidatorTest {
         val ex = assertThrows<IllegalStateException>("Empty id must throw") {
             ToolRoutingConfigValidator.validate(config)
         }
-        ex.message shouldBe "tool-routing.yml validation failed: 1 route(s) have empty id"
+        ex.message shouldBe
+            "tool-routing.yml validation failed: 1 error(s) (empty id 또는 unknown regexPatternRef)"
     }
 
     @Test
@@ -242,6 +243,82 @@ class ToolRoutingConfigValidatorTest {
         val ex = assertThrows<IllegalStateException>("Multiple empty ids must throw") {
             ToolRoutingConfigValidator.validate(config)
         }
-        ex.message shouldBe "tool-routing.yml validation failed: 2 route(s) have empty id"
+        ex.message shouldBe
+            "tool-routing.yml validation failed: 2 error(s) (empty id 또는 unknown regexPatternRef)"
+    }
+
+    // ── R306: regexPatternRef 화이트리스트 검증 ──
+
+    @Test
+    fun `R306 known regexPatternRef ISSUE_KEY should pass`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "jira_issue_route",
+                    category = "jira",
+                    regexPatternRef = "ISSUE_KEY",
+                    promptInstruction = "Lookup"
+                )
+            )
+        )
+        assertDoesNotThrow("ISSUE_KEY is whitelisted") {
+            ToolRoutingConfigValidator.validate(config)
+        }
+    }
+
+    @Test
+    fun `R306 known regexPatternRef OPENAPI_URL should pass`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "swagger_url_route",
+                    category = "swagger",
+                    regexPatternRef = "OPENAPI_URL",
+                    promptInstruction = "Fetch"
+                )
+            )
+        )
+        assertDoesNotThrow("OPENAPI_URL is whitelisted") {
+            ToolRoutingConfigValidator.validate(config)
+        }
+    }
+
+    @Test
+    fun `R306 unknown regexPatternRef should throw IllegalStateException at validation time`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "bad_regex_route",
+                    category = "jira",
+                    regexPatternRef = "NONEXISTENT_PATTERN",
+                    promptInstruction = "Lookup"
+                )
+            )
+        )
+        val ex = assertThrows<IllegalStateException>(
+            "Unknown regexPatternRef must fail-fast at startup instead of crashing at request time"
+        ) {
+            ToolRoutingConfigValidator.validate(config)
+        }
+        ex.message shouldBe
+            "tool-routing.yml validation failed: 1 error(s) (empty id 또는 unknown regexPatternRef)"
+    }
+
+    @Test
+    fun `R306 null regexPatternRef should not trigger validation error`() {
+        val config = ToolRoutingConfig(
+            routes = listOf(
+                ToolRoute(
+                    id = "no_regex_route",
+                    category = "work",
+                    keywords = setOf("briefing"),
+                    regexPatternRef = null,
+                    promptInstruction = "Brief"
+                )
+            )
+        )
+        assertDoesNotThrow("null regexPatternRef is allowed (optional)") {
+            ToolRoutingConfigValidator.validate(config)
+        }
     }
 }

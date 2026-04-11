@@ -24,6 +24,17 @@ object ToolRoutingConfigValidator {
     )
 
     /**
+     * [ToolRoutingConfig.resolveRegex]가 지원하는 정규식 참조 화이트리스트.
+     *
+     * R306 fix: 이전 구현은 `regexPatternRef` 검증이 없어 오타/삭제된 참조가 기동 시
+     * 통과하고 첫 요청 처리 시점에 `error("알 수 없는 정규식 참조: ...")`로 런타임 throw
+     * → 요청 핸들러 크래시 발생. 기동 시 fail-fast로 전환한다.
+     */
+    private val KNOWN_REGEX_REFS = setOf(
+        "ISSUE_KEY", "OPENAPI_URL"
+    )
+
+    /**
      * 주어진 라우팅 설정의 모든 라우트를 검증한다.
      *
      * @param config 검증할 라우팅 설정
@@ -57,6 +68,17 @@ object ToolRoutingConfigValidator {
                 warnCount++
             }
 
+            // R306 fix: regexPatternRef 화이트리스트 검증. 미등록 참조는 요청 처리 시
+            // ToolRoutingConfig.resolveRegex가 런타임 throw하므로 기동 시 fail-fast 처리.
+            val regexRef = route.regexPatternRef
+            if (regexRef != null && regexRef !in KNOWN_REGEX_REFS) {
+                logger.error {
+                    "route '${route.id}': unknown regexPatternRef '$regexRef' " +
+                        "(known: $KNOWN_REGEX_REFS) — this route will crash at request time"
+                }
+                errorCount++
+            }
+
             val hasMatchCondition = route.keywords.isNotEmpty() ||
                 route.regexPatternRef != null ||
                 route.multiKeywordGroups.isNotEmpty() ||
@@ -85,7 +107,8 @@ object ToolRoutingConfigValidator {
 
         if (errorCount > 0) {
             throw IllegalStateException(
-                "tool-routing.yml validation failed: $errorCount route(s) have empty id"
+                "tool-routing.yml validation failed: $errorCount error(s) " +
+                    "(empty id 또는 unknown regexPatternRef)"
             )
         }
 

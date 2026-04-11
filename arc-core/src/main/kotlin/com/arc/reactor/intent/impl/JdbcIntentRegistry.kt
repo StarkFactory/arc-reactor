@@ -9,6 +9,7 @@ import mu.KotlinLogging
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.ResultSet
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 
 private val logger = KotlinLogging.logger {}
 
@@ -43,11 +44,16 @@ class JdbcIntentRegistry(
 
     /**
      * 메모리 내 스냅샷 캐시.
+     *
      * WHY: 인텐트 분류가 매 요청마다 실행되므로 DB 쿼리를 매번 하면 성능이 저하된다.
-     * @Volatile로 선언하여 다른 스레드에서의 무효화가 즉시 보이도록 한다.
+     *
+     * R306 fix: `@Volatile var` → [AtomicReference]. 과거 구현은 `invalidateSnapshot()`이
+     * `synchronized(this)` 밖에서 `snapshot = null`을 수행하여 double-check locking에
+     * TOCTOU race가 존재했다 (thread A가 first check에서 non-null을 읽고 lock 우회 →
+     * thread B가 invalidate → thread A가 stale snapshot 반환). AtomicReference의
+     * compareAndSet으로 로딩/무효화 원자성을 확보한다.
      */
-    @Volatile
-    private var snapshot: RegistrySnapshot? = null
+    private val snapshot: AtomicReference<RegistrySnapshot?> = AtomicReference(null)
 
     override fun list(): List<IntentDefinition> {
         return currentSnapshot().all
@@ -119,12 +125,16 @@ class JdbcIntentRegistry(
 
     /**
      * 현재 스냅샷을 반환한다. 캐시 미스 시 DB에서 로딩한다.
-     * synchronized로 동시 로딩을 방지한다.
+     *
+     * R306 fix: AtomicReference 기반 double-check + compareAndSet. 동시 로딩은
+     * synchronized block 내 재확인으로 방지하되, invalidate와의 race는 AR로 해소.
      */
     private fun currentSnapshot(): RegistrySnapshot {
-        snapshot?.let { return it }
+        snapshot.get()?.let { return it }
         return synchronized(this) {
-            snapshot ?: loadSnapshot().also { snapshot = it }
+            snapshot.get() ?: loadSnapshot().also { loaded ->
+                snapshot.set(loaded)
+            }
         }
     }
 
@@ -148,9 +158,14 @@ class JdbcIntentRegistry(
         return results.firstOrNull()
     }
 
-    /** 스냅샷 캐시를 무효화한다. 다음 조회 시 DB에서 다시 로딩한다. */
+    /**
+     * 스냅샷 캐시를 무효화한다. 다음 조회 시 DB에서 다시 로딩한다.
+     *
+     * R306 fix: `snapshot = null` → `snapshot.set(null)`. AtomicReference 원자적
+     * 쓰기로 double-check locking TOCTOU를 제거한다.
+     */
     private fun invalidateSnapshot() {
-        snapshot = null
+        snapshot.set(null)
     }
 
     companion object {

@@ -105,6 +105,34 @@ class JdbcIntentRegistryTest {
     }
 
     @Test
+    fun `R306 invalidate 후 즉시 read는 최신 DB 상태를 읽어야 한다`() {
+        // R306 회귀: invalidateSnapshot이 synchronized 밖에서 @Volatile var = null을 썼을 때,
+        // 첫 체크를 통과한 reader가 stale snapshot을 반환할 수 있었다. AtomicReference로
+        // 전환한 이후에는 invalidate → 다음 read가 항상 새 snapshot을 로드해야 한다.
+        registry.save(createIntent("a", enabled = true))
+        registry.save(createIntent("b", enabled = true))
+        assertEquals(listOf("a", "b"), registry.list().map { it.name }) {
+            "Initial state must contain both intents"
+        }
+
+        // 외부에서 rawInsert로 c를 추가 (캐시 우회) — 이 시점에 캐시는 여전히 [a, b].
+        rawInsert(createIntent("c", enabled = true))
+        assertEquals(listOf("a", "b"), registry.list().map { it.name }) {
+            "Snapshot should still reflect pre-rawInsert state before invalidation"
+        }
+
+        // 레지스트리를 통한 save는 invalidate를 트리거 → 다음 read가 reload
+        registry.save(createIntent("d", enabled = true))
+        val afterInvalidate = registry.list().map { it.name }
+        assertTrue(afterInvalidate.contains("c")) {
+            "After invalidate, reload must include out-of-band inserted 'c', got $afterInvalidate"
+        }
+        assertTrue(afterInvalidate.contains("d")) {
+            "After save, reload must include newly saved 'd', got $afterInvalidate"
+        }
+    }
+
+    @Test
     fun `delete 후 invalidate snapshot해야 한다`() {
         registry.save(createIntent("alpha", enabled = true))
         registry.save(createIntent("beta", enabled = true))
