@@ -367,7 +367,27 @@ internal class PlanExecuteStrategy(
         }
     }
 
-    /** 도구 실행 결과를 모아 LLM에 최종 응답 합성을 요청한다. */
+    /**
+     * 도구 실행 결과를 모아 LLM에 최종 응답 합성을 요청한다.
+     *
+     * **R333 fix (cross_source_synthesis)**: 실패한 step의 `output`은 `"Error: TOOL_ERROR"`
+     * 같은 내부 마커 문자열인데, 기존 구현은 `r.output.orEmpty()`로 성공 결과와 **동등하게**
+     * LLM 프롬프트에 주입했다. R308에서 "전부 실패" 케이스는 차단했지만, **일부만 실패**한
+     * 혼합 케이스는 여전히 synthesize로 진입한다(line 127의 `results.none { it.success }`
+     * 가드는 "전부 실패"만 차단). 결과: LLM이 `"Error: TOOL_ERROR"`를 실제 source 데이터로
+     * 오해하거나, 실패 step을 없는 것으로 착각하여 **환각 응답**을 생성할 수 있었다.
+     * 예: 3단계 계획 중 Bitbucket만 실패 → LLM에게 `"[bitbucket_get_pr] ... Error: TOOL_ERROR"`
+     * 가 성공 데이터와 뒤섞여 전달 → LLM이 존재하지 않는 PR을 근거로 답변.
+     *
+     * **수정**: `r.success`와 `r.output` 공백 여부를 확인해 3가지 섹션으로 분류한다.
+     * - 성공 + non-blank output: 원본 output을 그대로 사용
+     * - 성공 + blank output: 명시적 "데이터 없음" 마커
+     * - 실패(`success=false`): 명시적 "[실패] 답변 근거 금지" 마커, 원본 에러 문자열 노출 금지
+     *
+     * LLM은 성공 source와 실패 source를 구분하고 부분 성공임을 인지할 수 있다. 에러 내부
+     * 표현(`TOOL_ERROR` 등)은 LLM/사용자 응답 경로에서 완전히 제거되어 sanitization 원칙(
+     * CLAUDE.md Gotcha #9 계열) 유지.
+     */
     private suspend fun synthesize(
         command: AgentCommand,
         chatClient: ChatClient,
@@ -376,7 +396,14 @@ internal class PlanExecuteStrategy(
         hookContext: HookContext
     ): AgentResult {
         val resultSummary = results.joinToString("\n\n") { r ->
-            "[${r.tool}] ${r.description}\n${r.output.orEmpty()}"
+            val header = "[${r.tool}] ${r.description}"
+            val body = when {
+                !r.success -> "[실패] 이 단계는 실행에 실패했습니다. 답변 근거로 사용하지 마세요."
+                r.output.isNullOrBlank() ->
+                    "[데이터 없음] 이 단계는 결과를 반환하지 않았습니다."
+                else -> r.output
+            }
+            "$header\n$body"
         }
         val synthesisPrompt = buildString {
             append("사용자 요청: ${command.userPrompt}\n\n")

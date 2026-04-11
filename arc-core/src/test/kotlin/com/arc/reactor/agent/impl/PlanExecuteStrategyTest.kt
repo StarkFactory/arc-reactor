@@ -648,6 +648,117 @@ class PlanExecuteStrategyTest {
     }
 
     @Test
+    fun `R333 synthesize 일부 step 실패 시 실패 마커로 감싸고 원본 에러 문자열은 노출하지 않는다`() = runTest {
+        // R333 회귀: 이전 구현은 실패한 step의 output("Error: TOOL_ERROR")을 성공 step과 동등하게
+        // LLM 프롬프트에 주입해 환각 위험이 있었다. 수정 후 synthesize의 resultSummary는:
+        // - 성공 step: 원본 output 유지
+        // - 실패 step: [실패] 마커 + "답변 근거로 사용하지 마세요" 지시
+        // 원본 에러 문자열("TOOL_ERROR")은 LLM/사용자 응답 경로에서 완전히 제거되어야 한다.
+        val capturedMessages = mutableListOf<List<org.springframework.ai.chat.messages.Message>>()
+        val strategyWithCapture = PlanExecuteStrategy(
+            toolCallOrchestrator = toolCallOrchestrator,
+            buildRequestSpec = { _, _, messages, _, _ ->
+                capturedMessages.add(messages)
+                fixture.requestSpec
+            },
+            callWithRetry = { block -> block() },
+            buildChatOptions = { _, _ -> mockk(relaxed = true) }
+        )
+
+        val planJson = """
+            [
+              {"tool":"tool_ok","args":{},"description":"정상 단계"},
+              {"tool":"tool_fail","args":{},"description":"실패 단계"}
+            ]
+        """.trimIndent()
+        val planResponse = simpleChatResponse(planJson)
+        val synthesisResponse = simpleChatResponse("최종 답변")
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, synthesisResponse)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_ok",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "JAR-36 상태: In Progress", success = true)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_fail",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } throws RuntimeException("네트워크 단절")
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "혼합 케이스 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategyWithCapture.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(
+                createMockSpringTool("tool_ok"),
+                createMockSpringTool("tool_fail")
+            ),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertSuccess("혼합 케이스는 synthesize 성공으로 이어져야 한다")
+
+        // 두 번의 buildRequestSpec 호출이 있어야 한다: generatePlan + synthesize
+        assertEquals(
+            2, capturedMessages.size,
+            "buildRequestSpec은 generatePlan과 synthesize에서 각각 호출되어야 한다"
+        )
+        val synthesizeMessages = capturedMessages[1]
+        val userText = synthesizeMessages
+            .filterIsInstance<org.springframework.ai.chat.messages.UserMessage>()
+            .joinToString("\n") { it.text.orEmpty() }
+
+        assertTrue(userText.contains("[tool_ok]")) {
+            "성공 step 헤더가 synthesize 프롬프트에 포함되어야 한다: $userText"
+        }
+        assertTrue(userText.contains("JAR-36 상태: In Progress")) {
+            "성공 step의 원본 output이 synthesize 프롬프트에 유지되어야 한다: $userText"
+        }
+        assertTrue(userText.contains("[tool_fail]")) {
+            "실패 step 헤더가 synthesize 프롬프트에 포함되어야 한다: $userText"
+        }
+        assertTrue(userText.contains("[실패]")) {
+            "실패 step은 [실패] 마커로 wrap되어야 한다: $userText"
+        }
+        assertTrue(userText.contains("답변 근거로 사용하지 마세요")) {
+            "LLM에 실패 step을 근거로 쓰지 말라는 지시가 포함되어야 한다: $userText"
+        }
+        assertTrue(!userText.contains("TOOL_ERROR")) {
+            "원본 에러 문자열 'TOOL_ERROR'는 synthesize 프롬프트에 노출되면 안 된다: $userText"
+        }
+        assertTrue(!userText.contains("네트워크 단절")) {
+            "원본 예외 메시지는 synthesize 프롬프트에 노출되면 안 된다: $userText"
+        }
+    }
+
+    @Test
     fun `R309 recordTokenUsage가 generatePlan synthesize directAnswer LLM 호출마다 호출되어야 한다`() = runTest {
         // R309 회귀: 기존 구현은 PlanExecuteStrategy의 LLM 호출(generatePlan, synthesize, directAnswer)에
         // recordTokenUsage를 연결하지 않아 PLAN_EXECUTE 모드의 LLM 비용이 메트릭에 누락되었다.

@@ -144,6 +144,13 @@
 - 요약: `McpHealthPinger.pingAllConnectedServers`(R173)는 PENDING 서버에 대해 `attemptReconnectWithCooldown → ensureConnected` 경로로 첫 연결을 시도하도록 확장됐으나, `DefaultMcpManager.ensureConnected`가 PENDING 상태를 거부해 R173 의도가 silent하게 무효화되고 있었다. autoConnect=true 서버만 PENDING에서 첫 연결을 허용하도록 분기 추가. autoConnect=false(수동 관리) 서버는 기존 대로 명시적 connect를 기다린다. 기존 테스트 1개 이름/의미 명확화 + R332 회귀 1건 신규(PENDING → FAILED 전이 검증으로 connect 도달 입증). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R332.md`
 
+### Round 333 — 2026-04-12T23:30+09:00 — cycle 10 4차 / axis 전환: PlanExecute synthesize 실패 step 마커 구분
+
+- axis: `cross_source_synthesis`
+- 분류: `direct_value`
+- 요약: `connector_permissions` 3회 연속 이후 `cross_source_synthesis`로 axis 전환. scanner가 ToolResponseSummarizer/PlanExecute/ToolCallOrchestrator에서 3건 발견, 그중 P1 HIGH(`PlanExecuteStrategy.synthesize`가 실패 step의 `"Error: TOOL_ERROR"` 내부 마커를 성공 step과 동등하게 LLM 프롬프트에 주입 → 혼합 케이스 환각 위험)만 처리. resultSummary 빌더를 3-way when 분기(성공 + non-blank / 성공 + blank / 실패)로 재작성해 실패 step은 `[실패] 답변 근거로 사용하지 마세요` 마커로만 대체, 원본 에러 문자열은 LLM 경로에서 완전 제거. 신규 회귀 1건(buildRequestSpec lambda로 synthesize 프롬프트 캡처 후 마커 포함/에러 문자열 미포함 검증). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R333.md`
+
 ---
 
 ## 11. 아카이브
