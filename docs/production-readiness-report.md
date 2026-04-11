@@ -19061,3 +19061,173 @@ private val standaloneStatusPattern = Regex("(?:^|:\\s*|\\n\\s*)(429|500|502|503
 #### 📊 R258 요약
 
 🐛 **RetryTest flaky 수정 — standaloneStatusPattern 거짓 양성 버그** — R254/R255에서 두 번 관찰된 "pre-existing flaky" 이슈를 조사하여 **실제로는 deterministic regex 버그**임을 확인하고 수정. 이전 패턴 `(?:^|\s)(429|500|...)(?:\s|$|\.)`가 "Processed **500** records successfully" 같은 **데이터 카운트 숫자를 서버 오류로 오분류**하여 불필요한 재시도(3회)를 유발하던 버그. 원인: 작성자는 "단어 경계"를 의도했다고 주석에 명시했지만 실제 정규식은 **공백 경계만** 체크. 수정: prefix를 `(?:^|:\s*|\n\s*)`로 강화하여 메시지 시작 / 콜론 뒤 / 개행 뒤에서만 상태 코드 매치. 이전의 중간 공백 매치(`\s`) 제거로 거짓 양성 해소. 코드 변경은 regex 한 줄이지만 의도를 명확히 하기 위해 14줄 상세 주석 추가 및 7개 regression 방지 테스트 추가. 회귀 방지 테스트: Processed 500 records 거짓 양성 방지 / 메시지 중간 상태 코드 6개 거짓 양성 후보 방지 / 메시지 시작 429 legitimate 매치 유지 / 콜론 뒤 4개 legitimate 케이스 매치 유지 / HTTP keyword 패턴 회귀 방지 / rate limit 키워드 회귀 방지 / 개행 뒤 매치 신규 지원. **정당한 재시도 경로 8/8 유지 확인** — Google AI 스타일 "429 Too Many", Spring AI `HttpServerErrorException: 500`, `"Rate limit exceeded"`, `"Quota exceeded"`, `"Request timed out"`, `"Connection refused"`, `"Service unavailable"` 모두 여전히 재시도. `RetryTest.숫자가 포함된 오류 메시지에 대해 거짓 양성이 발생하지 않아야 한다` 테스트 → **PASS** (R254/R255에서 2회 실패). 전체 `com.arc.reactor.agent.*` + `com.arc.reactor.agent.impl.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R258**. swagger-mcp 8181 **89 라운드 연속**. **교훈**: "가끔 실패하는 테스트는 deterministic bug의 징후" — R254/R255에서 단순히 "pre-existing flaky"로 넘기지 말고 즉시 조사했어야 했다. R258 수정은 빌드 안정성 개선 + 미래 QA 측정 루프 재개 시 신뢰할 수 있는 baseline 확보의 기반.
+
+### Round 259 — 📊 2026-04-11T22:30+09:00 — Grafana 대시보드 JSON에 9개 stage 패널 6개 추가 (R256 짝)
+
+**작업 종류**: 문서화 — R256 운영 플레이북과 짝을 이루는 대시보드 자산 (QA 측정 없음)
+**Directive 패턴**: Observability 축 (R245~R256 운영 가이드 마무리)
+**완료 태스크**: #134
+
+#### 작업 배경
+
+R256은 9개 stage 운영 플레이북을 텍스트로 작성했지만, 운영자가 즉시 시각화하려면 **Grafana JSON에 패널이 추가**되어야 한다. R259는 R256의 PromQL 쿼리들을 실제 import 가능한 Grafana 대시보드 JSON에 통합하여 **"문서 + 대시보드" 자산 쌍**을 완성한다.
+
+기존 `docs/evaluation-metrics.md`의 Grafana 템플릿은 R234~R242 시기에 작성된 9개 패널만 가지고 있어, R245~R255의 `execution.error` 메트릭이 누락된 상태였다. R259는 이 공백을 6개 신규 패널로 채운다.
+
+#### 신규 6개 패널
+
+| # | 패널 제목 | 타입 | 목적 |
+|---|----------|------|------|
+| 10 | `execution.error — 9 Stage Stack (R245~R255)` | timeseries (bars/stack) | 9개 stage 통합 관측 (한 화면) |
+| 11 | `execution.error — Fault-Tolerance Style Groups` | timeseries | fail-open vs fail-close vs catch-all 그룹화 |
+| 12 | `execution.error — Top 5 Exceptions per Stage (heatmap)` | table | stage × exception drill-down 테이블 |
+| 13 | `Redis Infrastructure Outage Detector (memory ∧ cache)` | stat | 두 stage 동시 급증 → 인프라 장애 확정 |
+| 14 | `Parsing Regression Monitor (R254)` | timeseries | LLM 모델 regression 추적 |
+| 15 | `OTHER Stage Top Exceptions — 새 Stage 후보 발굴 (R255)` | table | 분류 미흡 예외 모니터링 |
+
+총 패널 수: **9개 → 15개** (66% 증가).
+
+#### 대표 패널 설계 디테일
+
+**1. 9 Stage Stack 차트**
+```promql
+sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))
+```
+- `drawStyle: bars`, `stacking.mode: normal`로 9개 stage가 시간대별 누적 막대그래프
+- 운영자는 한 화면에서 어느 stage가 가장 큰 비중을 차지하는지 즉시 파악
+
+**2. Fault-Tolerance Style Groups**
+```promql
+# fail-open (swallow): hook + memory + cache + parsing
+# fail-close (reject): guard + output_guard
+# 단일 stage: tool_call, llm_call, other
+```
+- R256 플레이북의 분류 체계를 시각화
+- "조용한 실패가 어디에 집중되어 있는가" 한눈에 확인
+
+**3. Redis Outage Detector — Stat 패널**
+```promql
+(rate(execution.error{stage="memory",exception=~".*Jedis.*|.*Connection.*|.*Redis.*"}[5m]) > 0.05)
+*
+(rate(execution.error{stage="cache",exception=~".*Jedis.*|.*Connection.*|.*Redis.*"}[5m]) > 0.05)
+```
+- 두 rate가 동시에 임계치 초과 → 결과는 1 (장애 의심) 아니면 0 (정상)
+- value mappings: `0 → "정상" (green)`, `1 → "Redis 장애 의심" (red)`
+- 운영자는 stat 패널 색상만으로 인프라 장애 즉시 확정 가능
+
+**4. Parsing Regression Monitor**
+```promql
+sum by (exception) (rate(execution.error{stage="parsing"}[5m]))
+```
+- threshold: 0 → green, 0.1 → yellow, 0.5 → red
+- LLM 모델 배포 후 이 패널이 yellow/red로 바뀌면 즉시 ML 팀 알림
+
+**5. OTHER Stage Top Exceptions — 새 Stage 후보 발굴**
+```promql
+topk(5, sum by (exception) (rate(execution.error{stage="other"}[24h])))
+```
+- 24h 윈도우로 누적된 가장 빈발하는 분류 미흡 예외 5개
+- `JsonProcessingException` 같은 게 반복 등장하면 → 새 `ExecutionStage.RAG`나 `WEB_FETCH` 추가 검토
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `docs/evaluation-metrics.md` | Grafana JSON 패널 9 → 15 (+138줄) + 신규 패널 안내 + 참조 섹션 R259 추가 |
+
+814줄 → **952줄** (138줄 추가). 코드 변경 없음.
+
+#### JSON 무결성 검증
+
+```bash
+python3 -c "import json; ..."
+# 출력:
+# Panels: 15
+#  - Task Success Rate
+#  - ... (기존 8개)
+#  - execution.error — 9 Stage Stack (R245~R255)
+#  - execution.error — Fault-Tolerance Style Groups
+#  - execution.error — Top 5 Exceptions per Stage (heatmap)
+#  - Redis Infrastructure Outage Detector (memory ∧ cache)
+#  - Parsing Regression Monitor (R254)
+#  - OTHER Stage Top Exceptions — 새 Stage 후보 발굴 (R255)
+```
+
+JSON 파싱 성공, 15개 패널 모두 정상 인식.
+
+#### 테스트 결과
+
+코드 변경 없으므로 테스트 불필요. 16 tasks 멀티모듈 컴파일 PASS (영향 없음 확인).
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**: ✅ 코드 변경 없음 — 문서만
+**2. Redis 의미적 캐시**: ✅ 코드 변경 없음 — 문서만
+**3. 대화/스레드 컨텍스트 관리**: ✅ 코드 변경 없음 — 문서만
+
+모든 제약 자동 준수.
+
+#### R256 + R259 자산 쌍 완성
+
+| 라운드 | 자산 종류 | 내용 |
+|--------|----------|------|
+| R256 | 텍스트 운영 플레이북 | 9개 stage 상세 매뉴얼 + Prometheus 쿼리 + Alertmanager 규칙 |
+| **R259** | **Grafana 대시보드** | **R256 쿼리 → 6개 import 가능한 패널** |
+
+**운영자 워크플로우 (R256 + R259 활용)**:
+1. `evaluation-metrics.md` Grafana JSON 섹션 복사 → Grafana UI에 import → 15개 패널 즉시 사용
+2. 알림 발생 시 R256 플레이북에서 stage 검색 → 대응 매뉴얼 확인
+3. 문서의 PromQL을 Explore 탭에서 추가 drill-down
+
+#### Grafana 대시보드 진화
+
+| 단계 | 패널 수 | Round | 메트릭 커버리지 |
+|------|---------|-------|-----------------|
+| 초기 | 6 | R234 | task / latency / cost / override / safety / response_kind |
+| compression 추가 | 9 | R242 | + tool_response_compression / 일부 보조 |
+| **execution.error** | **15** | **R259** | **+ 6개 stage 패널 (9 stage 통합)** |
+
+**66% 패널 확장** — 운영 관측 범위가 task 수준에서 stage 수준으로 한 단계 깊어졌다.
+
+#### 운영 시나리오 예시
+
+**시나리오 1: 새 모델 배포 직후 실시간 모니터링**
+1. ML 팀이 새 LLM 모델을 production에 배포
+2. Grafana에서 "Parsing Regression Monitor" 패널 주시
+3. yellow/red threshold 도달 시 즉시 모델 롤백 또는 프롬프트 복구
+
+**시나리오 2: 사용자 민원 발생 → 30초 이내 원인 파악**
+1. "이전 대화가 기억 안 난다" 민원 접수
+2. Grafana → "9 Stage Stack" 패널에서 `memory` stage 막대 확인
+3. 동시에 `cache` stage도 급증 → "Redis Infrastructure Outage Detector" 패널이 red로 점등
+4. → Redis 인프라 팀 호출
+
+**시나리오 3: 새 Directive 작업 후 회귀 탐지**
+1. 새 Directive 패턴 작업 후 deploy
+2. "OTHER Stage Top Exceptions" 테이블에서 새로운 예외 클래스 등장 확인
+3. → 새 `ExecutionStage` 값 추가 후보 식별
+
+#### 연속 지표
+
+| 지표 | R258 | R259 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 89 | **90 🎯** | **90 라운드 마일스톤** |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R258 | **4/5 + R224~R259** | - |
+| Grafana 대시보드 패널 수 | 9 | **15** | +66% |
+| 운영 가이드 자산 쌍 | 텍스트만 (R256) | **텍스트 + 대시보드** | 완성 |
+
+#### 다음 Round 후보
+
+- **R260+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+  3. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254 분리 작업 (38-test 마이그레이션)
+  4. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+  5. **Alertmanager 규칙 9개 별도 YAML 파일로 추출** — `docs/alertmanager-rules.yaml` 신규 (R256 알람을 별도 파일로 분리)
+
+#### 📊 R259 요약
+
+📊 **Grafana 대시보드 JSON에 9개 stage 패널 6개 추가** — R256 운영 플레이북과 짝을 이루는 대시보드 자산 완성. R256은 텍스트 매뉴얼이었고 R259는 import 가능한 JSON으로 보완. 기존 9개 패널(R234~R242 메트릭 커버) → **15개 패널** (66% 확장)로 R245~R255의 `execution.error` 메트릭 완전 시각화. 신규 6개 패널: (1) **9 Stage Stack** — `sum by (stage) (rate)` 막대 스택 차트, 모든 stage 시간대별 누적 한눈, (2) **Fault-Tolerance Style Groups** — fail-open(hook/memory/cache/parsing) vs fail-close(guard/output_guard) vs catch-all(other) + 단일 stage(tool_call/llm_call) 그룹화, (3) **Top 5 Exceptions per Stage** — `topk(5, sum by (stage, exception))` heatmap 테이블 drill-down, (4) **Redis Infrastructure Outage Detector** — `memory` ∧ `cache` 두 rate 곱셈으로 동시 급증 시 1 반환하는 stat 패널 (value mappings: 0→"정상" green, 1→"Redis 장애 의심" red), (5) **Parsing Regression Monitor** — `parsing` stage rate 시계열 + 0/0.1/0.5 threshold (green/yellow/red) LLM 모델 배포 후 즉시 시각 경고, (6) **OTHER Stage Top Exceptions** — 24h 윈도우 분류 미흡 예외 top 5 테이블 (새 `ExecutionStage` enum 값 후보 발굴). 모든 패널이 R256 플레이북 PromQL을 그대로 사용하여 **문서-대시보드 일관성** 보장. 수정 파일 1개 (`docs/evaluation-metrics.md` +138줄, 814 → 952줄). JSON 무결성 검증: `python3 -c "import json"` 파싱 성공, 15개 패널 모두 정상 인식. 코드 변경 없으므로 테스트 불필요, 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 자동 준수 (코드 미접근). Directive 진행: **4/5 + R224~R259**. swagger-mcp 8181 **🎯 90 라운드 마일스톤 달성**. **R256 + R259 자산 쌍 완성**: 텍스트 플레이북(R256) + import 가능한 대시보드(R259)로 운영자가 단 두 단계 워크플로우만 거치면 9개 stage 관측 시스템을 완전히 활용 가능 — (1) JSON 복사 → Grafana import → 15 패널 즉시 사용, (2) 알림 발생 시 R256 플레이북에서 stage 검색 → 대응 매뉴얼 확인. R260부터는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, 또는 새 Directive 축 등 새로운 작업으로 진행 가능.

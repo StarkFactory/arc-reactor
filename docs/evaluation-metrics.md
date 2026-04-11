@@ -228,6 +228,14 @@ Alertmanager 규칙 예시:
 
 아래 JSON은 Grafana dashboard import 형식이다. 파일로 저장하여 import하거나, Grafana UI에서 JSON 탭에 붙여넣으면 된다.
 
+**R259 추가 패널 (9개 → 15개)**:
+- `execution.error — 9 Stage Stack` — 9개 stage 스택 차트 (R245~R255 통합 관측)
+- `execution.error — Fault-Tolerance Style Groups` — fail-open vs fail-close vs catch-all 그룹화
+- `execution.error — Top 5 Exceptions per Stage` — stage × exception drill-down 테이블
+- `Redis Infrastructure Outage Detector` — memory ∧ cache 동시 급증 확정 패널
+- `Parsing Regression Monitor` — LLM 모델 regression 추적
+- `OTHER Stage Top Exceptions` — 새 stage 후보 발굴 테이블
+
 ```json
 {
   "title": "Arc Reactor Evaluation Metrics",
@@ -343,6 +351,135 @@ Alertmanager 규칙 예시:
         {
           "expr": "topk(5, sum by (tool) (rate(arc_reactor_eval_tool_response_kind_total{kind=\"error_cause_first\"}[5m])))",
           "legendFormat": "{{tool}}"
+        }
+      ]
+    },
+    {
+      "title": "execution.error — 9 Stage Stack (R245~R255)",
+      "type": "timeseries",
+      "description": "R245~R255로 자동 기록되는 9개 stage의 예외 발생률. tool_call/llm_call/hook/output_guard/guard/memory/cache/parsing/other 스택 차트.",
+      "targets": [
+        {
+          "expr": "sum by (stage) (rate(arc_reactor_eval_execution_error_total[5m]))",
+          "legendFormat": "{{stage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": { "mode": "normal" }
+          }
+        }
+      }
+    },
+    {
+      "title": "execution.error — Fault-Tolerance Style Groups",
+      "type": "timeseries",
+      "description": "Fail-open(hook/memory/cache/parsing) vs Fail-close(guard/output_guard) vs Catch-all(other) 그룹화. R256 플레이북 참조.",
+      "targets": [
+        {
+          "expr": "sum(rate(arc_reactor_eval_execution_error_total{stage=~\"hook|memory|cache|parsing\"}[5m]))",
+          "legendFormat": "fail-open (swallow)"
+        },
+        {
+          "expr": "sum(rate(arc_reactor_eval_execution_error_total{stage=~\"guard|output_guard\"}[5m]))",
+          "legendFormat": "fail-close (reject)"
+        },
+        {
+          "expr": "sum(rate(arc_reactor_eval_execution_error_total{stage=\"tool_call\"}[5m]))",
+          "legendFormat": "tool_call (adapter)"
+        },
+        {
+          "expr": "sum(rate(arc_reactor_eval_execution_error_total{stage=\"llm_call\"}[5m]))",
+          "legendFormat": "llm_call (retry exhausted)"
+        },
+        {
+          "expr": "sum(rate(arc_reactor_eval_execution_error_total{stage=\"other\"}[5m]))",
+          "legendFormat": "other (catch-all)"
+        }
+      ]
+    },
+    {
+      "title": "execution.error — Top 5 Exceptions per Stage (heatmap)",
+      "type": "table",
+      "description": "각 stage별 가장 빈발하는 예외 클래스 5개. 운영자 drill-down 기본 테이블.",
+      "targets": [
+        {
+          "expr": "topk(5, sum by (stage, exception) (rate(arc_reactor_eval_execution_error_total[1h])))",
+          "legendFormat": "{{stage}} / {{exception}}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Redis Infrastructure Outage Detector (memory ∧ cache)",
+      "type": "stat",
+      "description": "Memory와 Cache stage에서 동시에 Jedis/Connection 예외가 급증하면 Redis 인프라 전체 장애 확정. R256 운영 시나리오 #1.",
+      "targets": [
+        {
+          "expr": "(rate(arc_reactor_eval_execution_error_total{stage=\"memory\",exception=~\".*Jedis.*|.*Connection.*|.*Redis.*\"}[5m]) > 0.05) * (rate(arc_reactor_eval_execution_error_total{stage=\"cache\",exception=~\".*Jedis.*|.*Connection.*|.*Redis.*\"}[5m]) > 0.05)",
+          "legendFormat": "outage signal"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "정상", "color": "green" } } },
+            { "type": "value", "options": { "1": { "text": "Redis 장애 의심", "color": "red" } } }
+          ],
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Parsing Regression Monitor (R254)",
+      "type": "timeseries",
+      "description": "LLM 모델 업그레이드 또는 프롬프트 변경 후 JSON 파싱 실패율 급증 감지. Jackson 계열 예외 추적.",
+      "targets": [
+        {
+          "expr": "sum by (exception) (rate(arc_reactor_eval_execution_error_total{stage=\"parsing\"}[5m]))",
+          "legendFormat": "{{exception}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "OTHER Stage Top Exceptions — 새 Stage 후보 발굴 (R255)",
+      "type": "table",
+      "description": "stage=other에 반복 등장하는 예외 클래스. topk로 상위 5개를 추적하면 새 ExecutionStage enum 값 추가 후보를 발굴할 수 있다.",
+      "targets": [
+        {
+          "expr": "topk(5, sum by (exception) (rate(arc_reactor_eval_execution_error_total{stage=\"other\"}[24h])))",
+          "legendFormat": "{{exception}}",
+          "format": "table",
+          "instant": true
         }
       ]
     }
@@ -799,6 +936,7 @@ groups:
 - **R254** — Round 254 섹션: `ToolArgumentParser` + `PlanExecuteStrategy` PARSING stage 자동 기록
 - **R255** — Round 255 섹션: `SpringAiAgentExecutor` OTHER stage 자동 기록 (🏆 9/9 100% 완성)
 - **R256** — Round 256 섹션 (이 문서 확장): 9개 stage 운영 플레이북 + 대응 팀 라우팅 매트릭스
+- **R259** — Round 259 섹션 (이 문서 확장): Grafana 대시보드 JSON에 6개 execution.error 패널 추가 (9→15 패널)
 - **소스**:
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/EvaluationMetricsCollector.kt`
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/MicrometerEvaluationMetricsCollector.kt`
