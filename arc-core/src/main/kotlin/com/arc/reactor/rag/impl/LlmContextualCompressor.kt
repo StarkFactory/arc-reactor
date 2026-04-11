@@ -6,6 +6,8 @@ import com.arc.reactor.support.throwIfCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.ai.chat.client.ChatClient
@@ -32,8 +34,19 @@ private val logger = KotlinLogging.logger {}
  */
 class LlmContextualCompressor(
     private val chatClient: ChatClient,
-    private val minContentLength: Int = DEFAULT_MIN_CONTENT_LENGTH
+    private val minContentLength: Int = DEFAULT_MIN_CONTENT_LENGTH,
+    /**
+     * R328 fix: 동시 LLM 압축 호출 상한. 기본 5개.
+     *
+     * 기존 구현은 N개의 문서를 `async`로 모두 동시에 launch하여 무제한 fan-out → 예: reranker가
+     * 30개 문서 반환 시 30개 동시 LLM 호출로 HTTP connection pool 포화 + 토큰 과금 폭주.
+     * `Semaphore(maxConcurrent)`로 동시 실행을 제한하여 cost/latency spike를 방지한다.
+     */
+    private val maxConcurrent: Int = DEFAULT_MAX_CONCURRENT
 ) : ContextCompressor {
+
+    /** R328 fix: 병렬 압축 fan-out을 제한하는 세마포어 */
+    private val compressionSemaphore = Semaphore(maxConcurrent)
 
     override suspend fun compress(
         query: String,
@@ -41,12 +54,15 @@ class LlmContextualCompressor(
     ): List<RetrievedDocument> {
         if (documents.isEmpty()) return emptyList()
 
-        logger.debug { "${documents.size}개 문서 압축 시작: $query" }
+        logger.debug { "${documents.size}개 문서 압축 시작 (maxConcurrent=$maxConcurrent)" }
 
-        // coroutineScope로 모든 문서를 병렬 압축. 하나가 실패해도 다른 것에 영향 없음.
+        // coroutineScope로 모든 문서를 launch하되, Semaphore로 동시 실행 수를 maxConcurrent로 제한.
+        // 하나가 실패해도 다른 것에 영향 없음.
         val compressed = coroutineScope {
             documents.map { doc ->
-                async { compressDocument(query, doc) }
+                async {
+                    compressionSemaphore.withPermit { compressDocument(query, doc) }
+                }
             }.mapNotNull { it.await() }
         }
 
@@ -113,6 +129,9 @@ class LlmContextualCompressor(
     companion object {
         /** 압축을 건너뛰는 최소 문서 길이 (자 수) */
         internal const val DEFAULT_MIN_CONTENT_LENGTH = 200
+
+        /** R328: 병렬 압축 기본 상한 (동시 LLM 호출 수). */
+        internal const val DEFAULT_MAX_CONCURRENT = 5
 
         /** "IRRELEVANT" 응답을 매칭하는 정규식 (대소문자 무시) */
         private val IRRELEVANT_PATTERN = Regex("(?i)irrelevant[.!]?")

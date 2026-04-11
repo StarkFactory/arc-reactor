@@ -26,11 +26,15 @@ private val logger = KotlinLogging.logger {}
  *   왜 0.7인가: 너무 낮으면 노이즈가 많아지고, 너무 높으면 관련 문서를 놓친다.
  *   0.7은 정밀도와 재현율의 적절한 균형점.
  * @param timeoutMs 검색 타임아웃 (기본값 5000ms)
+ * @param maxQueries R328 fix: 단일 retrieve 호출에서 허용되는 최대 쿼리 수 (기본값 5).
+ *   `DecompositionQueryTransformer` 등이 N개의 sub-query를 생성할 때 각각 vector store 호출이
+ *   발생하므로, 한 요청당 호출 수 상한을 두어 connection pool 포화 및 embedding 비용 폭주를 방지.
  */
 class SpringAiVectorStoreRetriever(
     private val vectorStore: VectorStore,
     private val defaultSimilarityThreshold: Double = 0.7,
-    private val timeoutMs: Long = 5000
+    private val timeoutMs: Long = 5000,
+    private val maxQueries: Int = DEFAULT_MAX_QUERIES
 ) : DocumentRetriever {
 
     override suspend fun retrieve(
@@ -38,10 +42,23 @@ class SpringAiVectorStoreRetriever(
         topK: Int,
         filters: Map<String, Any>
     ): List<RetrievedDocument> {
-        logger.debug { "${queries.size}개 쿼리로 문서 검색 시작, topK=$topK, filters=$filters" }
+        // R328 fix: 쿼리 수를 maxQueries로 제한. 초과 시 first-N 유지(원본이 보통 가장 relevant).
+        val boundedQueries = if (queries.size > maxQueries) {
+            logger.warn {
+                "쿼리 수 ${queries.size} > maxQueries=$maxQueries — first-${maxQueries}만 실행하여 " +
+                    "vector store fan-out 상한 적용"
+            }
+            queries.take(maxQueries)
+        } else {
+            queries
+        }
+        // R328 fix: filter values는 민감할 수 있으므로 로그에는 key만 기록한다.
+        logger.debug {
+            "${boundedQueries.size}개 쿼리로 문서 검색 시작, topK=$topK, filterKeys=${filters.keys}"
+        }
 
         // 여러 쿼리에 대해 검색을 수행하고 결과를 합친다
-        val allDocuments = queries.flatMap { query ->
+        val allDocuments = boundedQueries.flatMap { query ->
             searchWithQuery(query, topK, filters)
         }
 
@@ -50,6 +67,11 @@ class SpringAiVectorStoreRetriever(
             .sortedByDescending { it.score }
             .distinctBy { it.id }
             .take(topK)
+    }
+
+    companion object {
+        /** 단일 retrieve 호출의 최대 쿼리 수. HyDE(2)와 Decomposition(일반 3~5)을 커버하는 값. */
+        const val DEFAULT_MAX_QUERIES: Int = 5
     }
 
     /**

@@ -35,8 +35,51 @@ data class RetrievedDocument(
     val score: Double = 0.0,
     val source: String? = null
 ) {
-    /** 추정 토큰 수 (약 4자 = 1토큰 기준). LLM 컨텍스트 윈도우 예산 계산에 사용한다. */
-    val estimatedTokens: Int get() = content.length / 4
+    /**
+     * 추정 토큰 수. LLM 컨텍스트 윈도우 예산 계산에 사용한다.
+     *
+     * R328 fix: 기존 구현은 `content.length / 4`(영문 기준 ~4 chars/token)를 모든 문자에 동일
+     * 적용하여 CJK(한글/한자/가나) 문서를 **2.6배 과소 평가**했다. 한국어 1글자는 BPE 토크나이저
+     * 기준 약 1 토큰이므로 4로 나누면 실제 토큰 수의 25%만 계산된 셈.
+     * 이로 인해 `DefaultRagPipeline`이 컨텍스트 예산을 과다 산정하여 LLM 컨텍스트 윈도우를
+     * **overflow**시키는 상황이 발생했다.
+     *
+     * 개선 공식:
+     * - CJK 문자(한글/한자/가나): 1글자 = 1 토큰
+     * - 그 외(영문/숫자/기호): 4자 = 1 토큰
+     *
+     * 문자열을 단 한 번만 순회하여 두 카테고리를 동시에 세고 합친다.
+     * 정확한 토크나이저(BPE, tiktoken)는 아니지만 보수적 상한을 제공하여 context overflow를 방지.
+     * 더 정확한 값이 필요하면 `DefaultRagPipeline` 수준에서 `TokenEstimator`를 주입해 대체할 수 있다.
+     */
+    val estimatedTokens: Int get() {
+        var cjkCount = 0
+        var otherCount = 0
+        for (ch in content) {
+            if (isCjkChar(ch)) cjkCount++ else otherCount++
+        }
+        return cjkCount + (otherCount / 4)
+    }
+
+    /** 한글/한자/가나 Unicode 블록 판별. 정확한 토크나이저는 아니지만 언어별 정규화 유용. */
+    private fun isCjkChar(ch: Char): Boolean {
+        val code = ch.code
+        return when (code) {
+            // CJK Unified Ideographs: 4E00-9FFF
+            in 0x4E00..0x9FFF -> true
+            // Hangul Syllables: AC00-D7A3
+            in 0xAC00..0xD7A3 -> true
+            // Hangul Jamo: 1100-11FF (초성/중성/종성)
+            in 0x1100..0x11FF -> true
+            // Hiragana: 3040-309F
+            in 0x3040..0x309F -> true
+            // Katakana: 30A0-30FF
+            in 0x30A0..0x30FF -> true
+            // CJK Compatibility Ideographs: F900-FAFF
+            in 0xF900..0xFAFF -> true
+            else -> false
+        }
+    }
 }
 
 /**
