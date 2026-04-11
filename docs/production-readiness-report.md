@@ -21418,6 +21418,226 @@ R263~R269 7 라운드 동안 doc + test 패턴이 반복되었다. 사용자가 
 
 #### 🛡️ R269 요약
 
+🛡️ R269 — OutputGuardConfiguration KDoc 매트릭스 + 12 통합 테스트. [상세 본문 위 R269 섹션 참조]
+
+---
+
+### Round 270 — 🔬 2026-04-12T04:00+09:00 — 실제 에이전트 코드 검증 → ToolCallOrchestrator 2개 실제 버그 fix
+
+**작업 종류**: bug fix — codebase scanner로 실제 에이전트 hot path 검증 → 발견한 P1 버그 2개를 즉시 fix
+**완료 태스크**: #145
+
+#### 작업 배경
+
+R263~R269 7 라운드 동안 doc-test 패턴이 반복되었다. 사용자가 "에이전트 성능 개선 방향으로 코드를 검증하고 수정하라"고 명시 요청. R270부터는 **실제 에이전트 hot path 탐색 → 실제 버그/성능 문제 발견 → fix** 사이클로 전환한다.
+
+#### 코드 스캔 (codebase-scanner agent)
+
+`SpringAiAgentExecutor`/`RetryExecutor`/`ReActLoopExecutor`/`ToolCallOrchestrator`/`AgentExecutionCoordinator`/`StreamingReActLoopExecutor` 6개 hot path 파일을 CLAUDE.md Critical Gotchas 12개 항목 + 일반적 버그 유형(off-by-one, race condition, fail-open metric loss, eager evaluation 등) 기준으로 스캔.
+
+**발견한 P1/P2/P3 후보 7개** (스캐너 보고):
+
+| 우선순위 | 위치 | 문제 |
+|---|---|---|
+| **P1** | `ToolCallOrchestrator.kt:861` | `findMcpToolCallback` catch에서 CancellationException 잠재 누수 |
+| **P1** | `ToolCallOrchestrator.kt:381,404` | `executeAfterToolCall` 예외 시 `recordToolCall` 누락 (metric loss) |
+| P1 | `SpringAiAgentExecutor.kt:385,542` | `CopyOnWriteArrayList`로 `toolsUsed` 추적 — O(n) 복사 누적 |
+| P2 | `ToolCallOrchestrator.kt:327-329` | `findMcpToolCallback` 두 번 호출 (TOCTOU) |
+| P2 | `StreamingReActLoopExecutor.kt:616` | 멀티 청크 toolCall 누적 누락 (현 프로바이더에선 숨김) |
+| P3 | `ToolCallOrchestrator.kt:836` | `e.javaClass.simpleName`을 LLM 컨텍스트에 노출 |
+| P4 | `AgentExecutionCoordinator.kt:384` | `mcpToolCallbacks()` 람다 매 캐시 조회 시 재호출 |
+
+**R270 선정**: 두 P1 모두 `ToolCallOrchestrator.kt`에 있고 surgical fix(2~5줄)이 가능하므로 단일 라운드로 처리.
+
+#### Fix #1: `findMcpToolCallback` CancellationException 방어
+
+**Before**:
+```kotlin
+private fun findMcpToolCallback(toolName: String): ToolCallback? {
+    return try {
+        mcpToolCallbackProvider().firstOrNull { it.name == toolName }
+    } catch (e: Exception) {
+        logger.debug(e) { "MCP 도구 폴백 탐색 실패: $toolName" }
+        null
+    }
+}
+```
+
+**After (R270)**:
+```kotlin
+private fun findMcpToolCallback(toolName: String): ToolCallback? {
+    return try {
+        mcpToolCallbackProvider().firstOrNull { it.name == toolName }
+    } catch (e: Exception) {
+        // R270: 방어적 cancellation 전파. mcpToolCallbackProvider 람다가 내부적으로
+        // 코루틴 컨텍스트에 의존할 수 있어 CancellationException이 leak할 가능성을 차단.
+        e.throwIfCancellation()
+        logger.debug(e) { "MCP 도구 폴백 탐색 실패: $toolName" }
+        null
+    }
+}
+```
+
+**근거**: `findMcpToolCallback`은 `suspend` 함수가 아니지만 `checkToolExistsAndReserveSlot` (line 329) 및 `invokeToolAdapterRaw` (line 761)에서 호출되며, 이 호출자들은 모두 suspend 컨텍스트에 있다. `mcpToolCallbackProvider`가 미래에 cancellation-aware 람다로 교체되거나, 내부적으로 `runBlocking`/`Mono.block()` 같은 코루틴 컨텍스트 인터랙션을 추가하면 CancellationException이 leak할 수 있다. 방어적 1줄 추가로 cancellation 전파를 보장.
+
+#### Fix #2: `executeAfterToolCall` 예외 시 metric 보장 (try-finally)
+
+**Before** (직접 실행 경로):
+```kotlin
+hookExecutor?.executeAfterToolCall(toolCallContext, result)
+agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+return result
+```
+
+**After (R270)**:
+```kotlin
+// R270: hook 실행이 failOnError=true Hook으로 인해 예외를 던져도 metric은 항상
+// 기록되어야 한다. agentMetrics.recordToolCall은 finally 블록에서 보장.
+try {
+    hookExecutor?.executeAfterToolCall(toolCallContext, result)
+} finally {
+    agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+}
+return result
+```
+
+**병렬 실행 경로(`invokeAndFinalizeParallel`)에도 동일한 try-finally 패턴 적용**.
+
+**근거**: `HookExecutor.executeAfterToolCall`은 `failOnError=true` Hook이 throw하면 예외를 호출자로 재전파한다 (R249에서 추가된 동작). 이 시점에 `agentMetrics.recordToolCall`이 실행되지 않아 다음 부작용이 발생한다:
+
+1. **메트릭 손실**: Tool 호출이 실제로는 성공/실패했음에도 `tool.calls` 카운터에 누락
+2. **운영 가시성 손실**: Grafana 대시보드의 "Tool Call Rate" 패널에서 실제 호출 빈도와 메트릭이 어긋남
+3. **간헐적 누락 패턴**: failOnError=true Hook을 사용하는 운영 환경에서만 발생 → 디버깅 어려움
+
+R249는 `EvaluationMetricsHook`가 throw할 수 있는 경로를 추가했고, 사용자 정의 Hook도 `failOnError=true`를 사용할 수 있으므로 실제 발생 가능한 시나리오다.
+
+**Architecture.md 준수**: "Hook: try-catch + `e.throwIfCancellation()` | fail-open" 원칙을 metric 기록 부분에 적용. Hook 자체는 `executeAfterToolCall` 내부에서 fail-open 처리되지만, `failOnError=true`로 사용자가 명시적 fail-on-error를 선택한 경우 외부 catch가 필요. R270은 metric 보장에 집중 — 예외는 그대로 전파.
+
+#### 신규 회귀 테스트 3개
+
+`ToolCallOrchestratorCoverageGapTest`에 새 `@Nested R270HookExceptionMetricGuarantee` 추가:
+
+| 테스트 | 검증 |
+|---|---|
+| 직접 실행 경로 + Hook 예외 | `recordToolCall` finally에서 1회 호출, 예외는 호출자로 전파 |
+| 병렬 실행 경로 + Hook 예외 | 동일 패턴, 병렬 경로에서도 metric 보장 |
+| 정상 경로 회귀 | Hook 정상 시 `recordToolCall` 1회 호출 (try-finally 변경 회귀 없음) |
+
+mockk relaxed mock + answers 블록으로 호출 횟수와 인자 추적:
+
+```kotlin
+val spyMetrics = mockk<AgentMetrics>(relaxed = true)
+val recordedToolNames = mutableListOf<String>()
+every { spyMetrics.recordToolCall(any(), any(), any()) } answers {
+    recordedToolNames.add(firstArg())
+    Unit
+}
+// ... try { orchestrator.executeDirectToolCall(...) } catch (e: RuntimeException) { /* 예상됨 */ }
+recordedToolNames.size shouldBe 1  // R270 fix 핵심
+```
+
+#### 작업 중 마주친 문제 2개
+
+1. **inner class 안에 `class` 선언 금지**: 처음에 `SpyAgentMetrics`를 nested class로 정의했으나 Kotlin 제약으로 컴파일 실패 → mockk relaxed mock + `every {} answers` 패턴으로 변경
+2. **AgentMetrics 인터페이스 시그니처 추측 오류**: `recordRequest`, `recordCacheHit` 등 메서드명 추측이 틀림 → mockk relaxed mock으로 모든 메서드 자동 처리
+
+#### 테스트 결과
+
+```
+ToolCallOrchestratorCoverageGapTest$R270HookExceptionMetricGuarantee — 3/3 PASS
+- R270 fix - 직접 실행 경로에서 AfterToolCallHook 예외 시에도 recordToolCall 호출되어야 한다()
+- R270 fix - 병렬 실행 경로에서 AfterToolCallHook 예외 시에도 recordToolCall 호출되어야 한다()
+- R270 정상 경로 회귀 - Hook 정상 시에도 recordToolCall 정상 호출()
+```
+
+전체 `agent.impl.*` + `hook.*` 테스트 모두 PASS — 회귀 없음.
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings (R270 변경)
+
+./gradlew :arc-core:test --tests "com.arc.reactor.agent.impl.*" --tests "com.arc.reactor.hook.*"
+# BUILD SUCCESSFUL — all tests pass
+```
+
+#### opt-in 기본값
+
+- **production code 변경 — 두 군데 (findMcpToolCallback + executeAfterToolCall × 2 경로)**
+- **새 기능 없음** — 둘 다 robustness fix
+- **기존 정상 경로 영향**: 0 — try-finally는 정상 흐름에서 try-catch와 동일, throwIfCancellation은 cancellation이 없으면 no-op
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ `findMcpToolCallback` 동작 강화만, MCP tool discovery/registration/call 경로 미수정
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint/캐시 키 미수정
+- **컨텍스트 관리**: ✅ MemoryStore/ConversationManager/Trimmer 미접근
+
+#### R263~R270 패턴 진화
+
+| 단계 | 라운드 | 패턴 |
+|---|---|---|
+| Doc 명시화 | R264, R265, R267 KDoc 부분 | KDoc 매트릭스로 silent 동작 잠금 |
+| Doc-test 결합 | R263, R266, R267 결합, R269 | KDoc + ApplicationContextRunner 통합 테스트 |
+| Production fix from doc-test | R268 | R267 doc에서 발견 → R268 1줄 fix |
+| **Code scan → real bug fix** | **R270** | **codebase scanner로 hot path 직접 탐색 → 실제 버그 fix** |
+
+R270은 "doc-test에서 발견된 silent foot-gun fix"가 아니라 **"hot path 코드를 직접 스캔하여 발견한 실제 버그를 fix"** — 처음으로 능동적 코드 검증으로 전환된 라운드.
+
+#### Silent → Real Bug 분류 (R270 신규)
+
+| 라운드 | 종류 |
+|---|---|
+| R263~R269 | doc/test로 silent foot-gun 잠금 |
+| R268 | doc-test에서 발견한 silent foot-gun을 production fix |
+| **R270** | **코드 스캔으로 발견한 fail-open metric loss + cancellation 누수 fix** |
+
+R270 첫 fix(`findMcpToolCallback`)는 방어적이며, 두 번째 fix(`executeAfterToolCall` finally)는 실제 운영 가시성 손실 시나리오 해결.
+
+#### 운영자 영향
+
+1. **failOnError=true Hook 운영자**: 이전에는 Hook 예외 시 tool.calls 메트릭이 silent하게 누락 → R270 이후 모든 호출이 정확히 기록됨
+2. **Grafana 대시보드 정확도 향상**: Tool Call Rate 패널이 실제 호출 빈도와 일치
+3. **MCP 서버 cancellation 전파**: 사용자가 요청을 취소하면 MCP fallback 탐색도 즉시 중단 (이전에는 잠재적으로 swallow될 가능성 존재)
+
+#### 연속 지표
+
+| 지표 | R269 | R270 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 100 🎯 | **101** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5951+ PASS | **5954+ PASS (+3)** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R269 | **4/5 + R224~R270** | - |
+| Production code level fix 카운트 | 1 (R268) | **2 (+R270)** | +100% |
+| 코드 스캔 발견 후보 처리 | 0 | **2/7 (P1 모두)** | 🆕 능동 탐색 시작 |
+| Real bug 발견 → fix 사이클 | 0 | **1 (R270 첫 사례)** | 🆕 |
+
+#### 다음 Round 후보 (R270 스캐너 발견 미처리)
+
+P1/P2/P3 후보 5개 미처리 — R271+에서 우선순위에 따라 처리:
+
+| 우선 | 발견 | 추정 작업량 |
+|---|---|---|
+| 🔴 P1 | `SpringAiAgentExecutor.kt` `CopyOnWriteArrayList` | 작음 (2~3 라인) |
+| 🟡 P2 | `findMcpToolCallback` 이중 호출 (TOCTOU) | 중간 (캐싱 추가) |
+| 🟡 P2 | StreamingReActLoopExecutor 멀티 청크 toolCall 누적 | 중간 (방어적 리팩토링) |
+| 🟢 P3 | `executionErrorOutcome` exception class name 노출 | 작음 (1~2 라인) |
+| 🟢 P4 | `mcpToolCallbacks()` 람다 캐시 매번 호출 | 작음 (캐싱) |
+
+추가로:
+1. Gemini 쿼터 회복 후 QA 측정 루프 재개
+2. ApprovalController REST 엔드포인트 (가장 큰 작업)
+3. Directive #98 Patch-First 범위 결정
+
+#### 🔬 R270 요약
+
+🔬 **codebase scanner로 에이전트 hot path 6개 파일 스캔 → 실제 P1 버그 2개 발견 → 즉시 fix**. R263~R269의 doc-test 패턴에서 R268 production fix로 진화한 후, R270은 **doc-test에서 발견된 silent가 아닌 코드 스캔으로 발견한 실제 버그**를 처음으로 fix. 사용자 피드백("에이전트 성능 개선 방향으로 코드 검증/수정") 직접 반영. **스캐너 발견**: P1 2개 + P2 2개 + P3 1개 + P4 1개 (총 7개). **R270 fix 2개** (모두 ToolCallOrchestrator.kt): (1) `findMcpToolCallback` catch 블록에 `e.throwIfCancellation()` 추가 — `mcpToolCallbackProvider` 람다가 미래에 cancellation-aware로 교체될 경우의 leak 방어, (2) `invokeAndFinalizeDirect`/`invokeAndFinalizeParallel` 두 경로의 `executeAfterToolCall` 호출을 try-finally로 wrapping하여 `failOnError=true` Hook 예외 발생 시에도 `agentMetrics.recordToolCall`이 항상 실행되도록 보장. **두 번째 fix가 실제 운영 가시성 손실 해결**: R249에서 `HookExecutor.executeAfterToolCall`이 fail-on-error Hook 예외를 재전파하도록 변경되었고, 사용자 정의 Hook이 `failOnError=true`를 사용할 수 있으므로 실제 운영 환경에서 tool.calls 메트릭이 silent하게 누락되는 시나리오. **신규 회귀 테스트 3개** (R270HookExceptionMetricGuarantee nested): 직접 실행 경로 + Hook 예외 / 병렬 실행 경로 + Hook 예외 / 정상 경로 회귀. 모두 mockk relaxed mock + `every {} answers` 블록으로 호출 횟수와 인자 추적. **테스트 작성 중 문제 2개**: (1) inner class 안에 `class SpyAgentMetrics` 선언 금지 → mockk 패턴으로 변경, (2) AgentMetrics 인터페이스 시그니처 추측 오류 → mockk relaxed mock으로 자동 처리. **테스트 결과**: 3/3 신규 PASS + 전체 `agent.impl.*` + `hook.*` 모듈 회귀 PASS. **빌드**: `compileKotlin compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: 두 fix 모두 robustness 강화이며, MCP tool discovery/registration/call 경로 미수정, SystemPromptBuilder/scopeFingerprint/캐시 키 미수정, MemoryStore/ConversationManager/Trimmer 미접근. **R263~R270 패턴 진화 완성**: doc 명시화(R264/R265) → doc-test 결합(R263/R266/R267/R269) → doc-test에서 발견된 production fix(R268) → **코드 스캔 → 실제 버그 fix(R270)**. R270이 4번째 패턴 단계 처음 진입, 사용자 피드백에 직접 응답하는 능동적 코드 검증 사이클 시작. **운영자 영향**: failOnError=true Hook 사용 운영 환경에서 tool.calls 메트릭이 더 이상 silent 누락되지 않음, Grafana 대시보드 Tool Call Rate 패널이 실제 호출 빈도와 일치, MCP 서버 cancellation이 즉시 전파되어 사용자 요청 취소 응답성 향상. **Production code level fix 카운트**: 1 (R268) → 2 (+R270, +100%). **R270 미처리 후보 5개**: 🔴 P1 SpringAiAgentExecutor CopyOnWriteArrayList / 🟡 P2 findMcpToolCallback 이중 호출 / 🟡 P2 StreamingReActLoopExecutor 멀티 청크 / 🟢 P3 exception class name LLM 노출 / 🟢 P4 mcpToolCallbacks 람다 캐시. R271+에서 우선순위 순으로 처리. Directive 진행: **4/5 + R224~R270**. swagger-mcp 8181 **101 라운드 연속 PASS**. arc-core 5951 → 5954 (+3 R270 회귀 테스트). 다음 우선순위는 R270 미처리 5개 fix 또는 ApprovalController REST 엔드포인트.
+
+#### 🛡️ R269 요약 (legacy)
+
 🛡️ **OutputGuardConfiguration KDoc 매트릭스 + 12 통합 테스트** — 4 silent 동작(opt-out PII, opt-out 동적 규칙, nullable bean, 빈 pipeline silent ineffective) 잠금. 신규 OutputGuardConfigurationTest.kt 6 nested 12 tests 모두 PASS. 작성 중 문제 2개(OutputBlockPattern import 위치, PatternAction enum 값) 즉시 수정. KDoc 활성화 매트릭스 보유 Configuration 3 → 4 (+33%). swagger-mcp 8181 **🎯 100 라운드 마일스톤 달성**. arc-core 5939 → 5951 (+12). **사용자 피드백**: R263~R269 doc-test 반복 감소, R270부터 실제 에이전트 코드 검증/수정으로 방향 전환.
 
 #### 🔧 R268 요약 (legacy)

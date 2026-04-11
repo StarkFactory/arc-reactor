@@ -616,6 +616,153 @@ class ToolCallOrchestratorCoverageGapTest {
             coVerify(exactly = 0) { hookExecutor.executeAfterToolCall(any(), any()) }
         }
     }
+
+    // ──────────────────────────────────────────────
+    // 6. R270: AfterToolCallHook 예외 발생 시 metric 보장 (regression fix)
+    // ──────────────────────────────────────────────
+
+    /**
+     * R270 regression: failOnError=true Hook이 AfterToolCall 예외를 던질 때
+     * agentMetrics.recordToolCall이 finally 블록에서 항상 호출되어야 한다.
+     *
+     * R270 fix 이전: hookExecutor.executeAfterToolCall이 throw → recordToolCall 누락
+     * R270 fix 이후: try-finally로 metric 항상 기록 + 예외는 호출자로 전파
+     */
+    @Nested
+    inner class R270HookExceptionMetricGuarantee {
+
+        @Test
+        fun `R270 fix - 직접 실행 경로에서 AfterToolCallHook 예외 시에도 recordToolCall 호출되어야 한다`() = runTest {
+            val hookExecutor = mockk<HookExecutor>()
+            val callback = successCallback("metric_test_tool", "ok")
+            val spyMetrics = mockk<com.arc.reactor.agent.metrics.AgentMetrics>(relaxed = true)
+            val recordedToolNames = mutableListOf<String>()
+            io.mockk.every {
+                spyMetrics.recordToolCall(any(), any(), any())
+            } answers {
+                recordedToolNames.add(firstArg())
+                Unit
+            }
+
+            coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
+            // failOnError=true Hook이 throw하는 시뮬레이션
+            coEvery {
+                hookExecutor.executeAfterToolCall(any(), any())
+            } throws RuntimeException("simulated fail-on-error hook exception")
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = hookExecutor,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = spyMetrics,
+                parseToolArguments = { emptyMap() }
+            )
+
+            // Hook 예외는 호출자로 전파됨 (try-finally의 의도된 동작)
+            try {
+                orchestrator.executeDirectToolCall(
+                    toolName = "metric_test_tool",
+                    toolParams = emptyMap(),
+                    tools = listOf(ArcToolCallbackAdapter(callback)),
+                    hookContext = baseHookContext,
+                    toolsUsed = mutableListOf()
+                )
+            } catch (e: RuntimeException) {
+                // 예상된 예외 — Hook이 throw한 것
+            }
+
+            // R270 fix 핵심: Hook 예외와 무관하게 metric은 항상 기록되어야 한다
+            recordedToolNames.size shouldBe 1 withClue
+                "R270 fix: AfterToolCallHook 예외 시에도 finally 블록에서 recordToolCall 1회 호출"
+            recordedToolNames shouldBe listOf("metric_test_tool")
+        }
+
+        @Test
+        fun `R270 fix - 병렬 실행 경로에서 AfterToolCallHook 예외 시에도 recordToolCall 호출되어야 한다`() = runTest {
+            val hookExecutor = mockk<HookExecutor>()
+            val callback = successCallback("parallel_metric_tool", "ok")
+            val spyMetrics = mockk<com.arc.reactor.agent.metrics.AgentMetrics>(relaxed = true)
+            val recordedToolNames = mutableListOf<String>()
+            io.mockk.every {
+                spyMetrics.recordToolCall(any(), any(), any())
+            } answers {
+                recordedToolNames.add(firstArg())
+                Unit
+            }
+
+            coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
+            coEvery {
+                hookExecutor.executeAfterToolCall(any(), any())
+            } throws RuntimeException("simulated parallel hook exception")
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = hookExecutor,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = spyMetrics,
+                parseToolArguments = { emptyMap() }
+            )
+            val call = toolCall(id = "id-1", name = "parallel_metric_tool")
+
+            try {
+                orchestrator.executeInParallel(
+                    toolCalls = listOf(call),
+                    tools = listOf(ArcToolCallbackAdapter(callback)),
+                    hookContext = baseHookContext,
+                    toolsUsed = mutableListOf(),
+                    totalToolCallsCounter = AtomicInteger(0),
+                    maxToolCalls = 10,
+                    allowedTools = null
+                )
+            } catch (e: RuntimeException) {
+                // 예상된 예외
+            }
+
+            recordedToolNames.size shouldBe 1 withClue
+                "R270 fix: 병렬 경로에서도 Hook 예외 시 recordToolCall 1회 호출"
+            recordedToolNames shouldBe listOf("parallel_metric_tool")
+        }
+
+        @Test
+        fun `R270 정상 경로 회귀 - Hook 정상 시에도 recordToolCall 정상 호출`() = runTest {
+            // R270 try-finally 변경이 정상 경로에 영향 없는지 회귀 검증
+            val hookExecutor = mockk<HookExecutor>()
+            val callback = successCallback("normal_tool", "ok")
+            val spyMetrics = mockk<com.arc.reactor.agent.metrics.AgentMetrics>(relaxed = true)
+            val recordedToolNames = mutableListOf<String>()
+            io.mockk.every {
+                spyMetrics.recordToolCall(any(), any(), any())
+            } answers {
+                recordedToolNames.add(firstArg())
+                Unit
+            }
+
+            coEvery { hookExecutor.executeBeforeToolCall(any()) } returns HookResult.Continue
+            coEvery { hookExecutor.executeAfterToolCall(any(), any()) } returns Unit
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = hookExecutor,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = spyMetrics,
+                parseToolArguments = { emptyMap() }
+            )
+
+            orchestrator.executeDirectToolCall(
+                toolName = "normal_tool",
+                toolParams = emptyMap(),
+                tools = listOf(ArcToolCallbackAdapter(callback)),
+                hookContext = baseHookContext,
+                toolsUsed = mutableListOf()
+            )
+
+            recordedToolNames.size shouldBe 1 withClue
+                "정상 경로: recordToolCall 1회 호출 (R270 변경 회귀 없음)"
+        }
+    }
 }
 
 /** Kotest shouldBe infix 확장: withClue 패턴을 위한 간단한 DSL */

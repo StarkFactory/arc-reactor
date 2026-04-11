@@ -378,8 +378,13 @@ internal class ToolCallOrchestrator(
             errorMessage = if (!invocation.success) toolOutput else null,
             durationMs = toolDurationMs
         )
-        hookExecutor?.executeAfterToolCall(toolCallContext, result)
-        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        // R270: hook 실행이 failOnError=true Hook으로 인해 예외를 던져도 metric은 항상
+        // 기록되어야 한다. agentMetrics.recordToolCall은 finally 블록에서 보장.
+        try {
+            hookExecutor?.executeAfterToolCall(toolCallContext, result)
+        } finally {
+            agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        }
         return result
     }
 
@@ -401,16 +406,21 @@ internal class ToolCallOrchestrator(
         estimateAndWarnToolOutputTokens(toolName, toolOutput, hookContext)
         val toolDurationMs = System.currentTimeMillis() - toolStartTime
 
-        hookExecutor?.executeAfterToolCall(
-            context = toolCallContext,
-            result = ToolCallResult(
-                success = invocation.success,
-                output = toolOutput,
-                errorMessage = if (!invocation.success) toolOutput else null,
-                durationMs = toolDurationMs
+        // R270: 직렬 경로(invokeAndFinalizeDirect)와 동일한 finally 보장.
+        // failOnError=true Hook이 throw해도 metric은 항상 기록.
+        try {
+            hookExecutor?.executeAfterToolCall(
+                context = toolCallContext,
+                result = ToolCallResult(
+                    success = invocation.success,
+                    output = toolOutput,
+                    errorMessage = if (!invocation.success) toolOutput else null,
+                    durationMs = toolDurationMs
+                )
             )
-        )
-        agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        } finally {
+            agentMetrics.recordToolCall(toolName, toolDurationMs, invocation.success)
+        }
 
         return ParallelToolExecution(
             response = buildToolResponse(toolCall, toolName, toolOutput, normalizeToolResponseToJson),
@@ -859,6 +869,9 @@ internal class ToolCallOrchestrator(
         return try {
             mcpToolCallbackProvider().firstOrNull { it.name == toolName }
         } catch (e: Exception) {
+            // R270: 방어적 cancellation 전파. mcpToolCallbackProvider 람다가 내부적으로
+            // 코루틴 컨텍스트에 의존할 수 있어 CancellationException이 leak할 가능성을 차단.
+            e.throwIfCancellation()
             logger.debug(e) { "MCP 도구 폴백 탐색 실패: $toolName" }
             null
         }
