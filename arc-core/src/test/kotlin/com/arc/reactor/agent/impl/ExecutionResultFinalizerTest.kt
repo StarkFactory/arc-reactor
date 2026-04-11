@@ -41,6 +41,111 @@ import org.junit.jupiter.api.Test
  */
 class ExecutionResultFinalizerTest {
 
+    /**
+     * R342 regression: tool이 명시적으로 `grounded=false` 신호를 보냈더라도, 실제
+     * `HookContext.verifiedSources`에 근거가 누적되어 있다면 최종 메타데이터의
+     * `grounded`는 **true**로 기록되어야 한다. 이전 구현은 `latestSignal?.grounded ?:
+     * sources.isNotEmpty()` 체인이라 non-null `false` 신호가 sources 존재 여부를 덮어써
+     * false-negative가 발생했다. 직원은 실제 Confluence/Jira 근거가 있는 답변을 받았는데
+     * `grounded: false`로 평가절하되던 employee_value axis 버그.
+     */
+    @Test
+    fun `R342 tool grounded=false신호와 verifiedSources 존재 충돌 시 grounded=true로 기록해야 한다`() = runTest {
+        val conversationManager = mockk<ConversationManager>(relaxed = true)
+        val hookExecutor = mockk<HookExecutor>(relaxed = true)
+        val metrics = mockk<AgentMetrics>(relaxed = true)
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = conversationManager,
+            hookExecutor = hookExecutor,
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = metrics,
+            nowMs = { 1_000L }
+        )
+
+        val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi")
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            // 실제 출처가 존재 — 직원에게는 근거 있는 답변
+            addVerifiedSource(
+                VerifiedSource(
+                    title = "Policy Doc",
+                    url = "https://example.com/policy",
+                    toolName = "confluence_answer_question"
+                )
+            )
+            // 하지만 tool signal이 "grounded=false"를 명시적으로 반환 (예: partial match)
+            metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] = mutableListOf(
+                ToolResponseSignal(
+                    toolName = "confluence_answer_question",
+                    grounded = false
+                )
+            )
+        }
+
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "policy details"),
+            command = command,
+            hookContext = hookContext,
+            toolsUsed = listOf("confluence_answer_question"),
+            startTime = 1_000L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertTrue(result.success) { "Finalize should succeed" }
+        assertEquals(
+            true,
+            result.metadata["grounded"],
+            "R342: verifiedSources가 존재하면 tool signal grounded=false를 덮어쓰지 못하고 " +
+                "grounded=true로 기록되어야 한다"
+        )
+        assertEquals(
+            1,
+            result.metadata["verifiedSourceCount"],
+            "verifiedSourceCount는 실제 sources 수를 정확히 반영해야 한다"
+        )
+    }
+
+    /**
+     * R342 regression: tool signal `grounded=false`이고 verifiedSources도 비어있으면
+     * grounded는 여전히 `false`로 기록되어야 한다. "근거 없음 + tool이 이를 명시적으로 확인"
+     * 의미가 유지되는지 검증.
+     */
+    @Test
+    fun `R342 tool grounded=false이고 sources 없으면 grounded=false로 기록해야 한다`() = runTest {
+        val finalizer = ExecutionResultFinalizer(
+            outputGuardPipeline = null,
+            responseFilterChain = null,
+            boundaries = BoundaryProperties(),
+            conversationManager = mockk(relaxed = true),
+            hookExecutor = mockk(relaxed = true),
+            errorMessageResolver = DefaultErrorMessageResolver(),
+            agentMetrics = mockk(relaxed = true),
+            nowMs = { 1_000L }
+        )
+
+        val hookContext = HookContext(runId = "run-1", userId = "u", userPrompt = "hi").apply {
+            metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY] = mutableListOf(
+                ToolResponseSignal(toolName = "confluence_answer_question", grounded = false)
+            )
+        }
+        val result = finalizer.finalize(
+            result = AgentResult.success(content = "no policy found"),
+            command = AgentCommand(systemPrompt = "sys", userPrompt = "hi"),
+            hookContext = hookContext,
+            toolsUsed = listOf("confluence_answer_question"),
+            startTime = 1_000L,
+            attemptLongerResponse = { _, _, _ -> null }
+        )
+
+        assertEquals(
+            false,
+            result.metadata["grounded"],
+            "R342: tool이 grounded=false를 명시 + sources 없음 → grounded=false 유지"
+        )
+    }
+
     @Test
     fun `apply response filter then save history and call hook on success해야 한다`() = runTest {
         val chain = ResponseFilterChain(listOf(object : ResponseFilter {

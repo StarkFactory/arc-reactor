@@ -652,7 +652,21 @@ internal class ExecutionResultFinalizer(
         return result.copy(metadata = result.metadata + stripEmptyValues(metadata))
     }
 
-    /** 검증된 출처(VerifiedSource) 관련 메타데이터를 병합합니다. */
+    /**
+     * 검증된 출처(VerifiedSource) 관련 메타데이터를 병합합니다.
+     *
+     * **R342 fix**: `grounded` 판정이 `latestSignal?.grounded ?: verifiedSources.isNotEmpty()`
+     * 체인이라 tool이 명시적으로 `"grounded": false`를 반환하면 (non-null이라) `?:` 우변이
+     * 평가되지 않아 실제로 `verifiedSources`가 존재해도 최종 메타데이터에 `grounded=false`가
+     * 기록되는 **false-negative**가 있었다. 이 값은 `resolveGrounded`(line 757)가 그대로
+     * 읽어 관측 메트릭/직원 응답 API/Slack 뱃지로 전파되어 "실제 근거가 있는 답변"이
+     * ungrounded로 평가절하된다.
+     *
+     * **수정**: `(latestSignal?.grounded == true) || verifiedSources.isNotEmpty()`로 변경.
+     * 도구 신호가 명시적으로 `true`이거나 실제 출처 목록이 비어있지 않으면 grounded로
+     * 판정한다. tool의 `grounded=false` 신호는 verifiedSources가 비어있을 때만 효력을 갖게
+     * 되며, 이는 "근거 없음 + tool이 이를 명시적으로 확인"이라는 더 정확한 의미 표현이다.
+     */
     private fun mergeVerifiedSourcesMetadata(
         metadata: LinkedHashMap<String, Any?>,
         toolSignals: List<ToolResponseSignal>,
@@ -660,7 +674,8 @@ internal class ExecutionResultFinalizer(
         hookContext: HookContext
     ) {
         val latestSignal = toolSignals.lastOrNull()
-        metadata["grounded"] = latestSignal?.grounded ?: verifiedSources.isNotEmpty()
+        // R342: tool signal true OR verifiedSources 존재 → grounded
+        metadata["grounded"] = (latestSignal?.grounded == true) || verifiedSources.isNotEmpty()
         metadata["answerMode"] = latestSignal?.answerMode
             ?: hookContext.metadata["answerMode"]?.toString()
         metadata["verifiedSourceCount"] = verifiedSources.size

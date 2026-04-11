@@ -207,6 +207,13 @@
 - 요약: R339 scanner defer P2 MED #2 처리 (scanner batch 완결). `MicrometerAgentMetrics.recordUnverifiedResponse`와 `recordStageLatency`가 `metadata["channel"]` raw 값을 Micrometer Counter/Timer 태그로 직접 등록해 Slack 채널 ID 등 무제한 카디널리티가 Prometheus 레지스트리에 누적되는 silent drift. `channelCounts` Caffeine(10k)는 `recordResponseObservation` 경로의 in-memory bucket만 보호하고 Micrometer 레지스트리 태그 경로는 무방비였다. 새 `unverifiedChannelTagBudget` Caffeine bounded cache(MAX_UNVERIFIED_CHANNEL_TAGS=128) + 공유 helper `boundedChannelTag`로 두 call site에 동일 정책 적용: null/blank→"unknown", 64자 절단, budget 내 재사용, budget 내 새 값 추가, 상한 초과 시 "other" 폴백. RecentTrustEvent는 이미 bounded deque라 raw 값 유지. companion object에 4개 상수(MAX_UNVERIFIED_CHANNEL_TAGS, MAX_CHANNEL_TAG_LENGTH, UNKNOWN_CHANNEL_TAG, OVERFLOW_CHANNEL_TAG) 추가. 신규 회귀 2건(budget+50개 고유 channel 주입 후 distinct 태그 수 ≤ budget+2 + "other" 존재 검증, null/empty/whitespace 3변형 → "unknown" 폴백 검증). **R339 admin_productization scanner batch(P2 MED #1/#2/#3) 완결.** 전체 arc-core PASS. **R342부터 axis 전환 권장** (employee_value).
 - 상세 위치: `docs/reports/rounds/R341.md`
 
+### Round 342 — 2026-04-13T04:00+09:00 — axis 전환 / cycle 10 13차: ExecutionResultFinalizer grounded false-negative 수정
+
+- axis: `employee_value`
+- 분류: `direct_value`
+- 요약: `admin_productization` 3회 연속 후 tie-break 다음 우선순위인 `employee_value`로 axis 전환. response 조립 scanner가 P1 MED 1건 발견 — `mergeVerifiedSourcesMetadata`의 grounded 판정이 `latestSignal?.grounded ?: verifiedSources.isNotEmpty()` Elvis 체인이라 tool이 명시적으로 `grounded=false`(non-null)를 반환하면 우변이 평가되지 않아, 실제 verifiedSources가 존재해도 최종 metadata에 `grounded=false`가 기록되는 **false-negative**. tool의 partial match 신호 등이 이 경로를 트리거해 직원이 근거 있는 답변을 받았음에도 "ungrounded"로 평가절하되고 Grafana employee_value 대시보드의 grounded coverage KPI가 저평가되는 silent drift. 1줄 수정: `(latestSignal?.grounded == true) || verifiedSources.isNotEmpty()`로 변경해 "signal true 또는 sources 존재"를 grounded로 판정. "signal false + sources 없음" 케이스는 여전히 false 유지(의미 보존). 신규 회귀 2건(false-negative fix + negative 유지 cross-verify). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R342.md`
+
 ---
 
 ## 11. 아카이브
