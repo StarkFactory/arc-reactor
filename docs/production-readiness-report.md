@@ -22334,6 +22334,265 @@ R270 스캐너 사이클 4 라운드 만에 100% 처리 완료. 다음 단계는
 
 #### 🎯 R273 요약
 
+🎯 R273 — findMcpToolCallback TOCTOU window 제거 + R270 스캐너 100% 처리 완료. [상세 본문 위 R273 섹션 참조]
+
+---
+
+### Round 274 — 🛡️ 2026-04-12T06:00+09:00 — 새 영역 codebase scan (guard/hook/memory/cache) + P1 thread starvation + P3 audit leak fix
+
+**작업 종류**: production code fix — codebase-scanner 두 번째 사이클 시작, guard 영역 핵심 이슈 2개 즉시 처리
+**완료 태스크**: #149
+
+#### 작업 배경
+
+R270 hot path 스캔 사이클이 R273에서 100% 완료(7/7 처리). R274부터 두 번째 사이클을 시작하여 다른 핵심 영역(guard/hook/memory/cache)에 동일한 능동 코드 검증을 적용한다. 사용자 피드백("에이전트 성능 개선 방향으로 코드 검증/수정") 직접 반영.
+
+#### 코드 스캔 (codebase-scanner agent)
+
+스캔 대상 영역 4개:
+1. **Guard pipeline** — `GuardPipeline.kt` 및 `guard/impl/*.kt`
+2. **Hook executor** — `HookExecutor.kt`
+3. **Memory store** — `ConversationManager.kt`, `JdbcMemoryStore.kt`, `ConversationMemory.kt`
+4. **Cache 구현체** — `CaffeineResponseCache.kt`, `RedisSemanticResponseCache.kt`, `CacheKeyBuilder.kt`
+
+R270~R273에서 이미 fix된 발견은 명시적으로 제외 (cancellation/metric loss/CopyOnWriteArrayList/exception class name/multi-chunk toolCall/MCP TOCTOU).
+
+#### 스캐너 발견 (P1~P4 + REJECTED)
+
+| 우선 | 위치 | 발견 |
+|---|---|---|
+| **P1** | `TopicDriftDetectionStage.kt:86-98` | `loadConversationHistory`가 non-suspend에서 `MemoryStore.get()` blocking I/O 호출 |
+| P2 | `ConversationManager.kt:452` | `mutex.withLock` 블록 닫힌 후 `store.get()` 호출 (race) |
+| P2 | `JdbcMemoryStore.kt:219-233` | `evictOldMessages` N+1 TOCTOU (트랜잭션 경계) |
+| **P3** | `GuardPipeline.kt:223` | `e.message`를 audit publisher에 그대로 전달 (CLAUDE.md Gotcha #9) |
+| P2 | `DefaultRateLimitStage.kt:62-74` | `mutexCache`/`minuteCache` TTL 불일치로 카운터 고아 |
+| P4 | `InMemoryMemoryStore.kt:330` | `sessionOwners` `ConcurrentHashMap` 사용 (CLAUDE.md 규칙 위반) |
+
+**REJECTED (3개)**:
+- `RedisSemanticResponseCache.invalidateAll()` — `@Scheduled`에서만 호출, CancellationException 도달 안 함
+- `HookExecutor.kt:124` `span.setAttribute` — finally가 정상 처리
+- `CacheKeyBuilder.kt:55` `userId` 포함 — 의도된 cross-session isolation
+- `JdbcMemoryStore.kt:147` `getSessionOwner` DISTINCT+LIMIT — 동작 정확, 스타일만
+
+#### R274 fix 선정: P1 + P3
+
+두 fix를 한 라운드에 결합. 둘 다 surgical, 둘 다 CLAUDE.md 명시적 위반.
+
+##### Fix #1: TopicDriftDetectionStage blocking I/O (P1, 가장 중요)
+
+**Before**:
+```kotlin
+private fun loadConversationHistory(command: GuardCommand): List<String> {
+    @Suppress("UNCHECKED_CAST")
+    val explicit = command.metadata["conversationHistory"] as? List<String>
+    if (!explicit.isNullOrEmpty()) return explicit
+
+    val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
+    val memory = memoryStore?.get(sessionId) ?: return emptyList()  // ← JDBC blocking
+    return memory.getHistory()
+        .filter { it.role.name == "USER" }
+        .map { it.content }
+}
+```
+
+**문제**: 일반 `fun`(non-suspend) 함수로 선언되었으나 `MemoryStore.get()`이 `JdbcMemoryStore`일 경우 JDBC blocking I/O 수행. `enforce` suspend 컨텍스트의 코루틴 스레드(`Dispatchers.Default`)를 차단하여 고부하 환경에서 thread starvation 유발 가능.
+
+**Default 디스패처 풀 크기**: JVM CPU 코어 수 (보통 4~16). 하나의 guard stage가 JDBC I/O로 100ms 차단되면 동시에 100개 요청 처리 시 1초 latency spike.
+
+**After (R274)**:
+```kotlin
+private suspend fun loadConversationHistory(command: GuardCommand): List<String> {
+    @Suppress("UNCHECKED_CAST")
+    val explicit = command.metadata["conversationHistory"] as? List<String>
+    if (!explicit.isNullOrEmpty()) return explicit
+
+    val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
+    return withContext(Dispatchers.IO) {
+        val memory = memoryStore?.get(sessionId) ?: return@withContext emptyList()
+        memory.getHistory()
+            .filter { it.role.name == "USER" }
+            .map { it.content }
+    }
+}
+```
+
+**변경**:
+- `fun` → `suspend fun`
+- JDBC 호출만 `withContext(Dispatchers.IO)`로 격리 (metadata 우선순위 1 경로는 비-블로킹이라 wrap 안 함)
+- `kotlinx.coroutines.{Dispatchers, withContext}` import 추가
+
+호출자 `enforce`는 이미 `suspend fun`이라 변경 없음.
+
+##### Fix #2: GuardPipeline e.message audit leak (P3)
+
+**Before** (`GuardPipeline.handleStageError`):
+```kotlin
+publishAudit(
+    command, stage.stageName, "error", e.message, null,
+    stageStartNanos, pipelineStartNanos
+)
+```
+
+**문제**: CLAUDE.md Critical Gotcha #9: "e.message 노출 금지". `auditPublisher`가 외부 SOC 2 감사 로그/SIEM으로 이벤트를 전송할 경우 SQL 오류 메시지, 스택 추적 정보, 내부 file path 등이 노출될 수 있다.
+
+R271에서 LLM 출력 노출을 fix했고, R274는 audit 채널 노출을 fix.
+
+**After (R274)**:
+```kotlin
+// R274: e.message 대신 e.javaClass.simpleName을 audit reason으로 전달.
+// CLAUDE.md Critical Gotcha #9: e.message 노출 금지 — auditPublisher가
+// 외부 SOC 2 감사 로그 또는 SIEM으로 이벤트를 전송할 경우 SQL 오류, 스택 추적,
+// 내부 file path 등이 노출될 수 있다. 클래스명은 운영 분류에 충분하고 안전.
+// 전체 스택 트레이스는 위 logger.error(e)로 ops 로그에만 기록.
+publishAudit(
+    command, stage.stageName, "error", e.javaClass.simpleName, null,
+    stageStartNanos, pipelineStartNanos
+)
+```
+
+#### 회귀 테스트 갱신 (1개)
+
+`GuardAuditPublisherTest`의 `감사 event published on stage error` 테스트가 OLD 동작(`e.message`)을 잠그고 있어 fix로 인해 자연 실패 → fix가 작동한다는 신호.
+
+**Before**:
+```kotlin
+assertEquals("stage exploded", errorEvent.reason)  // e.message
+```
+
+**After (R274)**:
+```kotlin
+// R274 fix: audit reason은 exception class name (CLAUDE.md Gotcha #9 준수)
+assertEquals("RuntimeException", errorEvent.reason) {
+    "R274 fix: audit reason은 exception class name (e.message 노출 금지)"
+}
+```
+
+#### 테스트 결과
+
+```
+GuardAuditPublisherTest$AuditOnError — PASS (기존 갱신)
+guard.* + memory.* 모듈 회귀 — PASS
+전체 arc-core test suite — PASS
+```
+
+**작업 흐름**:
+1. R274 fix #1 + #2 적용
+2. 컴파일 PASS (0 warnings)
+3. guard + memory 회귀 → 1개 실패 (기존 OLD 동작 잠금)
+4. OLD → NEW 동작으로 테스트 갱신
+5. 전체 회귀 PASS
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings (R274 변경)
+
+./gradlew :arc-core:test
+# BUILD SUCCESSFUL — 전체 arc-core 테스트 PASS
+```
+
+#### opt-in 기본값
+
+- **production code 변경 2건**:
+  - `TopicDriftDetectionStage.loadConversationHistory`: `fun` → `suspend fun` + `withContext(Dispatchers.IO)`
+  - `GuardPipeline.handleStageError`: `e.message` → `e.javaClass.simpleName`
+- **새 기능 없음** — 둘 다 robustness/security fix
+- **기존 정상 경로 영향**: 0 (metadata 우선순위 1 경로는 변경 없음, audit 이벤트는 운영 식별성 그대로 유지)
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ 도구 경로 미접근, guard stage 동작은 동일
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint 미수정
+- **컨텍스트 관리**: ✅ MemoryStore 인터페이스 미변경, sessionId 포맷 미변경, ConversationMessageTrimmer 미접근. `loadConversationHistory`는 `MemoryStore.get()` 호출 자체는 동일하고 호출 컨텍스트만 IO 디스패처로 분리
+
+#### R270 → R274 능동 코드 검증 사이클 진척
+
+| 라운드 | 영역 | 발견 → 처리 |
+|---|---|---|
+| R270 | hot path 6 파일 | 7 발견 → 2 fix (P1) |
+| R271 | R270 미처리 | 2 fix (P1+P3) |
+| R272 | R270 미처리 | 1 fix (P2 hidden bug) + 1 false positive (P4) |
+| R273 | R270 미처리 | 1 fix (P2 마지막) |
+| **R274** | **새 영역 (guard/hook/memory/cache) 4 파일군** | **6 발견 → 2 fix (P1+P3)** + 4 미처리 |
+
+R274 미처리 4개 (R275+에서 우선순위 처리):
+- 🟡 P2: ConversationManager 뮤텍스 race (count 부풀림)
+- 🟡 P2: JdbcMemoryStore evictOldMessages TOCTOU
+- 🟡 P2: DefaultRateLimitStage TTL 불일치
+- 🟢 P4: InMemoryMemoryStore ConcurrentHashMap 위반
+
+#### 누적 production fix (R268~R274)
+
+| 라운드 | Fix | 영역 |
+|---|---|---|
+| R268 | Summarizer @Primary 패턴 | Tool |
+| R270 #1 | findMcpToolCallback cancellation | Tool |
+| R270 #2 | Hook metric loss | Tool |
+| R271 #1 | CopyOnWriteArrayList | Tool |
+| R271 #2 | Exception class name LLM 노출 (2 지점) | Tool |
+| R272 | 멀티 청크 toolCall 누적 | Streaming |
+| R273 | findMcpToolCallback TOCTOU | Tool |
+| **R274 #1** | **TopicDriftDetectionStage blocking I/O** | **Guard** |
+| **R274 #2** | **GuardPipeline audit e.message leak** | **Guard** |
+| **합계** | **9 fix** | 2개 영역 |
+
+#### Silent foot-gun 매트릭스 (R274 갱신)
+
+| 위험도 | 동작 | 상태 |
+|---|---|---|
+| 🔴 높음 | Redis fallback → Caffeine | 잠금 (의도된 동작) |
+| 🟡 미처리 | ConversationManager 뮤텍스 race | R275+ |
+| 🟡 미처리 | JdbcMemoryStore evict TOCTOU | R275+ |
+| 🟡 미처리 | DefaultRateLimitStage TTL 불일치 | R275+ |
+| 🟢 미처리 | InMemoryMemoryStore ConcurrentHashMap | R275+ |
+| ✅ 해결 | (R268 ~ R274의 9개 fix) | 완료 |
+
+#### 운영자 영향
+
+1. **고부하 guard 환경 thread starvation 제거** (R274 #1): TopicDriftDetection이 활성화된 환경에서 동시 요청 100개 처리 시 JDBC I/O로 인한 latency spike 제거. Default dispatcher 스레드 풀이 더 이상 차단되지 않음
+2. **외부 audit 시스템 정보 노출 차단** (R274 #2): SOC 2 감사 로그, SIEM으로 전송되는 audit 이벤트에 SQL/스택 정보 leak 방지. 컴플라이언스 대응 강화
+3. **R270~R274 5 라운드에 걸쳐 9개 production fix 완료**: 능동 코드 검증 사이클이 안정화되어 발견 → 분류 → fix → 잠금의 표준 워크플로우 확립
+
+#### 능동 검증 사이클 효율성 통계
+
+- **5 라운드(R270~R274)**, **2개 영역(executor + guard/memory)**, **9 production fix**
+- 평균 라운드 당 1.8 fix
+- False positive 비율: 1/13 = 7.7% (R270 P4 mcpToolCallbacks)
+- Hidden bug 비율: 1/9 = 11% (R272 멀티 청크)
+- 영역 확장: 1 영역 → 2 영역 (R274가 첫 영역 확장)
+
+#### 연속 지표
+
+| 지표 | R273 | R274 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 104 | **105** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5961+ PASS | **5961+ PASS** (변경 없음 — 1개 갱신) | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R273 | **4/5 + R224~R274** | - |
+| Production fix 누적 | 7 (R268~R273) | **9 (+R274 2건)** | +29% |
+| 코드 스캔 처리 영역 | 1 (executor) | **2 (+ guard/memory)** | +100% |
+| 스캐너 사이클 | 1 (R270~R273 100%) | **2 (R274~?, 6 발견)** | 🆕 |
+
+#### 다음 Round 후보
+
+1. **R274 미처리 P2 4개 처리**:
+   - ConversationManager 뮤텍스 race
+   - JdbcMemoryStore evictOldMessages TOCTOU
+   - DefaultRateLimitStage TTL 불일치
+   - InMemoryMemoryStore ConcurrentHashMap → Caffeine
+2. **새 영역 codebase scan** — autoconfigure / mcp / approval / tool.summarize 등
+3. **ApprovalController REST 엔드포인트** (가장 큰 작업)
+4. **Gemini quota 회복 후 QA 측정 루프 재개**
+
+#### 🛡️ R274 요약
+
+🛡️ **새 영역 codebase scanner 사이클 시작 — guard/hook/memory/cache 스캔 + P1 thread starvation + P3 audit e.message leak 2건 fix**. R270 hot path 사이클(R270~R273, 7/7 100% 처리)에 이은 두 번째 능동 코드 검증 사이클. 사용자 피드백("에이전트 성능 개선 방향으로 코드 검증/수정") 직접 반영. **스캐너 발견 6개**: P1 1 + P2 3 + P3 1 + P4 1 (REJECTED 4개 별도). **R274 fix 2개 (한 라운드 결합)**: (1) **TopicDriftDetectionStage.loadConversationHistory blocking I/O** — 일반 `fun`(non-suspend)으로 선언되어 `MemoryStore.get()` JDBC blocking 호출이 코루틴 `Dispatchers.Default` 스레드를 차단, 고부하 환경(동시 100 요청)에서 thread starvation + latency spike 유발. Fix: `suspend fun` + `withContext(Dispatchers.IO)`로 IO 디스패처 격리, metadata 우선순위 1 경로는 비-블로킹이라 wrap 안 함. (2) **GuardPipeline.handleStageError e.message audit leak** — `publishAudit(..., e.message, ...)`가 외부 SOC 2/SIEM으로 SQL 오류, 스택 추적, 내부 file path 노출. CLAUDE.md Critical Gotcha #9 위반. R271에서 LLM 출력 노출을 fix했고 R274는 audit 채널 노출을 fix. Fix: `e.javaClass.simpleName`로 교체, 전체 스택은 `logger.error(e)`로 ops 로그에만 기록. **회귀 테스트 갱신 1개**: `GuardAuditPublisherTest.감사 event published on stage error` 테스트가 OLD 동작(`assertEquals("stage exploded", reason)`)을 잠그고 있어 fix로 자연 실패 → fix 작동 신호로 해석 → NEW 동작(`assertEquals("RuntimeException", reason)`)으로 갱신. **테스트 결과**: guard.* + memory.* 회귀 PASS + 전체 arc-core test suite PASS. **빌드**: `compileKotlin compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: 도구 경로 미접근, SystemPromptBuilder 미수정, MemoryStore 인터페이스 미변경/sessionId 포맷 미변경/ConversationMessageTrimmer 미접근, `loadConversationHistory`는 `MemoryStore.get()` 호출 자체는 동일하고 호출 컨텍스트만 IO 디스패처로 분리. **R270 → R274 능동 코드 검증 사이클**: R270~R273(executor 영역, 7/7 100%) → R274(새 영역 시작, 6 발견 → 2 fix). **R274 미처리 4개 (P2 3개 + P4 1개)**: ConversationManager 뮤텍스 race / JdbcMemoryStore evictOldMessages TOCTOU / DefaultRateLimitStage TTL 불일치 / InMemoryMemoryStore ConcurrentHashMap → R275+에서 우선순위 처리. **R268~R274 누적 production fix 9건**, 2개 영역(Tool + Guard) 커버. **운영자 영향**: (1) 고부하 guard 환경 thread starvation 제거 — TopicDriftDetection 활성화 시 100 동시 요청 latency spike 제거, (2) 외부 audit 시스템 정보 노출 차단 — SOC 2/SIEM 컴플라이언스 강화, (3) 능동 코드 검증 사이클 표준화. **능동 검증 효율성**: 5 라운드 평균 1.8 fix/round, false positive 7.7%, hidden bug 11%. Production fix: 7 → 9 (+29%). 코드 스캔 처리 영역: 1 → 2 (+100%, executor → +guard/memory). 스캐너 사이클: 1 → 2 (R274가 첫 새 영역 스캔). Directive 진행: **4/5 + R224~R274**. swagger-mcp 8181 **105 라운드 연속 PASS**. arc-core 5961 PASS (1개 갱신, 신규 없음 — 발견된 동작 잠금이 OLD → NEW 전환). 다음 우선순위는 R274 미처리 4개 처리, 새 영역 스캔(autoconfigure/mcp/approval/tool.summarize), 또는 ApprovalController REST 엔드포인트.
+
+#### 🎯 R273 요약 (legacy)
+
 🎯 **findMcpToolCallback TOCTOU window 제거 — R270 스캐너 마지막 미처리 P2 처리 + R270 스캐너 7/7 100% 처리 완료**. **TOCTOU 분석**: `findMcpToolCallback`이 `checkToolExistsAndReserveSlot`(line 329)와 `invokeToolAdapterRaw`(line 771) 두 곳에서 호출 → 두 호출 사이 MCP 서버 재시작 시 첫 호출 성공(존재 확인 통과 + 슬롯 예약) + 두 번째 호출 null(빈 리스트 반환) → 사용자는 "존재 확인 통과 후 미발견 에러"라는 모순 결과 + silent confusion + 디버깅 난이도 상승. **현실적 위험도**: rolling restart, 헬스체크 실패 후 재연결, 동적 서버 갱신 환경에서 발생 가능. **Fix**: `executeSingleToolCall`에서 한 번만 `findMcpToolCallback` 호출하고 결과를 chain을 통해 모든 호출 지점에 pass-through. **변경된 메서드 시그니처 5개**: `executeSingleToolCall`(시그니처 불변, 내부 로직 변경), `checkToolExistsAndReserveSlot`/`invokeAndFinalizeParallel`/`invokeToolAdapter`/`invokeToolAdapterRaw` 4개에 `precomputedMcpCallback: ToolCallback? = null` 파라미터 추가. **Backward compat**: 모든 신규 파라미터에 `= null` 기본값 → 기존 호출자 영향 없음 + null이면 fallback으로 직접 호출. **Pass-through chain**: `executeSingleToolCall` → resolvedMcpCallback = findMcpToolCallback() → checkToolExistsAndReserveSlot/invokeAndFinalizeParallel → invokeToolAdapter → invokeToolAdapterRaw에서 `precomputedMcpCallback ?: findMcpToolCallback(toolName)`. **신규 회귀 테스트 2개** (R273McpToolCallbackTOCTOU): (Test 1) `flakeyMcpProvider(callsBeforeServerRestart=1)` — 첫 호출만 콜백 반환, 그 후 빈 리스트 → R273 fix가 없으면 "미발견" 에러, R273 fix가 있으면 정상 실행 + "mcp result ok" 반환 검증, (Test 2) provider가 항상 콜백 반환 → 정상 케이스 회귀 검증. **테스트 결과**: 2/2 신규 PASS + 전체 `agent.impl.*` 모듈 PASS + 5개 메서드 시그니처 변경에도 backward compat 덕분에 기존 호출자 영향 없음. **빌드**: `compileKotlin compileTestKotlin` 0 warnings (기존 line 585 unchecked cast는 R273 무관). **3대 최상위 제약 자동 준수**: MCP 도구 발견/호출 경로 동작 동일(TOCTOU 윈도우만 제거), SystemPromptBuilder 미수정, MemoryStore 미접근. **부수 효과**: `mcpToolCallbackProvider` 람다 호출 횟수 절반 감소 (executeSingleToolCall 당 2회 → 1회), 미미하지만 객체 할당 + atomic load 부담 감소. **R270 스캐너 7개 발견 처리 완료**: R270 #1 cancellation 누수(R270) + #2 metric loss(R270) + #3 CopyOnWriteArrayList(R271) + #4 TOCTOU(R273) + #5 멀티 청크(R272) + #6 exception class name(R271) + #7 mcpToolCallbacks 캐시(R272 false positive) = **7/7 = 100% 처리, 4 라운드(R270~R273) 만에 완료**. **누적 production fix R268~R273**: 7 fix, 약 43 라인 변경. **Silent foot-gun 매트릭스**: 🔴 Redis fallback만 의도된 잠금, 나머지 7개 모두 해결. **운영자 영향**: (1) MCP 서버 재시작 시 도구 실행 신뢰도 향상, (2) 운영 중 디버깅 명확화 ("존재 → 미발견" 모순 제거), (3) provider 호출 횟수 절반, (4) rolling restart/헬스체크 재연결 환경 안전성 향상. **Hidden/TOCTOU bug fix**: 1 (R272) → 2 (+R273). Production fix: 5 → 7 (+40%). R270 스캐너 처리율: 6/7 → 7/7 = 100% ✅. Directive 진행: **4/5 + R224~R273**. swagger-mcp 8181 **104 라운드 연속 PASS**. arc-core 5959 → 5961 (+2 신규). 다음 단계는 새 영역 codebase scan(guard/hook/memory/cache), ApprovalController REST 엔드포인트, 또는 Directive #98 Patch-First 범위 결정.
 
 #### 🌊 R272 요약 (legacy)

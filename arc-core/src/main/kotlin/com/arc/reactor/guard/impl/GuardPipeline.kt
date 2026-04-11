@@ -219,8 +219,13 @@ class GuardPipeline(
         // fail-close로 Rejected가 반환되지만 stage 구현 버그 등 시스템 레벨 이상을 별도 관측
         evaluationMetricsCollector.recordError(ExecutionStage.GUARD, e)
         logger.error(e) { "Guard 단계 ${stage.stageName} 실행 실패" }
+        // R274: e.message 대신 e.javaClass.simpleName을 audit reason으로 전달.
+        // CLAUDE.md Critical Gotcha #9: e.message 노출 금지 — auditPublisher가
+        // 외부 SOC 2 감사 로그 또는 SIEM으로 이벤트를 전송할 경우 SQL 오류, 스택 추적,
+        // 내부 file path 등이 노출될 수 있다. 클래스명은 운영 분류에 충분하고 안전.
+        // 전체 스택 트레이스는 위 logger.error(e)로 ops 로그에만 기록.
         publishAudit(
-            command, stage.stageName, "error", e.message, null,
+            command, stage.stageName, "error", e.javaClass.simpleName, null,
             stageStartNanos, pipelineStartNanos
         )
         span.setAttribute("guard.result", "error")

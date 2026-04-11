@@ -5,6 +5,8 @@ import com.arc.reactor.guard.model.GuardCommand
 import com.arc.reactor.guard.model.GuardResult
 import com.arc.reactor.guard.model.RejectionCategory
 import com.arc.reactor.memory.MemoryStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -82,19 +84,28 @@ class TopicDriftDetectionStage(
      * 우선순위:
      * 1. metadata에 명시적으로 전달된 conversationHistory (테스트나 커스텀 와이어링용)
      * 2. MemoryStore에서 sessionId로 로드한 이력 (실제 운영 환경)
+     *
+     * R274: `suspend` + `withContext(Dispatchers.IO)`로 변경. 이전에는 일반 함수였으나
+     * `MemoryStore.get()`이 `JdbcMemoryStore`일 경우 JDBC blocking I/O를 수행하여
+     * `enforce` suspend 컨텍스트의 코루틴 스레드(Dispatchers.Default)를 차단했다.
+     * 고부하 환경에서 thread starvation 위험을 제거하기 위해 IO 디스패처로 명시 전환.
      */
-    private fun loadConversationHistory(command: GuardCommand): List<String> {
+    private suspend fun loadConversationHistory(command: GuardCommand): List<String> {
         // 우선순위 1: metadata에 명시적으로 전달된 이력
         @Suppress("UNCHECKED_CAST")
         val explicit = command.metadata["conversationHistory"] as? List<String>
         if (!explicit.isNullOrEmpty()) return explicit
 
         // 우선순위 2: MemoryStore에서 sessionId로 로드
+        // R274: blocking I/O를 IO 디스패처로 격리. metadata 경로(우선순위 1)는 이미
+        // 비-블로킹이므로 위에서 처리되어 여기까지 도달하지 않는다.
         val sessionId = command.metadata["sessionId"]?.toString() ?: return emptyList()
-        val memory = memoryStore?.get(sessionId) ?: return emptyList()
-        return memory.getHistory()
-            .filter { it.role.name == "USER" }
-            .map { it.content }
+        return withContext(Dispatchers.IO) {
+            val memory = memoryStore?.get(sessionId) ?: return@withContext emptyList()
+            memory.getHistory()
+                .filter { it.role.name == "USER" }
+                .map { it.content }
+        }
     }
 
     /**

@@ -116,7 +116,12 @@ class GuardAuditPublisherTest {
             val errorEvent = publisher.events.find { it.result == "error" }
             assertNotNull(errorEvent, "Should have an error event")
             assertEquals("ErrorStage", errorEvent!!.stage)
-            assertEquals("stage exploded", errorEvent.reason)
+            // R274 fix: e.message 대신 e.javaClass.simpleName을 audit reason으로 전달.
+            // CLAUDE.md Critical Gotcha #9: e.message 노출 금지 — 외부 SOC/SIEM에 전송되는
+            // audit 이벤트에 SQL/스택 정보 leak 방지.
+            assertEquals("RuntimeException", errorEvent.reason) {
+                "R274 fix: audit reason은 exception class name (e.message 노출 금지)"
+            }
         }
     }
 
