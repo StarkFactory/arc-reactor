@@ -173,32 +173,44 @@ class ToolResponseSummarizerConfigurationTest {
     inner class UserCustomConflictRisk {
 
         @Test
-        fun `R267 매트릭스 6행 - enabled true + 사용자 비-Default 구현체는 컨텍스트 기동 실패`() {
-            // R267 작성 중 발견: 단순히 "2개 빈 공존"이 아니라, Hook의 ToolResponseSummarizer
-            // 주입 시점에 NoUniqueBeanDefinitionException으로 컨텍스트 자체가 기동 실패한다.
-            // 이는 R267 KDoc 매트릭스 6행에 명시된 silent 위험이 실제로 hard failure임을 증명.
+        fun `R268 fix 검증 - 사용자 비-Default 구현체 + enabled true 시 사용자 빈만 등록되고 컨텍스트 정상 기동`() {
+            // R267에서는 이 시나리오가 NoUniqueBeanDefinitionException으로 컨텍스트 기동 실패였다.
+            // R268에서 @ConditionalOnMissingBean을 인터페이스로 변경하여 사용자 빈이 있으면
+            // Configuration default 빈을 등록하지 않도록 fix.
             baseContextRunner
                 .withUserConfiguration(CustomBeanConfig::class.java)
                 .withPropertyValues("arc.reactor.tool.response.summarizer.enabled=true")
                 .run { context ->
-                    assertTrue(context.startupFailure != null) {
-                        "사용자 비-Default 구현체 + enabled=true → Hook 주입 시점에 컨텍스트 기동 실패 " +
-                            "(NoUniqueBeanDefinitionException). R267 KDoc 매트릭스 6행 잠금."
+                    assertTrue(context.startupFailure == null) {
+                        "R268 fix: 사용자 비-Default 구현체 + enabled=true → 컨텍스트 정상 기동. " +
+                            "startupFailure=${context.startupFailure?.message}"
                     }
-                    val rootCause = generateSequence(context.startupFailure) { it.cause }
-                        .lastOrNull()
+
+                    val all = context.getBeansOfType(ToolResponseSummarizer::class.java)
+                    assertEquals(1, all.size) {
+                        "R268 fix: 사용자 빈만 등록 (Configuration default 빈은 미등록). " +
+                            "actual=${all.keys}"
+                    }
                     assertTrue(
-                        rootCause?.message?.contains("expected single matching bean") == true ||
-                            rootCause?.message?.contains("but found 2") == true
-                    ) {
-                        "근본 원인은 다중 빈 후보. " +
-                            "rootCause=${rootCause?.message}"
+                        all.values.first() is CustomSummarizer
+                    ) { "R268 fix: 단일 빈은 사용자 구현체" }
+                    assertFalse(
+                        all.values.any { it is DefaultToolResponseSummarizer }
+                    ) { "R268 fix: Configuration default 빈은 등록되지 않아야 함" }
+
+                    // Hook도 정상 등록되며 사용자 빈을 주입받는다
+                    val hook = context.getBean(ToolResponseSummarizerHook::class.java)
+                    assertEquals(ToolResponseSummarizerHook::class.java, hook::class.java) {
+                        "R268 fix: Hook도 정상 등록 (다중 빈 후보 없음)"
                     }
                 }
         }
 
         @Test
-        fun `R267 사용자 빈에 @Primary 추가하면 Hook 주입이 정상 동작 (해결책 1)`() {
+        fun `R268 fix - 사용자 빈에 @Primary가 있어도 Configuration default 빈은 미등록 (단일 빈)`() {
+            // R267 이전: 사용자 @Primary + Default 2개 빈 공존, @Primary가 conflict 해소
+            // R268 fix: 인터페이스 수준 @ConditionalOnMissingBean으로 사용자 빈만 단독 등록
+            //   → @Primary 여부와 무관하게 항상 단일 빈
             baseContextRunner
                 .withUserConfiguration(PrimaryCustomBeanConfig::class.java)
                 .withPropertyValues("arc.reactor.tool.response.summarizer.enabled=true")
@@ -208,11 +220,14 @@ class ToolResponseSummarizerConfigurationTest {
                         "@Primary 사용자 빈 + Hook 모두 등록 가능"
                     }
 
-                    // 두 빈이 여전히 컨텍스트에 존재
+                    // R268 이후: 단일 빈 (Configuration default 미등록)
                     val all = context.getBeansOfType(ToolResponseSummarizer::class.java)
-                    assertEquals(2, all.size) {
-                        "사용자 @Primary + Default = 2개 빈, @Primary가 conflict 해소"
+                    assertEquals(1, all.size) {
+                        "R268 fix: 사용자 빈만 단독 등록, @Primary 여부와 무관"
                     }
+                    assertTrue(
+                        all.values.first() is CustomSummarizer
+                    ) { "단일 빈은 사용자 @Primary 구현체" }
                 }
         }
     }
@@ -285,6 +300,64 @@ class ToolResponseSummarizerConfigurationTest {
                     assertEquals(1, hooks.size) {
                         "사용자 Hook 우선 — @ConditionalOnMissingBean으로 Configuration Hook 차단"
                     }
+                }
+        }
+    }
+
+    @Nested
+    inner class R268UserCustomWithPiiRedactionCompatibility {
+
+        /**
+         * R268 fix가 R232 PII Redaction과 호환되는지 검증.
+         *
+         * R232는 `@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])`로 평가되며
+         * `List<ToolResponseSummarizer>` 주입을 통해 첫 non-Redacted 베이스를 wrapping한다.
+         *
+         * R268 fix 이후 사용자 비-Default 구현체가 등록된 환경에서 R232가 정상 동작하는지 확인 —
+         * R268의 호환성 가설 검증.
+         */
+        @Test
+        fun `R268+R232 호환 - 사용자 비-Default 구현체 + PII redaction enabled 시 user bean이 wrap됨`() {
+            ApplicationContextRunner()
+                .withConfiguration(
+                    AutoConfigurations.of(
+                        ToolResponseSummarizerConfiguration::class.java,
+                        ToolResponseSummarizerPiiRedactionConfiguration::class.java
+                    )
+                )
+                .withUserConfiguration(CustomBeanConfig::class.java)
+                .withPropertyValues(
+                    "arc.reactor.tool.response.summarizer.enabled=true",
+                    "arc.reactor.tool.response.summarizer.pii-redaction.enabled=true"
+                )
+                .run { context ->
+                    assertTrue(context.startupFailure == null) {
+                        "R268+R232: 컨텍스트 정상 기동. " +
+                            "startupFailure=${context.startupFailure?.message}"
+                    }
+
+                    // 2개 빈: 사용자 base + Redacted wrap (R232 @Primary)
+                    val all = context.getBeansOfType(ToolResponseSummarizer::class.java)
+                    assertEquals(2, all.size) {
+                        "사용자 base + Redacted wrap = 2개 빈. actual=${all.keys}"
+                    }
+                    assertTrue(
+                        all.values.any { it is CustomSummarizer }
+                    ) { "사용자 base 존재" }
+                    assertTrue(
+                        all.values.any {
+                            it::class.java.simpleName == "RedactedToolResponseSummarizer"
+                        }
+                    ) { "Redacted wrap 존재" }
+
+                    // Configuration default는 등록되지 않음 (R268 fix)
+                    assertFalse(
+                        all.values.any { it is DefaultToolResponseSummarizer }
+                    ) { "R268 fix: Configuration default 빈 미등록" }
+
+                    // Hook 정상 등록 (Redacted @Primary가 단일 후보로 선택됨)
+                    val hook = context.getBean(ToolResponseSummarizerHook::class.java)
+                    assertEquals(ToolResponseSummarizerHook::class.java, hook::class.java)
                 }
         }
     }

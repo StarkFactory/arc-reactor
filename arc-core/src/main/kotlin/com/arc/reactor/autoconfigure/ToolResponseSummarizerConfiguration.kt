@@ -13,58 +13,60 @@ import org.springframework.context.annotation.Bean
 /**
  * R223 Directive #2 Agent-Computer Interface(ACI) 도구 출력 요약 계층 자동 설정.
  *
- * ## R267: 활성화 매트릭스 (R264/R265 패턴 확장)
+ * ## R267 + R268: 활성화 매트릭스 (R264/R265 패턴 + R268 production fix)
  *
  * 이 자동 구성은 3개의 빈을 등록하며, 각각의 활성화 조건이 미묘하게 다르다. R267에서
- * 활성화 매트릭스를 KDoc에 명시하고 [ApplicationContextRunner](Spring) 통합 테스트로 잠근다.
+ * 활성화 매트릭스를 KDoc + ApplicationContextRunner 통합 테스트로 잠갔으며, R268에서
+ * 6번째 행의 hard failure를 production code 변경으로 해결했다.
  *
  * | `enabled` | 사용자 커스텀 `ToolResponseSummarizer` 빈 | 결과 빈 종류 | Hook 등록 | 주의 |
  * |---|---|---|---|---|
  * | ❌ false (또는 미설정) | ❌ 없음 | [NoOpToolResponseSummarizer] | ❌ | 기본 fallback |
- * | ❌ false (또는 미설정) | ✅ `DefaultToolResponseSummarizer` | 사용자 Default | ❌ | 사용자 빈만 활성, Hook 없음 |
+ * | ❌ false (또는 미설정) | ✅ Default 인스턴스 | 사용자 Default | ❌ | 사용자 빈만 활성, Hook 없음 |
  * | ❌ false (또는 미설정) | ✅ 다른 구현체 | 사용자 구현 | ❌ | 사용자 빈만 활성, Hook 없음 |
  * | ✅ true | ❌ 없음 | [DefaultToolResponseSummarizer] (Configuration 등록) | ✅ | 정상 활성 시나리오 |
- * | ✅ true | ✅ `DefaultToolResponseSummarizer` | 사용자 Default | ✅ | Configuration 빈 미등록 (사용자 우선) |
- * | ✅ true | ✅ 다른 구현체 | **❌ 컨텍스트 기동 실패** | (Hook이 못 만들어짐) | **R267 발견: hard failure** |
+ * | ✅ true | ✅ Default 인스턴스 | 사용자 Default | ✅ | Configuration 빈 미등록 (사용자 우선) |
+ * | ✅ true | ✅ 다른 구현체 | **사용자 구현 (R268 fix)** ✅ | ✅ | **R268 이후 silent 위험 해소** |
  *
- * ### ❌ 6번째 행: 컨텍스트 기동 실패 (R267에서 발견)
+ * ### R268 fix: 6번째 행 silent foot-gun 해결
  *
- * `defaultToolResponseSummarizer` 빈은 `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)`
- * 조건만 가진다. **이는 인터페이스가 아닌 구체 클래스 [DefaultToolResponseSummarizer]를 검사**한다.
- * 즉 사용자가 자체 구현체(예: `MyCustomSummarizer : ToolResponseSummarizer`)를 제공하면 이
- * 조건이 false가 되지 않으므로 `DefaultToolResponseSummarizer` 빈도 함께 등록된다.
+ * **R267 이전 상태**: `defaultToolResponseSummarizer` 빈이 `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)`
+ * (구체 클래스)였다. 사용자가 자체 구현체(예: `class MyCustomSummarizer : ToolResponseSummarizer`)를
+ * 제공하면 이 조건이 false가 되지 않아 `DefaultToolResponseSummarizer` 빈도 함께 등록되어
+ * `ToolResponseSummarizer` 타입 빈이 2개가 됐다. [ToolResponseSummarizerHook] 주입 시
+ * `NoUniqueBeanDefinitionException` → 컨텍스트 기동 실패. R267 작성 중 통합 테스트에서 처음
+ * 발견됐고, R232 commit 이후 R267까지 어디에도 문서화/테스트되지 않은 silent foot-gun이었다.
  *
- * 결과적으로 컨텍스트에는 [ToolResponseSummarizer] 타입의 빈이 2개 존재한다 — 사용자 구현체와
- * `DefaultToolResponseSummarizer`. [ToolResponseSummarizerHook]이 `summarizer: ToolResponseSummarizer`를
- * 주입 받을 때 `@Primary` 빈이 없으면 Spring은 `NoUniqueBeanDefinitionException`을 던지고
- * **컨텍스트 자체가 기동 실패**한다.
+ * **R268 fix**: `@ConditionalOnMissingBean(ToolResponseSummarizer::class)`(인터페이스)로 변경.
+ * 이제 사용자가 어떤 구현체든 등록하면 Configuration의 default 빈은 등록되지 않는다 →
+ * 단일 빈 → Hook 정상 주입 → 컨텍스트 정상 기동.
  *
- * R267 작성 중 R267EvaluationMetricsContextIntegration test에서 이 동작이 처음 명시적으로
- * 발견됐다. R267 이전에는 KDoc/테스트 모두에 명시되지 않은 silent foot-gun이었다.
+ * ### R232 PII Redaction과의 호환성 (R268 검증 완료)
  *
- * **해결 방법**:
- * 1. 사용자 빈에 `@Primary` 추가 — Hook이 사용자 빈을 자동 선택
- * 2. R232 [ToolResponseSummarizerPiiRedactionConfiguration] 활성화 — Redacted 래핑이 `@Primary`를 부여
- * 3. 사용자 빈을 `DefaultToolResponseSummarizer` 서브클래스로 만들어 `@ConditionalOnMissingBean`이 true
+ * R232 [ToolResponseSummarizerPiiRedactionConfiguration]은 `@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])`로
+ * 평가 순서가 보장되므로, R232 PII Redaction이 활성화된 경우:
  *
- * **R232 역사적 맥락**:
- * R232 이전에는 `defaultToolResponseSummarizer`가 `@Primary`였으나, R232의 PII Redaction 자동 구성이
- * 자체 `@Primary` Redacted 래핑 빈을 등록하면서 충돌을 일으켰다. R232에서 `@Primary`를 제거했고,
- * `noOpToolResponseSummarizer`가 `@ConditionalOnMissingBean(ToolResponseSummarizer::class)` 조건으로
- * Default와 공존하지 않으므로(아래 노트 참조) Default가 유일한 빈으로 주입되어 `@Primary`가 불필요했다.
+ * 1. 사용자 빈(또는 Configuration default 빈) 먼저 등록 (1개)
+ * 2. R232가 평가되며 첫 non-Redacted 베이스를 찾아 `RedactedToolResponseSummarizer`로 wrap
+ *    하여 `@Primary`로 등록 (총 2개 빈, 그 중 Redacted가 @Primary)
+ * 3. Hook 주입 시 `@Primary` 우선 → Redacted 사용
  *
- * ### `noOpToolResponseSummarizer`의 인터페이스 vs 구체 클래스 차이
+ * R268 변경은 R232 wrapping 로직과 완전히 직교한다 — R232는 여전히 첫 non-Redacted 베이스를
+ * 찾아 wrapping한다 (사용자 빈이든 Configuration default 빈이든 무관).
  *
- * `noOpToolResponseSummarizer` 빈은 `@ConditionalOnMissingBean(ToolResponseSummarizer::class)` (인터페이스)를
- * 사용한다. 즉 어떤 [ToolResponseSummarizer] 구현체도 없을 때만 등록된다 — 이는 의도된 동작으로
- * "어떤 경우든 요약기 빈이 존재하도록 보장"하는 fallback 역할이다.
+ * ### `defaultToolResponseSummarizer`와 `noOpToolResponseSummarizer`의 관계 (R268 이후)
  *
- * 두 빈의 `@ConditionalOnMissingBean` 차이를 정리하면:
+ * R268 이후 두 빈 모두 `@ConditionalOnMissingBean(ToolResponseSummarizer::class)`(인터페이스)를
+ * 사용하지만 평가 시점이 다르다:
  *
- * | 빈 | `@ConditionalOnMissingBean` 검사 대상 | 효과 |
+ * | 빈 | `@ConditionalOnProperty` | 효과 |
  * |---|---|---|
- * | `defaultToolResponseSummarizer` | `DefaultToolResponseSummarizer::class` (구체) | 사용자가 Default 서브클래스를 제공하지 않을 때만 등록 |
- * | `noOpToolResponseSummarizer` | `ToolResponseSummarizer::class` (인터페이스) | 다른 어떤 구현체도 없을 때만 등록 |
+ * | `defaultToolResponseSummarizer` | `enabled=true` 필수 | enabled + 사용자 빈 없음 → 등록 |
+ * | `noOpToolResponseSummarizer` | 없음 | 어떤 ToolResponseSummarizer도 없을 때만 등록 (fallback) |
+ *
+ * Spring은 두 조건을 독립적으로 평가하므로 enabled=true + 사용자 빈 없음 시:
+ * 1. `defaultToolResponseSummarizer` 등록 (enabled 통과 + 빈 없음)
+ * 2. `noOpToolResponseSummarizer` 미등록 (Default가 등록되어 인터페이스 빈 존재)
  *
  * ## 기본 동작 (opt-in 미활성)
  *
@@ -88,15 +90,15 @@ import org.springframework.context.annotation.Bean
  * - [DefaultToolResponseSummarizer]가 등록되어 no-op을 대체 (Default 서브클래스가 없는 경우)
  * - [ToolResponseSummarizerHook]이 `AfterToolCallHook` 체인에 등록
  *
- * 사용자 커스텀 `@Bean ToolResponseSummarizer`를 제공하면 매트릭스의 6번째 행을 주의해서
- * `@Primary`를 함께 사용하거나 R232 PII Redaction 자동 구성을 활성화한다.
+ * 사용자 커스텀 `@Bean ToolResponseSummarizer`를 제공하면 R268 fix 덕분에 추가 작업 없이
+ * Hook 주입이 정상 동작한다 (R232 wrapping은 별도 구성).
  *
  * ## 변경 시 주의 (잠금 사항)
  *
- * 다음 변경은 활성화 매트릭스를 깬다 — 의도된 변경이라면 R267 통합 테스트도 함께 갱신해야 한다:
+ * 다음 변경은 활성화 매트릭스를 깬다 — 의도된 변경이라면 R267/R268 통합 테스트도 함께 갱신해야 한다:
  *
- * 1. `defaultToolResponseSummarizer`의 `@ConditionalOnMissingBean` 대상을 인터페이스로 바꾸면
- *    매트릭스 6번째 행이 사라지지만 R232 PII Redaction과 충돌 가능
+ * 1. `defaultToolResponseSummarizer`의 `@ConditionalOnMissingBean` 대상을 구체 클래스로 되돌리면
+ *    R267 매트릭스 6행 hard failure가 재발 — R268 fix가 깨짐 (검증: R267 fixed test)
  * 2. `defaultToolResponseSummarizer`에 `@Primary` 재추가하면 R232 PII Redaction 자동 wrap이 깨짐
  *    (R232 commit 이전 상태로 돌아감)
  * 3. `toolResponseSummarizerHook`에서 `@Primary`가 아닌 다중 빈 주입 시 명시적 fallback 제공
@@ -121,6 +123,16 @@ class ToolResponseSummarizerConfiguration {
      * 래핑한 `@Primary` Redacted 빈과 충돌을 일으켰다. `noOpToolResponseSummarizer`는
      * `@ConditionalOnMissingBean(ToolResponseSummarizer::class)`로 Default와 공존하지 않으므로
      * @Primary 없이도 유일한 bean으로 주입된다. @Primary 제거는 안전하며 R232 래핑을 가능하게 한다.
+     *
+     * R268 fix: 이전에는 `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)`(구체 클래스)였으나,
+     * 이는 사용자가 비-Default 구현체를 등록한 경우에도 default 빈을 함께 등록하여 다중 빈 후보 → Hook
+     * 주입 시 `NoUniqueBeanDefinitionException` → 컨텍스트 기동 실패의 silent foot-gun을 만들었다.
+     * R267에서 통합 테스트로 hard failure가 발견되어 R268에서 인터페이스 검사로 변경: 사용자가 어떤
+     * `ToolResponseSummarizer` 구현체든 등록한 경우 default 빈을 등록하지 않는다.
+     *
+     * R232 PII Redaction 호환성: R232는 `@AutoConfiguration(after = [ToolResponseSummarizerConfiguration::class])`로
+     * 평가 순서가 보장되므로, default 빈이 먼저 등록된 후 R232가 그 위를 wrapping한다. Option B 변경은
+     * R232의 wrapping 로직과 직교한다 — R232는 여전히 첫 non-Redacted 베이스를 찾아 wrapping한다.
      */
     @Bean
     @ConditionalOnProperty(
@@ -128,7 +140,7 @@ class ToolResponseSummarizerConfiguration {
         name = ["enabled"],
         havingValue = "true"
     )
-    @ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)
+    @ConditionalOnMissingBean(ToolResponseSummarizer::class)
     fun defaultToolResponseSummarizer(): ToolResponseSummarizer =
         DefaultToolResponseSummarizer(ToolResponseSummarizerConfig())
 

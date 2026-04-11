@@ -21078,6 +21078,276 @@ R267은 새 기능 없음. **간접 가치**:
 
 #### 🔬 R267 요약
 
+🔬 R267 — ToolResponseSummarizerConfiguration KDoc 매트릭스 + 통합 테스트 (R232 silent foot-gun 발견). [상세 본문 위 R267 섹션 참조]
+
+---
+
+### Round 268 — 🔧 2026-04-12T03:00+09:00 — R267 silent foot-gun production fix (Option B: ConditionalOnMissingBean 인터페이스 변경)
+
+**작업 종류**: production code fix — R267에서 발견한 hard failure를 1줄 변경으로 해결
+**Directive 패턴**: Bug Fix (R267 → R268 발견 → 수정 사이클)
+**완료 태스크**: #143
+
+#### 작업 배경
+
+R267은 `ToolResponseSummarizerConfiguration`의 silent foot-gun을 발견하고 KDoc + 통합 테스트로 명시 잠금했지만, **production code는 그대로 두었다**. R267 next round 후보 #7에 명시된 production fix 옵션 3가지 중 하나를 R268에서 실행한다.
+
+**R267에서 발견한 silent foot-gun**:
+- 사용자가 비-Default `ToolResponseSummarizer` 구현체(`class MyCustomSummarizer : ToolResponseSummarizer`)를 등록
+- `arc.reactor.tool.response.summarizer.enabled=true`로 활성화
+- → `ToolResponseSummarizerHook` 주입 시 `NoUniqueBeanDefinitionException` (사용자 빈 + Configuration default 빈 = 2개 후보)
+- → **Spring Boot 컨텍스트 자체가 기동 실패** (앱 시작 안 됨)
+
+**원인**: `defaultToolResponseSummarizer` 빈이 `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)`(구체 클래스)였다. 사용자가 비-Default 구현체를 등록해도 이 조건이 false가 되지 않아 default 빈이 함께 등록됐다.
+
+#### R267에 명시된 3가지 옵션과 R268 선택
+
+| 옵션 | 변경 내용 | 평가 |
+|------|----------|------|
+| **A** | `defaultToolResponseSummarizer`에 `@Primary` 부여 | ❌ R232 PII Redaction wrap의 `@Primary`와 충돌 (R232 commit 이전 상태) |
+| **B** | `@ConditionalOnMissingBean` 대상을 인터페이스로 변경 | ✅ **선택**: 사용자 빈 우선, R232 wrapping 직교 |
+| C | `BeanFactoryPostProcessor`로 명시적 fail-fast | ❌ 복잡, 표준 메커니즘이 아님 |
+
+**Option B 선택 이유**:
+- 1줄 변경 (`DefaultToolResponseSummarizer::class` → `ToolResponseSummarizer::class`)
+- R232 PII Redaction과 호환 보장 (R232는 first non-Redacted 베이스를 wrap하므로 사용자 빈이든 default 빈이든 무관)
+- 사용자 의도와 결과 일치 (사용자 빈 등록 시 사용자 빈 사용)
+- 매트릭스 6번째 행이 silent failure → 정상 동작으로 전환
+
+#### 변경 내용 (1줄)
+
+**파일**: `arc-core/src/main/kotlin/com/arc/reactor/autoconfigure/ToolResponseSummarizerConfiguration.kt`
+
+```kotlin
+// R267 이전:
+@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)  // 구체 클래스
+
+// R268:
+@ConditionalOnMissingBean(ToolResponseSummarizer::class)  // 인터페이스
+```
+
+이 1줄 변경이 활성화 매트릭스 6번째 행의 결과를:
+- **Before R268**: `❌ 컨텍스트 기동 실패`
+- **After R268**: `✅ 사용자 구현 정상 사용`
+
+#### KDoc 업데이트 (R267 매트릭스 갱신)
+
+KDoc 매트릭스 6번째 행을 fix 결과로 갱신:
+
+```
+| ✅ true | ✅ 다른 구현체 | **사용자 구현 (R268 fix)** ✅ | ✅ | **R268 이후 silent 위험 해소** |
+```
+
+추가 KDoc 섹션:
+- "R268 fix: 6번째 행 silent foot-gun 해결" — 변경 전후 동작 명시
+- "R232 PII Redaction과의 호환성 (R268 검증 완료)" — 직교성 증명
+- "두 빈의 관계 (R268 이후)" — 두 빈 모두 인터페이스 검사이지만 평가 시점 차이로 충돌 없음
+
+"변경 시 주의" 섹션도 갱신:
+- ~~"인터페이스로 바꾸면 R232와 충돌"~~ → "구체 클래스로 되돌리면 R267 hard failure 재발"
+
+#### R232 PII Redaction 호환성 검증
+
+R232 PII Redaction wrapping 로직은 **사용자 빈이든 default 빈이든 동일하게** 작동한다:
+
+```kotlin
+fun redactedToolResponseSummarizer(baseSummarizers: List<ToolResponseSummarizer>): ToolResponseSummarizer {
+    val base = baseSummarizers.firstOrNull { it !is RedactedToolResponseSummarizer }
+        ?: throw IllegalStateException(...)
+    return RedactedToolResponseSummarizer(base)
+}
+```
+
+| 시나리오 | R232 base 선택 | 결과 |
+|---|---|---|
+| enabled=true + 사용자 빈 없음 | Configuration default | Redacted(Default) |
+| enabled=true + 사용자 빈 있음 (R268 이후) | 사용자 빈 (default 미등록) | Redacted(User) |
+| enabled=true + 사용자 빈 있음 (R267 이전, R232 비활성) | (Hook 주입 실패) | 컨텍스트 기동 실패 |
+
+R268 fix 후 R232+사용자 빈 시나리오는 **`Redacted(User)`** 가 된다. 즉 PII 마스킹이 사용자 구현체에도 자동 적용되며, 이는 사용자에게 더 안전한 동작이다.
+
+#### 테스트 변경
+
+R267에서 작성한 11개 테스트 중 2개를 R268 fix에 맞춰 갱신 + 1개 신규 추가:
+
+##### 변경 1: `R267 매트릭스 6행 - 컨텍스트 기동 실패` → `R268 fix - 정상 기동 검증`
+
+```kotlin
+// R267 (before R268 fix): hard failure 검증
+assertTrue(context.startupFailure != null) { "..." }
+
+// R268 (after fix): 정상 기동 + 사용자 빈 단독 검증
+assertTrue(context.startupFailure == null) { "..." }
+val all = context.getBeansOfType(ToolResponseSummarizer::class.java)
+assertEquals(1, all.size) { "사용자 빈만 등록" }
+assertTrue(all.values.first() is CustomSummarizer) { "단일 빈은 사용자 구현체" }
+assertFalse(all.values.any { it is DefaultToolResponseSummarizer }) { "default 빈 미등록" }
+val hook = context.getBean(ToolResponseSummarizerHook::class.java)
+assertEquals(ToolResponseSummarizerHook::class.java, hook::class.java)
+```
+
+##### 변경 2: `@Primary 해결책` 테스트 → `@Primary 여부와 무관 단일 빈`
+
+```kotlin
+// R267 이전: @Primary로 conflict 해소, 2개 빈 공존
+assertEquals(2, all.size)
+
+// R268 이후: 사용자 빈 단독 (Configuration default 미등록), @Primary 여부 무관
+assertEquals(1, all.size)
+```
+
+##### 신규: R268+R232 호환 테스트
+
+```kotlin
+@Nested
+inner class R268UserCustomWithPiiRedactionCompatibility {
+
+    @Test
+    fun `R268+R232 호환 - 사용자 비-Default 구현체 + PII redaction enabled 시 user bean이 wrap됨`() {
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(
+                ToolResponseSummarizerConfiguration::class.java,
+                ToolResponseSummarizerPiiRedactionConfiguration::class.java
+            ))
+            .withUserConfiguration(CustomBeanConfig::class.java)
+            .withPropertyValues(
+                "arc.reactor.tool.response.summarizer.enabled=true",
+                "arc.reactor.tool.response.summarizer.pii-redaction.enabled=true"
+            )
+            .run { context ->
+                assertTrue(context.startupFailure == null)
+
+                // 2개 빈: 사용자 base + Redacted wrap
+                val all = context.getBeansOfType(ToolResponseSummarizer::class.java)
+                assertEquals(2, all.size)
+                assertTrue(all.values.any { it is CustomSummarizer })
+                assertTrue(all.values.any {
+                    it::class.java.simpleName == "RedactedToolResponseSummarizer"
+                })
+
+                // Configuration default는 등록되지 않음 (R268 fix)
+                assertFalse(all.values.any { it is DefaultToolResponseSummarizer })
+
+                // Hook 정상 등록
+                val hook = context.getBean(ToolResponseSummarizerHook::class.java)
+            }
+    }
+}
+```
+
+이 신규 테스트는 R268 fix의 핵심 가설(R232 PII Redaction과의 호환성)을 명시적으로 잠근다.
+
+#### 테스트 결과
+
+```
+ToolResponseSummarizerConfigurationTest — 12/12 PASS (11 → 12 with new R268+R232 compat test)
+- DefaultDeactivated (2)
+- DefaultActivation (2)
+- UserCustomConflictRisk (2 — both updated for R268)
+- UserDefaultInstance (1)
+- HookRegistration (3)
+- R268UserCustomWithPiiRedactionCompatibility (1 — NEW)
+- HistoricalContext (1)
+
+ToolResponseSummarizerPiiRedactionConfigurationTest — 모든 R232 테스트 PASS (영향 없음)
+autoconfig + diagnostics + tool.summarize 모듈 전체 PASS (회귀 없음)
+```
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings
+
+./gradlew :arc-core:test --tests "com.arc.reactor.autoconfigure.*" --tests "com.arc.reactor.diagnostics.*" --tests "com.arc.reactor.tool.summarize.*"
+# BUILD SUCCESSFUL in 5s — all tests pass
+```
+
+#### opt-in 기본값
+
+- **production 코드 1줄 변경** — `@ConditionalOnMissingBean` 대상 변경
+- **새 기능 없음** — silent foot-gun 해결 (regression fix)
+- **기존 정상 경로 영향**: 0
+  - enabled=false: 변화 없음 (Default 빈 미등록)
+  - enabled=true + 사용자 빈 없음: 변화 없음 (Default 빈 등록)
+  - enabled=true + 사용자 Default 인스턴스: 변화 없음 (사용자 빈 우선)
+  - enabled=true + 사용자 비-Default: **변화 있음** (Default 빈 미등록 → 단일 빈 → 정상 기동)
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**: ✅ 도구 응답 경로 미수정, 빈 등록 조건만 변경
+**2. Redis 의미적 캐시**: ✅ `systemPrompt` 미수정 → scopeFingerprint 불변
+**3. 대화/스레드 컨텍스트 관리**: ✅ MemoryStore/Trimmer 미수정
+
+#### R267 → R268 발견 → 수정 사이클
+
+| 단계 | 라운드 | 활동 |
+|------|--------|------|
+| 발견 | R267 | KDoc 매트릭스 작성 + 통합 테스트 → silent foot-gun 발견 |
+| 수정 | **R268** | **production code 1줄 변경 + KDoc/test 갱신 + 호환성 신규 테스트** |
+
+R263 → R267까지의 R264/R265/R266 라운드는 모두 doc/test만 수정했지만, R268은 처음으로 **production 동작 변경 + regression fix**를 포함한다. doc-test 패턴이 실제 버그 발견 → 수정으로 발전한 첫 사례.
+
+#### Silent 동작 위험도 매트릭스 (R268 갱신)
+
+| 위험도 | Silent 동작 | 라운드 | 상태 |
+|--------|-------------|--------|------|
+| 🔴 높음 | Redis fallback → Caffeine | R238 + R265 + R266 | 잠금 (변경 없음) |
+| 🔴 높음 → ✅ 해결 | Summarizer 6행 hard failure | R267 발견 + **R268 fix** | **✅ Production fix 완료** |
+| 🟡 중간 | EvaluationMetrics enabled ≠ collector | R263 + R264 | 잠금 (의도된 동작) |
+| 🟢 낮음 | MeterRegistry 자동 활성화 | R264 + R265 + R266 | 잠금 (의도된 동작) |
+
+**R268이 처음으로 silent foot-gun을 production code level에서 fix**. 이전 라운드들은 모두 잠금만 했다.
+
+#### 회귀 방어 매트릭스 (R268 추가)
+
+| 시나리오 | 잡힐까? | 어떤 테스트가 |
+|----------|---------|---------------|
+| 누군가 `@ConditionalOnMissingBean`을 구체 클래스로 되돌림 | ✅ | `R268 fix - 정상 기동 검증` (단일 빈 검증) |
+| 누군가 R232 PII Redaction과 R268의 상호작용을 변경 | ✅ | `R268UserCustomWithPiiRedactionCompatibility` |
+| R232 PII Redaction 자체 회귀 | ✅ | 기존 R232 PII Redaction 테스트 |
+| `@Primary` 재추가 (R232 충돌 재발) | ✅ | `HistoricalContext$R232 회귀 잠금` |
+
+#### 운영자 영향
+
+R268은 **silent foot-gun을 해결하는 직접적 production 변경**이다. 영향:
+
+1. **사용자 커스텀 `ToolResponseSummarizer` 구현체를 등록한 운영자가 더 이상 컨텍스트 기동 실패를 겪지 않음** — `@Primary` 추가나 R232 활성화 같은 우회 작업 불필요
+2. **R232 PII Redaction과의 자동 호환** — 사용자 빈이 등록된 환경에서도 PII 마스킹이 자동으로 wrap됨 (이전에는 사용자 빈 + R232 활성화 시 동작은 됐지만 documented되지 않음)
+3. **R267 매트릭스 6번째 행의 silent → 정상 동작 전환** — `/admin/doctor` 확인 없이도 사용자 빈이 정상 사용됨을 신뢰 가능
+
+#### 연속 지표
+
+| 지표 | R267 | R268 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 98 | **99** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5938+ PASS | **5939+ PASS (+1 신규)** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R267 | **4/5 + R224~R268** | - |
+| KDoc 활성화 매트릭스 보유 Configuration | 3 | **3 유지** (R267 매트릭스 갱신) | - |
+| 통합 테스트 보유 Configuration | 3 | **3 유지** (R267 테스트 갱신) | - |
+| 🔴 위험도 silent 동작 발견 카운트 | 2 | **1 (R268 fix로 1개 해결)** | ✅ -1 |
+| Production code level fix 카운트 | 0 | **1 (R268 첫 사례)** | 신규 |
+
+#### 다음 Round 후보
+
+- **R269+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+  3. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254 분리 작업
+  4. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+  5. **DoctorReport Slack 정기 포스팅 cron** — `@Scheduled` 기반
+  6. **나머지 Configuration KDoc + 테스트** — R267 패턴을 R266 후보 6개 중 4개 남은 클래스에 적용
+  7. **R268 fix를 99 라운드 마일스톤으로 기록** — swagger-mcp 8181 99 → 100 라운드 마일스톤 다음 라운드 도달 예정
+
+#### 🔧 R268 요약
+
+🔧 **R267 silent foot-gun을 production code 1줄 변경(Option B)으로 fix** — `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)` → `@ConditionalOnMissingBean(ToolResponseSummarizer::class)` (구체 → 인터페이스). R267에서 발견하고 KDoc/테스트로 잠근 silent foot-gun(사용자 비-Default 구현체 + enabled=true → 컨텍스트 기동 실패)을 R268에서 production fix. R263 → R267까지의 라운드는 모두 doc/test만 수정했지만 **R268은 처음으로 production 동작 변경**을 포함한 사이클. **R267에 명시된 3 옵션 중 Option B 선택**: A(@Primary 부여)는 R232 충돌, C(BeanFactoryPostProcessor)는 복잡, **B(인터페이스 검사)가 1줄 변경 + R232 직교 + 사용자 의도 일치**의 3박자 충족. **R232 PII Redaction 호환성**: R232는 `@AutoConfiguration(after)`로 평가 순서 보장 + `List<ToolResponseSummarizer>` 주입 후 first non-Redacted base를 wrap하므로, 사용자 빈이든 Configuration default 빈이든 동일하게 동작 — R268 변경과 직교. **활성화 매트릭스 6번째 행 변화**: Before `❌ 컨텍스트 기동 실패` → After `✅ 사용자 구현 정상 사용`. **R232+사용자 빈 시나리오 결과**: `Redacted(User)` — PII 마스킹이 사용자 구현체에도 자동 적용되어 더 안전. **테스트 변경 3가지**: (1) R267 6행 hard failure 테스트 → R268 정상 기동 + 단일 빈 검증으로 변경, (2) R267 @Primary 해결책 테스트 → R268 단일 빈 검증으로 변경 (`@Primary` 여부 무관), (3) **신규 R268UserCustomWithPiiRedactionCompatibility** — R268 fix의 핵심 가설(R232 호환)을 명시적으로 잠금, ApplicationContextRunner로 사용자 비-Default 구현체 + R232 PII enabled 시 `Redacted(User)` 등록 + Configuration default 빈 미등록 + Hook 정상 등록 검증. **테스트 결과**: 12/12 신규/갱신 PASS (R267의 11 → R268의 12) + R232 PII Redaction 테스트 영향 없음 + autoconfig/diagnostics/tool.summarize 모듈 전체 PASS. **빌드**: `compileKotlin compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: 빈 등록 조건만 변경, MCP/Cache/Context 모두 미접근. **opt-in 영향 분석**: enabled=false 변화 없음 / enabled=true + 사용자 빈 없음 변화 없음 / enabled=true + 사용자 Default 변화 없음 / **enabled=true + 사용자 비-Default 변화 있음** (Default 빈 미등록 → 단일 빈 → 정상 기동, R267 hard failure 해결). **R267 → R268 발견-수정 사이클**: R263 → R267 5 라운드 동안 doc-test만 수정하던 패턴이 R268에서 발전하여 **실제 버그 발견 → production fix**로 사이클 완성, 첫 사례. **Silent 동작 위험도 매트릭스 갱신**: 🔴 Summarizer 6행 hard failure(R267 발견) → ✅ R268 production fix로 해결, 🔴 위험도 카운트 2 → 1 (-1), 🔴 Redis fallback은 의도된 동작이라 fix 대상 아님. **회귀 방어 신규**: `@ConditionalOnMissingBean` 구체 클래스 되돌림 차단(R268 fix 테스트), R268+R232 상호작용 변경 차단(신규 호환성 테스트), R232 자체 회귀 차단(기존), @Primary 재추가 차단(HistoricalContext 회귀 잠금). **운영자 영향**: 사용자 커스텀 ToolResponseSummarizer 구현체 등록 시 (1) 컨텍스트 기동 실패 더 이상 발생 안 함, (2) `@Primary` 추가나 R232 활성화 같은 우회 작업 불필요, (3) R232 PII Redaction과 자동 호환 — 사용자 빈에도 PII 마스킹 자동 wrap, (4) `/admin/doctor` 확인 없이도 사용자 빈 정상 사용 신뢰 가능. **Production code level fix 카운트**: 0 → **1 (R268 첫 사례)**. Directive 진행: **4/5 + R224~R268**. swagger-mcp 8181 **99 라운드 연속 PASS** (R269에 100 라운드 마일스톤 예정). arc-core 테스트 5938 → 5939 (+1 신규 R268+R232 호환 테스트). 다음 우선순위는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, 또는 R266 후보 6개 중 남은 4개 Configuration(`ArcReactorRagConfiguration`, `ArcReactorGuardConfiguration`, `ArcReactorOutputGuardConfiguration`, `BudgetConfiguration`).
+
+#### 🔬 R267 요약 (legacy)
+
 🔬 **R264/R265 KDoc 패턴 + R266 ApplicationContextRunner 패턴을 ToolResponseSummarizerConfiguration에 결합 적용 — silent foot-gun을 hard failure로 명시 잠금**. R263 → R266 doc-test 자매 패턴의 세 번째 적용이며, Configuration이 88줄로 작아 R267은 doc + test를 한 라운드에 결합한 첫 사례. **수정**: `ToolResponseSummarizerConfiguration.kt` KDoc에 6 row 활성화 매트릭스 + R232 역사적 맥락 + 두 빈의 `@ConditionalOnMissingBean` 차이 표 + 변경 시 주의 4가지 잠금 사항. **신규**: `ToolResponseSummarizerConfigurationTest.kt` (~280줄, 6 nested, 11 tests). **R267에서 발견한 silent foot-gun**: 처음에는 "사용자 비-Default 구현체 + enabled=true → 다중 빈 silent 공존"이라는 가설로 테스트 작성, 실제 실행 결과는 **컨텍스트 기동 자체 실패** (`NoUniqueBeanDefinitionException` from Hook 주입 시점) — 단순 silent 공존이 아니라 hard failure였음, R232 commit 이후 R267까지 어디에도 문서화/테스트되지 않은 silent foot-gun. **원인**: `defaultToolResponseSummarizer` 빈의 `@ConditionalOnMissingBean(DefaultToolResponseSummarizer::class)`이 인터페이스가 아닌 구체 클래스를 검사 → 사용자 비-Default 구현체 시 default 빈도 함께 등록 → Hook 주입 시점에 다중 후보 → 컨텍스트 기동 실패. **KDoc 매트릭스 6행**: ❌ 컨텍스트 기동 실패 표시(이전 가설은 ⚠️ silent 공존), R267에서 발견 사실 명시. **핵심 테스트**: `UserCustomConflictRisk$매트릭스 6행 - 컨텍스트 기동 실패` — `context.startupFailure != null` + 근본 원인 메시지에 `expected single matching bean` 또는 `but found 2` 포함 검증, 두 번째 테스트는 `@Primary` 해결책으로 정상 기동 검증. **테스트 클래스 6개**: DefaultDeactivated(2 — 1행), DefaultActivation(2 — 4행 + Hook), UserCustomConflictRisk(2 — **6행 hard failure** + 해결책), UserDefaultInstance(1 — 5행), HookRegistration(3 — Hook 등록 조건), HistoricalContext(1 — R232 회귀 잠금). **테스트 작성 중 마주친 문제 4개**: (1) inner class 내 `@Configuration class` 선언 금지 → top-level private으로 추출, (2) `DefaultToolResponseSummarizer`가 final → 서브클래스 대신 인스턴스 직접 등록(`UserDefaultBeanConfig`), (3) `ToolResponseSummary` 시그니처 (text/kind/originalLength) 추측 오류 → 실제 시그니처에 맞춰 `originalLength = rawPayload.length` 추가, (4) 첫 시도에서 KDoc 가설과 실제 동작 불일치 → 더 강한 잠금으로 발전. **테스트 결과**: 11/11 신규 PASS + autoconfig + diagnostics 모듈 회귀 PASS + R232 PII Redaction 테스트 PASS. **빌드**: `compileTestKotlin` 0 warnings PASS. **3대 최상위 제약 자동 준수**: KDoc + 테스트만 수정, MCP/Cache/Context 모두 미접근, 빈 정의/시그니처 모두 불변. **R263 → R267 doc-test 패턴 계보**: R263(test) → R264(doc) → R265(다른 클래스 doc) → R266(R265 test) → **R267(doc+test 결합)**. **Silent 동작 위험도 매트릭스 갱신**: 🔴 Redis fallback(R238+R265+R266) + 🔴 **Summarizer 6행 hard failure(R267 신규)**, 🟡 EvalMetrics enabled 분리(R263+R264), 🟢 MeterRegistry 자동(R264+R265+R266). **R267 회귀 방어**: `@Primary` 재추가 차단 / `@ConditionalOnMissingBean` 대상 변경 차단 / `@ConditionalOnProperty` 제거 차단 / Hook 등록 조건 변경 차단 / 사용자 비-Default 구현체 시나리오 hard failure 잠금. **운영자 영향**: 즉각 변화 없으나 (1) Configuration 단위 테스트 0 → 11, (2) 사용자 커스텀 빈 사용 시 6행 hard failure 위험 명시, (3) 3가지 해결책(@Primary / R232 wrap / Default 인스턴스) KDoc 명시, (4) R232 회귀 잠금. Directive 진행: **4/5 + R224~R267**. swagger-mcp 8181 **98 라운드 연속 PASS**. arc-core 테스트 5927 → 5938 (+11). KDoc 매트릭스 보유 Configuration: 2 → 3 (+50%), 통합 테스트 보유 Configuration: 2 → 3 (+50%), 🔴 위험도 silent 동작 발견: 1 → 2 (+100%). 다음 우선순위는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, 또는 R267 6행 silent foot-gun을 production code로 fix(옵션 A/B/C 중 1개), 또는 R266 후보 6개 중 남은 4개 Configuration.
 
 #### 🧪 R266 요약 (legacy)
