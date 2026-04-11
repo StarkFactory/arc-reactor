@@ -518,6 +518,100 @@ class ToolCallOrchestratorTest {
         assertEquals("2026-03-08T00:00:00Z", context.metadata["retrievedAt"], "Last merged signal should win retrievedAt")
     }
 
+    /**
+     * R334 regression: 병렬 tool call 중 첫 번째 tool이 차단 신호(`blockReason`)를
+     * 보낸 뒤 두 번째 tool이 다른 차단 신호를 보내면, 이전에는 last-wins로 두 번째가
+     * 덮어쓰면서 첫 차단 사유가 사라졌다. 보안/governance 관점에서 **첫 차단이 확정**이어야
+     * 하므로 blockReason은 first-wins로 변경되어야 한다.
+     *
+     * 다른 flat key(answerMode/retrievedAt)의 last-wins 의미는 기존 회귀가 lock하고
+     * 있으므로 유지한다.
+     */
+    @Test
+    fun `R334 blockReason은 first merged signal을 preserve해야 한다 (last-wins 방지)`() = runTest {
+        val orchestrator = ToolCallOrchestrator(
+            toolCallTimeoutMs = 1000,
+            hookExecutor = null,
+            toolApprovalPolicy = null,
+            pendingApprovalStore = null,
+            agentMetrics = NoOpAgentMetrics(),
+            parseToolArguments = { emptyMap() }
+        )
+        val context = HookContext(runId = "run-block", userId = "user-block", userPrompt = "parallel block")
+        val toolsUsed = mutableListOf<String>()
+        val firstToolCall = toolCall(id = "id-block-1", name = "jira_search")
+        val secondToolCall = toolCall(id = "id-block-2", name = "confluence_answer_question")
+
+        // 첫 번째 tool: 정책 위반으로 차단 (pii_detected)
+        val firstCallback = object : ToolCallback {
+            override val name: String = "jira_search"
+            override val description: String = "Search jira"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """
+                    {
+                      "grounded": true,
+                      "answerMode": "spec_summary",
+                      "blockReason": "pii_detected",
+                      "sources": [{"title":"Jira","url":"https://example.com/jira"}]
+                    }
+                """.trimIndent()
+            }
+        }
+        // 두 번째 tool: 다른 차단 사유 (rate_limited) — 첫 차단을 덮어쓰려 시도
+        val secondCallback = object : ToolCallback {
+            override val name: String = "confluence_answer_question"
+            override val description: String = "Search confluence"
+            override suspend fun call(arguments: Map<String, Any?>): Any {
+                return """
+                    {
+                      "grounded": true,
+                      "answerMode": "spec_detail",
+                      "blockReason": "rate_limited",
+                      "sources": [{"title":"Confluence","url":"https://example.com/confluence"}]
+                    }
+                """.trimIndent()
+            }
+        }
+
+        orchestrator.executeInParallel(
+            toolCalls = listOf(firstToolCall, secondToolCall),
+            tools = listOf(ArcToolCallbackAdapter(firstCallback), ArcToolCallbackAdapter(secondCallback)),
+            hookContext = context,
+            toolsUsed = toolsUsed,
+            totalToolCallsCounter = AtomicInteger(0),
+            maxToolCalls = 10,
+            allowedTools = null
+        )
+
+        // 첫 차단 사유가 보존되어야 한다
+        assertEquals(
+            "pii_detected",
+            context.metadata["blockReason"],
+            "R334: 첫 tool의 blockReason(pii_detected)이 두 번째 tool의 blockReason(rate_limited)으로 " +
+                "덮어써지면 안 된다. 보안 신호는 first-wins로 확정되어야 한다."
+        )
+
+        // 개별 signal은 list에 전부 누적 보존
+        @Suppress("UNCHECKED_CAST")
+        val toolSignals = context.metadata[ToolCallOrchestrator.TOOL_SIGNALS_METADATA_KEY]
+            as? List<ToolResponseSignal>
+        assertEquals(2, toolSignals?.size) {
+            "두 tool signal이 전부 누적되어야 한다 (개별 보존)"
+        }
+        assertEquals(
+            listOf("pii_detected", "rate_limited"),
+            toolSignals?.map { it.blockReason },
+            "누적 signal 리스트에는 두 차단 사유가 모두 포함되어야 한다 (downstream이 전체 맥락을 볼 수 있게)"
+        )
+
+        // last-wins 키(answerMode/retrievedAt)는 기존 설계대로 last 값 유지
+        assertEquals(
+            "spec_detail",
+            context.metadata["answerMode"],
+            "answerMode는 기존 last-wins 의도를 유지해야 한다 (R334 scope 외)"
+        )
+    }
+
     @Test
     fun `assignee is missing일 때 inject requesterEmail for personal jira tool해야 한다`() = runTest {
         val orchestrator = ToolCallOrchestrator(

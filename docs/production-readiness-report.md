@@ -151,6 +151,13 @@
 - 요약: `connector_permissions` 3회 연속 이후 `cross_source_synthesis`로 axis 전환. scanner가 ToolResponseSummarizer/PlanExecute/ToolCallOrchestrator에서 3건 발견, 그중 P1 HIGH(`PlanExecuteStrategy.synthesize`가 실패 step의 `"Error: TOOL_ERROR"` 내부 마커를 성공 step과 동등하게 LLM 프롬프트에 주입 → 혼합 케이스 환각 위험)만 처리. resultSummary 빌더를 3-way when 분기(성공 + non-blank / 성공 + blank / 실패)로 재작성해 실패 step은 `[실패] 답변 근거로 사용하지 마세요` 마커로만 대체, 원본 에러 문자열은 LLM 경로에서 완전 제거. 신규 회귀 1건(buildRequestSpec lambda로 synthesize 프롬프트 캡처 후 마커 포함/에러 문자열 미포함 검증). 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R333.md`
 
+### Round 334 — 2026-04-13T00:00+09:00 — cycle 10 5차: mergeSignalMetadata blockReason first-wins
+
+- axis: `cross_source_synthesis` (2회 연속)
+- 분류: `direct_value`
+- 요약: 병렬 tool call 중 한 source가 `blockReason`(보안 차단 신호)을 먼저 보낸 뒤 다른 source가 다른 차단 사유를 보내면, 기존 last-wins 로직이 원래 차단의 맥락을 **덮어써** 보안 신호가 손실되던 버그 수정. 재평가 결과 `answerMode`/`freshness`/`retrievedAt`/`grounded` 4개 키는 `ToolCallOrchestratorTest:517` `"Last merged signal should win metadata projection"`이 lock한 **의도적 설계**였고, `blockReason`만 도메인 의미 상 **first-wins**(한 번 차단이 영구 차단)여야 한다. `mergeSignalMetadata`에서 `blockReason`만 narrow 분기 추가, 다른 4개 키 경로 불변. downstream 소비자(`AgentExecutionCoordinator`, `AgentMetrics`, `EvaluationMetricsHook`, `ExecutionResultFinalizer`)는 모두 존재 여부로 판정하므로 의미 변화가 downstream 의도와 일치. 신규 회귀 1건(병렬 2 tool 각자 다른 blockReason → 첫 차단 유지 + 리스트 누적 보존 + answerMode last-wins 교차 검증). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R334.md`
+
 ---
 
 ## 11. 아카이브

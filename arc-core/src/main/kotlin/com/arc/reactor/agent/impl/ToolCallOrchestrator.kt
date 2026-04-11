@@ -559,7 +559,27 @@ internal class ToolCallOrchestrator(
         }
     }
 
-    /** ToolResponseSignal 메타데이터를 HookContext에 병합합니다. */
+    /**
+     * ToolResponseSignal 메타데이터를 HookContext에 병합합니다.
+     *
+     * **설계**: 개별 signal은 [getOrCreateToolSignals]로 전부 누적 보존되고,
+     * flat metadata 키 4개(`answerMode`/`grounded`/`freshness`/`retrievedAt`)는 **last-wins**로
+     * 유지한다 — 이는 의도적 design choice이며 `ToolCallOrchestratorTest`의 회귀 테스트가 lock하고 있다
+     * ("Last merged signal should win metadata projection").
+     *
+     * **R334 fix**: `blockReason`만 예외적으로 **first-wins(preserve existing)**로 변경한다.
+     *
+     * **배경**: `blockReason`은 downstream(`AgentExecutionCoordinator`, `AgentMetrics`,
+     * `EvaluationMetricsHook`)에서 "차단 신호가 존재했는가"를 판정하는 **보안 신호**다.
+     * 병렬 tool 실행 중 예를 들어 Jira tool이 policy violation으로 `blockReason="pii_detected"`를
+     * 세팅한 직후 Confluence tool이 성공적으로 실행되며 `blockReason=null`을 반환하면, 기존 last-wins
+     * 로직은 putIfAbsent가 아니라 *null-safe put*이었기 때문에 null은 덮어쓰지 않았다 — 그러나
+     * Confluence가 자신의 다른 이유로 `blockReason="rate_limited"`를 세팅하면 **Jira의 원래 차단
+     * 신호가 사라진다**. 즉 차단 신호가 다른 차단 신호로 대체되어 첫 차단의 의미를 잃는다.
+     *
+     * **수정 효과**: 한 번이라도 차단 신호가 기록되면 이후 모든 tool은 그 신호를 존중한다.
+     * 보안/governance 관점에서 "첫 차단이 확정 차단"이라는 의미가 더 안전하다.
+     */
     private fun mergeSignalMetadata(hookContext: HookContext, signal: ToolResponseSignal) {
         val signals = getOrCreateToolSignals(hookContext)
         signals += signal
@@ -567,7 +587,12 @@ internal class ToolCallOrchestrator(
         signal.grounded?.let { hookContext.metadata["grounded"] = it }
         signal.freshness?.let { hookContext.metadata["freshness"] = it }
         signal.retrievedAt?.let { hookContext.metadata["retrievedAt"] = it }
-        signal.blockReason?.let { hookContext.metadata["blockReason"] = it }
+        // R334: blockReason은 first-wins — 첫 차단 신호를 이후 tool이 덮어쓰지 못하게 한다
+        signal.blockReason?.let { newReason ->
+            if (hookContext.metadata["blockReason"] == null) {
+                hookContext.metadata["blockReason"] = newReason
+            }
+        }
     }
 
     private fun captureToolSignals(
