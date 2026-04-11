@@ -14,6 +14,8 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Size
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.ai.vectorstore.VectorStore
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -71,7 +73,13 @@ class RagIngestionCandidateController(
         return ResponseEntity.ok(items)
     }
 
-    /** 후보를 승인하고 VectorStore에 인제스트한다. */
+    /**
+     * 후보를 승인하고 VectorStore에 인제스트한다.
+     *
+     * R295 fix: blocking VectorStore I/O를 IO 디스패처로 격리하기 위해 suspend로 전환.
+     * 이전 구현은 PGVector JDBC + 임베딩 호출(200ms~3초 latency)을 Reactor Netty NIO
+     * 이벤트 루프에서 직접 실행하여 워커 스레드를 차단했다. R293/R294 패턴 동일 적용.
+     */
     @Operation(summary = "후보 승인 및 VectorStore 인제스트 (관리자)")
     @ApiResponses(value = [
         ApiResponse(responseCode = "200", description = "Candidate approved and ingested"),
@@ -81,7 +89,7 @@ class RagIngestionCandidateController(
         ApiResponse(responseCode = "503", description = "VectorStore not configured")
     ])
     @PostMapping("/{id}/approve")
-    fun approve(
+    suspend fun approve(
         @PathVariable id: String,
         @Valid @RequestBody request: ReviewRagIngestionCandidateRequest,
         exchange: ServerWebExchange
@@ -103,7 +111,10 @@ class RagIngestionCandidateController(
             documentId = documentId,
             chunker = documentChunkerProvider.ifAvailable
         )
-        vectorStore.add(documents)
+        // R295: blocking JDBC + 임베딩 호출을 IO dispatcher로 격리
+        withContext(Dispatchers.IO) {
+            vectorStore.add(documents)
+        }
 
         val reviewed = store.updateReview(
             id = id,

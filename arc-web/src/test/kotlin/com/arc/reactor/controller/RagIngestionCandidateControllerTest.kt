@@ -10,6 +10,7 @@ import com.arc.reactor.rag.ingestion.RagIngestionCandidateStatus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
@@ -103,11 +104,13 @@ class RagIngestionCandidateControllerTest {
     @Test
     fun `ingests document and updates status를 승인한다`() {
         val candidate = store.save(pendingCandidate())
-        val response = controller().approve(
-            id = candidate.id,
-            request = ReviewRagIngestionCandidateRequest(comment = "good"),
-            exchange = adminExchange()
-        )
+        val response = runBlocking {
+            controller().approve(
+                id = candidate.id,
+                request = ReviewRagIngestionCandidateRequest(comment = "good"),
+                exchange = adminExchange()
+            )
+        }
 
         assertEquals(HttpStatus.OK, response.statusCode) { "승인 응답이 200이어야 한다" }
         val updated = store.findById(candidate.id)
@@ -125,11 +128,13 @@ class RagIngestionCandidateControllerTest {
     @Test
     fun `approve returns 503 when vector store은(는) missing이다`() {
         val candidate = store.save(pendingCandidate("c2"))
-        val response = controller(noVectorStoreProvider).approve(
-            id = candidate.id,
-            request = ReviewRagIngestionCandidateRequest(),
-            exchange = adminExchange()
-        )
+        val response = runBlocking {
+            controller(noVectorStoreProvider).approve(
+                id = candidate.id,
+                request = ReviewRagIngestionCandidateRequest(),
+                exchange = adminExchange()
+            )
+        }
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.statusCode) {
             "벡터 스토어가 없으면 503이어야 한다"
