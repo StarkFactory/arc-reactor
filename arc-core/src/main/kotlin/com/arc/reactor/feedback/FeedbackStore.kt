@@ -1,7 +1,8 @@
 package com.arc.reactor.feedback
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 피드백 저장소 인터페이스
@@ -79,28 +80,36 @@ interface FeedbackStore {
 /**
  * 인메모리 피드백 저장소
  *
- * [ConcurrentHashMap]을 사용한 스레드 안전 구현.
+ * Caffeine bounded cache 기반 스레드 안전 구현.
  * 영속적이지 않음 — 서버 재시작 시 데이터가 소실된다.
  *
  * WHY: 데이터베이스 없이도 기본 동작을 보장하기 위한 기본 구현.
  * 개발/테스트 환경에서 유용하며, 운영 환경에서는 JdbcFeedbackStore로 대체한다.
  *
+ * R314 fix: ConcurrentHashMap → Caffeine bounded cache. 피드백 수집이 반복되면
+ * 무제한 성장 가능성이 있었다. 이제 [maxEntries] 상한(기본 10,000)을 넘으면
+ * W-TinyLFU 정책으로 evict.
+ *
  * @see JdbcFeedbackStore 운영 환경용 JDBC 구현
  */
-class InMemoryFeedbackStore : FeedbackStore {
+class InMemoryFeedbackStore(
+    maxEntries: Long = DEFAULT_MAX_ENTRIES
+) : FeedbackStore {
 
-    /** 피드백 ID를 키로 하는 동시성 안전 맵 */
-    private val entries = ConcurrentHashMap<String, Feedback>()
+    /** 피드백 ID를 키로 하는 Caffeine bounded cache */
+    private val entries: Cache<String, Feedback> = Caffeine.newBuilder()
+        .maximumSize(maxEntries)
+        .build()
 
     override fun save(feedback: Feedback): Feedback {
-        entries[feedback.feedbackId] = feedback
+        entries.put(feedback.feedbackId, feedback)
         return feedback
     }
 
-    override fun get(feedbackId: String): Feedback? = entries[feedbackId]
+    override fun get(feedbackId: String): Feedback? = entries.getIfPresent(feedbackId)
 
     override fun list(): List<Feedback> {
-        return entries.values.toList().sortedByDescending { it.timestamp }
+        return entries.asMap().values.toList().sortedByDescending { it.timestamp }
     }
 
     /**
@@ -115,7 +124,7 @@ class InMemoryFeedbackStore : FeedbackStore {
         sessionId: String?,
         templateId: String?
     ): List<Feedback> {
-        return entries.values.toList()
+        return entries.asMap().values.toList()
             .asSequence()
             .filter { rating == null || it.rating == rating }
             .filter { from == null || !it.timestamp.isBefore(from) }
@@ -128,8 +137,18 @@ class InMemoryFeedbackStore : FeedbackStore {
     }
 
     override fun delete(feedbackId: String) {
-        entries.remove(feedbackId)
+        entries.invalidate(feedbackId)
     }
 
-    override fun count(): Long = entries.size.toLong()
+    override fun count(): Long = entries.estimatedSize()
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        entries.cleanUp()
+    }
+
+    companion object {
+        /** 기본 피드백 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_ENTRIES: Long = 10_000L
+    }
 }
