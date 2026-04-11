@@ -16,6 +16,7 @@ argument-hint: "[interval: e.g. '20m' or '1h', default 20m]"
 
 실행 로직 자체는 `.claude/prompts/qa-verification-loop.md`에 정의되어 있다.
 이 스킬은 그 프롬프트를 cron에 연결하는 **셋업 역할**만 한다.
+Claude에서 실행할 때는 기본 모델을 **Sonnet**으로 사용한다.
 
 ---
 
