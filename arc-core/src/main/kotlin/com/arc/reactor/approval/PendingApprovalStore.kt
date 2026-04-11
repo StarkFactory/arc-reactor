@@ -1,10 +1,11 @@
 package com.arc.reactor.approval
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import mu.KotlinLogging
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 private val logger = KotlinLogging.logger {}
 
@@ -80,12 +81,20 @@ interface PendingApprovalStore {
  * 단일 인스턴스 배포에 적합하다.
  * [CompletableDeferred]를 사용하여 승인 대기와 완료를 구현한다.
  *
+ * R310 fix: ConcurrentHashMap → Caffeine bounded cache. 기존 구현은 `pending`이
+ * 무제한으로 성장할 수 있어 악성 호출(타임아웃 전에 대량 제출)로 OOM 가능성이 있었다.
+ * 이제 [maxPending] 상한(기본 10,000)을 넘으면 Caffeine W-TinyLFU 정책으로 evict.
+ * evict된 엔트리는 `CompletableDeferred`가 완료되지 못하고 `withTimeoutOrNull`에서
+ * 자연스럽게 타임아웃되므로 coroutine leak 없음.
+ *
  * @param defaultTimeoutMs 기본 승인 타임아웃 (밀리초, 기본값: 5분)
+ * @param maxPending 동시 대기 가능한 최대 승인 요청 수 (기본값: 10,000)
  *
  * @see JdbcPendingApprovalStore 다중 인스턴스 환경용 JDBC 구현체
  */
 class InMemoryPendingApprovalStore(
-    private val defaultTimeoutMs: Long = 300_000 // 5분
+    private val defaultTimeoutMs: Long = 300_000, // 5분
+    maxPending: Long = DEFAULT_MAX_PENDING
 ) : PendingApprovalStore {
 
     /** 대기 중인 승인 엔트리 (요청 + CompletableDeferred) */
@@ -94,8 +103,10 @@ class InMemoryPendingApprovalStore(
         val deferred: CompletableDeferred<ToolApprovalResponse>
     )
 
-    /** approvalId → 대기 엔트리 매핑 */
-    private val pending = ConcurrentHashMap<String, PendingEntry>()
+    /** approvalId → 대기 엔트리 매핑 (Caffeine bounded cache) */
+    private val pending: Cache<String, PendingEntry> = Caffeine.newBuilder()
+        .maximumSize(maxPending)
+        .build()
 
     override suspend fun requestApproval(
         runId: String,
@@ -113,7 +124,7 @@ class InMemoryPendingApprovalStore(
             context = context
         )
         val deferred = CompletableDeferred<ToolApprovalResponse>()
-        pending[id] = PendingEntry(request, deferred)
+        pending.put(id, PendingEntry(request, deferred))
 
         logger.info { "승인 요청: id=$id, tool=$toolName, user=$userId" }
 
@@ -130,22 +141,22 @@ class InMemoryPendingApprovalStore(
             }
         } finally {
             // 완료/타임아웃 후 대기 엔트리 정리
-            pending.remove(id)
+            pending.invalidate(id)
         }
     }
 
     override fun listPending(): List<ApprovalSummary> {
-        return pending.values.map { it.toSummary() }
+        return pending.asMap().values.map { it.toSummary() }
     }
 
     override fun listPendingByUser(userId: String): List<ApprovalSummary> {
-        return pending.values
+        return pending.asMap().values
             .filter { it.request.userId == userId }
             .map { it.toSummary() }
     }
 
     override fun approve(approvalId: String, modifiedArguments: Map<String, Any?>?): Boolean {
-        val entry = pending[approvalId] ?: return false
+        val entry = pending.getIfPresent(approvalId) ?: return false
         val response = ToolApprovalResponse(
             approved = true,
             modifiedArguments = modifiedArguments
@@ -156,7 +167,7 @@ class InMemoryPendingApprovalStore(
     }
 
     override fun reject(approvalId: String, reason: String?): Boolean {
-        val entry = pending[approvalId] ?: return false
+        val entry = pending.getIfPresent(approvalId) ?: return false
         val response = ToolApprovalResponse(
             approved = false,
             reason = reason ?: "Rejected by human"
@@ -176,4 +187,9 @@ class InMemoryPendingApprovalStore(
         status = ApprovalStatus.PENDING,
         context = request.context
     )
+
+    companion object {
+        /** InMemory 구현 기본 상한. 초과 시 Caffeine W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_PENDING: Long = 10_000L
+    }
 }

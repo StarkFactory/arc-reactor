@@ -169,4 +169,55 @@ class PendingApprovalStoreTest {
             assertFalse(store.reject("non-existent")) { "Should return false for non-existent ID" }
         }
     }
+
+    @Nested
+    inner class BoundedCache {
+
+        /**
+         * R310 회귀: ConcurrentHashMap → Caffeine bounded cache 마이그레이션.
+         *
+         * 이전 구현은 `pending`이 무제한으로 성장할 수 있어 악성 호출이나 운영 실수로
+         * OOM 위험이 있었다. maxPending 상한을 넘으면 W-TinyLFU 정책으로 evict되어야 한다.
+         */
+        @Test
+        fun `maxPending 초과 시 Caffeine이 evict해야 한다`() = runBlocking {
+            val boundedStore = InMemoryPendingApprovalStore(
+                defaultTimeoutMs = 10_000,
+                maxPending = 5
+            )
+
+            // 100개 요청을 제출 (전부 pending 상태로 대기)
+            val jobs = (1..100).map { idx ->
+                async {
+                    boundedStore.requestApproval(
+                        runId = "run-$idx", userId = "user-$idx",
+                        toolName = "tool-$idx", arguments = emptyMap()
+                    )
+                }
+            }
+
+            delay(200)
+
+            val pendingCount = boundedStore.listPending().size
+            assertTrue(pendingCount < 100) {
+                "Expected eviction to reduce size below 100, got $pendingCount"
+            }
+            assertTrue(pendingCount <= 20) {
+                "Expected Caffeine bounded cache to converge near maxPending=5, got $pendingCount " +
+                    "(W-TinyLFU는 정확한 상한이 아닌 근사치로 수렴)"
+            }
+
+            // 정리 — 살아있는 pending은 승인하고, evict된 것은 timeout 대기
+            boundedStore.listPending().forEach { boundedStore.approve(it.id) }
+            // evict된 요청들은 withTimeoutOrNull에서 자연스럽게 타임아웃됨
+            jobs.forEach { it.await() }
+        }
+
+        @Test
+        fun `DEFAULT_MAX_PENDING은 10000이다`() {
+            assertEquals(10_000L, InMemoryPendingApprovalStore.DEFAULT_MAX_PENDING) {
+                "Expected default max pending to be 10000"
+            }
+        }
+    }
 }
