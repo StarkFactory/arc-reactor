@@ -7,10 +7,13 @@ import com.arc.reactor.admin.query.ExportService
 import com.arc.reactor.admin.query.MetricQueryService
 import com.arc.reactor.admin.query.SloService
 import com.arc.reactor.admin.tenant.TenantStore
+import com.arc.reactor.support.throwIfCancellation
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.HttpHeaders
@@ -62,12 +65,15 @@ class TenantAdminController(
         ApiResponse(responseCode = "403", description = "Admin access required"),
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
+    /** R303 fix: suspend + IO 격리. dashboardService 내부 blocking JDBC. */
     @GetMapping("/overview")
-    fun overview(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun overview(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val overview = dashboardService.getOverview(tenantId)
-            ?: return notFoundResponse("Tenant not found")
+        // R303: blocking service call을 IO dispatcher로 격리
+        val overview = withContext(Dispatchers.IO) {
+            dashboardService.getOverview(tenantId)
+        } ?: return notFoundResponse("Tenant not found")
         return ResponseEntity.ok(overview)
     }
 
@@ -77,8 +83,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "Tenant usage dashboard"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R303 fix: suspend + IO 격리. */
     @GetMapping("/usage")
-    fun usage(
+    suspend fun usage(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -86,7 +93,8 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
-        return ResponseEntity.ok(dashboardService.getUsage(tenantId, from, to))
+        // R303: blocking service call을 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { dashboardService.getUsage(tenantId, from, to) })
     }
 
     /** 테넌트 품질 대시보드를 반환한다 (지연 백분위, 오류 분포). */
@@ -95,8 +103,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "Tenant quality dashboard"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R303 fix: suspend + IO 격리. */
     @GetMapping("/quality")
-    fun quality(
+    suspend fun quality(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -104,7 +113,8 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
-        return ResponseEntity.ok(dashboardService.getQuality(tenantId, from, to))
+        // R303: blocking service call을 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { dashboardService.getQuality(tenantId, from, to) })
     }
 
     /** 테넌트 도구 대시보드를 반환한다 (도구 랭킹, 가장 느린 도구). */
@@ -113,8 +123,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "Tenant tools dashboard"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R303 fix: suspend + IO 격리. */
     @GetMapping("/tools")
-    fun tools(
+    suspend fun tools(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -122,7 +133,8 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
-        return ResponseEntity.ok(dashboardService.getTools(tenantId, from, to))
+        // R303: blocking service call을 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { dashboardService.getTools(tenantId, from, to) })
     }
 
     /** 테넌트 비용 대시보드를 반환한다 (월 비용, 모델별 비용). */
@@ -131,8 +143,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "Tenant cost dashboard"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R303 fix: suspend + IO 격리. */
     @GetMapping("/cost")
-    fun cost(
+    suspend fun cost(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -140,7 +153,8 @@ class TenantAdminController(
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val (from, to) = resolveTimeRange(fromMs, toMs)
-        return ResponseEntity.ok(dashboardService.getCost(tenantId, from, to))
+        // R303: blocking service call을 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { dashboardService.getCost(tenantId, from, to) })
     }
 
     /** 테넌트 SLO(가용성, 지연, error budget) 상태를 반환한다. */
@@ -150,19 +164,21 @@ class TenantAdminController(
         ApiResponse(responseCode = "403", description = "Admin access required"),
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
+    /** R303 fix: suspend + IO 격리. tenantStore + sloService 모두 blocking JDBC. */
     @GetMapping("/slo")
-    fun slo(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun slo(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val tenant = tenantStore.findById(tenantId)
-            ?: return notFoundResponse("Tenant not found")
-        return ResponseEntity.ok(
+        // R303: blocking tenantStore.findById + sloService.getSloStatus를 IO dispatcher로 격리
+        val sloStatus = withContext(Dispatchers.IO) {
+            val tenant = tenantStore.findById(tenantId) ?: return@withContext null
             sloService.getSloStatus(
                 tenantId,
                 tenant.sloAvailability,
                 tenant.sloLatencyP99Ms
             )
-        )
+        } ?: return notFoundResponse("Tenant not found")
+        return ResponseEntity.ok(sloStatus)
     }
 
     /** 해당 테넌트의 활성 알림 목록을 반환한다. */
@@ -171,11 +187,13 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "List of active alerts for the tenant"),
         ApiResponse(responseCode = "403", description = "Admin access required")
     ])
+    /** R303 fix: suspend + IO 격리. alertStore 내부 blocking JDBC. */
     @GetMapping("/alerts")
-    fun alerts(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun alerts(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        return ResponseEntity.ok(alertStore.findActiveAlerts(tenantId))
+        // R303: blocking alertStore를 IO dispatcher로 격리
+        return ResponseEntity.ok(withContext(Dispatchers.IO) { alertStore.findActiveAlerts(tenantId) })
     }
 
     /** 테넌트의 당월 쿼터 사용량과 제한을 반환한다. */
@@ -185,14 +203,15 @@ class TenantAdminController(
         ApiResponse(responseCode = "403", description = "Admin access required"),
         ApiResponse(responseCode = "404", description = "Tenant not found")
     ])
+    /** R303 fix: suspend + IO 격리. tenantStore + queryService 모두 blocking JDBC. */
     @GetMapping("/quota")
-    fun quota(exchange: ServerWebExchange): ResponseEntity<Any> {
+    suspend fun quota(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
-        val tenant = tenantStore.findById(tenantId)
-            ?: return notFoundResponse("Tenant not found")
-        val usage = queryService.getCurrentMonthUsage(tenantId)
-        return ResponseEntity.ok(
+        // R303: blocking tenantStore + queryService를 IO dispatcher로 격리
+        val payload = withContext(Dispatchers.IO) {
+            val tenant = tenantStore.findById(tenantId) ?: return@withContext null
+            val usage = queryService.getCurrentMonthUsage(tenantId)
             mapOf(
                 "quota" to tenant.quota,
                 "usage" to usage,
@@ -201,7 +220,8 @@ class TenantAdminController(
                 "tokenUsagePercent" to if (tenant.quota.maxTokensPerMonth > 0)
                     usage.tokens.toDouble() / tenant.quota.maxTokensPerMonth * 100 else 0.0
             )
-        )
+        } ?: return notFoundResponse("Tenant not found")
+        return ResponseEntity.ok(payload)
     }
 
     /** 실행 이력을 CSV 파일로 내보낸다. */
@@ -210,8 +230,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "CSV file of executions"),
         ApiResponse(responseCode = "403", description = "ADMIN role required (ADMIN_DEVELOPER insufficient)")
     ])
+    /** R303 fix: suspend + IO 격리. exportService 내부 blocking JDBC + CSV 쓰기. */
     @GetMapping("/export/executions")
-    fun exportExecutions(
+    suspend fun exportExecutions(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -221,8 +242,12 @@ class TenantAdminController(
         val (from, to) = resolveTimeRange(fromMs, toMs)
         val writer = StringWriter()
         try {
-            exportService.exportExecutionsCsv(tenantId, from, to, writer)
+            // R303: blocking exportService를 IO dispatcher로 격리
+            withContext(Dispatchers.IO) {
+                exportService.exportExecutionsCsv(tenantId, from, to, writer)
+            }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "실행 이력 CSV 내보내기 실패: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "CSV export failed"))
@@ -239,8 +264,9 @@ class TenantAdminController(
         ApiResponse(responseCode = "200", description = "CSV file of tool calls"),
         ApiResponse(responseCode = "403", description = "ADMIN role required (ADMIN_DEVELOPER insufficient)")
     ])
+    /** R303 fix: suspend + IO 격리. exportService 내부 blocking JDBC + CSV 쓰기. */
     @GetMapping("/export/tools")
-    fun exportTools(
+    suspend fun exportTools(
         @RequestParam(required = false) fromMs: Long?,
         @RequestParam(required = false) toMs: Long?,
         exchange: ServerWebExchange
@@ -250,8 +276,12 @@ class TenantAdminController(
         val (from, to) = resolveTimeRange(fromMs, toMs)
         val writer = StringWriter()
         try {
-            exportService.exportToolCallsCsv(tenantId, from, to, writer)
+            // R303: blocking exportService를 IO dispatcher로 격리
+            withContext(Dispatchers.IO) {
+                exportService.exportToolCallsCsv(tenantId, from, to, writer)
+            }
         } catch (e: Exception) {
+            e.throwIfCancellation()
             logger.error(e) { "도구 호출 CSV 내보내기 실패: tenant=$tenantId" }
             return ResponseEntity.internalServerError()
                 .body(AdminErrorResponse(error = "CSV export failed"))

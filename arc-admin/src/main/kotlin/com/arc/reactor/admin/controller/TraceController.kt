@@ -3,6 +3,8 @@ package com.arc.reactor.admin.controller
 import com.arc.reactor.admin.collection.TenantResolver
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
@@ -34,10 +36,15 @@ class TraceController(
     private val tenantResolver: TenantResolver
 ) {
 
-    /** 최근 트레이스 목록 조회. */
+    /**
+     * 최근 트레이스 목록 조회.
+     *
+     * R303 fix: suspend + IO 격리. 이전 구현은 blocking JdbcTemplate.queryForList를
+     * Reactor Netty NIO 워커에서 직접 실행했다.
+     */
     @Operation(summary = "트레이스 목록 조회")
     @GetMapping
-    fun list(
+    suspend fun list(
         @RequestParam(defaultValue = "7") days: Int,
         @RequestParam(defaultValue = "50") limit: Int,
         @RequestParam(required = false) status: String?,
@@ -46,19 +53,25 @@ class TraceController(
         if (!isAdmin(exchange)) return forbiddenResponse()
         val tenantId = tenantResolver.resolveTenantId(exchange)
         val from = Instant.now().minus(days.toLong().coerceIn(1, 90), ChronoUnit.DAYS)
-        val rows = queryTraceList(tenantId, from, status, limit.coerceIn(1, 200))
+        // R303: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            queryTraceList(tenantId, from, status, limit.coerceIn(1, 200))
+        }
         return ResponseEntity.ok(rows)
     }
 
-    /** 특정 트레이스의 스팬 타임라인 조회. */
+    /** 특정 트레이스의 스팬 타임라인 조회. R303 fix: suspend + IO 격리. */
     @Operation(summary = "트레이스 스팬 타임라인")
     @GetMapping("/{traceId}/spans")
-    fun spans(
+    suspend fun spans(
         @PathVariable traceId: String,
         exchange: ServerWebExchange
     ): ResponseEntity<Any> {
         if (!isAdmin(exchange)) return forbiddenResponse()
-        val rows = querySpans(traceId)
+        // R303: blocking JDBC를 IO dispatcher로 격리
+        val rows = withContext(Dispatchers.IO) {
+            querySpans(traceId)
+        }
         return ResponseEntity.ok(rows)
     }
 
