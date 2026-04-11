@@ -51,7 +51,12 @@ class CostCalculator(
         require(inputTokens >= 0) { "inputTokens는 음수일 수 없다: $inputTokens" }
         require(outputTokens >= 0) { "outputTokens는 음수일 수 없다: $outputTokens" }
 
-        val pricing = pricingTable[model]
+        // R319 fix: exact match 실패 시 prefix match 폴백.
+        // Google/OpenAI/Anthropic은 versioned model ID(예: "gemini-2.5-flash-001",
+        // "gemini-2.5-flash-preview-04-17")를 사용하는데 가격표에는 "gemini-2.5-flash"만
+        // 등록되어 있어 null 반환 → 비용 0.0 → StepBudgetTracker가 실제 비용을 놓쳤다.
+        // 최장 prefix 우선 매칭으로 "gemini-2.5-pro-001" 같은 케이스를 올바른 엔트리에 매핑.
+        val pricing = pricingTable[model] ?: findByPrefix(model)
         if (pricing == null) {
             logger.debug { "가격표에 없는 모델: $model — 비용을 0.0 USD로 반환" }
             return CostRecord(
@@ -72,6 +77,20 @@ class CostCalculator(
             outputTokens = outputTokens,
             estimatedCostUsd = totalCost
         )
+    }
+
+    /**
+     * R319: versioned model ID를 가격표의 base prefix로 매칭한다.
+     *
+     * 예: "gemini-2.5-flash-001" → "gemini-2.5-flash" 엔트리와 매칭.
+     * 최장 prefix 우선(가장 구체적 매칭)으로 "gemini-2.5-pro-001"이
+     * "gemini-2.5-flash"에 오매칭되지 않도록 한다.
+     */
+    private fun findByPrefix(model: String): ModelPricing? {
+        return pricingTable.entries
+            .filter { model.startsWith(it.key) }
+            .maxByOrNull { it.key.length }
+            ?.value
     }
 
     companion object {

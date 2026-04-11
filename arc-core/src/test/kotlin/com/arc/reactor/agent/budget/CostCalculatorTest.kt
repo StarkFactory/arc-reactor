@@ -121,4 +121,59 @@ class CostCalculatorTest {
             )
         }
     }
+
+    // --- R319: versioned model ID prefix match ---
+
+    @Test
+    fun `R319 versioned model ID는 base prefix로 매칭되어 비용을 계산해야 한다`() {
+        // "gemini-2.5-flash" base 엔트리: input=0.15, output=0.60 per million
+        val result = calculator.calculateCost(
+            model = "gemini-2.5-flash-001",
+            inputTokens = 1_000_000,
+            outputTokens = 500_000
+        )
+        // 기대값: 0.15 + 0.30 = 0.45
+        assertEquals(0.45, result.estimatedCostUsd, 0.0001) {
+            "versioned 모델 ID 'gemini-2.5-flash-001'은 base prefix 'gemini-2.5-flash'로 매칭되어야 한다 " +
+                "(실제: ${result.estimatedCostUsd})"
+        }
+    }
+
+    @Test
+    fun `R319 preview versioned model ID도 prefix 매칭되어야 한다`() {
+        val result = calculator.calculateCost(
+            model = "gemini-2.5-flash-preview-04-17",
+            inputTokens = 500_000,
+            outputTokens = 0
+        )
+        assertEquals(0.075, result.estimatedCostUsd, 0.0001) {
+            "preview versioned ID도 base prefix로 매칭되어 비용이 계산되어야 한다"
+        }
+    }
+
+    @Test
+    fun `R319 최장 prefix 우선 매칭으로 gemini pro가 flash에 오매칭되지 않아야 한다`() {
+        // "gemini-2.5-pro" base: input=1.25, output=10.00
+        val result = calculator.calculateCost(
+            model = "gemini-2.5-pro-001",
+            inputTokens = 1_000_000,
+            outputTokens = 0
+        )
+        // pro 가격(1.25) 기대 — flash(0.15)가 아니어야 한다
+        assertEquals(1.25, result.estimatedCostUsd, 0.0001) {
+            "'gemini-2.5-pro-001'은 'gemini-2.5-flash'가 아닌 'gemini-2.5-pro'로 매칭되어야 한다"
+        }
+    }
+
+    @Test
+    fun `R319 prefix가 전혀 매칭되지 않으면 0 USD를 반환해야 한다`() {
+        val result = calculator.calculateCost(
+            model = "unknown-model-xyz",
+            inputTokens = 1_000_000,
+            outputTokens = 1_000_000
+        )
+        assertEquals(0.0, result.estimatedCostUsd, 0.0001) {
+            "완전 미등록 모델은 0 USD로 반환되어야 한다 (기존 동작 유지)"
+        }
+    }
 }

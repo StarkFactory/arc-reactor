@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import mu.KotlinLogging
 import java.time.YearMonth
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.DoubleAdder
 
 private val logger = KotlinLogging.logger {}
@@ -31,7 +32,17 @@ class MonthlyBudgetTracker(
     private val monthlyCosts: Cache<String, DoubleAdder> = Caffeine.newBuilder()
         .maximumSize(maxTenants)
         .build()
-    private var currentMonth: YearMonth = YearMonth.now()
+
+    /**
+     * 현재 추적 중인 월.
+     *
+     * R319 fix: `private var currentMonth` → `AtomicReference`. 기존 구현은 plain var로
+     * month rollover 시 check-then-act race가 발생했다 — 두 스레드가 동시에
+     * `now != currentMonth`를 통과하여 `invalidateAll()`이 중복 실행, 그 사이 누적된
+     * 첫 요청들의 비용 기록이 두 번째 invalidate에 의해 사라지는 data loss window가
+     * 존재했다. `compareAndSet`으로 월 전환을 정확히 한 번만 실행한다.
+     */
+    private val currentMonth: AtomicReference<YearMonth> = AtomicReference(YearMonth.now())
 
     /** 월간 비용 상태. */
     enum class MonthlyBudgetStatus { OK, WARNING, EXCEEDED }
@@ -73,13 +84,23 @@ class MonthlyBudgetTracker(
         return monthlyCosts.getIfPresent(tenantId)?.sum() ?: 0.0
     }
 
-    /** 월이 바뀌면 카운터를 리셋한다. */
+    /**
+     * 월이 바뀌면 카운터를 리셋한다.
+     *
+     * R319 fix: AtomicReference.compareAndSet으로 정확히 한 번만 리셋한다.
+     * 두 스레드가 동시에 새 월을 감지해도 CAS가 실패한 쪽은 이미 리셋이 완료됐다고
+     * 간주하고 무시한다. 이전 구현은 plain var 비교 후 sequential 할당이라
+     * double invalidateAll()로 in-flight 카운트를 잃을 수 있었다.
+     */
     private fun resetIfNewMonth() {
         val now = YearMonth.now()
-        if (now != currentMonth) {
-            logger.info { "월간 예산 리셋: $currentMonth → $now" }
-            monthlyCosts.invalidateAll()
-            currentMonth = now
+        val current = currentMonth.get()
+        if (now != current) {
+            if (currentMonth.compareAndSet(current, now)) {
+                logger.info { "월간 예산 리셋: $current → $now" }
+                monthlyCosts.invalidateAll()
+            }
+            // CAS 실패 = 다른 스레드가 이미 리셋 완료 → 추가 작업 없음
         }
     }
 

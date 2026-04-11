@@ -51,6 +51,8 @@ class RedisSemanticResponseCacheExtendedTest {
         every { redis.opsForValue() } returns valueOps
         every { redis.opsForZSet() } returns zsetOps
         every { redis.delete(any<String>()) } returns true
+        // R319 fix: getSemantic hit 시 index TTL 재생신 (silent degradation 방지)
+        every { redis.expire(any(), any<Duration>()) } returns true
         return Triple(redis, valueOps, zsetOps)
     }
 

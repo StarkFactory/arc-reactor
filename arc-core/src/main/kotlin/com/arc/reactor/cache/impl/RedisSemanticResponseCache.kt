@@ -4,6 +4,7 @@ import com.arc.reactor.agent.model.AgentCommand
 import com.arc.reactor.cache.CacheKeyBuilder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.SemanticResponseCache
+import com.arc.reactor.support.throwIfCancellation
 import com.arc.reactor.tool.SemanticToolSelector
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers
@@ -113,6 +114,11 @@ class RedisSemanticResponseCache(
             }
 
             val bestEntry = best?.first ?: return@withContext null
+            // R319 fix: read hit 발생 시 scope 인덱스 TTL을 갱신한다. 기존 구현은 putSemantic에서만
+            // expire를 호출하여 read-heavy scope가 "writes drought" 상태에 들어가면 ttlMinutes 후
+            // 인덱스가 만료되고 이후 semantic lookup이 계속 null을 반환하는 silent degradation이
+            // 발생했다. hit에서 TTL을 재생신하여 활성 scope는 재기록 없이 유지되도록 한다.
+            redisTemplate.expire(indexKey, ttl())
             logger.debug {
                 "시맨틱 캐시 히트: scope=${scope.take(12)} key=${bestEntry.key.take(12)} " +
                     "threshold=$similarityThreshold"
@@ -187,6 +193,11 @@ class RedisSemanticResponseCache(
             }
             logger.info { "Redis 시맨틱 캐시 무효화 완료: ${totalDeleted}건 삭제 (prefix=$keyPrefix)" }
         } catch (e: Exception) {
+            // R319 fix: 파일 내 다른 catch는 모두 CancellationException을 rethrow하는데
+            // invalidateAll만 swallow하고 있었다 — Kotlin에서 CancellationException은
+            // Exception의 하위이므로 위 catch에 걸려 로그만 남고 삼켜진다. coroutine cancel이
+            // 전파되지 않으면 caller의 structured concurrency가 깨진다.
+            e.throwIfCancellation()
             logger.warn(e) { "Redis 시맨틱 캐시 무효화 실패: prefix=$keyPrefix" }
         }
     }
