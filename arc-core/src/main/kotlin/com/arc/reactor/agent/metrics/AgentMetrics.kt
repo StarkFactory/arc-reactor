@@ -459,10 +459,11 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
     }
 
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
+        // R340: lastOccurredAt은 AtomicReference<Instant>이므로 .get()으로 스냅샷 조회
         return missingQueryCounts.asMap().values
             .sortedWith(
                 compareByDescending<MissingQueryAggregate> { it.count.get() }
-                    .thenByDescending { it.lastOccurredAt }
+                    .thenByDescending { it.lastOccurredAt.get() }
             )
             .take(limit)
             .map {
@@ -470,7 +471,7 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
                     queryCluster = it.queryCluster,
                     queryLabel = it.queryLabel,
                     count = it.count.get(),
-                    lastOccurredAt = it.lastOccurredAt,
+                    lastOccurredAt = it.lastOccurredAt.get(),
                     blockReason = it.blockReason
                 )
             }
@@ -483,6 +484,9 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
         }
     }
 
+    // R340: AgentMetrics는 MicrometerAgentMetrics와 동일 구조를 공유하므로 같은 race를
+    // 가지고 있었다. `lastOccurredAt`을 AtomicReference.updateAndGet(max)로 갱신해 병렬
+    // 스레드에서도 "가장 최근 시각"만 최종 값으로 남도록 보장.
     private fun trackMissingQuery(metadata: Map<String, Any>) {
         val blockReason = metadata["blockReason"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
         val queryCluster = metadata["queryCluster"]?.toString()?.trim()?.takeIf { it.isNotBlank() } ?: return
@@ -491,7 +495,10 @@ class NoOpAgentMetrics : AgentMetrics, RecentTrustEventReader {
             MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
-        aggregate.lastOccurredAt = Instant.now()
+        val now = Instant.now()
+        aggregate.lastOccurredAt.updateAndGet { prev ->
+            if (prev == null || now.isAfter(prev)) now else prev
+        }
     }
 
     private fun incrementBucket(

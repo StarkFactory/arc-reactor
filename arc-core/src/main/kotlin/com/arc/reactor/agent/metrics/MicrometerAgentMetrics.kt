@@ -455,10 +455,11 @@ class MicrometerAgentMetrics(
 
     /** 누락 쿼리 상위 [limit]건을 빈도 내림차순으로 반환한다. */
     override fun topMissingQueries(limit: Int): List<MissingQueryInsight> {
+        // R340: lastOccurredAt은 AtomicReference<Instant>이므로 .get()으로 스냅샷 조회
         return missingQueryCounts.asMap().values
             .sortedWith(
                 compareByDescending<MissingQueryAggregate> { it.count.get() }
-                    .thenByDescending { it.lastOccurredAt }
+                    .thenByDescending { it.lastOccurredAt.get() }
             )
             .take(limit)
             .map {
@@ -466,7 +467,7 @@ class MicrometerAgentMetrics(
                     queryCluster = it.queryCluster,
                     queryLabel = it.queryLabel,
                     count = it.count.get(),
-                    lastOccurredAt = it.lastOccurredAt,
+                    lastOccurredAt = it.lastOccurredAt.get(),
                     blockReason = it.blockReason
                 )
             }
@@ -482,7 +483,16 @@ class MicrometerAgentMetrics(
         }
     }
 
-    /** 차단된 쿼리의 클러스터별 집계를 갱신한다. */
+    /**
+     * 차단된 쿼리의 클러스터별 집계를 갱신한다.
+     *
+     * **R340 fix**: `lastOccurredAt`을 `AtomicReference.updateAndGet`으로 갱신해
+     * 병렬 스레드 race에서도 "가장 최근 시각"이 최종 값으로 유지되도록 보장한다.
+     * 이전 구현은 `count.incrementAndGet() → lastOccurredAt = Instant.now()` 순으로
+     * non-atomic 2-step write였고, 병렬 호출에서 순서가 뒤바뀌어 stale timestamp가
+     * 최종 값으로 남을 수 있었다. `updateAndGet`의 closure는 "현재 값보다 더 미래면
+     * 교체, 아니면 유지"로 atomic max를 수행한다.
+     */
     private fun trackMissingQuery(metadata: Map<String, Any>) {
         val blockReason = metadataValue(metadata, "blockReason") ?: return
         val queryCluster = metadataValue(metadata, "queryCluster") ?: return
@@ -491,7 +501,10 @@ class MicrometerAgentMetrics(
             MissingQueryAggregate(queryCluster = queryCluster, queryLabel = queryLabel, blockReason = blockReason)
         }
         aggregate.count.incrementAndGet()
-        aggregate.lastOccurredAt = Instant.now()
+        val now = Instant.now()
+        aggregate.lastOccurredAt.updateAndGet { prev ->
+            if (prev == null || now.isAfter(prev)) now else prev
+        }
     }
 
     /** 동시성 안전한 버킷 카운터를 1 증가시킨다. */

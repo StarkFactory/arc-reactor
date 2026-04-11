@@ -3,9 +3,16 @@ package com.arc.reactor.agent.metrics
 import com.arc.reactor.agent.model.AgentErrorCode
 import com.arc.reactor.agent.model.AgentResult
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.Instant
 
 /**
  * Micrometer 기반 AgentMetrics에 대한 테스트.
@@ -149,6 +156,66 @@ class MicrometerAgentMetricsTest {
             missing[0].queryLabel,
             "Top missing query should expose a redacted label"
         )
+    }
+
+    /**
+     * R340 regression: 병렬 스레드에서 `trackMissingQuery`가 호출될 때 count는 정확히
+     * 누적되고 `lastOccurredAt`이 stale timestamp로 고정되지 않아야 한다. 이전 구현은
+     * `count.incrementAndGet()`과 `lastOccurredAt = Instant.now()` 사이의 순서가 뒤바뀌어
+     * 예전 시각이 최종 값으로 남을 수 있었다. R340은 `AtomicReference.updateAndGet`으로
+     * "가장 최근 시각"만 유지한다.
+     *
+     * race 자체를 직접 트리거하기는 어렵지만, 병렬 호출 후 (1) count 정확도 + (2)
+     * lastOccurredAt이 "최근 10초 이내"에 수렴하는지 cross-verify한다.
+     */
+    @Test
+    fun `R340 병렬 trackMissingQuery에서 lastOccurredAt이 최신 값으로 수렴해야 한다`() {
+        val metrics = MicrometerAgentMetrics(SimpleMeterRegistry())
+        val callsPerThread = 500
+        val threads = 4
+        val startAt = Instant.now()
+
+        runBlocking {
+            withContext(Dispatchers.Default) {
+                coroutineScope {
+                    (1..threads).map {
+                        async {
+                            repeat(callsPerThread) {
+                                metrics.recordResponseObservation(
+                                    mapOf(
+                                        "grounded" to false,
+                                        "answerMode" to "unknown",
+                                        "deliveryMode" to "interactive",
+                                        "toolFamily" to "none",
+                                        "queryCluster" to "parallel-race-r340",
+                                        "queryLabel" to "Parallel race R340",
+                                        "blockReason" to "unverified_sources"
+                                    )
+                                )
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+        }
+
+        val endAt = Instant.now()
+        val missing = metrics.topMissingQueries(5)
+        assertEquals(1, missing.size) {
+            "R340: 병렬 호출이 모두 같은 cluster로 수렴해야 한다"
+        }
+        assertEquals((threads * callsPerThread).toLong(), missing[0].count) {
+            "R340: count는 원자적으로 ${threads * callsPerThread}까지 정확히 누적되어야 한다"
+        }
+        val lastOccurredAt = missing[0].lastOccurredAt
+        assertTrue(!lastOccurredAt.isBefore(startAt)) {
+            "R340: lastOccurredAt은 테스트 시작 시각 이후여야 한다 (stale 아님). " +
+                "start=$startAt, last=$lastOccurredAt"
+        }
+        assertTrue(!lastOccurredAt.isAfter(endAt)) {
+            "R340: lastOccurredAt은 테스트 종료 시각 이전이어야 한다 (미래 아님). " +
+                "end=$endAt, last=$lastOccurredAt"
+        }
     }
 
     @Test

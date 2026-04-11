@@ -193,6 +193,13 @@
 - 요약: `safe_action_workflows` 3회 연속 후 tie-break 다음 우선순위인 `admin_productization`으로 axis 전환. metrics/diagnostics scanner가 발견한 P2 MED 3건 중 가장 작은 scope + 직접 가치인 `eval.safety.rejection` reason tag unbounded 카디널리티 처리. `MicrometerEvaluationMetricsCollector.recordSafetyRejection`이 Guard/Hook이 자유 문자열로 설정하는 `blockReason`을 그대로 Micrometer Counter tag로 등록해 Prometheus 시계열 카디널리티 폭발 위험(PII/동적 ID 포함 시 장기 운영 중 registry OOM, scrape 지연, Grafana 대시보드 가치 저하). `EvaluationMetricsHook.normalizeReasonTag` private helper로 `recordSafetyRejections` 호출 직전 64자 상한 + `A-Za-z0-9_.-` 외 문자 `_` 치환 + blank `"unknown"` 폴백 적용. Collector 인터페이스는 완전 불변(caller 측 normalize로 모든 구현체 동시 보호). 신규 회귀 2건(긴 자유 문자열 한글/특수문자 정규화 + blank unknown 폴백) + 기존 3개 safety rejection 테스트 공백→`_` 정규화 의도로 업데이트. 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R339.md`
 
+### Round 340 — 2026-04-13T03:00+09:00 — cycle 10 11차: MissingQueryAggregate lastOccurredAt AtomicReference max update
+
+- axis: `admin_productization` (2회 연속)
+- 분류: `direct_value`
+- 요약: R339 scanner defer P2 MED #3 처리. `trackMissingQuery`가 `count.incrementAndGet()` 후 별도 라인에서 `lastOccurredAt = Instant.now()`를 실행하는 2-step non-atomic write → 병렬 스레드 간 write 순서 뒤바뀜으로 **stale timestamp**가 최종 값으로 남는 race. 운영자 Grafana "top missing query" 패널에 "count는 증가하는데 마지막 발생 시각은 정체"로 보이는 admin_productization 가시성 저하 버그. `MissingQueryAggregate.lastOccurredAt`을 `@Volatile var Instant` → `val AtomicReference<Instant>`로 변경하고 `updateAndGet { prev -> if (now.isAfter(prev)) now else prev }` CAS 루프로 atomic max 갱신. `MicrometerAgentMetrics` + `AgentMetrics` 두 공유 소비자 read/write 경로 업데이트, `topMissingQueries`의 정렬 키 및 `MissingQueryInsight` 생성 시 `.get()` 변환. public `MissingQueryInsight.lastOccurredAt: Instant` 타입 완전 불변. 신규 병렬 회귀 1건(runBlocking + Dispatchers.Default + 4 스레드 × 500회 = 2000회 호출 후 count 정확도 + lastOccurredAt이 [startAt, endAt] 범위 내 검증). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R340.md`
+
 ---
 
 ## 11. 아카이브

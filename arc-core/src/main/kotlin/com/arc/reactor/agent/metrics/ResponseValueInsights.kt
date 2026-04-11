@@ -3,6 +3,7 @@ package com.arc.reactor.agent.metrics
 import java.time.Instant
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 응답 가치 요약 — 관측된 응답의 품질 및 분류 통계.
@@ -119,13 +120,24 @@ internal data class ResponseLaneAggregate(
 
 /**
  * 미답변 쿼리별 집계 — 차단된 쿼리 클러스터별 카운트와 마지막 발생 시각을 추적한다.
+ *
+ * **R340 fix**: `lastOccurredAt`을 `@Volatile var Instant`에서 `AtomicReference<Instant>`로
+ * 변경. 이전 구현은 `trackMissingQuery`가 `count.incrementAndGet()` 후 별도 라인에서
+ * `lastOccurredAt = Instant.now()`를 실행했는데, 병렬 스레드가 같은 cluster로 호출할 때
+ * 순서가 뒤바뀌어 **stale timestamp**가 최종 값으로 남을 수 있었다. 예: Thread A count=5,
+ * T1 획득 → Thread B count=6, T2 획득 → Thread B write lastOccurredAt=T2 → Thread A write
+ * lastOccurredAt=T1(더 오래된 값). operator가 `topMissingQueries`에서 "count=6인데 마지막
+ * 발생이 좀 오래 전"이라는 잘못된 stale view를 관찰한다.
+ *
+ * `AtomicReference.updateAndGet`으로 "현재 값보다 더 최근인 경우만 교체"하는 atomic max
+ * 연산을 적용하여 timestamp 단조 증가를 보장한다.
  */
 internal data class MissingQueryAggregate(
     val queryCluster: String,
     val queryLabel: String,
     val blockReason: String?,
     val count: AtomicLong = AtomicLong(),
-    @Volatile var lastOccurredAt: Instant = Instant.now()
+    val lastOccurredAt: AtomicReference<Instant> = AtomicReference(Instant.now())
 )
 
 /** 입력 문자열의 SHA-256 해시를 16진수 문자열로 반환한다. */
