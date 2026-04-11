@@ -863,6 +863,128 @@ class ToolCallOrchestratorCoverageGapTest {
             }
         }
     }
+
+    // ──────────────────────────────────────────────
+    // 8. R273: findMcpToolCallback TOCTOU fix (R270 P2 마지막)
+    // ──────────────────────────────────────────────
+
+    /**
+     * R273 regression: MCP 콜백 provider가 두 호출 사이 결과가 달라져도 (예: MCP 서버 재시작)
+     * `executeSingleToolCall`이 동일한 스냅샷으로 존재 확인 + 실제 실행을 수행해야 한다.
+     *
+     * R273 이전: `findMcpToolCallback`이 `checkToolExistsAndReserveSlot`(line 329)와
+     * `invokeToolAdapterRaw`(line 771)에서 각각 호출되어 두 호출 사이 결과가 달라지면
+     * "존재 확인 통과 → 미발견 에러" 모순 발생.
+     *
+     * R273 fix: `executeSingleToolCall`에서 한 번 resolve하고 chain을 통해 pass through.
+     */
+    @Nested
+    inner class R273McpToolCallbackTOCTOU {
+
+        /** 호출 횟수에 따라 결과가 달라지는 mcpToolCallbackProvider. */
+        private fun flakeyMcpProvider(
+            callsBeforeServerRestart: Int,
+            mcpCallback: ToolCallback
+        ): () -> List<ToolCallback> {
+            val callCount = AtomicInteger(0)
+            return {
+                val n = callCount.incrementAndGet()
+                if (n <= callsBeforeServerRestart) {
+                    listOf(mcpCallback)
+                } else {
+                    emptyList() // 서버 재시작 후 콜백 사라짐
+                }
+            }
+        }
+
+        @Test
+        fun `R273 fix - MCP provider가 두 번째 호출에서 빈 리스트 반환해도 도구 실행 성공`() = runTest {
+            // 시나리오: 첫 호출(존재 확인)에서 콜백 발견 → R273 fix가 결과를 캐시 →
+            // 두 번째 호출에서 provider가 빈 리스트를 반환해도 캐시된 콜백으로 실행
+            // R273 이전 동작: 첫 호출 통과 → 두 번째 호출 null → "도구 미발견" 에러
+            val mcpCallback = object : ToolCallback {
+                override val name: String = "mcp_dynamic_tool"
+                override val description: String = "dynamic tool"
+                override suspend fun call(arguments: Map<String, Any?>): Any = "mcp result ok"
+            }
+
+            // 첫 호출만 콜백 반환, 그 후엔 빈 리스트
+            val provider = flakeyMcpProvider(callsBeforeServerRestart = 1, mcpCallback = mcpCallback)
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = null,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = NoOpAgentMetrics(),
+                parseToolArguments = { emptyMap() },
+                mcpToolCallbackProvider = provider
+            )
+            val call = toolCall(id = "id-1", name = "mcp_dynamic_tool")
+
+            val responses = orchestrator.executeInParallel(
+                toolCalls = listOf(call),
+                tools = emptyList(), // tools 목록에는 없음 → MCP 폴백 경로
+                hookContext = baseHookContext,
+                toolsUsed = mutableListOf(),
+                totalToolCallsCounter = AtomicInteger(0),
+                maxToolCalls = 10,
+                allowedTools = null
+            )
+
+            responses.size shouldBe 1
+            val responseData = responses[0].responseData()
+            responseData shouldContain "mcp result ok" withClue
+                "R273 fix: TOCTOU 윈도우가 제거되어 단일 스냅샷으로 실행 완료. " +
+                    "actual=$responseData"
+            responseData shouldNotContain "not found" withClue
+                "R273 fix: 두 번째 호출 빈 리스트에도 미발견 에러 없음"
+        }
+
+        @Test
+        fun `R273 회귀 - provider가 항상 콜백 반환하면 정상 동작`() = runTest {
+            // R273 변경이 정상 케이스에 영향을 주지 않는지 검증
+            val mcpCallback = object : ToolCallback {
+                override val name: String = "stable_mcp_tool"
+                override val description: String = "stable tool"
+                override suspend fun call(arguments: Map<String, Any?>): Any = "stable ok"
+            }
+            val callCount = AtomicInteger(0)
+            val provider: () -> List<ToolCallback> = {
+                callCount.incrementAndGet()
+                listOf(mcpCallback)
+            }
+
+            val orchestrator = ToolCallOrchestrator(
+                toolCallTimeoutMs = 1000,
+                hookExecutor = null,
+                toolApprovalPolicy = null,
+                pendingApprovalStore = null,
+                agentMetrics = NoOpAgentMetrics(),
+                parseToolArguments = { emptyMap() },
+                mcpToolCallbackProvider = provider
+            )
+            val call = toolCall(id = "id-1", name = "stable_mcp_tool")
+
+            val responses = orchestrator.executeInParallel(
+                toolCalls = listOf(call),
+                tools = emptyList(),
+                hookContext = baseHookContext,
+                toolsUsed = mutableListOf(),
+                totalToolCallsCounter = AtomicInteger(0),
+                maxToolCalls = 10,
+                allowedTools = null
+            )
+
+            responses.size shouldBe 1
+            responses[0].responseData() shouldContain "stable ok" withClue
+                "정상 케이스에서 R273 fix가 회귀 없음"
+            // R273 fix 부수 효과: provider 호출 횟수 감소 (이전 2회 → 이후 1회)
+            // 단, 정확한 횟수는 실행 경로에 따라 다를 수 있어 strict assert는 생략
+            (callCount.get() >= 1) shouldBe true withClue
+                "provider는 최소 1회 호출됨"
+        }
+    }
 }
 
 /** Kotest shouldBe infix 확장: withClue 패턴을 위한 간단한 DSL */

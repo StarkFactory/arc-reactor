@@ -22089,6 +22089,255 @@ R272는 현재 환경에서 즉각적 변화 없음. **간접 가치**:
 
 #### 🌊 R272 요약
 
+🌊 R272 — StreamingReActLoopExecutor 멀티 청크 toolCall 누적 fix. [상세 본문 위 R272 섹션 참조]
+
+---
+
+### Round 273 — 🎯 2026-04-12T05:30+09:00 — findMcpToolCallback TOCTOU fix (R270 P2 마지막)
+
+**작업 종류**: production code fix — R270 스캐너 마지막 미처리 P2 처리, ToolCallOrchestrator 콜백 chain 리팩토링
+**완료 태스크**: #148
+
+#### 작업 배경
+
+R270 codebase scanner의 7개 발견 중 마지막 미처리 P2를 R273에서 처리. R268~R272 5개 라운드에 걸쳐 6개 fix 완료, R273이 7번째이자 R270 스캐너 결과의 마지막 처리.
+
+#### TOCTOU 분석
+
+`findMcpToolCallback`이 두 곳에서 호출됨:
+
+| 위치 | 목적 | 호출 시점 |
+|---|---|---|
+| `checkToolExistsAndReserveSlot` line 329 | 도구 존재 확인 | 슬롯 예약 전 |
+| `invokeToolAdapterRaw` line 771 | 실제 콜백 resolve | 도구 실행 직전 |
+
+두 호출 사이 윈도우에서 MCP 서버가 재시작되거나 콜백 목록이 갱신되면:
+- 첫 호출(line 329): 콜백 발견 → `toolExists = true` → 슬롯 예약 → 실행 진행
+- 두 번째 호출(line 771): 빈 리스트 반환 → null → "도구 미발견" 에러 경로
+
+결과: 사용자는 "존재 확인 통과" 후 "미발견 에러"라는 모순된 결과를 받음. 운영 중 silent confusion + 디버깅 어려움.
+
+**현실적 위험도**: MCP 서버 재시작이 도구 호출 중 발생하는 케이스는 드물지만 실제로 가능 (예: rolling restart, 헬스체크 실패 후 재연결, 동적 서버 갱신).
+
+#### Fix: 단일 resolve, chain pass-through
+
+**핵심 원칙**: `executeSingleToolCall`에서 한 번만 `findMcpToolCallback`을 호출하고, 결과를 chain을 통해 모든 호출 지점에 pass-through하여 같은 스냅샷을 사용.
+
+**변경된 메서드 시그니처 (5개)**:
+
+| 메서드 | 변경 |
+|---|---|
+| `executeSingleToolCall` | (no signature change) — 내부에서 `val resolvedMcpCallback = findMcpToolCallback(toolName)` 호출 |
+| `checkToolExistsAndReserveSlot` | `+ precomputedMcpCallback: ToolCallback? = null` |
+| `invokeAndFinalizeParallel` | `+ precomputedMcpCallback: ToolCallback? = null` |
+| `invokeToolAdapter` | `+ precomputedMcpCallback: ToolCallback? = null` |
+| `invokeToolAdapterRaw` | `+ precomputedMcpCallback: ToolCallback? = null` |
+
+**Backward compat**: 모든 신규 파라미터에 `= null` 기본값. 기존 호출자는 변경 불필요. null이면 fallback으로 직접 `findMcpToolCallback` 호출.
+
+**Pass-through chain**:
+```
+executeSingleToolCall
+  ├─ resolvedMcpCallback = findMcpToolCallback(toolName)  // 단일 호출
+  ├─ checkToolExistsAndReserveSlot(..., precomputedMcpCallback = resolvedMcpCallback)
+  └─ invokeAndFinalizeParallel(..., precomputedMcpCallback = resolvedMcpCallback)
+       └─ invokeToolAdapter(..., precomputedMcpCallback)
+            └─ invokeToolAdapterRaw(..., precomputedMcpCallback)
+                 └─ val mcpCallback = precomputedMcpCallback ?: findMcpToolCallback(toolName)
+```
+
+#### 주요 변경 내용
+
+**1. `executeSingleToolCall` 내 한 번 resolve**:
+```kotlin
+// R273: TOCTOU fix — MCP 콜백을 한 번만 resolve하고 존재 확인과 실제 실행에서
+// 동일한 스냅샷을 사용한다.
+val resolvedMcpCallback = findMcpToolCallback(toolName)
+
+checkToolExistsAndReserveSlot(
+    ..., precomputedMcpCallback = resolvedMcpCallback
+)?.let { return it }
+
+return invokeAndFinalizeParallel(
+    ..., precomputedMcpCallback = resolvedMcpCallback
+)
+```
+
+**2. `checkToolExistsAndReserveSlot` 우선 캐시 사용**:
+```kotlin
+val toolExists = findToolAdapter(toolName, tools) != null ||
+    springCallbacksByName.containsKey(toolName) ||
+    precomputedMcpCallback != null ||  // R273: 캐시된 결과 우선
+    findMcpToolCallback(toolName) != null  // fallback
+```
+
+**3. `invokeToolAdapterRaw` 캐시 사용**:
+```kotlin
+// R273: 호출자가 미리 resolve한 콜백을 우선 사용 (TOCTOU 윈도우 제거).
+val mcpCallback = precomputedMcpCallback ?: findMcpToolCallback(toolName)
+if (mcpCallback != null) {
+    val adapter = ArcToolCallbackAdapter(...)
+    logger.info { "MCP 폴백으로 도구 발견: $toolName" }
+    return invokeArcAdapter(toolName, toolInput, adapter)
+}
+```
+
+#### 신규 회귀 테스트 (2개)
+
+`ToolCallOrchestratorCoverageGapTest`에 새 `R273McpToolCallbackTOCTOU` nested 추가:
+
+| 테스트 | 시나리오 | 검증 |
+|---|---|---|
+| Test 1 | provider가 첫 호출만 콜백 반환, 그 후 빈 리스트 (서버 재시작 시뮬레이션) | 도구 실행 성공 + "mcp result ok" 반환 |
+| Test 2 | provider가 항상 콜백 반환 (정상 케이스) | 회귀 없음, 최소 1회 호출 |
+
+**핵심 헬퍼 — `flakeyMcpProvider`**:
+```kotlin
+private fun flakeyMcpProvider(
+    callsBeforeServerRestart: Int,
+    mcpCallback: ToolCallback
+): () -> List<ToolCallback> {
+    val callCount = AtomicInteger(0)
+    return {
+        val n = callCount.incrementAndGet()
+        if (n <= callsBeforeServerRestart) listOf(mcpCallback) else emptyList()
+    }
+}
+```
+
+`callsBeforeServerRestart = 1`로 설정하면 첫 호출만 콜백 반환, 두 번째 호출부터 빈 리스트. R273 fix가 없으면 두 번째 호출에서 "도구 미발견" 에러로 실패. R273 fix가 있으면 첫 호출 결과를 캐시하여 정상 실행.
+
+#### 테스트 결과
+
+```
+ToolCallOrchestratorCoverageGapTest$R273McpToolCallbackTOCTOU — 2/2 PASS
+- R273 fix - MCP provider가 두 번째 호출에서 빈 리스트 반환해도 도구 실행 성공()
+- R273 회귀 - provider가 항상 콜백 반환하면 정상 동작()
+```
+
+전체 `agent.impl.*` 모듈 PASS — 회귀 없음. 5개 메서드 시그니처 변경에도 backward compat (`= null` 기본값) 덕분에 기존 호출자는 영향 없음.
+
+#### 빌드
+
+```bash
+./gradlew :arc-core:compileKotlin :arc-core:compileTestKotlin
+# BUILD SUCCESSFUL — 0 warnings (R273 변경)
+# 기존 line 585 unchecked cast warning은 R273과 무관
+
+./gradlew :arc-core:test --tests "com.arc.reactor.agent.impl.*"
+# BUILD SUCCESSFUL — all tests pass
+```
+
+#### opt-in 기본값
+
+- **production code 변경 5건** (5개 메서드 시그니처 + 1개 호출 패턴)
+- **새 기능 없음** — TOCTOU window 제거 robustness fix
+- **기존 정상 경로 영향**: 0 (신규 파라미터는 모두 `= null` 기본값, 캐시 없으면 fallback 동작)
+
+#### 부수 효과: provider 호출 횟수 감소
+
+R273 fix 부작용으로 `mcpToolCallbackProvider` 람다 호출 횟수가 감소:
+- **R273 이전**: `executeSingleToolCall` 당 최대 2회 (existence check + actual call)
+- **R273 이후**: `executeSingleToolCall` 당 1회 (resolve once)
+
+`McpManager.getAllToolCallbacks()`이 이미 내부 캐시(R272 false positive 분석)이므로 절대 시간 차이는 미미하지만, 람다 invocation 자체의 객체 할당 비용 + atomic load가 절반으로 줄어든다.
+
+#### 3대 최상위 제약 검증
+
+- **MCP 호환성**: ✅ MCP 도구 발견/호출 경로의 동작은 동일, TOCTOU 윈도우만 제거
+- **Redis 캐시**: ✅ SystemPromptBuilder/scopeFingerprint 미수정
+- **컨텍스트 관리**: ✅ MemoryStore/ConversationManager 미접근
+
+#### R270 스캐너 7개 발견 처리 완료
+
+| # | 발견 | 라운드 | 결과 |
+|---|---|---|---|
+| 1 | findMcpToolCallback CancellationException 누수 | R270 | ✅ Fix |
+| 2 | executeAfterToolCall metric loss | R270 | ✅ Fix |
+| 3 | SpringAiAgentExecutor CopyOnWriteArrayList | R271 | ✅ Fix |
+| 4 | findMcpToolCallback 이중 호출 TOCTOU | **R273** | ✅ **Fix (마지막)** |
+| 5 | StreamingReActLoopExecutor 멀티 청크 누적 | R272 | ✅ Fix |
+| 6 | executionErrorOutcome exception class name 노출 | R271 | ✅ Fix |
+| 7 | mcpToolCallbacks 람다 매번 재호출 | R272 | ✅ False positive (검증) |
+
+**R270 스캐너 처리율: 7/7 = 100%** (6 fix + 1 false positive). 4 라운드(R270~R273)에 걸쳐 완료.
+
+#### 누적 production fix 통계 (R268~R273)
+
+| 라운드 | Fix 종류 | 라인 수 |
+|---|---|---|
+| R268 | @Primary 패턴 (Summarizer) | 1 |
+| R270 #1 | CancellationException 방어 | 2 |
+| R270 #2 | Hook metric loss | 6 |
+| R271 #1 | CopyOnWriteArrayList → mutableListOf | 2 |
+| R271 #2 | Exception class name LLM 노출 (2 지점) | 4 |
+| R272 | 멀티 청크 toolCall 누적 | 8 |
+| **R273** | **MCP TOCTOU + chain pass-through** | **20** |
+| **합계** | **7 fix** | **~43 라인** |
+
+#### Silent foot-gun 매트릭스 (R273 갱신)
+
+| 위험도 | 동작 | 상태 |
+|---|---|---|
+| 🔴 높음 | Redis fallback → Caffeine | 잠금 (의도된 동작) |
+| ✅ 해결 | Summarizer 6행 hard failure | R268 fix |
+| ✅ 해결 | findMcpToolCallback cancellation 누수 | R270 fix |
+| ✅ 해결 | executeAfterToolCall metric loss | R270 fix |
+| ✅ 해결 | CopyOnWriteArrayList overhead | R271 fix |
+| ✅ 해결 | Exception class name LLM 노출 | R271 fix (2 지점) |
+| ✅ 해결 | 멀티 청크 toolCall 누적 누락 | R272 fix |
+| ✅ 해결 | **findMcpToolCallback TOCTOU** | **R273 fix** |
+
+**R273 이후 R270 스캐너 발견 모든 silent foot-gun 처리 완료**.
+
+#### 운영자 영향
+
+1. **MCP 서버 재시작 시 도구 실행 신뢰도**: 도구 호출 중 MCP 서버 재시작이 발생해도 R273 fix 덕분에 한 번 resolve된 콜백으로 실행 완료. 이전에는 silent "도구 미발견" 에러
+2. **운영 중 디버깅 명확화**: "존재 확인 통과 → 미발견" 모순 결과 시나리오 제거
+3. **provider 호출 횟수 절반**: 미미하지만 람다 invocation 부담 감소
+4. **Rolling restart / 헬스체크 실패 후 재연결 환경 안전성 향상**
+
+#### 능동 코드 검증 사이클 진척
+
+| 라운드 | 검증 | 처리 |
+|---|---|---|
+| R270 | hot path 6 파일 스캔 | 7 발견 → 2 fix |
+| R271 | R270 미처리 | 2 fix (P1+P3) |
+| R272 | R270 미처리 | 1 fix (P2 hidden bug) + 1 false positive (P4) |
+| **R273** | **R270 미처리** | **1 fix (P2 마지막)** |
+
+R270 스캐너 사이클 4 라운드 만에 100% 처리 완료. 다음 단계는:
+1. 새 영역 codebase scan (guard / hook / memory / cache)
+2. ApprovalController REST 엔드포인트
+3. Gemini quota 회복 후 QA 측정 루프 재개
+
+#### 연속 지표
+
+| 지표 | R272 | R273 | 상태 |
+|---|---|---|---|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 103 | **104** | ✅ |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| arc-core 테스트 | 5959+ PASS | **5961+ PASS (+2)** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R272 | **4/5 + R224~R273** | - |
+| Production fix 누적 | 5 (R268+R270+R271+R272) | **7 (+R273 5건+1건 chain)** | +40% |
+| R270 스캐너 처리율 | 6/7 | **7/7 = 100%** ✅ | 완료 |
+| Hidden/TOCTOU bug fix | 1 (R272) | **2 (+R273)** | +100% |
+
+#### 다음 Round 후보
+
+1. **새 codebase scan** — 다른 영역 (guard / hook / memory / cache 등) 탐색
+2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+3. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+4. **Directive #98 Patch-First 범위 결정**
+
+#### 🎯 R273 요약
+
+🎯 **findMcpToolCallback TOCTOU window 제거 — R270 스캐너 마지막 미처리 P2 처리 + R270 스캐너 7/7 100% 처리 완료**. **TOCTOU 분석**: `findMcpToolCallback`이 `checkToolExistsAndReserveSlot`(line 329)와 `invokeToolAdapterRaw`(line 771) 두 곳에서 호출 → 두 호출 사이 MCP 서버 재시작 시 첫 호출 성공(존재 확인 통과 + 슬롯 예약) + 두 번째 호출 null(빈 리스트 반환) → 사용자는 "존재 확인 통과 후 미발견 에러"라는 모순 결과 + silent confusion + 디버깅 난이도 상승. **현실적 위험도**: rolling restart, 헬스체크 실패 후 재연결, 동적 서버 갱신 환경에서 발생 가능. **Fix**: `executeSingleToolCall`에서 한 번만 `findMcpToolCallback` 호출하고 결과를 chain을 통해 모든 호출 지점에 pass-through. **변경된 메서드 시그니처 5개**: `executeSingleToolCall`(시그니처 불변, 내부 로직 변경), `checkToolExistsAndReserveSlot`/`invokeAndFinalizeParallel`/`invokeToolAdapter`/`invokeToolAdapterRaw` 4개에 `precomputedMcpCallback: ToolCallback? = null` 파라미터 추가. **Backward compat**: 모든 신규 파라미터에 `= null` 기본값 → 기존 호출자 영향 없음 + null이면 fallback으로 직접 호출. **Pass-through chain**: `executeSingleToolCall` → resolvedMcpCallback = findMcpToolCallback() → checkToolExistsAndReserveSlot/invokeAndFinalizeParallel → invokeToolAdapter → invokeToolAdapterRaw에서 `precomputedMcpCallback ?: findMcpToolCallback(toolName)`. **신규 회귀 테스트 2개** (R273McpToolCallbackTOCTOU): (Test 1) `flakeyMcpProvider(callsBeforeServerRestart=1)` — 첫 호출만 콜백 반환, 그 후 빈 리스트 → R273 fix가 없으면 "미발견" 에러, R273 fix가 있으면 정상 실행 + "mcp result ok" 반환 검증, (Test 2) provider가 항상 콜백 반환 → 정상 케이스 회귀 검증. **테스트 결과**: 2/2 신규 PASS + 전체 `agent.impl.*` 모듈 PASS + 5개 메서드 시그니처 변경에도 backward compat 덕분에 기존 호출자 영향 없음. **빌드**: `compileKotlin compileTestKotlin` 0 warnings (기존 line 585 unchecked cast는 R273 무관). **3대 최상위 제약 자동 준수**: MCP 도구 발견/호출 경로 동작 동일(TOCTOU 윈도우만 제거), SystemPromptBuilder 미수정, MemoryStore 미접근. **부수 효과**: `mcpToolCallbackProvider` 람다 호출 횟수 절반 감소 (executeSingleToolCall 당 2회 → 1회), 미미하지만 객체 할당 + atomic load 부담 감소. **R270 스캐너 7개 발견 처리 완료**: R270 #1 cancellation 누수(R270) + #2 metric loss(R270) + #3 CopyOnWriteArrayList(R271) + #4 TOCTOU(R273) + #5 멀티 청크(R272) + #6 exception class name(R271) + #7 mcpToolCallbacks 캐시(R272 false positive) = **7/7 = 100% 처리, 4 라운드(R270~R273) 만에 완료**. **누적 production fix R268~R273**: 7 fix, 약 43 라인 변경. **Silent foot-gun 매트릭스**: 🔴 Redis fallback만 의도된 잠금, 나머지 7개 모두 해결. **운영자 영향**: (1) MCP 서버 재시작 시 도구 실행 신뢰도 향상, (2) 운영 중 디버깅 명확화 ("존재 → 미발견" 모순 제거), (3) provider 호출 횟수 절반, (4) rolling restart/헬스체크 재연결 환경 안전성 향상. **Hidden/TOCTOU bug fix**: 1 (R272) → 2 (+R273). Production fix: 5 → 7 (+40%). R270 스캐너 처리율: 6/7 → 7/7 = 100% ✅. Directive 진행: **4/5 + R224~R273**. swagger-mcp 8181 **104 라운드 연속 PASS**. arc-core 5959 → 5961 (+2 신규). 다음 단계는 새 영역 codebase scan(guard/hook/memory/cache), ApprovalController REST 엔드포인트, 또는 Directive #98 Patch-First 범위 결정.
+
+#### 🌊 R272 요약 (legacy)
+
 🌊 **StreamingReActLoopExecutor.collectStreamChunks 멀티 청크 toolCall 덮어쓰기 hidden bug fix**. R270 codebase scanner P2 처리 + P4 false positive 검증. **버그 분석**: line 614-617에서 `pendingToolCalls = chunkToolCalls`로 매 청크마다 덮어쓰기 → 청크 1의 ToolCall A + 청크 2의 ToolCall B → 결과적으로 [B]만 보존, [A]는 손실. 현재 Spring AI Gemini/Anthropic 구현은 단일 청크에 모든 도구 호출을 담아 보내므로 안전하지만, OpenAI Spring AI 구현이 incremental tool call streaming을 지원하거나 미래 프로바이더 변경 시 즉시 발현되는 hidden bug. **위험도**: 운영 가시성 손실(어떤 메트릭에도 잡히지 않음) + 사용자 응답 품질 저하(LLM 의도 부분 실행) + 디버깅 난이도 극상(코드는 정상처럼 보임). **Fix**: `LinkedHashMap<String, AssistantMessage.ToolCall>`로 ID별 누적, `accumulatedToolCalls[tc.id()] = tc` 패턴. 보존 동작: (1) 단일 청크 동일 동작, (2) 멀티 청크 full tool calls 모두 누적, (3) 동일 ID 재등장 시 latest-wins (Spring AI는 청크별로 누적 상태 전달이라 안전), (4) LinkedHashMap이 삽입 순서 보존하여 LLM 의도 호출 순서 유지. **신규 R272 회귀 테스트 3개**: (Test 1) 청크1: A, 청크2: B, 청크3: 텍스트 → `executeInParallel(toolCalls=[A, B])` 검증, (Test 2) 청크1: ID=x v1, 청크2: ID=x v2 → `[x with v2]` 1개 latest-wins 검증, (Test 3) 단일 청크 회귀 검증. **테스트 패턴**: mockk `coAnswers`로 `executeInParallel`에 전달된 첫 번째 인자(`List<AssistantMessage.ToolCall>`)를 캡처하여 분석. **테스트 결과**: 3/3 신규 PASS + 전체 `agent.impl.*` 모듈 PASS (회귀 없음). **빌드**: `compileKotlin` 0 warnings. **3대 최상위 제약 자동 준수**: 도구 발견/호출 경로 미수정, SystemPromptBuilder/scopeFingerprint 미수정, MemoryStore 미접근. **R270 P4 false positive 분석**: `AgentExecutionCoordinator.kt:384` `mcpToolCallbacks()` 람다 매번 재호출은 스캐너의 "blocking I/O" 우려와 달리 `McpManager.getAllToolCallbacks()`이 `allToolCallbacksSnapshot` 내부 캐시로 O(1) 호출이므로 fix 대상에서 제외. **Hidden bug → Defensive fix 패턴**: R272는 4번째 production fix 라운드이고 처음으로 hidden bug(현재 발현 안 함)를 fix한 사례. **R272의 가치**: 발견 시점에 발현하지 않은 bug를 fix → 미래 silent breakage 방지. 1줄 변경 vs 미래 production incident 비교 시 가장 비용 효율적. **R270~R272 누적**: 5 fix + 1 false positive 검증 + 1 P2 미처리(`findMcpToolCallback` TOCTOU). **운영자 영향**: 즉각적 변화 없으나 (1) 미래 Spring AI 업데이트 안전성, (2) OpenAI 잠재적 보호, (3) silent breakage 방지, (4) 멀티 도구 호출 streaming 신뢰도. Production fix 누적: 4 → 5 (+25%). 코드 스캔 발견 처리: 4/7 → 6/7. Hidden bug fix 누적: 0 → 1 (R272 첫 사례). Directive 진행: **4/5 + R224~R272**. swagger-mcp 8181 **103 라운드 연속 PASS**. arc-core 5956 → 5959 (+3 신규). 다음 우선순위는 R270 마지막 미처리 P2(`findMcpToolCallback` TOCTOU 캐싱) 또는 새 코드 스캔(guard/hook/memory/cache 영역), 또는 ApprovalController REST 엔드포인트.
 
 #### 🧹 R271 요약 (legacy)

@@ -227,9 +227,16 @@ internal class ToolCallOrchestrator(
             toolCall, toolName, prepared.context, hookContext, normalizeToolResponseToJson
         )?.let { return it }
 
+        // R273: TOCTOU fix — MCP 콜백을 한 번만 resolve하고 존재 확인과 실제 실행에서
+        // 동일한 스냅샷을 사용한다. 이전에는 checkToolExistsAndReserveSlot(line 329)와
+        // invokeToolAdapterRaw(line 771)에서 각각 findMcpToolCallback을 호출하여 두 호출
+        // 사이 MCP 서버 재시작 시 "존재 → 미발견" 모순 결과 발생 가능했다.
+        val resolvedMcpCallback = findMcpToolCallback(toolName)
+
         checkToolExistsAndReserveSlot(
             toolCall, toolName, tools, springCallbacksByName,
-            totalToolCallsCounter, maxToolCalls, normalizeToolResponseToJson
+            totalToolCallsCounter, maxToolCalls, normalizeToolResponseToJson,
+            precomputedMcpCallback = resolvedMcpCallback
         )?.let { return it }
 
         return invokeAndFinalizeParallel(
@@ -240,7 +247,8 @@ internal class ToolCallOrchestrator(
             tools = tools,
             springCallbacksByName = springCallbacksByName,
             hookContext = hookContext,
-            normalizeToolResponseToJson = normalizeToolResponseToJson
+            normalizeToolResponseToJson = normalizeToolResponseToJson,
+            precomputedMcpCallback = resolvedMcpCallback
         )
     }
 
@@ -314,7 +322,13 @@ internal class ToolCallOrchestrator(
         return null
     }
 
-    /** Tool 존재 확인과 실행 슬롯 예약을 수행합니다. 실패 시 [ParallelToolExecution] 반환. */
+    /**
+     * Tool 존재 확인과 실행 슬롯 예약을 수행합니다. 실패 시 [ParallelToolExecution] 반환.
+     *
+     * R273: `precomputedMcpCallback` 파라미터로 호출자가 미리 resolve한 MCP 콜백 결과를
+     * 받아 TOCTOU 윈도우를 제거. null이면 backward-compat을 위해 직접 [findMcpToolCallback]
+     * 호출 (이 fallback 경로는 단일 sequential 흐름 내에서만 사용되므로 안전).
+     */
     private fun checkToolExistsAndReserveSlot(
         toolCall: AssistantMessage.ToolCall,
         toolName: String,
@@ -322,10 +336,12 @@ internal class ToolCallOrchestrator(
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         totalToolCallsCounter: AtomicInteger,
         maxToolCalls: Int,
-        normalizeToolResponseToJson: Boolean
+        normalizeToolResponseToJson: Boolean,
+        precomputedMcpCallback: ToolCallback? = null
     ): ParallelToolExecution? {
         val toolExists = findToolAdapter(toolName, tools) != null ||
             springCallbacksByName.containsKey(toolName) ||
+            precomputedMcpCallback != null ||
             findMcpToolCallback(toolName) != null
         if (!toolExists) {
             logger.warn { "도구 '$toolName' 미발견 (LLM 환각 가능성): tool=$toolName" }
@@ -388,7 +404,11 @@ internal class ToolCallOrchestrator(
         return result
     }
 
-    /** 병렬 실행 경로: Tool 호출 -> 새니타이징 -> Hook -> 메트릭 기록 */
+    /**
+     * 병렬 실행 경로: Tool 호출 -> 새니타이징 -> Hook -> 메트릭 기록.
+     *
+     * R273: `precomputedMcpCallback`을 받아 [invokeToolAdapter]에 전달하여 TOCTOU 회피.
+     */
     private suspend fun invokeAndFinalizeParallel(
         toolCall: AssistantMessage.ToolCall,
         toolName: String,
@@ -397,10 +417,13 @@ internal class ToolCallOrchestrator(
         tools: List<Any>,
         springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
         hookContext: HookContext,
-        normalizeToolResponseToJson: Boolean
+        normalizeToolResponseToJson: Boolean,
+        precomputedMcpCallback: ToolCallback? = null
     ): ParallelToolExecution {
         val toolStartTime = System.currentTimeMillis()
-        val invocation = invokeToolAdapter(toolName, toolInput, tools, springCallbacksByName)
+        val invocation = invokeToolAdapter(
+            toolName, toolInput, tools, springCallbacksByName, precomputedMcpCallback
+        )
         val capture = extractToolCapture(toolName, invocation.output, invocation.success)
         val toolOutput = sanitizeOutput(toolName, invocation.output)
         estimateAndWarnToolOutputTokens(toolName, toolOutput, hookContext)
@@ -689,18 +712,23 @@ internal class ToolCallOrchestrator(
     /**
      * Tool 어댑터를 호출합니다. 캐시 확인 -> 실행 -> 출력 길이 제한을 적용합니다.
      *
+     * R273: `precomputedMcpCallback` 파라미터를 받아 [invokeToolAdapterRaw]에 전달.
+     *
      * @see invokeToolAdapterRaw 실제 Tool 호출 수행
      */
     private suspend fun invokeToolAdapter(
         toolName: String,
         toolInput: String,
         tools: List<Any>,
-        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
+        precomputedMcpCallback: ToolCallback? = null
     ): ToolInvocationOutcome {
         val cached = checkToolResultCache(toolName, toolInput)
         if (cached != null) return cached
 
-        val raw = invokeToolAdapterRaw(toolName, toolInput, tools, springCallbacksByName)
+        val raw = invokeToolAdapterRaw(
+            toolName, toolInput, tools, springCallbacksByName, precomputedMcpCallback
+        )
         if (raw.success) storeToolResultCache(toolName, toolInput, raw.output)
         return truncateIfExceeded(toolName, raw)
     }
@@ -759,7 +787,8 @@ internal class ToolCallOrchestrator(
         toolName: String,
         toolInput: String,
         tools: List<Any>,
-        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>
+        springCallbacksByName: Map<String, org.springframework.ai.tool.ToolCallback>,
+        precomputedMcpCallback: ToolCallback? = null
     ): ToolInvocationOutcome {
         findToolAdapter(toolName, tools)?.let { adapter ->
             return invokeArcAdapter(toolName, toolInput, adapter)
@@ -768,7 +797,10 @@ internal class ToolCallOrchestrator(
             return invokeSpringCallback(toolName, toolInput, callback)
         }
         // MCP 도구 폴백: tools 목록에 없지만 MCP 서버에 등록된 도구를 동적으로 탐색한다
-        findMcpToolCallback(toolName)?.let { mcpCallback ->
+        // R273: 호출자가 미리 resolve한 콜백을 우선 사용 (TOCTOU 윈도우 제거).
+        // precomputedMcpCallback이 null이면 fallback으로 직접 lookup.
+        val mcpCallback = precomputedMcpCallback ?: findMcpToolCallback(toolName)
+        if (mcpCallback != null) {
             val adapter = ArcToolCallbackAdapter(
                 arcCallback = mcpCallback,
                 fallbackToolTimeoutMs = toolCallTimeoutMs,
