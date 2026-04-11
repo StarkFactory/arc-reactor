@@ -22,6 +22,16 @@ private val logger = KotlinLogging.logger {}
 private const val INVALIDATE_CHUNK_SIZE = 500
 
 /**
+ * R322 fix: safeEmbed 입력 상한. 8K 토큰(영문 기준 ~32K chars)을 보수적으로 커버한다.
+ *
+ * **왜 필요한가**: 기존 구현은 `command.userPrompt`를 제한 없이 EmbeddingModel.embed로 전달했다.
+ * 악의적 또는 버그 호출자가 1MB+ 프롬프트를 반복 전송하면 (1) 블로킹 embed 호출이 IO 디스패처를
+ * 포화시키고 (2) 프로바이더 토큰 과금이 급증하며 (3) Redis 페이로드가 커져 메모리 압박을 가한다.
+ * 상한을 초과한 입력은 safeEmbed에서 null 반환 → 시맨틱 캐시 비활성화 + 정확 키만 사용.
+ */
+private const val MAX_EMBED_INPUT_CHARS = 32_000
+
+/**
  * Redis 기반 시맨틱 응답 캐시.
  *
  * 다음 두 단계의 캐시 조회를 수행한다:
@@ -203,6 +213,13 @@ class RedisSemanticResponseCache(
     }
 
     private fun safeEmbed(text: String): FloatArray? {
+        // R322 fix: 과도한 길이의 입력을 embed로 넘기지 않는다. DoS/비용 폭주 방지.
+        if (text.length > MAX_EMBED_INPUT_CHARS) {
+            logger.warn {
+                "시맨틱 캐시 임베딩 입력 상한 초과: length=${text.length}, limit=$MAX_EMBED_INPUT_CHARS"
+            }
+            return null
+        }
         return try {
             embeddingModel.embed(text)
         } catch (e: CancellationException) {

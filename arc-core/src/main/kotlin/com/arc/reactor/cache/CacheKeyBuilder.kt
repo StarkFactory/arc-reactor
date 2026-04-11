@@ -16,6 +16,20 @@ import com.arc.reactor.util.HashUtils
 object CacheKeyBuilder {
     private const val SESSION_ID_KEY = "sessionId"
     private const val TENANT_ID_KEY = "tenantId"
+
+    /**
+     * R322 fix: userId가 null 또는 빈/공백 문자열일 때 사용하는 sentinel 값.
+     *
+     * 이전 구현은 `command.userId.orEmpty()`로 null과 ""를 모두 빈 문자열로 처리하여
+     * 인증된 사용자가 userId=""(misconfiguration)로 설정된 경우 익명 사용자와 동일한
+     * 스코프 핑거프린트를 가져 cross-user cache 누출 가능했다. ACL 계층(R318)과 일관되게
+     * `"anonymous"` sentinel로 명시적 버킷 분리.
+     *
+     * **캐시 flush 영향**: `userId=""` 요청의 기존 캐시 엔트리만 재생성된다 (정상 null 또는
+     * 실제 userId 엔트리는 영향 없음). 보안 정정이므로 의도된 flush.
+     */
+    private const val ANONYMOUS_USER_SENTINEL = "anonymous"
+
     /** 요청자 신원을 식별하기 위한 메타데이터 키 목록 (우선순위순) */
     private val IDENTITY_METADATA_KEYS = listOf(
         "requesterAccountId",
@@ -51,7 +65,9 @@ object CacheKeyBuilder {
             add(command.mode.name)
             add(command.responseFormat.name)
             add(command.responseSchema.orEmpty())
-            add(command.userId.orEmpty())
+            // R322 fix: null 또는 빈/공백 userId를 "anonymous" sentinel로 정규화하여
+            // cross-user cache 누출(userId="" 인증 누락 케이스)을 차단한다.
+            add(command.userId?.takeIf { it.isNotBlank() } ?: ANONYMOUS_USER_SENTINEL)
             add(command.metadata[SESSION_ID_KEY]?.toString().orEmpty())
             add(command.metadata[TENANT_ID_KEY]?.toString().orEmpty())
             add(resolveIdentityScope(command))

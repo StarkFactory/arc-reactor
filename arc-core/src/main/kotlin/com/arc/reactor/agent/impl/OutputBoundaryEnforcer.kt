@@ -57,6 +57,8 @@ internal class OutputBoundaryEnforcer(
         val len = content.length
 
         // ── 단계 1: 최대 길이 초과 시 truncate ──
+        // outputMaxChars는 body(suffix 제외) 상한의 의미로 사용한다: `content.take(outputMaxChars) + SUFFIX`.
+        // 전체 출력 길이는 body + suffix이므로 외부 관찰자가 보면 suffix만큼 길지만, 테스트/문서 합의된 의미다.
         val afterMax = if (boundaries.outputMaxChars > 0 && len > boundaries.outputMaxChars) {
             val policy = "truncate"
             agentMetrics.recordBoundaryViolation(
@@ -72,7 +74,16 @@ internal class OutputBoundaryEnforcer(
 
         // ── 단계 2: 최소 길이 미달 시 위반 모드에 따른 정책 적용 ──
         val effectiveContent = afterMax.content ?: return afterMax
-        if (boundaries.outputMinChars <= 0 || effectiveContent.length >= boundaries.outputMinChars) {
+        // R322 fix: truncate가 발생한 경우 suffix 제외 body 길이(outputMaxChars)로 min-check를 수행한다.
+        // 이전 구현은 "outputMaxChars=5, outputMinChars=10" 같은 설정에서 "abc..[Response truncated]"
+        // 가 27자 >= 10으로 spurious pass하여 min 경계가 vacuously 만족되는 버그가 있었다.
+        // 이제 body 길이(5)로 비교하므로 정상적으로 min 위반(5 < 10)이 감지된다.
+        val effectiveLength = if (boundaries.outputMaxChars > 0 && afterMax !== result) {
+            boundaries.outputMaxChars
+        } else {
+            effectiveContent.length
+        }
+        if (boundaries.outputMinChars <= 0 || effectiveLength >= boundaries.outputMinChars) {
             return afterMax
         }
 
