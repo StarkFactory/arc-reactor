@@ -139,15 +139,20 @@ internal class ToolCallOrchestrator(
             return ToolCallResult(success = false, output = rejection, errorMessage = rejection, durationMs = 0)
         }
 
+        // R336: HITL 승인 시 사람이 수정한 arguments가 있으면 context와 효과 파라미터를 교체.
+        // side-channel metadata 키에서 읽어와 미수정 시 원본 유지, 수정 시 copy로 전달한다.
+        val finalizedContext = applyApprovedModifications(toolCallContext, hookContext)
+        val finalizedParams = finalizedContext.toolParams
+
         // Hook/승인 통과 후 1회만 해석하여 전달 (invokeAndFinalizeDirect 내부 중복 호출 제거)
         val springCallbacksByName = resolveSpringToolCallbacksByName(tools)
         return invokeAndFinalizeDirect(
             toolName = toolName,
-            effectiveToolParams = effectiveToolParams,
+            effectiveToolParams = finalizedParams,
             tools = tools,
             springCallbacksByName = springCallbacksByName,
             hookContext = hookContext,
-            toolCallContext = toolCallContext,
+            toolCallContext = finalizedContext,
             toolsUsed = toolsUsed
         )
     }
@@ -227,6 +232,15 @@ internal class ToolCallOrchestrator(
             toolCall, toolName, prepared.context, hookContext, normalizeToolResponseToJson
         )?.let { return it }
 
+        // R336: HITL 승인 시 사람이 수정한 arguments를 실행 경로에 반영한다.
+        // 단일 경로와 동일 패턴이되 병렬 경로는 serialize된 `toolInput`도 재생성해야 한다.
+        val finalizedContext = applyApprovedModifications(prepared.context, hookContext)
+        val finalizedToolInput = if (finalizedContext !== prepared.context) {
+            serializeToolInput(finalizedContext.toolParams, toolCall.arguments())
+        } else {
+            prepared.toolInput
+        }
+
         // R273: TOCTOU fix — MCP 콜백을 한 번만 resolve하고 존재 확인과 실제 실행에서
         // 동일한 스냅샷을 사용한다. 이전에는 checkToolExistsAndReserveSlot(line 329)와
         // invokeToolAdapterRaw(line 771)에서 각각 findMcpToolCallback을 호출하여 두 호출
@@ -242,8 +256,8 @@ internal class ToolCallOrchestrator(
         return invokeAndFinalizeParallel(
             toolCall = toolCall,
             toolName = toolName,
-            toolInput = prepared.toolInput,
-            toolCallContext = prepared.context,
+            toolInput = finalizedToolInput,
+            toolCallContext = finalizedContext,
             tools = tools,
             springCallbacksByName = springCallbacksByName,
             hookContext = hookContext,
@@ -689,7 +703,23 @@ internal class ToolCallOrchestrator(
         }
     }
 
-    /** 승인 응답 결과를 HookContext 메타데이터에 기록하고, 거부 시 메시지를 반환합니다. */
+    /**
+     * 승인 응답 결과를 HookContext 메타데이터에 기록하고, 거부 시 메시지를 반환합니다.
+     *
+     * **R336 fix**: `ToolApprovalResponse.modifiedArguments`(사람이 승인 단계에서 수정한
+     * 파라미터)를 side-channel metadata 키 `hitlModifiedArgs_{suffix}`에 저장한다. 이전에는
+     * `modifiedArguments`가 `ApprovalModels.kt`에 정의되고 `Inmemory/Jdbc` 스토어에서 정상
+     * 반환되었으나 `ToolCallOrchestrator` 전체에 참조가 0건이라 **실행 경로에서 완전히 무시**
+     * 되고 있었다. 즉 HITL의 핵심 UX인 "사람이 금액/대상 범위 등 파라미터를 조정하여 승인"이
+     * 모델/API 계층까지만 동작하고 실제 tool 실행에는 원본 LLM 인자가 그대로 사용되는 silent
+     * 버그였다.
+     *
+     * 호출자([executeDirectToolCall], [executeSingleToolCall])는 승인 통과 후
+     * [applyApprovedModifications] 헬퍼로 이 metadata 키를 읽어 `toolCallContext.toolParams`
+     * 와 serialized `toolInput`을 교체한다. 이 사이드채널 접근은 `checkToolApproval` /
+     * `requestAndProcessApproval` / `recordApprovalMetadata`의 기존 `String?` signature를
+     * 유지해 대규모 refactor를 피하면서 의도한 동작을 복원한다.
+     */
     private fun recordApprovalMetadata(
         hookContext: HookContext,
         toolCallContext: ToolCallContext,
@@ -703,12 +733,46 @@ internal class ToolCallOrchestrator(
         hookContext.metadata["hitlApproved_$keySuffix"] = response.approved
         if (response.approved) {
             logger.info { "도구 '$toolName' 사람에 의해 승인됨 (대기 ${hitlWaitMs}ms)" }
+            // R336: 승인 시 사람이 수정한 arguments가 있으면 side-channel에 저장
+            response.modifiedArguments?.let { modified ->
+                if (modified.isNotEmpty()) {
+                    hookContext.metadata[HITL_MODIFIED_ARGS_KEY_PREFIX + keySuffix] = modified
+                    logger.info {
+                        "도구 '$toolName' HITL 승인 시 파라미터 수정 요청 기록 " +
+                            "(modifiedKeys=${modified.keys}) — 실행 경로에서 적용 예정"
+                    }
+                }
+            }
             return null
         }
         val reason = response.reason ?: "Rejected by human"
         logger.info { "도구 '$toolName' 사람에 의해 거부됨: $reason (대기 ${hitlWaitMs}ms)" }
         hookContext.metadata["hitlRejectionReason_$keySuffix"] = reason
         return "Tool call rejected by human: $reason"
+    }
+
+    /**
+     * R336: HITL 승인 시 사람이 수정한 arguments를 실행 경로에 반영한다.
+     *
+     * `recordApprovalMetadata`가 승인 응답에서 `modifiedArguments`를 감지하면
+     * `hitlModifiedArgs_{suffix}` 키에 side-channel로 저장한다. 이 헬퍼는 그 키를 읽어
+     * non-null이면 `toolCallContext.toolParams`를 copy로 교체한 새 context를 반환한다.
+     * null이면 원본 context를 그대로 반환한다.
+     *
+     * 승인 수정 사실을 기록 로그로 남겨 audit trail을 확보한다.
+     */
+    private fun applyApprovedModifications(
+        toolCallContext: ToolCallContext,
+        hookContext: HookContext
+    ): ToolCallContext {
+        val key = HITL_MODIFIED_ARGS_KEY_PREFIX + hitlMetadataSuffix(toolCallContext)
+        @Suppress("UNCHECKED_CAST")
+        val modified = hookContext.metadata[key] as? Map<String, Any?> ?: return toolCallContext
+        logger.info {
+            "R336: HITL 승인 시 수정된 파라미터를 실행 경로에 적용 — " +
+                "tool=${toolCallContext.toolName}, modifiedKeys=${modified.keys}"
+        }
+        return toolCallContext.copy(toolParams = modified)
     }
 
     /** 차단된 Tool 호출 결과를 AfterToolCallHook으로 알리고 메트릭에 기록합니다. */
@@ -1157,6 +1221,12 @@ internal class ToolCallOrchestrator(
 
     companion object {
         const val TOOL_SIGNALS_METADATA_KEY = "toolSignals"
+
+        /**
+         * R336: HITL 승인 시 사람이 수정한 arguments를 실행 경로에 전달하기 위한 side-channel
+         * metadata key prefix. `${prefix}${toolName}_${callIndex}` 형식으로 호출별로 구분.
+         */
+        const val HITL_MODIFIED_ARGS_KEY_PREFIX = "hitlModifiedArgs_"
         const val DEFAULT_MAX_TOOL_OUTPUT_LENGTH = 50_000
         const val DEFAULT_MAX_CONTEXT_WINDOW_TOKENS = 128_000
         const val TOOL_OUTPUT_TOKEN_WARNING_RATIO = 0.3

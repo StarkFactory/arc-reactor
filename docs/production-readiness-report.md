@@ -165,6 +165,13 @@
 - 요약: `ToolResponseSummarizerHook.incrementCounter`의 read-modify-write 3-step이 non-atomic 이어서 `ToolCallOrchestrator.executeInParallel`에서 병렬 tool 실행 시 카운터가 언더카운트되는 버그 수정. 기존 주석은 "원자적"이라 거짓 기재. `HookContext.metadata` 기본 backing이 `ConcurrentHashMap`이라 `compute` 함수로 atomic read-modify-write 수행. `MutableMap` 인터페이스 유지를 위해 runtime 타입 체크 + synchronized fallback 제공 → 테스트 double도 호환. 신규 회귀 1건(`runBlocking + Dispatchers.Default + async/awaitAll`로 200회 병렬 afterToolCall → 카운터 == 200 검증, `runTest`는 단일 쓰레드라 race 재현 불가하므로 명시적 Dispatchers.Default 강제). R333 scanner batch(P1 HIGH + P2 MED × 2) 완결. 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R335.md`
 
+### Round 336 — 2026-04-13T01:00+09:00 — axis 전환 / cycle 10 7차: HITL approval modifiedArguments silent 무시 버그 수정
+
+- axis: `safe_action_workflows`
+- 분류: `direct_value`
+- 요약: `cross_source_synthesis` 3회 연속 후 tie-break 다음 우선순위인 `safe_action_workflows`로 axis 전환. approval 경로 scanner가 P1 HIGH 1건 발견 — `ToolApprovalResponse.modifiedArguments`가 `ApprovalModels`/`Inmemory|Jdbc PendingApprovalStore`에는 완벽히 구현되어 있으나 `ToolCallOrchestrator`에 참조 0건이라 **사람이 승인 단계에서 파라미터를 수정해도 원본 LLM 인자로 실행**되던 silent 버그. HITL 핵심 UX("사람이 금액/대상 범위 조정하여 승인")가 모델/API 레이어까지만 동작하고 실행 레이어에서 완전히 무효화된 상태였다. `recordApprovalMetadata`에 side-channel 저장(`hitlModifiedArgs_{suffix}` — 기존 `hitlWaitMs_`/`hitlApproved_` 패턴 재사용) + `applyApprovedModifications` 헬퍼로 단일/병렬 두 실행 경로 모두에서 `toolCallContext.copy(toolParams=...)` 교체. 병렬 경로는 `serializeToolInput`으로 toolInput 재직렬화. 기존 `checkToolApproval` 체인의 `String?` signature 완전 불변 유지(minimum-invasive). 신규 end-to-end 회귀 1건(TrackingTool.capturedArgs로 amount 1000→500 수정 반영 검증 + orderId 비수정 필드 원본 유지 검증). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R336.md`
+
 ---
 
 ## 11. 아카이브

@@ -90,6 +90,78 @@ class HumanInTheLoopTest {
             agentResult.assertSuccess()
         }
 
+        /**
+         * R336 regression: 사람이 승인 단계에서 파라미터를 수정(modifiedArguments)하여 승인하면,
+         * 도구가 **수정된 파라미터**로 실행되어야 한다. 이전 구현은 `ToolCallOrchestrator`가
+         * `ToolApprovalResponse.modifiedArguments`를 전혀 참조하지 않아 원본 LLM 인자로 실행하는
+         * silent 버그가 있었다. HITL 핵심 UX("사람이 금액/대상 범위 조정하여 승인")가 모델 레이어
+         * 까지만 동작하고 실행 레이어에서 무효화되던 상태를 복구한다.
+         */
+        @Test
+        fun `R336 사람이 승인 시 파라미터를 수정하면 수정된 인자로 실행해야 한다`() = runBlocking {
+            val approvalStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 5_000)
+            val policy = ToolNameApprovalPolicy(setOf("update_order"))
+
+            val toolCall = AssistantMessage.ToolCall(
+                "tc-1", "call", "update_order", """{"orderId":"123","amount":1000}"""
+            )
+            val toolCallSpec = fixture.mockToolCallResponse(listOf(toolCall))
+            val finalSpec = fixture.mockFinalResponse("Order updated with approved amount")
+            every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(
+                toolCallSpec.chatResponse(), finalSpec.chatResponse()
+            )
+
+            // TrackingTool로 실제 tool 호출 시 받은 arguments를 capture
+            val tool = TrackingTool(name = "update_order", result = "Order updated")
+
+            val executor = SpringAiAgentExecutor(
+                chatClient = fixture.chatClient,
+                properties = properties,
+                toolCallbacks = listOf(tool),
+                toolApprovalPolicy = policy,
+                pendingApprovalStore = approvalStore
+            )
+
+            val result = async {
+                executor.execute(
+                    AgentCommand(
+                        systemPrompt = "You are an order admin.",
+                        userPrompt = "Update order 123 to 1000"
+                    )
+                )
+            }
+
+            // 승인 요청이 올 때까지 대기
+            val approval = awaitPending(approvalStore)
+            assertEquals("update_order", approval.toolName) {
+                "Tool name should be update_order"
+            }
+
+            // 사람이 금액을 1000 → 500으로 조정하여 승인
+            val modifiedArgs = mapOf<String, Any?>(
+                "orderId" to "123",
+                "amount" to 500
+            )
+            val approved = approvalStore.approve(approval.id, modifiedArguments = modifiedArgs)
+            assertTrue(approved) { "Approval should succeed" }
+
+            val agentResult = result.await()
+            agentResult.assertSuccess()
+
+            // 도구는 **수정된 인자**로 호출되어야 한다 (원본 1000이 아니라 500)
+            assertEquals(1, tool.callCount) {
+                "Tool should be called exactly once"
+            }
+            val receivedArgs = tool.capturedArgs.first()
+            assertEquals(500, receivedArgs["amount"]) {
+                "R336: 사람이 수정한 amount(500)가 도구에 전달되어야 한다. " +
+                    "실제 전달된 값: ${receivedArgs["amount"]} (원본 LLM 값 1000이 그대로 가면 silent 버그 재현)"
+            }
+            assertEquals("123", receivedArgs["orderId"]) {
+                "orderId는 수정하지 않았으므로 원본 그대로 유지되어야 한다"
+            }
+        }
+
         @Test
         fun `사람이 거부하면 도구 실행을 거부해야 한다`() = runBlocking {
             val approvalStore = InMemoryPendingApprovalStore(defaultTimeoutMs = 5_000)
