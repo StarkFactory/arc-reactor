@@ -192,7 +192,10 @@ class DefaultMcpManager(
         maxToolOutputLengthProvider = { currentSecurityConfig().maxToolOutputLength },
         allowPrivateAddresses = allowPrivateAddresses,
         allowedStdioCommandsProvider = { currentSecurityConfig().allowedStdioCommands },
-        onConnectionError = { serverName -> handleConnectionError(serverName) },
+        // R330: identity 비교를 위해 failingClient ref를 함께 받는다
+        onConnectionError = { serverName, failingClient ->
+            handleConnectionError(serverName, failingClient)
+        },
         meterRegistry = meterRegistry
     )
     /** 백그라운드 재연결 코디네이터 */
@@ -377,19 +380,38 @@ class DefaultMcpManager(
      *
      * WHY: 도구 호출 실패를 즉시 감지하여 자동 복구를 시작한다.
      * 이를 통해 일시적 네트워크 장애에서 자동으로 회복할 수 있다.
+     *
+     * R330 fix: [failingClient] ref를 받아 identity 비교로 **stale error**를 걸러낸다.
+     *
+     * **이전 race**:
+     * 1. `connect()`가 mutex를 쥔 채 신규 클라이언트 C₂를 `clients.put()`하고 CONNECTED로 전환
+     * 2. 직전 reconnect 전의 예전 클라이언트 C₁을 사용하던 도구 호출이 늦게 실패하며 콜백 도착
+     * 3. 시그니처가 `(serverName)`뿐이라 `handleConnectionError`는 status=CONNECTED만 보고
+     *    **신규 C₂**를 `invalidate`하고 FAILED로 되돌림 → 복구 직후 재실패 루프 + C₂ 핸들 leak
+     *
+     * **수정 후**: 현재 레지스트리에 저장된 클라이언트가 `failingClient`와 **identity-동일**한
+     * 경우에만 invalidate한다. C₂로 교체된 이후라면 stale event로 판단하고 조용히 무시한다.
+     *
+     * 기존처럼 non-suspend이며 `toolCallbacksCache`는 건드리지 않는다 — 재연결 완료 전까지
+     * stale 콜백이 "Error: ..." 문자열을 반환하도록 유지해 intermittent 불가용을 피한다.
      */
-    internal fun handleConnectionError(serverName: String) {
+    internal fun handleConnectionError(
+        serverName: String,
+        failingClient: io.modelcontextprotocol.client.McpSyncClient
+    ) {
         if (statuses.getIfPresent(serverName) != McpServerStatus.CONNECTED) return
-        logger.warn { "MCP 도구 호출 중 연결 오류 감지: '$serverName' — FAILED로 표시하고 재연결 스케줄링" }
-        // R280: getIfPresent + invalidate로 Caffeine API 사용
-        clients.getIfPresent(serverName)?.let { client ->
-            clients.invalidate(serverName)
-            connectionSupport.close(serverName, client)
+        val currentClient = clients.getIfPresent(serverName)
+        // R330: identity 비교 — 이미 신규 클라이언트로 교체됐으면 stale event 무시
+        if (currentClient !== failingClient) {
+            logger.debug {
+                "MCP '$serverName' 연결 오류 콜백이 stale 클라이언트에서 도착 — 무시 " +
+                    "(이미 재연결 완료)"
+            }
+            return
         }
-        // WHY: 재연결이 완료될 때까지 마지막으로 알려진 도구 목록을 유지한다.
-        // 도구 콜백을 즉시 제거하면 재연결 사이 윈도우에서 도구가 간헐적으로
-        // 사라지는 불안정 현상이 발생한다. 개별 도구 호출은 이미 "Error: ..." 문자열을
-        // 반환하므로 stale 콜백이 남아 있어도 안전하다.
+        logger.warn { "MCP 도구 호출 중 연결 오류 감지: '$serverName' — FAILED로 표시하고 재연결 스케줄링" }
+        clients.invalidate(serverName)
+        connectionSupport.close(serverName, failingClient)
         statuses.put(serverName, McpServerStatus.FAILED)
         reconnectionCoordinator.schedule(serverName)
     }

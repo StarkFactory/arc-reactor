@@ -123,6 +123,13 @@
 - 요약: IntentConfiguration startup fallback과 InMemoryIntentRegistry bounded cache를 추가해 cycle 6을 시작
 - 상세 위치: `docs/reports/archive/production-readiness-report-legacy-2026-04-12.md`
 
+### Round 330 — 2026-04-12T22:00+09:00 — cycle 10 시작: MCP connection race 묶음
+
+- axis: `connector_permissions`
+- 분류: `direct_value`
+- 요약: `McpConnectionSupport` 공유 HttpClient.Builder mutate race 제거(`newHttpClientBuilder()` 함수화) + `handleConnectionError` client identity 비교 추가(`onConnectionError` 시그니처에 `failingClient` 추가, stale 콜백이 신규 클라이언트를 FAILED로 되돌리는 race 차단). 테스트 신규 1 + 기존 4 갱신, 4 모듈 PASS.
+- 상세 위치: `docs/reports/rounds/R330.md`
+
 ---
 
 ## 11. 아카이브

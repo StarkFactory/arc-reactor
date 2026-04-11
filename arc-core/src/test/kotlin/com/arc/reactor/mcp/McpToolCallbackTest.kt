@@ -26,7 +26,7 @@ class McpToolCallbackTest {
             name = "jira_list_projects",
             description = "List projects",
             mcpInputSchema = null,
-            onConnectionError = { errorCallbackInvoked = true }
+            onConnectionError = { _ -> errorCallbackInvoked = true }
         )
         every { client.callTool(any()) } throws RuntimeException("Connection reset by peer")
 
@@ -45,7 +45,7 @@ class McpToolCallbackTest {
             name = "jira_list_projects",
             description = "List projects",
             mcpInputSchema = null,
-            onConnectionError = { errorCallbackInvoked = true }
+            onConnectionError = { _ -> errorCallbackInvoked = true }
         )
         val result = McpSchema.CallToolResult(
             listOf(McpSchema.TextContent("""{"ok":true}""")),

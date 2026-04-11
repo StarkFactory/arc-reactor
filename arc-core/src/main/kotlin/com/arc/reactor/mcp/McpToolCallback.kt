@@ -37,7 +37,10 @@ private val objectMapper = jacksonObjectMapper()
  * @param description LLM을 위한 도구 설명
  * @param mcpInputSchema 도구 파라미터의 JSON 스키마 (선택)
  * @param maxOutputLength 출력 최대 문자 수 (초과 시 잘라냄)
- * @param onConnectionError 하위 MCP 호출 실패 시 호출됨 (취소가 아닌 경우)
+ * @param onConnectionError 하위 MCP 호출 실패 시 호출됨 (취소가 아닌 경우). R330: 실패한
+ *   클라이언트 인스턴스를 인자로 받아 호출자가 "현재 연결된 클라이언트가 이 failing client와
+ *   동일한지" identity 비교를 할 수 있게 한다. connect() 재실행 후에도 stale callback이 도착해
+ *   신규 클라이언트를 잘못 무효화하는 race를 차단하기 위한 시그니처.
  * @see DefaultMcpManager 도구 콜백 관리
  * @see com.arc.reactor.tool.ToolCallback 도구 콜백 인터페이스
  */
@@ -47,7 +50,7 @@ class McpToolCallback(
     override val description: String,
     private val mcpInputSchema: McpSchema.JsonSchema?,
     private val maxOutputLength: Int = DEFAULT_MAX_OUTPUT_LENGTH,
-    private val onConnectionError: (() -> Unit)? = null
+    private val onConnectionError: ((failingClient: McpSyncClient) -> Unit)? = null
 ) : ToolCallback {
 
     /** 입력 스키마를 JSON 문자열로 직렬화한다. 실패 시 기본 빈 스키마를 사용한다. */
@@ -89,8 +92,8 @@ class McpToolCallback(
         } catch (e: Exception) {
             e.throwIfCancellation()
             logger.error(e) { "MCP 도구 호출 실패: $name" }
-            // 연결 오류 콜백을 호출하여 재연결을 트리거한다
-            onConnectionError?.invoke()
+            // R330: 실패한 client ref를 함께 전달해 호출자가 identity 비교로 stale 이벤트를 걸러낸다
+            onConnectionError?.invoke(client)
             "Error: MCP 도구 호출 중 오류가 발생했습니다 (${e.javaClass.simpleName})"
         }
     }

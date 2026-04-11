@@ -432,8 +432,9 @@ class McpManagerEdgeCaseTest {
 
             // the server being in CONNECTED state를 시뮬레이션합니다
             manager.statuses.put("error-server", McpServerStatus.CONNECTED)
+            val client = manager.injectMockClient("error-server")
 
-            manager.handleConnectionError("error-server")
+            manager.handleConnectionError("error-server", client)
 
             assertEquals(McpServerStatus.FAILED, manager.getStatus("error-server")) {
                 "Status should be FAILED after connection error"
@@ -454,16 +455,9 @@ class McpManagerEdgeCaseTest {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("leak-server"))
             manager.statuses.put("leak-server", McpServerStatus.CONNECTED)
+            val mockClient = manager.injectMockClient("leak-server")
 
-            // a mock McpSyncClient into the private clients Caffeine cache via reflection 주입
-            val mockClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
-            val clientsField = DefaultMcpManager::class.java.getDeclaredField("clients")
-            clientsField.isAccessible = true
-            @Suppress("UNCHECKED_CAST")
-            val clients = clientsField.get(manager) as com.github.benmanes.caffeine.cache.Cache<String, io.modelcontextprotocol.client.McpSyncClient>
-            clients.put("leak-server", mockClient)
-
-            manager.handleConnectionError("leak-server")
+            manager.handleConnectionError("leak-server", mockClient)
 
             verify(atLeast = 1) { mockClient.closeGracefully() }
         }
@@ -475,7 +469,8 @@ class McpManagerEdgeCaseTest {
             manager.statuses.put("idempotent-server", McpServerStatus.FAILED)
 
             // Calling again은(는) not throw and should leave status as FAILED해야 합니다
-            manager.handleConnectionError("idempotent-server")
+            val dummyClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
+            manager.handleConnectionError("idempotent-server", dummyClient)
 
             assertEquals(McpServerStatus.FAILED, manager.getStatus("idempotent-server")) {
                 "Status should remain FAILED"
@@ -493,12 +488,40 @@ class McpManagerEdgeCaseTest {
             )
             manager.register(stdioServer("reconnect-on-error"))
             manager.statuses.put("reconnect-on-error", McpServerStatus.CONNECTED)
+            val client = manager.injectMockClient("reconnect-on-error")
 
-            manager.handleConnectionError("reconnect-on-error")
+            manager.handleConnectionError("reconnect-on-error", client)
 
             assertEquals(McpServerStatus.FAILED, manager.getStatus("reconnect-on-error")) {
                 "Status should be FAILED immediately after connection error"
             }
+        }
+
+        /**
+         * R330 regression: `handleConnectionError`가 stale 클라이언트에서 도착한 콜백을
+         * 현재 연결된 클라이언트와 identity 비교로 걸러내는지 검증.
+         *
+         * 시나리오: 첫 클라이언트 C₁로 도구 호출 → 늦게 실패 → 그 사이 reconnect가 완료되어
+         * C₂가 저장된 상태. stale C₁ ref로 handleConnectionError가 호출되면 C₂를 건드리지
+         * 않고 상태를 CONNECTED 그대로 유지해야 한다.
+         */
+        @Test
+        fun `R330 handleConnectionError은(는) ignore stale client identity after reconnect해야 한다`() {
+            val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
+            manager.register(stdioServer("stale-race"))
+            manager.statuses.put("stale-race", McpServerStatus.CONNECTED)
+
+            val staleClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
+            val freshClient = manager.injectMockClient("stale-race")
+
+            // staleClient는 한 번도 clients 캐시에 들어간 적이 없음 — reconnect 후 C₂만 존재
+            manager.handleConnectionError("stale-race", staleClient)
+
+            assertEquals(McpServerStatus.CONNECTED, manager.getStatus("stale-race")) {
+                "stale 클라이언트 콜백은 신규 연결을 FAILED로 되돌리면 안 된다"
+            }
+            verify(exactly = 0) { staleClient.closeGracefully() }
+            verify(exactly = 0) { freshClient.closeGracefully() }
         }
     }
 
@@ -549,6 +572,23 @@ class McpManagerEdgeCaseTest {
         @Suppress("UNCHECKED_CAST")
         val cache = field.get(this) as com.github.benmanes.caffeine.cache.Cache<String, List<ToolCallback>>
         cache.put(serverName, callbacks)
+    }
+
+    /**
+     * R330: `clients` 캐시에 mock McpSyncClient를 주입하고 ref를 돌려준다.
+     * `handleConnectionError`가 identity 비교로 이 ref와 비교하도록 테스트에서 사용.
+     */
+    private fun DefaultMcpManager.injectMockClient(
+        serverName: String
+    ): io.modelcontextprotocol.client.McpSyncClient {
+        val mockClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
+        val clientsField = DefaultMcpManager::class.java.getDeclaredField("clients")
+        clientsField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val clients = clientsField.get(this)
+            as com.github.benmanes.caffeine.cache.Cache<String, io.modelcontextprotocol.client.McpSyncClient>
+        clients.put(serverName, mockClient)
+        return mockClient
     }
 
     private fun testCallback(name: String): ToolCallback {

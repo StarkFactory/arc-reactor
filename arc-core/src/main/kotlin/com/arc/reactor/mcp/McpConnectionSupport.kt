@@ -86,7 +86,8 @@ internal data class McpConnectionHandle(
  * @param maxToolOutputLengthProvider 도구 출력 최대 길이 제공 함수
  * @param allowPrivateAddresses 프라이빗 주소 허용 여부
  * @param allowedStdioCommandsProvider STDIO 허용 명령어 집합 제공 함수
- * @param onConnectionError 연결 오류 발생 시 호출되는 콜백 (서버 이름)
+ * @param onConnectionError 연결 오류 발생 시 호출되는 콜백. R330: (serverName, failingClient)
+ *   쌍을 전달하여 `DefaultMcpManager`가 identity 비교로 stale 이벤트를 무시할 수 있게 한다.
  * @param meterRegistry Micrometer 레지스트리 (선택). null이면 연결 메트릭을 기록하지 않는다.
  */
 internal class McpConnectionSupport(
@@ -96,7 +97,8 @@ internal class McpConnectionSupport(
     private val allowedStdioCommandsProvider: () -> Set<String> = {
         McpSecurityConfig.DEFAULT_ALLOWED_STDIO_COMMANDS
     },
-    private val onConnectionError: (serverName: String) -> Unit = {},
+    private val onConnectionError: (serverName: String, failingClient: McpSyncClient) -> Unit =
+        { _, _ -> },
     private val meterRegistry: MeterRegistry? = null
 ) {
 
@@ -108,13 +110,22 @@ internal class McpConnectionSupport(
         internal const val METRIC_CONNECTION_LATENCY = "arc.mcp.connection.latency"
 
         /**
-         * SSE 연결용 공유 HttpClient.Builder.
+         * R330 fix: SSE 연결마다 새로운 HttpClient.Builder를 반환한다.
          *
-         * WHY: 매 연결 시도마다 새 HttpClient를 생성하면 TCP 소켓이 누적되어
-         * TIME_WAIT 소켓 고갈(15,000+)이 발생한다. 공유 빌더를 사용하여
-         * 커넥션 풀을 재사용하고 소켓 누적을 방지한다.
+         * **이전 버그**: `companion object`에 단일 `SHARED_HTTP_CLIENT_BUILDER` 인스턴스를 보관하고
+         * `connectSse()`에서 `.connectTimeout(...)`을 호출해 이 빌더를 **변경(mutate)**했다.
+         * `java.net.http.HttpClient.Builder`는 thread-safe하지 않으며 setter는 동일 객체를 반환하면서
+         * 내부 상태를 덮어쓴다. 두 서버가 동시에 SSE 연결을 시도하면(초기화 또는 `McpHealthPinger`의
+         * `reconnectScope`에서 병렬 재연결) 동일 빌더를 동시에 mutate해 잘못된 timeout이 섞이거나
+         * 내부 상태가 오염될 수 있었다.
+         *
+         * **원래 최적화 의도**(커넥션 풀 재사용)는 **무효**했다. `HttpClientSseClientTransport`가
+         * 매번 빌더의 `.build()`를 호출해 새 `HttpClient` 인스턴스를 만들기 때문에 공유 빌더로는
+         * 풀 재사용이 일어나지 않는다. 따라서 매번 새 빌더를 반환하는 것이 정답이며, 이로 인한
+         * 실질 비용 증가는 없다. 진정한 풀 공유가 필요하면 별도 라운드에서 build된 HttpClient
+         * 싱글턴을 도입하고 timeout 설정을 req 단위로 분리해야 한다.
          */
-        private val SHARED_HTTP_CLIENT_BUILDER: java.net.http.HttpClient.Builder =
+        private fun newHttpClientBuilder(): java.net.http.HttpClient.Builder =
             java.net.http.HttpClient.newBuilder()
                 .version(java.net.http.HttpClient.Version.HTTP_1_1)
     }
@@ -337,9 +348,10 @@ internal class McpConnectionSupport(
         var transport: HttpClientSseClientTransport? = null
         var client: McpSyncClient? = null
         return try {
+            // R330 fix: 매번 새 builder를 생성해 thread race를 차단한다.
             transport = HttpClientSseClientTransport.builder(parsed.toString())
                 .clientBuilder(
-                    SHARED_HTTP_CLIENT_BUILDER
+                    newHttpClientBuilder()
                         .connectTimeout(Duration.ofMillis(connectionTimeoutMs))
                 )
                 .build()
@@ -404,7 +416,8 @@ internal class McpConnectionSupport(
                     description = tool.description() ?: "",
                     mcpInputSchema = tool.inputSchema(),
                     maxOutputLength = maxToolOutputLengthProvider(),
-                    onConnectionError = { onConnectionError(serverName) }
+                    // R330: 실패한 클라이언트 ref를 함께 전달 (identity 비교용)
+                    onConnectionError = { failingClient -> onConnectionError(serverName, failingClient) }
                 )
             }
         } catch (e: Exception) {
