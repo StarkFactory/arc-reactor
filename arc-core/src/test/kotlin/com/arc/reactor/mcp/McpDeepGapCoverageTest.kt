@@ -774,7 +774,7 @@ class McpDeepGapCoverageTest {
             )
             manager.register(stdioServer("connecting-server"))
             // 수동으로 CONNECTING 상태 주입
-            manager.statuses["connecting-server"] = McpServerStatus.CONNECTING
+            manager.statuses.put("connecting-server", McpServerStatus.CONNECTING)
 
             val result = manager.ensureConnected("connecting-server")
 
@@ -794,7 +794,7 @@ class McpDeepGapCoverageTest {
                 reconnectionProperties = McpReconnectionProperties(enabled = true)
             )
             manager.register(stdioServer("connected-server"))
-            manager.statuses["connected-server"] = McpServerStatus.CONNECTED
+            manager.statuses.put("connected-server", McpServerStatus.CONNECTED)
 
             val result = manager.ensureConnected("connected-server")
 
@@ -965,7 +965,7 @@ class McpDeepGapCoverageTest {
             )
             manager.register(original)
             // 수동으로 CONNECTED 상태 주입
-            manager.statuses["sync-server"] = McpServerStatus.CONNECTED
+            manager.statuses.put("sync-server", McpServerStatus.CONNECTED)
 
             // syncRuntimeServer 호출 — 상태는 CONNECTED를 유지해야 한다
             manager.syncRuntimeServer(McpServer(

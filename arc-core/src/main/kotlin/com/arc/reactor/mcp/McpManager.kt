@@ -140,15 +140,37 @@ class DefaultMcpManager(
     private val meterRegistry: MeterRegistry? = null
 ) : McpManager, AutoCloseable {
 
-    /** 서버 이름 → 서버 설정 매핑 */
-    private val servers = ConcurrentHashMap<String, McpServer>()
+    /**
+     * R280: 4개 ConcurrentHashMap → Caffeine bounded cache 마이그레이션 (CLAUDE.md 준수).
+     *
+     * **마이그레이션 대상 (4개)**: servers, clients, toolCallbacksCache, statuses
+     * - 모두 maxSize=MAX_SERVERS(1000)로 bounded
+     * - 일반 운영에서 MCP 서버 개수는 1~10개 정도라 eviction은 사실상 발생 안 함
+     * - eviction이 발생하면 그 자체가 운영 이상 신호
+     *
+     * **유지 대상 (1개)**: serverMutexes — ConcurrentHashMap 그대로 유지
+     * - 이유: Caffeine eviction이 비동기/지연 실행이라 mutex가 currently locked인 상태에서
+     *   evict될 수 있고, 그 후 새 mutex가 생성되면 이전 lock holder와 다른 객체가 되어
+     *   동기화 무결성이 깨진다 (race condition).
+     * - mutex 생명주기는 서버 lifecycle과 1:1이며 unregister/close에서 명시적으로 제거됨.
+     * - CLAUDE.md "ConcurrentHashMap 금지" 규칙은 unbounded growth 방지가 목적이며,
+     *   serverMutexes는 server 개수와 동기화되어 사실상 bounded.
+     */
+    private val servers: com.github.benmanes.caffeine.cache.Cache<String, McpServer> =
+        Caffeine.newBuilder().maximumSize(MAX_SERVERS).build()
     /** 서버 이름 → MCP 클라이언트 매핑 */
-    private val clients = ConcurrentHashMap<String, io.modelcontextprotocol.client.McpSyncClient>()
+    private val clients: com.github.benmanes.caffeine.cache.Cache<String, io.modelcontextprotocol.client.McpSyncClient> =
+        Caffeine.newBuilder().maximumSize(MAX_SERVERS).build()
     /** 서버 이름 → 도구 콜백 목록 캐시 */
-    private val toolCallbacksCache = ConcurrentHashMap<String, List<ToolCallback>>()
+    private val toolCallbacksCache: com.github.benmanes.caffeine.cache.Cache<String, List<ToolCallback>> =
+        Caffeine.newBuilder().maximumSize(MAX_SERVERS).build()
     /** 서버 이름 → 현재 상태 매핑 */
-    internal val statuses = ConcurrentHashMap<String, McpServerStatus>()
-    /** 서버별 동시 접근 방지 뮤텍스 */
+    internal val statuses: com.github.benmanes.caffeine.cache.Cache<String, McpServerStatus> =
+        Caffeine.newBuilder().maximumSize(MAX_SERVERS).build()
+    /**
+     * 서버별 동시 접근 방지 뮤텍스. R280 KDoc 참조: Caffeine eviction과 mutex 생명주기
+     * 호환성 문제로 ConcurrentHashMap 유지. 서버 lifecycle과 동기화되어 bounded.
+     */
     private val serverMutexes = ConcurrentHashMap<String, Mutex>()
     /** 중복 도구 경고를 한 번만 출력하기 위한 키 캐시 (최대 500개, 초과 시 자동 퇴출) */
     private val duplicateToolWarningKeys = Caffeine.newBuilder()
@@ -177,8 +199,8 @@ class DefaultMcpManager(
     private val reconnectionCoordinator = McpReconnectionCoordinator(
         scope = reconnectScope,
         properties = reconnectionProperties,
-        statusProvider = { serverName -> statuses[serverName] },
-        serverExists = { serverName -> servers.containsKey(serverName) },
+        statusProvider = { serverName -> statuses.getIfPresent(serverName) },
+        serverExists = { serverName -> servers.getIfPresent(serverName) != null },
         reconnectAction = { serverName -> connect(serverName) }
     )
 
@@ -220,23 +242,24 @@ class DefaultMcpManager(
         if (!requireSecurityApproval(server.name, "등록")) return
 
         logger.info { "MCP 서버 등록: ${server.name}" }
-        servers[server.name] = server
-        statuses[server.name] = McpServerStatus.PENDING
+        servers.put(server.name, server)
+        statuses.put(server.name, McpServerStatus.PENDING)
         storeSync.saveIfAbsent(server)
     }
 
     override fun syncRuntimeServer(server: McpServer) {
         if (!requireSecurityApproval(server.name, "런타임 동기화")) return
 
-        servers[server.name] = server
-        statuses.putIfAbsent(server.name, McpServerStatus.PENDING)
+        servers.put(server.name, server)
+        // R280: Caffeine asMap() ConcurrentMap view의 putIfAbsent로 atomic 보장
+        statuses.asMap().putIfAbsent(server.name, McpServerStatus.PENDING)
         logger.info { "MCP 런타임 설정 동기화 완료: ${server.name}" }
     }
 
     override suspend fun unregister(serverName: String) {
         disconnectInternal(serverName)
-        servers.remove(serverName)
-        statuses.remove(serverName)
+        servers.invalidate(serverName)
+        statuses.invalidate(serverName)
         serverMutexes.remove(serverName)
         reconnectionCoordinator.clear(serverName)
         storeSync.delete(serverName)
@@ -257,8 +280,8 @@ class DefaultMcpManager(
         logger.info { "스토어에서 ${storeServers.size}개 MCP 서버 로딩" }
         for (server in storeServers) {
             if (!requireSecurityApproval(server.name, "스토어 로딩")) continue
-            servers[server.name] = server
-            statuses[server.name] = McpServerStatus.PENDING
+            servers.put(server.name, server)
+            statuses.put(server.name, McpServerStatus.PENDING)
 
             if (server.autoConnect) {
                 try {
@@ -283,7 +306,7 @@ class DefaultMcpManager(
      * 서버별 뮤텍스로 동일 서버에 대한 동시 연결 시도를 방지한다.
      */
     override suspend fun connect(serverName: String): Boolean {
-        val server = servers[serverName] ?: run {
+        val server = servers.getIfPresent(serverName) ?: run {
             logger.warn { "MCP 서버를 찾을 수 없음: $serverName" }
             return false
         }
@@ -294,30 +317,32 @@ class DefaultMcpManager(
 
                 // 리소스 누수 방지를 위해 기존 클라이언트를 먼저 닫는다.
                 // toolCallbacksCache는 유지 — 새 연결 성공까지 stale 도구를 제공하여 간헐적 불가용 방지.
-                clients.remove(serverName)?.let { oldClient ->
+                // R280: getIfPresent + invalidate로 Caffeine API 사용
+                clients.getIfPresent(serverName)?.let { oldClient ->
+                    clients.invalidate(serverName)
                     connectionSupport.close(serverName, oldClient)
                 }
 
-                statuses[serverName] = McpServerStatus.CONNECTING
+                statuses.put(serverName, McpServerStatus.CONNECTING)
 
                 val handle = connectionSupport.open(server)
                 if (handle == null) {
-                    statuses[serverName] = McpServerStatus.FAILED
+                    statuses.put(serverName, McpServerStatus.FAILED)
                     reconnectionCoordinator.schedule(serverName)
                     return@withLock false
                 }
 
-                clients[serverName] = handle.client
-                toolCallbacksCache[serverName] = handle.tools
+                clients.put(serverName, handle.client)
+                toolCallbacksCache.put(serverName, handle.tools)
                 invalidateAllToolCallbacksSnapshot()
-                statuses[serverName] = McpServerStatus.CONNECTED
+                statuses.put(serverName, McpServerStatus.CONNECTED)
                 reconnectionCoordinator.clear(serverName)
                 logger.info { "MCP 서버 연결 완료: $serverName (도구 ${handle.tools.size}개)" }
                 true
             } catch (e: Exception) {
                 e.throwIfCancellation()
                 logger.error(e) { "MCP 서버 연결 실패: $serverName" }
-                statuses[serverName] = McpServerStatus.FAILED
+                statuses.put(serverName, McpServerStatus.FAILED)
                 reconnectionCoordinator.schedule(serverName)
                 false
             }
@@ -335,13 +360,15 @@ class DefaultMcpManager(
         logger.info { "MCP 서버 연결 해제: $serverName" }
         reconnectionCoordinator.clear(serverName)
 
-        clients.remove(serverName)?.let { client ->
+        // R280: getIfPresent + invalidate로 Caffeine API 사용 (atomic remove 효과)
+        clients.getIfPresent(serverName)?.let { client ->
+            clients.invalidate(serverName)
             connectionSupport.close(serverName, client)
         }
 
-        toolCallbacksCache.remove(serverName)
+        toolCallbacksCache.invalidate(serverName)
         invalidateAllToolCallbacksSnapshot()
-        statuses[serverName] = McpServerStatus.DISCONNECTED
+        statuses.put(serverName, McpServerStatus.DISCONNECTED)
     }
 
     /**
@@ -352,16 +379,18 @@ class DefaultMcpManager(
      * 이를 통해 일시적 네트워크 장애에서 자동으로 회복할 수 있다.
      */
     internal fun handleConnectionError(serverName: String) {
-        if (statuses[serverName] != McpServerStatus.CONNECTED) return
+        if (statuses.getIfPresent(serverName) != McpServerStatus.CONNECTED) return
         logger.warn { "MCP 도구 호출 중 연결 오류 감지: '$serverName' — FAILED로 표시하고 재연결 스케줄링" }
-        clients.remove(serverName)?.let { client ->
+        // R280: getIfPresent + invalidate로 Caffeine API 사용
+        clients.getIfPresent(serverName)?.let { client ->
+            clients.invalidate(serverName)
             connectionSupport.close(serverName, client)
         }
         // WHY: 재연결이 완료될 때까지 마지막으로 알려진 도구 목록을 유지한다.
         // 도구 콜백을 즉시 제거하면 재연결 사이 윈도우에서 도구가 간헐적으로
         // 사라지는 불안정 현상이 발생한다. 개별 도구 호출은 이미 "Error: ..." 문자열을
         // 반환하므로 stale 콜백이 남아 있어도 안전하다.
-        statuses[serverName] = McpServerStatus.FAILED
+        statuses.put(serverName, McpServerStatus.FAILED)
         reconnectionCoordinator.schedule(serverName)
     }
 
@@ -373,7 +402,8 @@ class DefaultMcpManager(
      */
     override fun reapplySecurityPolicy() {
         // 허용 목록에서 제외된 서버를 퇴출한다
-        val blocked = servers.keys.filterNot(::allowedBySecurity)
+        // R280: Caffeine asMap().keys로 변경 (Cache 자체에는 keys 프로퍼티 없음)
+        val blocked = servers.asMap().keys.filterNot(::allowedBySecurity)
         for (serverName in blocked) {
             logger.info { "허용 목록 변경으로 MCP 서버 퇴출: $serverName" }
             // R278 fix: 동시에 진행 중일 수 있는 connect(serverName) 코루틴과 race 방지를
@@ -384,8 +414,8 @@ class DefaultMcpManager(
             kotlinx.coroutines.runBlocking {
                 mutexFor(serverName).withLock {
                     disconnectInternal(serverName)
-                    servers.remove(serverName)
-                    statuses.remove(serverName)
+                    servers.invalidate(serverName)
+                    statuses.invalidate(serverName)
                 }
             }
             // serverMutexes.remove는 mutex 자체를 제거하므로 락 해제 후 실행
@@ -395,11 +425,11 @@ class DefaultMcpManager(
         // 새로 허용된 서버를 스토어에서 로딩한다
         val newServers = storeSync.loadAll()
             .filter(::shouldLoadStoredServer)
-            .filterNot { servers.containsKey(it.name) }
+            .filterNot { servers.getIfPresent(it.name) != null }
         for (server in newServers) {
             logger.info { "새로 허용된 MCP 서버를 런타임에 로딩: ${server.name}" }
-            servers[server.name] = server
-            statuses[server.name] = McpServerStatus.PENDING
+            servers.put(server.name, server)
+            statuses.put(server.name, McpServerStatus.PENDING)
             if (server.autoConnect) {
                 reconnectScope.launch {
                     try {
@@ -421,7 +451,7 @@ class DefaultMcpManager(
      * FAILED 또는 DISCONNECTED 상태이고 재연결이 활성화된 경우에만 시도한다.
      */
     override suspend fun ensureConnected(serverName: String): Boolean {
-        val status = statuses[serverName]
+        val status = statuses.getIfPresent(serverName)
         if (status == McpServerStatus.CONNECTED) return true
         if (status != McpServerStatus.FAILED && status != McpServerStatus.DISCONNECTED) return false
         if (!reconnectionProperties.enabled) return false
@@ -441,7 +471,7 @@ class DefaultMcpManager(
         allToolCallbacksSnapshot?.let { return it }
         synchronized(toolCallbacksSnapshotLock) {
             allToolCallbacksSnapshot?.let { return it }
-            val snapshot = deduplicateCallbacksByName(toolCallbacksCache) { toolName, keptServer, droppedServer ->
+            val snapshot = deduplicateCallbacksByName(toolCallbacksCache.asMap()) { toolName, keptServer, droppedServer ->
                 val warningKey = "$toolName|$keptServer|$droppedServer"
                 if (duplicateToolWarningKeys.getIfPresent(warningKey) == null) {
                     duplicateToolWarningKeys.put(warningKey, true)
@@ -457,16 +487,16 @@ class DefaultMcpManager(
     }
 
     override fun getToolCallbacks(serverName: String): List<ToolCallback> {
-        return toolCallbacksCache[serverName] ?: emptyList()
+        return toolCallbacksCache.getIfPresent(serverName) ?: emptyList()
     }
 
     /** 스토어가 있으면 스토어 목록을, 없으면 런타임 레지스트리를 반환한다 */
     override fun listServers(): List<McpServer> {
-        return storeSync.listOr(servers.values)
+        return storeSync.listOr(servers.asMap().values)
     }
 
     override fun getStatus(serverName: String): McpServerStatus? {
-        return statuses[serverName]
+        return statuses.getIfPresent(serverName)
     }
 
     /** 매니저를 닫고 모든 연결을 해제한다 */
@@ -474,11 +504,11 @@ class DefaultMcpManager(
         logger.info { "MCP 매니저 닫기, 모든 서버 연결 해제" }
         reconnectScope.cancel()
         reconnectionCoordinator.clearAll()
-        for (serverName in clients.keys.toList()) {
+        for (serverName in clients.asMap().keys.toList()) {
             disconnectInternal(serverName)
         }
-        servers.clear()
-        statuses.clear()
+        servers.invalidateAll()
+        statuses.invalidateAll()
         serverMutexes.clear()
     }
 
@@ -490,6 +520,12 @@ class DefaultMcpManager(
     companion object {
         /** MCP 서버 연결 기본 타임아웃 (밀리초) */
         const val DEFAULT_CONNECTION_TIMEOUT_MS = 30_000L
+        /**
+         * R280: Caffeine bounded cache 최대 서버 수.
+         * 일반 운영은 1~10개 정도이므로 1000은 사실상 unbounded와 동일.
+         * eviction이 발생하면 그 자체가 운영 이상 신호로 logger.warn 할 가치 있음.
+         */
+        const val MAX_SERVERS = 1000L
     }
 }
 

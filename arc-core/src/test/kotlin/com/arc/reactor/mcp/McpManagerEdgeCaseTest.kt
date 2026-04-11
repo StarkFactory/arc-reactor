@@ -431,7 +431,7 @@ class McpManagerEdgeCaseTest {
             val beforeError = manager.getAllToolCallbacks()
 
             // the server being in CONNECTED state를 시뮬레이션합니다
-            manager.statuses["error-server"] = McpServerStatus.CONNECTED
+            manager.statuses.put("error-server", McpServerStatus.CONNECTED)
 
             manager.handleConnectionError("error-server")
 
@@ -453,15 +453,15 @@ class McpManagerEdgeCaseTest {
         fun `handleConnectionError은(는) close the stale client to prevent resource leak해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("leak-server"))
-            manager.statuses["leak-server"] = McpServerStatus.CONNECTED
+            manager.statuses.put("leak-server", McpServerStatus.CONNECTED)
 
-            // a mock McpSyncClient into the private clients map via reflection 주입
+            // a mock McpSyncClient into the private clients Caffeine cache via reflection 주입
             val mockClient = mockk<io.modelcontextprotocol.client.McpSyncClient>(relaxed = true)
             val clientsField = DefaultMcpManager::class.java.getDeclaredField("clients")
             clientsField.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            val clients = clientsField.get(manager) as ConcurrentHashMap<String, io.modelcontextprotocol.client.McpSyncClient>
-            clients["leak-server"] = mockClient
+            val clients = clientsField.get(manager) as com.github.benmanes.caffeine.cache.Cache<String, io.modelcontextprotocol.client.McpSyncClient>
+            clients.put("leak-server", mockClient)
 
             manager.handleConnectionError("leak-server")
 
@@ -472,7 +472,7 @@ class McpManagerEdgeCaseTest {
         fun `handleConnectionError은(는) be idempotent when server is already FAILED해야 한다`() {
             val manager = manager(reconnectionProperties = McpReconnectionProperties(enabled = false))
             manager.register(stdioServer("idempotent-server"))
-            manager.statuses["idempotent-server"] = McpServerStatus.FAILED
+            manager.statuses.put("idempotent-server", McpServerStatus.FAILED)
 
             // Calling again은(는) not throw and should leave status as FAILED해야 합니다
             manager.handleConnectionError("idempotent-server")
@@ -492,7 +492,7 @@ class McpManagerEdgeCaseTest {
                 )
             )
             manager.register(stdioServer("reconnect-on-error"))
-            manager.statuses["reconnect-on-error"] = McpServerStatus.CONNECTED
+            manager.statuses.put("reconnect-on-error", McpServerStatus.CONNECTED)
 
             manager.handleConnectionError("reconnect-on-error")
 
@@ -547,8 +547,8 @@ class McpManagerEdgeCaseTest {
         val field = DefaultMcpManager::class.java.getDeclaredField("toolCallbacksCache")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val cache = field.get(this) as ConcurrentHashMap<String, List<ToolCallback>>
-        cache[serverName] = callbacks
+        val cache = field.get(this) as com.github.benmanes.caffeine.cache.Cache<String, List<ToolCallback>>
+        cache.put(serverName, callbacks)
     }
 
     private fun testCallback(name: String): ToolCallback {

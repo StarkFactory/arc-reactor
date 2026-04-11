@@ -11,6 +11,130 @@
 4. **opt-in 기본** — 새 기능은 기본 off, 기존 경로를 깨지 않는다.
 5. **보고서는 간결하게** — 작업 내역은 `docs/production-readiness-report.md`의 "10. 반복 검증 이력"에 Round N 섹션으로 기록한다.
 
+### ⚠️ 0.1) 최상위 제약 — atlassian-mcp-server 호환성 유지
+
+이 작업 루프의 목적은 **Arc Reactor 에이전트 자체의 성능 향상**이다.
+**기존 `atlassian-mcp-server`(Jira/Confluence/Bitbucket)와의 연동은 절대 깨지면 안 된다.**
+
+- MCP 프로토콜 경로(SSE transport, tool discovery, tool call, response parsing)를 변경하지 않는다.
+- `ToolResponsePayloadNormalizer`, `ArcToolCallbackAdapter`, `McpToolRegistry` 등 MCP 연결 계층 수정 시
+  atlassian-mcp-server 응답 스키마(Jira issue, Confluence page, Bitbucket PR)가 그대로 흘러가는지 확인한다.
+- 도구 이름, description, 파라미터 스키마는 atlassian-mcp-server가 제공하는 대로 보존한다.
+- 응답 요약/정규화 계층(#97 ACI)을 추가할 때도 **원본 필드는 보존**하고 요약은 별도 필드로 추가한다.
+- 테스트에 `atlassian-mcp-server` 응답 픽스처가 있다면 해당 테스트가 통과해야 한다.
+- MCP write 도구(생성/수정/삭제)는 `ToolIdempotencyGuard` 경로를 유지한다.
+
+**호환성 검증 체크리스트** (MCP 접점을 건드리는 모든 Round에서):
+```
+[ ] ArcToolCallbackAdapter 인터페이스 계약 불변
+[ ] McpToolRegistry 동작 불변 (도구 발견/등록)
+[ ] ToolResponsePayloadNormalizer 기본 경로 불변
+[ ] 한글 → Jira/Confluence 검색 쿼리 매핑 동작 불변
+[ ] 도구 description 문구 불변 (LLM 선택 정확도 유지)
+[ ] MCP 연결/재연결 로직 불변
+[ ] 실제 SSE URL 등록 플로우 영향 없음
+```
+
+MCP 접점을 직접 건드리지 않는 작업(예: Prompt Layer 내부 refactor)은 이 체크리스트를 생략해도 된다.
+MCP 접점을 건드린다면 보고서에 "MCP 호환성: 유지 확인" 항목을 명시한다.
+
+### ⚠️ 0.2) 최상위 제약 — Redis 의미적 캐시 보존
+
+Arc Reactor는 `RedisSemanticResponseCache`로 LLM 응답을 의미적 캐싱한다. 이 캐시는 비용/응답시간/토큰 절감의 핵심 축이다.
+
+**캐시 키 구성** (`CacheKeyBuilder.buildScopeFingerprint`):
+```
+SHA-256(systemPrompt | toolNames | model | mode | responseFormat |
+        responseSchema | userId | sessionId | tenantId | identity)
+```
+
+즉, **`systemPrompt` 텍스트가 1바이트라도 바뀌면 scopeFingerprint가 달라지고
+기존 캐시 엔트리가 전부 stale**이 된다. 공백 1개, 섹션 헤더 1줄 추가만으로도 대량 miss 발생.
+
+**Prompt Layer 리팩토링(#94) 규칙 — 매우 엄격**:
+1. **byte-identical 출력 원칙** — 내부 구조만 계층화하고 최종 출력 텍스트는 리팩토링 전과 완전히 동일해야 한다
+2. **Golden snapshot 테스트 필수** — 리팩토링 전 현재 출력을 스냅샷으로 저장한 뒤, 리팩토링 후에도 동일하게 나오는지 byte-diff로 검증
+3. 불가피하게 텍스트가 바뀌면 "**cache flush 이벤트**"로 보고서에 명시하고 사용자 승인을 받는다 (이 루프에서 자동 승인 금지)
+4. 동일 원칙이 `appendWorkspaceGroundingRules`, `appendLanguageRule`, `appendFewShot` 등 모든 append 메서드에 적용
+
+**ACI 요약 계층(#97) 규칙**:
+- 요약은 **tool 응답 payload**에 붙는다 → `systemPrompt`에는 영향 없음 → 캐시 키 불변
+- 단, 요약된 tool 응답이 LLM에 전달되면 LLM 최종 응답 텍스트가 달라질 수 있음 → `CachedResponse.content`가 다른 것이 저장됨 → 동일 키 재방문 시 새 결과 학습
+- 요약은 opt-in flag로 제어하여 기존 사용자는 캐시 재활용 유지
+
+**Tool Approval UX(#95) 규칙**:
+- 승인 요청 응답 구조가 바뀌면 프롬프트/응답 경로는 불변인지 확인
+- ToolApprovalPolicy가 시스템 프롬프트를 생성하지 않으면 캐시 영향 없음
+
+**Evaluation 메트릭(#96) 규칙**:
+- 메트릭은 관측 계층 → 캐시 키/값 불변
+- 단, 메트릭 수집이 `ChatClient.call()` 경로 전후에 들어가면 성능 영향 확인
+
+**체크리스트** (캐시 접점을 건드리는 Round에서):
+```
+[ ] SystemPromptBuilder 출력 텍스트 byte-identical (golden snapshot)
+[ ] CacheKeyBuilder.buildScopeFingerprint 출력 해시 불변
+[ ] RedisSemanticResponseCache.getSemantic/putSemantic 경로 불변
+[ ] ResponseCache 인터페이스 계약 불변
+[ ] 캐시 TTL/크기/eviction 정책 불변
+[ ] 캐시 관련 기존 테스트 전부 PASS (특히 RedisSemanticResponseCacheExtendedTest)
+```
+
+### ⚠️ 0.3) 최상위 제약 — 대화/스레드 컨텍스트 관리 보존
+
+Arc Reactor의 가장 중요한 품질 축 중 하나는 **스레드/세션별 대화 컨텍스트 유지**다. Slack 스레드는 물론 REST/SSE 경로에서도 동일하게 중요하다.
+
+**핵심 구성 요소**:
+
+| 컴포넌트 | 파일 | 역할 |
+|----------|------|------|
+| sessionId 매핑 | `arc-slack/.../DefaultSlackEventHandler.kt` | `"slack-{channelId}-{threadTs}"` 형식으로 스레드별 키 생성 |
+| MemoryStore 인터페이스 | `arc-core/.../memory/ConversationMemory.kt` | 히스토리 저장/조회 추상화 |
+| InMemoryMemoryStore | 동일 파일 | Caffeine 기반, maxSessions=1000, LRU |
+| JdbcMemoryStore | `arc-core/.../memory/JdbcMemoryStore.kt` | Postgres/H2, maxMessagesPerSession=100, TTL cleanup |
+| ConversationManager | `arc-core/.../memory/ConversationManager.kt` | 계층적 메모리(facts/narrative/recent) + 세션 소유권 검증 |
+| ConversationMessageTrimmer | `arc-core/.../agent/impl/ConversationMessageTrimmer.kt` | 3단계 트리밍, 마지막 UserMessage 보호 |
+| CacheKeyBuilder sessionId 필드 | `arc-core/.../cache/CacheKeyBuilder.kt:55` | scopeFingerprint에 포함 → 스레드별 캐시 격리 |
+| SlackThreadTracker | `arc-slack/.../slack/session/SlackThreadTracker.kt` | 봇 개시 스레드만 추적 |
+
+**절대 건드리지 말 것 (파괴적 변경 금지)**:
+
+1. **sessionId 포맷 변경 금지** — `"slack-{channelId}-{threadTs}"` 형식을 바꾸면 기존 대화 모두 단절
+2. **MemoryStore 인터페이스 변경 금지** — `save/load/clear/ownership` 메서드 시그니처 유지
+3. **JDBC 스키마 변경은 Flyway migration만** — `conversation_messages` 테이블 구조 변경 시 `V{N}__*.sql` 추가, 기존 컬럼 DROP 금지
+4. **ConversationMessageTrimmer 가드 규칙 유지**:
+   - Phase 2 가드는 `>` (not `>=`) — off-by-one으로 UserMessage 손실
+   - `AssistantMessage(toolCalls) + ToolResponseMessage` **쌍으로** 추가/제거
+   - 마지막 UserMessage(현재 프롬프트) 절대 제거 금지
+   - 선행 SystemMessage(facts/narrative) 보호
+5. **계층적 메모리(facts/narrative/recent) 구조 보존** — `ConversationManager` 내부 리팩토링은 가능하나 프롬프트 주입 시점/순서/분류는 불변
+6. **세션 소유권 검증 로직 유지** — `ConversationManager` 가 userId 기반 ACL을 수행. Slack 스레드(`slack-` prefix)는 여러 사용자 참여를 허용하는 예외
+7. **SlackThreadTracker 등록 경로 유지** — 봇이 개시하지 않은 스레드는 무시하는 기본 동작 보존
+
+**Directive 작업별 컨텍스트 영향도**:
+
+| 작업 | 컨텍스트 영향 | 대응 |
+|------|---------------|------|
+| #94 Prompt Layer 계층화 | **있음** — SystemPromptBuilder 출력이 `ConversationManager`가 주입하는 히스토리 섹션과 충돌하지 않아야 함 | byte-identical + 계층적 메모리 주입 위치 불변 |
+| #95 Tool Approval UX | 없음 (승인 UX는 컨텍스트와 독립) | — |
+| #96 Evaluation 메트릭 | 없음 (관측만) | 필요 시 스레드별 지표 분리 고려 (bonus) |
+| #97 ACI 요약 | **있음** — 요약된 tool 응답이 히스토리에 저장되면 다음 턴 컨텍스트가 달라짐 | 원본은 메모리에 저장, LLM에만 요약 전달 고려. opt-in 필수 |
+
+**체크리스트** (컨텍스트/스레드 경로를 건드리는 Round에서):
+```
+[ ] sessionId 포맷 "slack-{channelId}-{threadTs}" 불변
+[ ] MemoryStore 인터페이스 계약 불변 (InMemory/Jdbc 양쪽)
+[ ] conversation_messages 테이블 스키마 불변 (또는 Flyway migration 추가)
+[ ] ConversationMessageTrimmer 3단계 트리밍 규칙 유지 (Phase 2 `>`)
+[ ] AssistantMessage + ToolResponseMessage 쌍 무결성 유지
+[ ] 마지막 UserMessage 보호 유지
+[ ] 계층적 메모리 facts/narrative/recent 주입 순서 불변
+[ ] 세션 소유권 검증(ConversationManager userId 기반 ACL) 유지
+[ ] 스레드별 scopeFingerprint 격리 유지 (CacheKeyBuilder sessionId 필드)
+[ ] ConversationManagerSessionOwnershipTest, ConversationMessageTrimmerTest 전부 PASS
+[ ] DefaultSlackEventHandlerTest 전부 PASS (존재 시)
+```
+
 ## 1) 준비 (Read)
 
 1. `docs/agent-work-directive.md` 전체 Read
@@ -121,6 +245,9 @@ git push origin main
 3. 승인 없는 위험 도구 실행 경로 만들기
 4. 평가셋 없이 "좋아졌다"고 판단하기
 5. 메모리/컨텍스트 무제한 누적
+6. **atlassian-mcp-server 연동 경로(도구 발견/호출/응답) 파괴적 변경** — §0.1 참조
+7. **Redis 의미적 캐시 scopeFingerprint 변경** — §0.2 참조
+8. **sessionId 포맷 / MemoryStore 인터페이스 / ConversationMessageTrimmer 가드 규칙 파괴적 변경** — §0.3 참조
 
 ## 7) QA 측정 루프와의 관계
 

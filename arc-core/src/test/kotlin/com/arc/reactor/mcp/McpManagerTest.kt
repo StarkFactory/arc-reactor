@@ -508,8 +508,8 @@ class McpManagerTest {
         val field = DefaultMcpManager::class.java.getDeclaredField("toolCallbacksCache")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        val cache = field.get(this) as ConcurrentHashMap<String, List<ToolCallback>>
-        cache[serverName] = callbacks
+        val cache = field.get(this) as com.github.benmanes.caffeine.cache.Cache<String, List<ToolCallback>>
+        cache.put(serverName, callbacks)
     }
 
     private fun testCallback(name: String): ToolCallback {
