@@ -58,6 +58,22 @@ class McpHealthPinger(
     private val lastReconnectAttempt: com.github.benmanes.caffeine.cache.Cache<String, Long> =
         Caffeine.newBuilder().maximumSize(MAX_TRACKED_SERVERS).build()
 
+    /**
+     * R331: 서버별 "한 번이라도 non-empty 도구 목록이 관찰되었는가" 플래그.
+     *
+     * **배경**: 이전 구현은 `CONNECTED + tools.isEmpty()`를 무조건 "조용히 끊어진 연결"로 간주하여
+     * 재연결을 트리거했다. 그러나 MCP 프로토콜은 도구가 0개인 서버(resource/prompt만 제공하거나
+     * 아직 도구를 등록하지 않은 서버)를 허용한다. 이런 서버는 `connect()`가 성공적으로 CONNECTED로
+     * 전이되지만 도구 0개이므로 health check가 매 5분(쿨다운) 마다 재연결을 트리거 → 재연결도
+     * 같은 결과 → 무한 루프. R283의 쿨다운은 spam을 완화할 뿐 루프 자체를 끊지 못한다.
+     *
+     * **수정 기준**: 재연결은 "퇴화(degradation)" 감지에만 사용. 즉 **이전에 non-empty였던 서버가
+     * 지금 empty**라면 연결이 조용히 끊겼다고 판단한다. 한 번도 non-empty를 본 적 없는 서버는
+     * 안정적 0-tool 서버로 간주하고 재연결 루프에 넣지 않는다.
+     */
+    private val seenNonEmptyServers: com.github.benmanes.caffeine.cache.Cache<String, Boolean> =
+        Caffeine.newBuilder().maximumSize(MAX_TRACKED_SERVERS).build()
+
     /** 재연결 시도 최소 간격 (밀리초) — 기본 5분 */
     private val reconnectCooldownMs: Long = 300_000L
 
@@ -183,16 +199,33 @@ class McpHealthPinger(
 
     /**
      * CONNECTED 상태 서버의 도구 콜백 가용성을 점검한다.
-     * 도구가 비었거나 조회 실패 시 재연결을 시도한다.
+     *
+     * R331: 도구 개수가 **0에서 0**으로 유지되는 서버는 안정적인 0-tool 서버로 간주하고
+     * 재연결하지 않는다. **non-empty에서 empty로 퇴화**한 경우에만 재연결을 트리거한다.
+     * 이로써 유효한 0-tool MCP 서버가 5분마다 무한 재연결 루프에 빠지는 버그를 차단한다.
+     * [seenNonEmptyServers] KDoc 참조.
      */
     private suspend fun checkConnectedHealth(serverName: String) {
         try {
             val tools = mcpManager.getToolCallbacks(serverName)
-            if (tools.isEmpty()) {
+            if (tools.isNotEmpty()) {
+                // 도구가 있으면 baseline 마킹 후 종료 — 이후 empty 전이 시 degradation 감지
+                seenNonEmptyServers.put(serverName, true)
+                return
+            }
+            // R331: empty는 "이전에 non-empty였을 때만" degradation
+            if (seenNonEmptyServers.getIfPresent(serverName) == true) {
                 logger.warn {
-                    "MCP 서버 '$serverName'가 CONNECTED이나 도구 없음 — 재연결 시도"
+                    "MCP 서버 '$serverName'가 이전에 도구가 있었으나 현재 비어있음 — 재연결 시도"
                 }
+                // baseline 리셋 후 다음 재연결 주기부터 새 상태 재평가
+                seenNonEmptyServers.invalidate(serverName)
                 attemptReconnectWithCooldown(serverName)
+            } else {
+                logger.debug {
+                    "MCP 서버 '$serverName' CONNECTED & 도구 0개 — 0-tool 서버로 간주, " +
+                        "재연결 생략 (R331)"
+                }
             }
         } catch (e: Exception) {
             e.throwIfCancellation()

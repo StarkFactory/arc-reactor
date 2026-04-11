@@ -130,6 +130,13 @@
 - 요약: `McpConnectionSupport` 공유 HttpClient.Builder mutate race 제거(`newHttpClientBuilder()` 함수화) + `handleConnectionError` client identity 비교 추가(`onConnectionError` 시그니처에 `failingClient` 추가, stale 콜백이 신규 클라이언트를 FAILED로 되돌리는 race 차단). 테스트 신규 1 + 기존 4 갱신, 4 모듈 PASS.
 - 상세 위치: `docs/reports/rounds/R330.md`
 
+### Round 331 — 2026-04-12T22:30+09:00 — cycle 10 2차: McpHealthPinger 0-tool 무한 재연결 루프 차단
+
+- axis: `connector_permissions`
+- 분류: `direct_value`
+- 요약: `checkConnectedHealth`가 `tools.isEmpty()`을 무조건 degradation으로 간주해 legitimately 0-tool MCP 서버(MCP 프로토콜 상 유효)를 5분 쿨다운마다 영원히 재연결 루프에 태우던 버그를 수정. `seenNonEmptyServers` Caffeine 트래커를 도입해 "이전에 non-empty를 관찰한 적 있는 서버"에 한해서만 empty 전이를 퇴화로 간주. 기존 테스트 2개 semantics 업데이트 + R331 회귀 2건 신규(0-tool 안정 케이스 + non-empty → empty 전이 케이스). 전체 arc-core PASS.
+- 상세 위치: `docs/reports/rounds/R331.md`
+
 ---
 
 ## 11. 아카이브

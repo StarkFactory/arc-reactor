@@ -77,7 +77,9 @@ class McpHealthPingerTest {
     }
 
     @Test
-    fun `CONNECTED 서버의 도구가 비어있으면 재연결을 시도한다`() = runTest {
+    fun `R331 0-tool 서버는 첫 관찰에서 재연결을 시도하지 않는다`() = runTest {
+        // R331 regression: MCP 프로토콜은 0-tool 서버(resource/prompt만 제공)를 허용한다.
+        // 이런 서버는 한 번도 non-empty였던 적이 없으므로 재연결 루프에 들어가면 안 된다.
         val serverA = server("serverA")
         every { mcpManager.listServers() } returns listOf(serverA)
         every { mcpManager.getStatus("serverA") } returns McpServerStatus.CONNECTED
@@ -91,8 +93,42 @@ class McpHealthPingerTest {
         )
         pinger.start()
 
-        advanceTimeBy(6_000)
+        // 여러 ping 주기를 돌아도 0-tool 서버는 안정 상태로 취급되어야 한다
+        advanceTimeBy(30_000)
 
+        coVerify(exactly = 0) {
+            mcpManager.ensureConnected("serverA")
+        }
+    }
+
+    @Test
+    fun `R331 이전에 도구가 있던 서버가 비어지면 재연결을 시도한다`() = runTest {
+        // R331 regression: non-empty에서 empty로 퇴화한 경우는 여전히 degradation으로
+        // 감지하여 재연결해야 한다.
+        val serverA = server("serverA")
+        every { mcpManager.listServers() } returns listOf(serverA)
+        every { mcpManager.getStatus("serverA") } returns McpServerStatus.CONNECTED
+        // 첫 ping: non-empty (baseline 마킹) → 두 번째 ping부터: empty (퇴화)
+        every { mcpManager.getToolCallbacks("serverA") } returnsMany listOf(
+            listOf(mockk<ToolCallback>()),
+            emptyList(),
+            emptyList()
+        )
+        coEvery { mcpManager.ensureConnected("serverA") } returns true
+
+        val pinger = McpHealthPinger(
+            mcpManager = mcpManager,
+            properties = McpHealthProperties(enabled = true, pingIntervalSeconds = 5),
+            scope = backgroundScope
+        )
+        pinger.start()
+
+        // 첫 ping(6s) — baseline 마킹, 재연결 없음
+        advanceTimeBy(6_000)
+        coVerify(exactly = 0) { mcpManager.ensureConnected("serverA") }
+
+        // 두 번째 ping(12s) — empty로 퇴화 감지 → 재연결 시도
+        advanceTimeBy(6_000)
         coVerify(atLeast = 1) { mcpManager.ensureConnected("serverA") }
     }
 
@@ -157,6 +193,8 @@ class McpHealthPingerTest {
 
     @Test
     fun `여러 서버를 동시에 점검한다`() = runTest {
+        // R331 업데이트: serverB는 첫 관찰부터 0-tool이므로 0-tool 서버로 간주되어
+        // 재연결하지 않는다. 퇴화(non-empty → empty) 경로는 별도 R331 테스트가 커버.
         val serverA = server("serverA")
         val serverB = server("serverB")
         every { mcpManager.listServers() } returns listOf(serverA, serverB)
@@ -164,7 +202,6 @@ class McpHealthPingerTest {
         every { mcpManager.getStatus("serverB") } returns McpServerStatus.CONNECTED
         every { mcpManager.getToolCallbacks("serverA") } returns listOf(mockk<ToolCallback>())
         every { mcpManager.getToolCallbacks("serverB") } returns emptyList()
-        coEvery { mcpManager.ensureConnected("serverB") } returns true
 
         val pinger = McpHealthPinger(
             mcpManager = mcpManager,
@@ -175,10 +212,10 @@ class McpHealthPingerTest {
 
         advanceTimeBy(6_000)
 
-        // serverA는 도구가 있으므로 재연결 불필요
+        // 두 서버 모두 첫 관찰이므로 재연결하지 않아야 한다 (A=non-empty baseline,
+        // B=stable 0-tool)
         coVerify(exactly = 0) { mcpManager.ensureConnected("serverA") }
-        // serverB는 도구가 없으므로 재연결 시도
-        coVerify(atLeast = 1) { mcpManager.ensureConnected("serverB") }
+        coVerify(exactly = 0) { mcpManager.ensureConnected("serverB") }
     }
 
     @Test
