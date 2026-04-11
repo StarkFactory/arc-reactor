@@ -2,7 +2,8 @@ package com.arc.reactor.prompt
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
  * 프롬프트 템플릿 저장소 인터페이스
@@ -84,64 +85,82 @@ interface PromptTemplateStore {
  *
  * @see JdbcPromptTemplateStore 운영 환경용 JDBC 구현
  */
-class InMemoryPromptTemplateStore : PromptTemplateStore {
+/**
+ * 인메모리 프롬프트 템플릿 저장소.
+ *
+ * R313 fix: ConcurrentHashMap → Caffeine bounded cache (2 필드). 기존 구현은
+ * 템플릿/버전이 반복 저장되면 무제한 성장 가능성이 있었다. 이제 [maxTemplates]
+ * 상한(기본 1000)과 [maxVersions] 상한(기본 10,000)을 넘으면 W-TinyLFU 정책으로 evict.
+ */
+class InMemoryPromptTemplateStore(
+    maxTemplates: Long = DEFAULT_MAX_TEMPLATES,
+    maxVersions: Long = DEFAULT_MAX_VERSIONS
+) : PromptTemplateStore {
 
     /** 템플릿 ID -> 템플릿 */
-    private val templates = ConcurrentHashMap<String, PromptTemplate>()
+    private val templates: Cache<String, PromptTemplate> = Caffeine.newBuilder()
+        .maximumSize(maxTemplates)
+        .build()
     /** 버전 ID -> 버전 */
-    private val versions = ConcurrentHashMap<String, PromptVersion>()
+    private val versions: Cache<String, PromptVersion> = Caffeine.newBuilder()
+        .maximumSize(maxVersions)
+        .build()
 
     override fun listTemplates(): List<PromptTemplate> {
-        return templates.values.sortedBy { it.createdAt }
+        return templates.asMap().values.sortedBy { it.createdAt }
     }
 
-    override fun getTemplate(id: String): PromptTemplate? = templates[id]
+    override fun getTemplate(id: String): PromptTemplate? = templates.getIfPresent(id)
 
     override fun getTemplateByName(name: String): PromptTemplate? {
-        return templates.values.firstOrNull { it.name == name }
+        return templates.asMap().values.firstOrNull { it.name == name }
     }
 
     override fun saveTemplate(template: PromptTemplate): PromptTemplate {
-        templates[template.id] = template
+        templates.put(template.id, template)
         return template
     }
 
     override fun updateTemplate(id: String, name: String?, description: String?): PromptTemplate? {
-        val existing = templates[id] ?: return null
+        val existing = templates.getIfPresent(id) ?: return null
         val updated = existing.copy(
             name = name ?: existing.name,
             description = description ?: existing.description,
             updatedAt = Instant.now()
         )
-        templates[id] = updated
+        templates.put(id, updated)
         return updated
     }
 
     override fun deleteTemplate(id: String) {
-        templates.remove(id)
+        templates.invalidate(id)
         // 템플릿에 속한 모든 버전도 삭제한다
-        versions.values.removeIf { it.templateId == id }
+        val versionIdsToRemove = versions.asMap()
+            .filterValues { it.templateId == id }
+            .keys
+            .toList()
+        versions.invalidateAll(versionIdsToRemove)
     }
 
     override fun listVersions(templateId: String): List<PromptVersion> {
-        return versions.values
+        return versions.asMap().values
             .filter { it.templateId == templateId }
             .sortedBy { it.version }
     }
 
-    override fun getVersion(versionId: String): PromptVersion? = versions[versionId]
+    override fun getVersion(versionId: String): PromptVersion? = versions.getIfPresent(versionId)
 
     override fun getActiveVersion(templateId: String): PromptVersion? {
-        return versions.values.firstOrNull {
+        return versions.asMap().values.firstOrNull {
             it.templateId == templateId && it.status == VersionStatus.ACTIVE
         }
     }
 
     override fun createVersion(templateId: String, content: String, changeLog: String): PromptVersion? {
-        if (templates[templateId] == null) return null
+        if (templates.getIfPresent(templateId) == null) return null
 
         // 다음 버전 번호를 계산한다
-        val nextVersion = versions.values
+        val nextVersion = versions.asMap().values
             .filter { it.templateId == templateId }
             .maxOfOrNull { it.version }
             ?.plus(1) ?: 1
@@ -154,28 +173,41 @@ class InMemoryPromptTemplateStore : PromptTemplateStore {
             status = VersionStatus.DRAFT,
             changeLog = changeLog
         )
-        versions[version.id] = version
+        versions.put(version.id, version)
         return version
     }
 
     override fun activateVersion(templateId: String, versionId: String): PromptVersion? {
-        val version = versions[versionId] ?: return null
+        val version = versions.getIfPresent(versionId) ?: return null
         if (version.templateId != templateId) return null
 
         // 현재 활성 버전을 아카이브한다
-        versions.values
+        versions.asMap().values
             .filter { it.templateId == templateId && it.status == VersionStatus.ACTIVE }
-            .forEach { versions[it.id] = it.copy(status = VersionStatus.ARCHIVED) }
+            .forEach { versions.put(it.id, it.copy(status = VersionStatus.ARCHIVED)) }
 
         val activated = version.copy(status = VersionStatus.ACTIVE)
-        versions[versionId] = activated
+        versions.put(versionId, activated)
         return activated
     }
 
     override fun archiveVersion(versionId: String): PromptVersion? {
-        val version = versions[versionId] ?: return null
+        val version = versions.getIfPresent(versionId) ?: return null
         val archived = version.copy(status = VersionStatus.ARCHIVED)
-        versions[versionId] = archived
+        versions.put(versionId, archived)
         return archived
+    }
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        templates.cleanUp()
+        versions.cleanUp()
+    }
+
+    companion object {
+        /** 기본 템플릿 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_TEMPLATES: Long = 1_000L
+        /** 기본 버전 상한. 템플릿당 수십 개 버전을 가정. */
+        const val DEFAULT_MAX_VERSIONS: Long = 10_000L
     }
 }

@@ -3,7 +3,8 @@ package com.arc.reactor.resilience
 import com.arc.reactor.agent.metrics.AgentMetrics
 import com.arc.reactor.agent.metrics.NoOpAgentMetrics
 import com.arc.reactor.resilience.impl.DefaultCircuitBreaker
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
  * 이름별 [CircuitBreaker] 인스턴스를 관리하는 레지스트리.
@@ -27,17 +28,26 @@ class CircuitBreakerRegistry(
     private val failureThreshold: Int = 5,
     private val resetTimeoutMs: Long = 30_000,
     private val halfOpenMaxCalls: Int = 1,
-    private val agentMetrics: AgentMetrics = NoOpAgentMetrics()
+    private val agentMetrics: AgentMetrics = NoOpAgentMetrics(),
+    maxBreakers: Long = DEFAULT_MAX_BREAKERS
 ) {
 
-    /** 이름 → CircuitBreaker 인스턴스 맵. ConcurrentHashMap으로 스레드 안전. */
-    private val breakers = ConcurrentHashMap<String, CircuitBreaker>()
+    /**
+     * 이름 → CircuitBreaker 인스턴스 맵 (Caffeine bounded cache).
+     *
+     * R313 fix: ConcurrentHashMap → Caffeine. 기존 구현은 MCP 서버가 동적으로 추가/삭제될 때
+     * breaker 이름 공간이 무제한 성장 가능했다. 이제 [maxBreakers] 상한(기본 1000)을 넘으면
+     * W-TinyLFU 정책으로 evict — 가장 오래/자주 안 쓰인 breaker부터 제거.
+     */
+    private val breakers: Cache<String, CircuitBreaker> = Caffeine.newBuilder()
+        .maximumSize(maxBreakers)
+        .build()
 
     /**
      * 주어진 이름의 Circuit Breaker를 가져오거나 새로 생성한다.
-     * computeIfAbsent로 같은 이름에 대해 하나의 인스턴스만 생성됨을 보장한다.
+     * Caffeine의 get(key, mappingFunction)은 atomic get-or-create이며 non-null 보장.
      */
-    fun get(name: String): CircuitBreaker = breakers.computeIfAbsent(name) {
+    fun get(name: String): CircuitBreaker = breakers.get(name) {
         DefaultCircuitBreaker(
             failureThreshold = failureThreshold,
             resetTimeoutMs = resetTimeoutMs,
@@ -48,15 +58,25 @@ class CircuitBreakerRegistry(
     }
 
     /** 이미 존재하는 Breaker만 반환한다. 없으면 null. */
-    fun getIfExists(name: String): CircuitBreaker? = breakers[name]
+    fun getIfExists(name: String): CircuitBreaker? = breakers.getIfPresent(name)
 
     /** 등록된 모든 Breaker 이름. */
-    fun names(): Set<String> = breakers.keys.toSet()
+    fun names(): Set<String> = breakers.asMap().keys.toSet()
 
     /** 모든 Breaker를 CLOSED 상태로 리셋한다. */
     fun resetAll() {
-        for ((_, breaker) in breakers) {
+        for ((_, breaker) in breakers.asMap()) {
             breaker.reset()
         }
+    }
+
+    /** 테스트 전용: Caffeine 지연 maintenance를 강제 실행한다. */
+    internal fun forceCleanUp() {
+        breakers.cleanUp()
+    }
+
+    companion object {
+        /** 기본 breaker 레지스트리 상한. 초과 시 W-TinyLFU 정책으로 evict. */
+        const val DEFAULT_MAX_BREAKERS: Long = 1_000L
     }
 }
