@@ -674,14 +674,13 @@ class ReActExecutorGapTest {
         }
 
         @Test
-        fun `도구 실행 오류 시 StepResult에 Error 접두사가 포함되어야 한다`() = runTest {
+        fun `R308 모든 도구 실행 실패 시 synthesize 우회하고 TOOL_ERROR 실패 반환`() = runTest {
             val planJson =
                 """[{"tool":"failing_tool","args":{},"description":"오류 발생 도구"}]"""
             val planResponse = simpleChatResponse(planJson)
-            val synthesisResponse = simpleChatResponse("부분 결과로 합성")
-
+            // R308: 모든 단계 실패 시 synthesize는 호출되지 않으므로 응답 준비 불필요
             every { fixture.callResponseSpec.chatResponse() } returnsMany
-                listOf(planResponse, synthesisResponse)
+                listOf(planResponse)
 
             coEvery {
                 toolCallOrchestrator.executeDirectToolCall(
@@ -706,8 +705,8 @@ class ReActExecutorGapTest {
             )
             val tools = listOf(createMockSpringTool("failing_tool"))
 
-            // PlanExecuteStrategy는 단계 실패 시 예외를 catch하고 "Error: ..." 메시지로 StepResult를 생성한다.
-            // 합성 단계로 진행하므로 최종 결과는 성공이어야 한다.
+            // R308 fix: 모든 단계가 실패하면 synthesize를 우회하고 TOOL_ERROR 실패를 반환한다.
+            // 이전 구현은 "Error: ..." 문자열만 있는 results로 synthesize를 호출 → LLM 환각 응답.
             val result = strategy.execute(
                 command = command,
                 activeChatClient = fixture.chatClient,
@@ -719,11 +718,7 @@ class ReActExecutorGapTest {
                 maxToolCalls = 10
             )
 
-            result.assertSuccess("도구 실행 오류 후 합성 단계가 정상 동작해야 한다")
-            assertEquals(
-                "부분 결과로 합성", result.content,
-                "오류가 있어도 합성 응답이 반환되어야 한다"
-            )
+            result.assertErrorCode(AgentErrorCode.TOOL_ERROR)
         }
 
         @Test

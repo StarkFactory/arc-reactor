@@ -109,6 +109,19 @@ internal class PlanExecuteStrategy(
         val results = executeSteps(
             plan, tools, hookContext, toolsUsed, maxToolCalls, budgetTracker
         )
+        // R308 fix: 실행된 단계가 **전부 실패**했을 때 synthesis LLM 호출을 우회하고 즉시 실패 반환.
+        // 기존 동작은 "Error: ..." 문자열만 있는 results로 synthesize를 호출 → LLM 환각 응답 생성.
+        // 주의: 빈 results(예: maxToolCalls=0 edge case)는 여전히 synthesize로 진행해야 함 —
+        // 이는 호출자의 의도적 설정이며 직접 응답 경로로 간주한다.
+        if (results.isNotEmpty() && results.none { it.success }) {
+            logger.warn {
+                "PLAN_EXECUTE: 모든 실행 단계 실패 (${results.size}/${plan.size}) — synthesize 우회"
+            }
+            return AgentResult.failure(
+                errorMessage = "모든 계획 단계 실행 실패",
+                errorCode = AgentErrorCode.TOOL_ERROR
+            )
+        }
         return synthesize(command, activeChatClient, systemPrompt, results)
     }
 
@@ -295,11 +308,26 @@ internal class PlanExecuteStrategy(
                 hookContext = hookContext,
                 toolsUsed = toolsUsed
             )
-            StepResult(step.description, step.tool, toolResult.output)
+            StepResult(
+                description = step.description,
+                tool = step.tool,
+                output = toolResult.output,
+                success = toolResult.success
+            )
         } catch (e: Exception) {
             e.throwIfCancellation()
-            logger.warn(e) { "PLAN_EXECUTE 단계 실패: ${step.tool}" }
-            StepResult(step.description, step.tool, "Error: 도구 실행 중 오류가 발생했습니다 (${e.javaClass.simpleName})")
+            // R308 fix: e.javaClass.simpleName을 tool output 문자열에 포함하면 synthesis를 거쳐
+            // 사용자 응답에 클래스명이 노출될 수 있다 (CLAUDE.md Gotcha #9 계열). 내부 클래스명은
+            // 서버 로그에만 남기고 tool output에는 불투명 "TOOL_ERROR" 문자열만 사용한다.
+            logger.warn(e) {
+                "PLAN_EXECUTE 단계 실패: ${step.tool} (exception=${e.javaClass.simpleName})"
+            }
+            StepResult(
+                description = step.description,
+                tool = step.tool,
+                output = "Error: TOOL_ERROR",
+                success = false
+            )
         }
     }
 
@@ -328,8 +356,17 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
-        val content = response?.results?.firstOrNull()
-            ?.output?.text.orEmpty()
+        // R308 fix: LLM이 null 또는 빈 content를 반환하면 기존 구현은 AgentResult.success("")를
+        // 반환하여 호출자가 LLM 실패와 정상 빈 응답을 구분할 수 없었다. INVALID_RESPONSE로 명시적
+        // 실패 처리한다.
+        val content = response?.results?.firstOrNull()?.output?.text
+        if (content.isNullOrBlank()) {
+            logger.warn { "PLAN_EXECUTE synthesize: LLM이 null/빈 응답 반환" }
+            return AgentResult.failure(
+                errorMessage = "LLM synthesize 응답 없음",
+                errorCode = AgentErrorCode.INVALID_RESPONSE
+            )
+        }
         return AgentResult.success(content = content)
     }
 
@@ -349,16 +386,29 @@ internal class PlanExecuteStrategy(
         val response = callWithRetry {
             runInterruptible(Dispatchers.IO) { spec.call().chatResponse() }
         }
-        val content = response?.results?.firstOrNull()
-            ?.output?.text.orEmpty()
+        // R308 fix: synthesize()와 동일 — null/빈 응답을 INVALID_RESPONSE 실패로 승격.
+        val content = response?.results?.firstOrNull()?.output?.text
+        if (content.isNullOrBlank()) {
+            logger.warn { "PLAN_EXECUTE directAnswer: LLM이 null/빈 응답 반환" }
+            return AgentResult.failure(
+                errorMessage = "LLM 직접 응답 없음",
+                errorCode = AgentErrorCode.INVALID_RESPONSE
+            )
+        }
         return AgentResult.success(content = content)
     }
 
-    /** 실행된 단계의 결과. */
+    /**
+     * 실행된 단계의 결과.
+     *
+     * R308 fix: `success` 필드 추가 — 기존 구현은 error 문자열 prefix("Error: ")로 실패를
+     * 구분해야 했으나 이는 synthesis LLM 프롬프트와 섞여 판별이 부정확했다.
+     */
     private data class StepResult(
         val description: String,
         val tool: String,
-        val output: String?
+        val output: String?,
+        val success: Boolean = true
     )
 
     companion object {

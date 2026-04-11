@@ -438,6 +438,260 @@ class PlanExecuteStrategyTest {
         )
     }
 
+    // ── R308 회귀 테스트: PlanExecute 3개 fix ──
+
+    @Test
+    fun `R308 synthesize LLM이 빈 응답을 반환하면 INVALID_RESPONSE 실패를 반환해야 한다`() = runTest {
+        val planJson = """[{"tool":"tool_ok","args":{},"description":"정상"}]"""
+        val planResponse = simpleChatResponse(planJson)
+        val emptySynthesisResponse = simpleChatResponse("   ") // blank content
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, emptySynthesisResponse)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_ok",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "정상 결과", success = true)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "정상 요청",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("tool_ok")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.INVALID_RESPONSE)
+    }
+
+    @Test
+    fun `R308 directAnswer LLM이 빈 응답을 반환하면 INVALID_RESPONSE 실패를 반환해야 한다`() = runTest {
+        val emptyPlanResponse = simpleChatResponse("[]") // 빈 계획 → directAnswer 경로
+        val emptyDirectResponse = simpleChatResponse("") // 완전 빈 응답
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(emptyPlanResponse, emptyDirectResponse)
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "안녕",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("some_tool")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.INVALID_RESPONSE)
+    }
+
+    @Test
+    fun `R308 모든 plan step이 실패하면 synthesize 우회하고 TOOL_ERROR 실패 반환`() = runTest {
+        val planJson = """
+            [
+              {"tool":"tool_fail_1","args":{},"description":"첫 실패"},
+              {"tool":"tool_fail_2","args":{},"description":"두번째 실패"}
+            ]
+        """.trimIndent()
+        val planResponse = simpleChatResponse(planJson)
+        // synthesize는 호출되지 않아야 하므로 응답을 준비하지 않아도 됨
+        every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(planResponse)
+
+        // ToolCallOrchestrator가 항상 예외 throw
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = any(),
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } throws RuntimeException("도구 예외")
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "실패 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(
+                createMockSpringTool("tool_fail_1"),
+                createMockSpringTool("tool_fail_2")
+            ),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.TOOL_ERROR)
+        assertTrue(
+            result.errorMessage?.contains("실행 실패") == true,
+            "에러 메시지에 실패 사유가 포함되어야 한다: ${result.errorMessage}"
+        )
+    }
+
+    @Test
+    fun `R308 일부만 실패하면 synthesize로 진행 (부분 성공 유지)`() = runTest {
+        val planJson = """
+            [
+              {"tool":"tool_ok","args":{},"description":"정상"},
+              {"tool":"tool_fail","args":{},"description":"실패"}
+            ]
+        """.trimIndent()
+        val planResponse = simpleChatResponse(planJson)
+        val synthesisResponse = simpleChatResponse("부분 결과로 답변")
+
+        every { fixture.callResponseSpec.chatResponse() } returnsMany
+            listOf(planResponse, synthesisResponse)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_ok",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } returns ToolCallResult(output = "성공 결과", success = true)
+
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_fail",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } throws RuntimeException("도구 예외")
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "부분 성공 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(
+                createMockSpringTool("tool_ok"),
+                createMockSpringTool("tool_fail")
+            ),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertSuccess("부분 성공은 synthesize로 정상 진행되어야 한다")
+        assertEquals("부분 결과로 답변", result.content, "부분 성공 시 synthesize 응답이 반환되어야 한다")
+    }
+
+    @Test
+    fun `R308 도구 실행 예외의 internal class name이 tool output 문자열에 포함되지 않아야 한다`() = runTest {
+        val planJson = """[{"tool":"tool_fail","args":{},"description":"실패 단계"}]"""
+        val planResponse = simpleChatResponse(planJson)
+        // 여기서 synthesize는 호출되지 않음(모두 실패 → TOOL_ERROR 반환)
+        every { fixture.callResponseSpec.chatResponse() } returnsMany listOf(planResponse)
+
+        // 내부 클래스명이 노출되면 안 되는 민감한 이름의 예외
+        coEvery {
+            toolCallOrchestrator.executeDirectToolCall(
+                toolName = "tool_fail",
+                toolParams = any(),
+                tools = any(),
+                hookContext = any(),
+                toolsUsed = any()
+            )
+        } throws NullPointerException("내부 상태 실패")
+
+        val command = AgentCommand(
+            systemPrompt = "시스템",
+            userPrompt = "예외 노출 테스트",
+            mode = AgentMode.PLAN_EXECUTE
+        )
+        val hookContext = HookContext(
+            runId = "test-run",
+            userId = "test-user",
+            userPrompt = command.userPrompt,
+            metadata = mutableMapOf()
+        )
+
+        val result = strategy.execute(
+            command = command,
+            activeChatClient = fixture.chatClient,
+            systemPrompt = "시스템",
+            tools = listOf(createMockSpringTool("tool_fail")),
+            conversationHistory = emptyList(),
+            hookContext = hookContext,
+            toolsUsed = mutableListOf(),
+            maxToolCalls = 10
+        )
+
+        result.assertErrorCode(AgentErrorCode.TOOL_ERROR)
+        // 결과 자체도 실패이고 errorMessage/content에 NullPointerException이 노출되면 안 됨
+        assertTrue(
+            result.errorMessage?.contains("NullPointerException") != true,
+            "에러 메시지에 내부 예외 클래스명이 노출되면 안 된다: ${result.errorMessage}"
+        )
+        assertTrue(
+            result.content?.contains("NullPointerException") != true,
+            "content에 내부 예외 클래스명이 노출되면 안 된다: ${result.content}"
+        )
+    }
+
     private fun simpleChatResponse(content: String): ChatResponse {
         val msg = AssistantMessage(content)
         return ChatResponse(listOf(Generation(msg)))
