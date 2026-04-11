@@ -486,4 +486,157 @@ class DoctorControllerTest {
             assertEquals("text/markdown", response.headers.contentType?.toString())
         }
     }
+
+    // ========================================================================
+    // R257: summary 엔드포인트 Content Negotiation 테스트
+    // ========================================================================
+
+    @Nested
+    inner class R257SummaryContentNegotiation {
+
+        @Test
+        fun `R257 summary Accept 헤더 없음은 JSON 맵 반환 (backward compat)`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK, DoctorStatus.OK)
+            val response = controller.summary(exchangeWithRole(UserRole.ADMIN, acceptHeader = null))
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType) {
+                "기본 포맷은 JSON"
+            }
+            @Suppress("UNCHECKED_CAST")
+            val body = response.body as Map<String, Any>
+            assertEquals("OK", body["status"])
+            assertEquals(true, body["allHealthy"])
+            assertNotNull(body["summary"])
+            assertNotNull(body["generatedAt"])
+        }
+
+        @Test
+        fun `R257 summary Accept application-json은 JSON 맵 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "application/json")
+            )
+
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType)
+            @Suppress("UNCHECKED_CAST")
+            val body = response.body as Map<String, Any>
+            assertEquals("OK", body["status"])
+        }
+
+        @Test
+        fun `R257 summary Accept text-plain은 한 줄 텍스트 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK, DoctorStatus.WARN)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/plain")
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType)
+            val body = response.body as String
+            assertTrue(body.contains("섹션")) { "요약 포함" }
+            assertTrue(body.contains("경고 포함")) { "한국어 overall 라벨 포함" }
+            assertTrue(body.contains("2026-04-11T11:00:00Z")) { "generatedAt 포함" }
+            assertTrue(body.contains(" | ")) { "파이프 구분자 포함" }
+        }
+
+        @Test
+        fun `R257 summary Accept text-markdown은 Slack mrkdwn 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK, DoctorStatus.WARN)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/markdown")
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertEquals("text/markdown", response.headers.contentType?.toString())
+            val body = response.body as String
+            assertTrue(body.startsWith("*[WARN]*")) {
+                "WARN 상태 badge로 시작: $body"
+            }
+            assertTrue(body.contains("섹션")) { "요약 포함" }
+            assertTrue(body.contains("_(")) { "italic 시각 구분자" }
+        }
+
+        @Test
+        fun `R257 summary text-markdown OK 상태 badge`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK, DoctorStatus.OK)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/markdown")
+            )
+
+            val body = response.body as String
+            assertTrue(body.startsWith("*[OK]*")) {
+                "OK 상태 badge로 시작: $body"
+            }
+        }
+
+        @Test
+        fun `R257 summary text-markdown ERROR 상태 badge + 500`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK, DoctorStatus.ERROR)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/markdown")
+            )
+
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode) {
+                "ERROR는 500"
+            }
+            assertEquals("ERROR", response.headers.getFirst(DoctorController.STATUS_HEADER))
+            val body = response.body as String
+            assertTrue(body.startsWith("*[ERROR]*")) {
+                "ERROR 상태 badge로 시작: $body"
+            }
+        }
+
+        @Test
+        fun `R257 summary text-plain ERROR 시 500과 한국어 라벨`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.ERROR)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "text/plain")
+            )
+
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
+            assertEquals(MediaType.TEXT_PLAIN, response.headers.contentType)
+            val body = response.body as String
+            assertTrue(body.contains("오류 포함")) {
+                "한국어 ERROR 라벨 포함: $body"
+            }
+        }
+
+        @Test
+        fun `R257 summary wildcard Accept는 JSON 반환`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.summary(
+                exchangeWithRole(UserRole.ADMIN, acceptHeader = "*/*")
+            )
+
+            assertEquals(MediaType.APPLICATION_JSON, response.headers.contentType) {
+                "wildcard는 JSON 기본"
+            }
+        }
+
+        @Test
+        fun `R257 summary 여러 타입 중 markdown 우선 매칭`() {
+            every { doctor.runDiagnostics() } returns reportWithStatus(DoctorStatus.OK)
+            val response = controller.summary(
+                exchangeWithRole(
+                    UserRole.ADMIN,
+                    acceptHeader = "application/json, text/markdown, text/plain"
+                )
+            )
+
+            assertEquals("text/markdown", response.headers.contentType?.toString()) {
+                "markdown이 우선순위 1"
+            }
+        }
+
+        @Test
+        fun `R257 summary USER 역할은 403을 유지해야 한다`() {
+            val response = controller.summary(
+                exchangeWithRole(UserRole.USER, acceptHeader = "text/plain")
+            )
+            assertEquals(HttpStatus.FORBIDDEN, response.statusCode) {
+                "인증 정책은 Content Negotiation과 무관하게 유지"
+            }
+        }
+    }
 }

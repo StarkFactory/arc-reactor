@@ -150,16 +150,29 @@ class DoctorController(
      *
      * 모니터링 대시보드나 CLI 프로브처럼 상세 정보가 불필요한 경우에 사용.
      *
-     * 예시 응답:
+     * R257: Content Negotiation 추가 (R244 패턴 완결). Accept 헤더에 따라:
+     * - `application/json` (기본) — `{summary, status, generatedAt, allHealthy}` 맵
+     * - `text/plain` — `"4 섹션 — OK 3, WARN 1 | 경고 포함 | 2026-04-11T11:30:00Z"` 한 줄
+     * - `text/markdown` — Slack mrkdwn `*[WARN]* 4 섹션 — OK 3, WARN 1 _(2026-...)_`
+     *
+     * 예시 응답 (JSON):
      * ```json
      * {"summary": "4 섹션 — OK 3, WARN 1", "status": "WARN", "generatedAt": "2026-04-11T11:30:00Z"}
      * ```
      */
     @Operation(
         summary = "진단 한 줄 요약",
-        description = "상세 섹션 없이 overall status와 summary 문자열만 반환한다."
+        description = "상세 섹션 없이 overall status와 summary 문자열만 반환한다. " +
+            "R257: Accept 헤더에 따라 JSON/text-plain/text-markdown 중 적절한 포맷 반환."
     )
-    @GetMapping("/summary")
+    @GetMapping(
+        "/summary",
+        produces = [
+            MediaType.APPLICATION_JSON_VALUE,
+            MediaType.TEXT_PLAIN_VALUE,
+            DOCTOR_TEXT_MARKDOWN_VALUE
+        ]
+    )
     fun summary(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         val report = runDiagnosticsSafely()
@@ -168,17 +181,55 @@ class DoctorController(
             report.hasWarningsOrErrors() -> STATUS_WARN
             else -> STATUS_OK
         }
-        val body = mapOf(
-            "summary" to report.summary(),
-            "status" to overall,
-            "generatedAt" to report.generatedAt.toString(),
-            "allHealthy" to report.allHealthy()
-        )
         val httpStatus = if (report.hasErrors()) HttpStatus.INTERNAL_SERVER_ERROR else HttpStatus.OK
+        val format = resolveFormat(exchange)
+
+        val (body, contentType) = when (format) {
+            ReportFormat.JSON -> {
+                val map = mapOf(
+                    "summary" to report.summary(),
+                    "status" to overall,
+                    "generatedAt" to report.generatedAt.toString(),
+                    "allHealthy" to report.allHealthy()
+                )
+                map as Any to MediaType.APPLICATION_JSON
+            }
+            ReportFormat.TEXT_PLAIN ->
+                formatSummaryAsPlainText(report) as Any to MediaType.TEXT_PLAIN
+            ReportFormat.TEXT_MARKDOWN ->
+                formatSummaryAsMarkdown(report) as Any to MediaType.valueOf(DOCTOR_TEXT_MARKDOWN_VALUE)
+        }
+
         return ResponseEntity
             .status(httpStatus)
             .header(STATUS_HEADER, overall)
+            .contentType(contentType)
             .body(body)
+    }
+
+    /**
+     * R257: 진단 요약을 한 줄 text/plain 포맷으로 렌더링한다.
+     *
+     * 예: `4 섹션 — OK 3, WARN 1 | 경고 포함 | 2026-04-11T11:30:00Z`
+     */
+    private fun formatSummaryAsPlainText(report: DoctorReport): String {
+        return "${report.summary()} | ${report.overallStatusLabel()} | ${report.generatedAt}"
+    }
+
+    /**
+     * R257: 진단 요약을 Slack mrkdwn 한 줄 포맷으로 렌더링한다.
+     *
+     * 예: `*[WARN]* 4 섹션 — OK 3, WARN 1 _(2026-04-11T11:30:00Z)_`
+     *
+     * 대시보드 알림 봇이 이 한 줄을 그대로 Slack 채널에 붙여넣을 수 있다.
+     */
+    private fun formatSummaryAsMarkdown(report: DoctorReport): String {
+        val statusBadge = when {
+            report.hasErrors() -> "*[ERROR]*"
+            report.hasWarningsOrErrors() -> "*[WARN]*"
+            else -> "*[OK]*"
+        }
+        return "$statusBadge ${report.summary()} _(${report.generatedAt})_"
     }
 
     /**

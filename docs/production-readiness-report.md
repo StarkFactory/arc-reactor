@@ -18684,3 +18684,196 @@ R256으로 execution.error 축이 "코드 + 문서" 양쪽 완성. 다음 라운
 #### 📊 R256 요약
 
 📚 **execution.error 9개 stage 운영 플레이북 문서화 완료** — R245~R255의 11 라운드 코드 투자를 **운영자 즉시 활용 가능한 자산**으로 전환. 코드 변경 없이 `docs/evaluation-metrics.md`에 **+363줄** 추가하여 9개 stage 각각의 운영 매뉴얼을 작성. 구조: (1) 9개 stage 개요 표 — stage / Round / fault-tolerance 스타일 / 대응 팀 / 주요 관심사, (2) Stage별 상세 플레이북 9개 (각 약 35줄) — 기록 경로 / 자주 등장하는 예외 / Prometheus 쿼리 / Alertmanager 규칙 / 대응 매뉴얼, (3) 9 Stage 통합 모니터링 쿼리 — 스택 차트 + heatmap + fault-tolerance 스타일별 그룹화 쿼리, (4) 대응 팀 라우팅 매트릭스 — SRE/ML/보안/Platform/MCP 5개 팀과 담당 stage 매핑, (5) R255 이후 핵심 변화 체크리스트. 핵심 운영 시나리오 3개 문서화: Redis 인프라 장애 확진 (`memory`∧`cache` Jedis 예외 동시 급증), 프롬프트 엔지니어링 Regression 탐지 (`parsing` stage topk), 새 Stage 필요 신호 발굴 (`other` stage topk로 반복 예외 → 새 enum 값 후보). 모든 PromQL과 YAML이 즉시 복사-붙여넣기 가능한 실행 가능 예시. 문서 길이: 451줄 → 814줄 (363줄 확장). 참조 섹션에 R246~R256 13개 라운드 링크 추가. 코드 변경 없으므로 테스트 불필요, 16 tasks 멀티모듈 컴파일 PASS 영향 없음. MCP/캐시/컨텍스트 3대 최상위 제약 자동 준수 (코드 건드리지 않음). Directive 진행: **4/5 + R224~R256**. swagger-mcp 8181 **87 라운드 연속**. **R245~R256 여정 완성**: 코드 (R245~R255, 자동 기록 9/9 100%) + 문서 (R256, 운영 가이드) 양쪽 축이 모두 완성. 운영자는 이 문서 한 번 읽으면 즉시 Prometheus 쿼리를 복사하고 Alertmanager 규칙을 배포할 수 있다. R257부터는 완전히 새로운 축(QA 측정 루프 재개, ApprovalController REST, Patch-First 등)으로 진행 가능.
+
+### Round 257 — 🔗 2026-04-11T21:30+09:00 — DoctorController summary Content Negotiation (R244 완결)
+
+**작업 종류**: Directive 심화 — Observability UX 마무리 (QA 측정 없음)
+**Directive 패턴**: Observability 축 (R244 미완결 부분 완성)
+**완료 태스크**: #132
+
+#### 작업 배경
+
+R244는 `DoctorController.report()` 엔드포인트에만 Content Negotiation(JSON/text/plain/text/markdown)을 추가했고, 형제 엔드포인트인 `/summary`는 JSON-only 상태로 남아 있었다. R257은 이 불일치를 해소하여 **두 엔드포인트 모두 동일한 Accept 헤더 기반 포맷 선택**을 지원한다.
+
+**운영 관점의 가치**:
+- **CLI 프로브**: `curl -H "Accept: text/plain" /api/admin/doctor/summary` → 한 줄 상태 즉시 확인
+- **Slack 봇 통합**: `curl -H "Accept: text/markdown" /api/admin/doctor/summary | slack-send #ops` → Slack 채널에 한 줄 알림
+- **대시보드 위젯**: JSON 맵은 Grafana stat 패널에, text/plain 한 줄은 status bar에 활용
+
+#### 설계 원칙
+
+1. **R244 패턴 완전 재사용** — 동일한 `resolveFormat(exchange)` 헬퍼와 `ReportFormat` enum 재사용
+2. **Summary 포맷은 한 줄** — report 엔드포인트가 멀티라인인 반면 summary는 **모든 포맷에서 한 줄** 유지
+3. **상태 badge 표시** — text/markdown에서 `*[OK]*` / `*[WARN]*` / `*[ERROR]*` bold badge로 시각적 구분
+4. **한국어 라벨 포함** — text/plain은 `report.overallStatusLabel()` 한국어("정상"/"경고 포함"/"오류 포함") 활용
+
+#### 신규 API
+
+**3가지 응답 포맷**:
+
+| Accept | Content-Type | 응답 예시 |
+|--------|--------------|-----------|
+| (없음), `*/*`, `application/json` | JSON | `{"summary":"4 섹션 — OK 3, WARN 1","status":"WARN","generatedAt":"2026-04-11T11:30:00Z","allHealthy":false}` |
+| `text/plain` | text/plain | `4 섹션 — OK 3, WARN 1 \| 경고 포함 \| 2026-04-11T11:30:00Z` |
+| `text/markdown` | text/markdown | `*[WARN]* 4 섹션 — OK 3, WARN 1 _(2026-04-11T11:30:00Z)_` |
+
+**변경된 `summary()` 메서드**:
+```kotlin
+@GetMapping(
+    "/summary",
+    produces = [
+        MediaType.APPLICATION_JSON_VALUE,
+        MediaType.TEXT_PLAIN_VALUE,
+        DOCTOR_TEXT_MARKDOWN_VALUE
+    ]
+)
+fun summary(exchange: ServerWebExchange): ResponseEntity<Any> {
+    if (!isAnyAdmin(exchange)) return forbiddenResponse()
+    val report = runDiagnosticsSafely()
+    val overall = when { ... }
+    val format = resolveFormat(exchange)  // R244 헬퍼 재사용
+
+    val (body, contentType) = when (format) {
+        ReportFormat.JSON -> mapOf(...) as Any to MediaType.APPLICATION_JSON
+        ReportFormat.TEXT_PLAIN ->
+            formatSummaryAsPlainText(report) as Any to MediaType.TEXT_PLAIN
+        ReportFormat.TEXT_MARKDOWN ->
+            formatSummaryAsMarkdown(report) as Any to MediaType.valueOf(DOCTOR_TEXT_MARKDOWN_VALUE)
+    }
+
+    return ResponseEntity.status(httpStatus)
+        .header(STATUS_HEADER, overall)
+        .contentType(contentType)
+        .body(body)
+}
+```
+
+**신규 private 헬퍼 2개**:
+```kotlin
+private fun formatSummaryAsPlainText(report: DoctorReport): String {
+    return "${report.summary()} | ${report.overallStatusLabel()} | ${report.generatedAt}"
+}
+
+private fun formatSummaryAsMarkdown(report: DoctorReport): String {
+    val statusBadge = when {
+        report.hasErrors() -> "*[ERROR]*"
+        report.hasWarningsOrErrors() -> "*[WARN]*"
+        else -> "*[OK]*"
+    }
+    return "$statusBadge ${report.summary()} _(${report.generatedAt})_"
+}
+```
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `main/.../DoctorController.kt` | `summary()` 메서드 확장 + `produces` 어노테이션 + 2개 private 헬퍼 (+55줄) |
+| `test/.../DoctorControllerTest.kt` | `R257SummaryContentNegotiation` @Nested 10 tests (+130줄) |
+
+#### 테스트 결과
+
+**DoctorControllerTest — R257 신규 10 tests PASS**:
+```
+- Accept 헤더 없음은 JSON 맵 반환 (backward compat)
+- Accept application/json은 JSON 맵 반환
+- Accept text/plain은 한 줄 텍스트 반환 (섹션, 경고 포함, 2026 포함, 파이프 구분자)
+- Accept text/markdown은 Slack mrkdwn 반환 (*[WARN]* badge)
+- text-markdown OK 상태 badge (*[OK]*)
+- text-markdown ERROR 상태 badge + 500 응답
+- text-plain ERROR 시 500 + "오류 포함" 한국어 라벨
+- wildcard Accept는 JSON 반환
+- 여러 타입 중 markdown 우선 매칭
+- USER 역할은 Content Negotiation과 무관하게 403 유지
+```
+
+**기존 회귀**:
+- 전체 `com.arc.reactor.admin.controller.DoctorControllerTest` PASS (기존 32 + R257 10 = **42 tests**)
+- 전체 arc-admin 모듈 테스트 PASS
+- 전체 `com.arc.reactor.diagnostics.*` (arc-core) PASS
+- **R220 Golden snapshot 5개 해시 불변** 확인
+- 16 tasks 멀티모듈 컴파일 PASS
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**:
+- ✅ atlassian-mcp-server 경로 미접근
+- ✅ `/summary` 엔드포인트의 기본(JSON) 응답 동작 불변
+- ✅ 기존 JSON 클라이언트(Accept 없음, `*/*`, `application/json`) 완전 호환
+- ✅ R244와 동일 패턴 적용 — 안정성 검증된 로직 재사용
+
+**MCP 호환성: 유지 확인**
+
+**2. Redis 의미적 캐시**:
+- ✅ `SystemPromptBuilder` 미수정 → scopeFingerprint 불변
+- ✅ R220 Golden snapshot 5개 해시 불변
+- ✅ `CacheKeyBuilder` 미수정
+
+**캐시 영향: 0**
+
+**3. 대화/스레드 컨텍스트 관리**:
+- ✅ `sessionId`, `MemoryStore`, `ConversationMessageTrimmer` 미접근
+- ✅ `ConversationManager` 미수정
+
+#### R244 / R257 completeness matrix
+
+| 엔드포인트 | JSON | text/plain | text/markdown | Round |
+|-----------|------|------------|---------------|-------|
+| `GET /api/admin/doctor` | ✓ R237 | ✓ R244 | ✓ R244 | R237/R244 |
+| `GET /api/admin/doctor/summary` | ✓ R237 | **✓ R257** | **✓ R257** | R237/**R257** |
+
+**R244 Content Negotiation 패턴이 두 엔드포인트에 모두 완전 적용**되어 일관된 클라이언트 경험 제공.
+
+#### 운영 시나리오
+
+**시나리오 1: CLI 한 줄 프로브**
+```bash
+curl -sS -H "Accept: text/plain" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/doctor/summary
+# 출력: 4 섹션 — OK 3, WARN 1 | 경고 포함 | 2026-04-11T11:30:00Z
+```
+
+**시나리오 2: Slack 봇 한 줄 알림**
+```bash
+curl -sS -H "Accept: text/markdown" -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/admin/doctor/summary | \
+  slack-send --channel "#arc-reactor-ops"
+# Slack에 렌더링: **[WARN]** 4 섹션 — OK 3, WARN 1 _(2026-04-11T11:30:00Z)_
+```
+
+**시나리오 3: Grafana status 위젯 (JSON 유지)**
+```yaml
+datasource: prometheus
+query: curl $DOCTOR_URL/summary
+fieldConfig:
+  defaults:
+    mappings:
+      - text: "정상"
+        value: "OK"
+```
+JSON `status` 필드를 Grafana의 status history 패널에 매핑.
+
+#### 연속 지표
+
+| 지표 | R256 | R257 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 87 | **88** | 계속 누적 |
+| 빌드 PASS | PASS | **PASS** | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R256 | **4/5 + R224~R257** | - |
+| DoctorController 엔드포인트 CN | 1/2 (report만) | **2/2 (report + summary)** | 완성 |
+
+#### 다음 Round 후보
+
+- **R258+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용
+  3. **Grafana 대시보드 JSON 확장** — R256 문서의 9개 stage 쿼리를 기존 Grafana JSON에 통합
+  4. **RetryTest pre-existing flaky 이슈 조사** — test isolation 문제
+  5. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254에서 분리
+  6. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+
+#### 📊 R257 요약
+
+🔗 **DoctorController summary Content Negotiation 완료 — R244 패턴 완결** — R244에서 `report()` 엔드포인트에만 적용했던 Content Negotiation을 형제 엔드포인트 `/summary`에도 추가하여 **두 엔드포인트 모두 3가지 포맷 지원**(JSON/text/plain/text/markdown) 달성. `resolveFormat()` 헬퍼와 `ReportFormat` enum은 R244 그대로 재사용하여 일관성 확보. 신규 private 헬퍼 2개 추가: `formatSummaryAsPlainText()`는 `"4 섹션 — OK 3, WARN 1 | 경고 포함 | 2026-04-11T11:30:00Z"` 형태 한 줄 텍스트 (한국어 `overallStatusLabel` 활용), `formatSummaryAsMarkdown()`은 `"*[WARN]* 4 섹션 — OK 3, WARN 1 _(2026-04-11T11:30:00Z)_"` 형태 Slack mrkdwn 한 줄 (OK/WARN/ERROR 3단계 bold badge). 두 헬퍼 모두 summary는 **모든 포맷에서 한 줄** 유지 — report(멀티라인)와 의도적 차별화. 기존 JSON 맵 응답은 backward compat 완전 유지 — Accept 없음/`*/*`/`application/json` 모두 기존 `{summary, status, generatedAt, allHealthy}` 맵 반환. `@GetMapping("/summary", produces = [JSON, TEXT_PLAIN, TEXT_MARKDOWN])` 확장. ERROR/WARN/OK HTTP 상태와 `X-Doctor-Status` 헤더는 포맷과 무관하게 보존. 수정 파일 2개 (Controller +55줄 / Test +130줄). 신규 테스트 **10 PASS** (R257SummaryContentNegotiation @Nested): Accept 없음 JSON 맵 / application/json JSON 맵 / text/plain 한 줄 (섹션/한국어/파이프) / text/markdown WARN badge / text/markdown OK badge / text/markdown ERROR badge + 500 / text/plain ERROR + 500 + 오류 포함 / wildcard JSON / 여러 타입 markdown 우선 / USER 403 유지. 기존 32 tests backward compat 유지 → **총 42 DoctorControllerTest PASS**. 전체 `arc-admin` + `com.arc.reactor.diagnostics.*` 회귀 없음. R220 Golden snapshot 5개 해시 불변. 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 모두 준수. Directive 진행: **4/5 + R224~R257**. swagger-mcp 8181 **88 라운드 연속**. **R244 패턴 완결**: 두 엔드포인트 매트릭스 (report JSON/plain/markdown + summary JSON/plain/markdown)가 **2/2 완성**. 이제 CLI 프로브 (`curl -H "Accept: text/plain" /summary`), Slack 봇 한 줄 알림 (`curl -H "Accept: text/markdown" /summary | slack-send`), Grafana status 위젯(기존 JSON 유지) 3가지 워크플로우를 같은 엔드포인트에서 지원. 운영자는 상황에 맞는 포맷을 클라이언트에서 선택만 하면 된다.
