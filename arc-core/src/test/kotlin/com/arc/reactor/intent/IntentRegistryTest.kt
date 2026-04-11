@@ -121,6 +121,41 @@ class IntentRegistryTest {
     }
 
     @Nested
+    inner class BoundedCacheBehavior {
+
+        /**
+         * R305 회귀: Caffeine 마이그레이션 후 maxEntries 상한이 동작한다.
+         *
+         * 과거 ConcurrentHashMap은 무제한 성장 → OOM 위험. Caffeine bounded cache로
+         * 상한 초과 시 W-TinyLFU 정책으로 evict 되어야 한다.
+         */
+        @Test
+        fun `maxEntries 초과 시 Caffeine bounded cache가 evict해야 한다`() {
+            val bounded = InMemoryIntentRegistry(maxEntries = 5)
+            repeat(100) { i ->
+                bounded.save(createIntent("intent-$i", "desc-$i"))
+            }
+            bounded.forceCleanUp()
+            val all = bounded.list()
+            // Caffeine은 W-TinyLFU 정책이라 정확한 maxSize가 아닌 근사치로 수렴.
+            // 100개 저장 후 상한 5 초과분이 실제로 축출되었는지(size < 100) 확인.
+            assertTrue(all.size < 100) {
+                "Expected eviction to reduce size below 100, got ${all.size}"
+            }
+            assertTrue(all.size <= 20) {
+                "Expected Caffeine bounded cache to converge near maxSize=5, got ${all.size}"
+            }
+        }
+
+        @Test
+        fun `기본 maxEntries는 10000이다`() {
+            assertEquals(10_000L, InMemoryIntentRegistry.DEFAULT_MAX_INTENTS) {
+                "Expected default max entries to be 10000"
+            }
+        }
+    }
+
+    @Nested
     inner class ProfileStorage {
 
         @Test
