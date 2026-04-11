@@ -848,6 +848,11 @@ sum(rate(arc_reactor_eval_execution_error_total{stage="other"}[5m]))
 
 Prometheus alertmanager 규칙. `prometheus.yml`의 `rule_files` 참조로 추가한다.
 
+> **R260 안내**: 이 섹션의 task-level 5개 + R256 섹션의 stage-level 9개를 통합한
+> 즉시 사용 가능한 단일 파일이 [`docs/alertmanager-rules.yaml`](alertmanager-rules.yaml)에 있다.
+> 운영자는 `prometheus.yml`의 `rule_files`에 해당 경로만 추가하면 14개 규칙이
+> 자동 등록된다 (R260 라운드).
+
 ```yaml
 groups:
   - name: arc-reactor-eval
@@ -937,6 +942,7 @@ groups:
 - **R255** — Round 255 섹션: `SpringAiAgentExecutor` OTHER stage 자동 기록 (🏆 9/9 100% 완성)
 - **R256** — Round 256 섹션 (이 문서 확장): 9개 stage 운영 플레이북 + 대응 팀 라우팅 매트릭스
 - **R259** — Round 259 섹션 (이 문서 확장): Grafana 대시보드 JSON에 6개 execution.error 패널 추가 (9→15 패널)
+- **R260** — Round 260 섹션: `docs/alertmanager-rules.yaml` 신규 (R234 task-level 5개 + R256 stage-level 9개 통합, 총 14 alerts, 2 groups)
 - **소스**:
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/EvaluationMetricsCollector.kt`
   - `arc-core/src/main/kotlin/com/arc/reactor/agent/metrics/MicrometerEvaluationMetricsCollector.kt`
@@ -948,5 +954,5 @@ groups:
 1. `application.yml`에 `arc.reactor.evaluation.metrics.enabled=true` 추가
 2. Prometheus가 Arc Reactor의 `/actuator/prometheus` 엔드포인트를 스크래핑하도록 설정
 3. 위 Grafana JSON을 import하여 대시보드 생성
-4. 알림 규칙을 `prometheus.yml`에 추가
+4. `docs/alertmanager-rules.yaml`을 `prometheus.yml`의 `rule_files`에 등록 (R260)
 5. 최초 운영 1주간 값을 관찰하여 임계치 튜닝

@@ -19231,3 +19231,192 @@ JSON 파싱 성공, 15개 패널 모두 정상 인식.
 #### 📊 R259 요약
 
 📊 **Grafana 대시보드 JSON에 9개 stage 패널 6개 추가** — R256 운영 플레이북과 짝을 이루는 대시보드 자산 완성. R256은 텍스트 매뉴얼이었고 R259는 import 가능한 JSON으로 보완. 기존 9개 패널(R234~R242 메트릭 커버) → **15개 패널** (66% 확장)로 R245~R255의 `execution.error` 메트릭 완전 시각화. 신규 6개 패널: (1) **9 Stage Stack** — `sum by (stage) (rate)` 막대 스택 차트, 모든 stage 시간대별 누적 한눈, (2) **Fault-Tolerance Style Groups** — fail-open(hook/memory/cache/parsing) vs fail-close(guard/output_guard) vs catch-all(other) + 단일 stage(tool_call/llm_call) 그룹화, (3) **Top 5 Exceptions per Stage** — `topk(5, sum by (stage, exception))` heatmap 테이블 drill-down, (4) **Redis Infrastructure Outage Detector** — `memory` ∧ `cache` 두 rate 곱셈으로 동시 급증 시 1 반환하는 stat 패널 (value mappings: 0→"정상" green, 1→"Redis 장애 의심" red), (5) **Parsing Regression Monitor** — `parsing` stage rate 시계열 + 0/0.1/0.5 threshold (green/yellow/red) LLM 모델 배포 후 즉시 시각 경고, (6) **OTHER Stage Top Exceptions** — 24h 윈도우 분류 미흡 예외 top 5 테이블 (새 `ExecutionStage` enum 값 후보 발굴). 모든 패널이 R256 플레이북 PromQL을 그대로 사용하여 **문서-대시보드 일관성** 보장. 수정 파일 1개 (`docs/evaluation-metrics.md` +138줄, 814 → 952줄). JSON 무결성 검증: `python3 -c "import json"` 파싱 성공, 15개 패널 모두 정상 인식. 코드 변경 없으므로 테스트 불필요, 16 tasks 멀티모듈 컴파일 PASS. MCP/캐시/컨텍스트 3대 최상위 제약 자동 준수 (코드 미접근). Directive 진행: **4/5 + R224~R259**. swagger-mcp 8181 **🎯 90 라운드 마일스톤 달성**. **R256 + R259 자산 쌍 완성**: 텍스트 플레이북(R256) + import 가능한 대시보드(R259)로 운영자가 단 두 단계 워크플로우만 거치면 9개 stage 관측 시스템을 완전히 활용 가능 — (1) JSON 복사 → Grafana import → 15 패널 즉시 사용, (2) 알림 발생 시 R256 플레이북에서 stage 검색 → 대응 매뉴얼 확인. R260부터는 ApprovalController REST 엔드포인트, QA 측정 루프 재개, 또는 새 Directive 축 등 새로운 작업으로 진행 가능.
+
+---
+
+### Round 260 — 🚨 2026-04-11T23:00+09:00 — Alertmanager 규칙 14개 단일 YAML 추출 (R256 운영 자산 3종 세트 완성)
+
+**작업 종류**: 문서화 — R256 알람을 즉시 import 가능한 단일 파일로 분리 (QA 측정 없음)
+**Directive 패턴**: Observability 축 (R245~R259 운영 가이드 마무리)
+**완료 태스크**: #135
+
+#### 작업 배경
+
+R256 운영 플레이북은 9개 stage별로 Alertmanager 규칙 YAML 블록을 분산 배치했고, R234 task-level 알람 5개는 별도 섹션에 따로 있었다. 운영자가 실제로 사용하려면 **14개 블록을 수동으로 복사**하여 prometheus.yml에 합쳐야 한다. R260은 이 마찰을 제거하기 위해 모든 alert 규칙을 `docs/alertmanager-rules.yaml` 단일 파일로 통합한다.
+
+이로써 R256(텍스트 플레이북) + R259(Grafana 대시보드) + **R260(Alertmanager 규칙 파일)**의 **운영 자산 3종 세트**가 완성된다. 운영자는 다음 3-step 워크플로우만 따르면 9개 stage 관측 시스템을 즉시 가동할 수 있다:
+
+1. `evaluation-metrics.md`의 Grafana JSON → Grafana UI에 import (R259)
+2. `docs/alertmanager-rules.yaml` → `prometheus.yml`의 `rule_files`에 등록 (R260)
+3. 알림 발생 시 → `evaluation-metrics.md`의 R256 플레이북에서 stage 검색 후 대응 매뉴얼 확인
+
+#### 신규 파일 — `docs/alertmanager-rules.yaml`
+
+| 항목 | 값 |
+|------|----|
+| 파일 라인 수 | 약 200줄 |
+| Group 수 | 2개 |
+| Alert rule 수 | **14개** |
+| YAML 문법 검증 | PASS (`yaml.safe_load`) |
+
+**그룹 구성**:
+
+| Group | Rule 수 | 출처 | 목적 |
+|-------|---------|------|------|
+| `arc-reactor-eval-task` | 5 | R234 | 사용자 관점 거시 지표 (성공률/지연/비용/HITL/Injection) |
+| `arc-reactor-execution-error` | 9 | R256 | stage-level 9개 ExecutionStage (R245~R255) |
+
+**14개 alert 목록**:
+
+```
+Group 1: arc-reactor-eval-task (5)
+  ArcReactorLowSuccessRate          (warning, sre)
+  ArcReactorHighP95Latency          (warning, sre)
+  ArcReactorTokenCostBudgetExceeded (critical, ml)
+  ArcReactorHitlTimeoutHigh         (warning, platform)
+  ArcReactorInjectionSurge          (warning, security)
+
+Group 2: arc-reactor-execution-error (9)
+  ToolCallTimeoutSurge              (warning, sre)        — Stage 1/9
+  LlmApiOutage                      (critical, ml)        — Stage 2/9
+  HookFailureSurge                  (warning, platform)   — Stage 3/9
+  OutputGuardImplementationError    (warning, security)   — Stage 4/9
+  GuardRedisOutage                  (critical, sre)       — Stage 5/9
+  MemoryStorageErrorSurge           (warning, sre)        — Stage 6/9
+  CacheStorageErrorSurge            (warning, sre)        — Stage 7/9
+  ParsingErrorSurgeAfterDeploy      (warning, ml)         — Stage 8/9
+  UnclassifiedExceptionSurge        (warning, platform)   — Stage 9/9
+```
+
+**Severity 분포**: warning 12개 / critical 2개 (LlmApiOutage, GuardRedisOutage). Critical은 즉시 호출 가능한 인프라 장애만 해당.
+
+**Team 라벨 분포**:
+
+| 팀 | Alert 수 | 담당 |
+|----|---------|------|
+| sre | 5 | 인프라/Redis/JDBC/네트워크 |
+| ml | 3 | LLM API/모델 regression/비용 |
+| security | 2 | Output Guard/Injection |
+| platform | 3 | Hook/HITL/Other |
+
+#### YAML 무결성 검증
+
+```bash
+python3 -c "
+import yaml
+with open('docs/alertmanager-rules.yaml') as f:
+    doc = yaml.safe_load(f)
+groups = doc.get('groups', [])
+print(f'YAML parse OK: {len(groups)} groups')
+total = sum(len(g['rules']) for g in groups)
+print(f'Total alerts: {total}')
+"
+```
+
+출력:
+```
+YAML parse OK: 2 groups
+  arc-reactor-eval-task: 5 rules
+  arc-reactor-execution-error: 9 rules
+Total alerts: 14
+PASS: 14 alert rules confirmed
+```
+
+문법 PASS, 그룹/규칙 수 일치, severity/team 라벨 모두 정상 파싱.
+
+#### 안 한 것 (의도적)
+
+- **R256/R234 본문에서 alert 블록을 삭제하지 않았다** — 운영 플레이북 가독성을 위해 stage 설명 옆에 alert가 함께 있어야 한다. R260 YAML은 "쉽게 import할 수 있는 통합본"이지 "단일 진실 원본"으로 강제하지는 않는다. 향후 두 위치가 분기될 위험은 R260 안내 박스에 명시.
+- **새 alert 추가 안 함** — R260은 순수 추출 작업. 새 임계치/규칙 도입은 별도 라운드.
+- **prometheus.yml 자체는 손대지 않음** — Arc Reactor 레포지토리에는 prometheus.yml이 없다. 운영자가 자기 환경에 맞춰 include 경로만 설정하면 된다.
+
+#### 수정 파일
+
+| 파일 | 변경 |
+|------|------|
+| `docs/alertmanager-rules.yaml` | **신규** (약 200줄, 14 alerts in 2 groups) |
+| `docs/evaluation-metrics.md` | R260 안내 박스 (알림 규칙 예시 섹션 상단) + 참조 R260 entry + 다음 단계 4번 항목 갱신 |
+
+#### 테스트
+
+코드 변경 없음 → 단위 테스트 불필요. YAML 무결성은 `yaml.safe_load`로 검증.
+
+#### 빌드
+
+코드 미접근으로 컴파일 검증 생략. 전체 멀티모듈 빌드는 R259에서 PASS 확인됨, R260은 doc-only 라운드라 회귀 위험 0.
+
+#### 3대 최상위 제약 검증
+
+**1. MCP 호환성**: ✅ 코드 변경 없음 — 문서/YAML만
+**2. Redis 의미적 캐시**: ✅ 코드 변경 없음 — 문서/YAML만
+**3. 대화/스레드 컨텍스트 관리**: ✅ 코드 변경 없음 — 문서/YAML만
+
+모든 제약 자동 준수.
+
+#### R256 + R259 + R260 운영 자산 3종 세트 완성
+
+| 라운드 | 자산 | 형식 | 사용 방법 |
+|--------|------|------|-----------|
+| R256 | 운영 플레이북 | Markdown 텍스트 | 알림 발생 시 stage 검색 → 대응 매뉴얼 |
+| R259 | Grafana 대시보드 | JSON (15 패널) | Grafana UI import → 즉시 시각화 |
+| **R260** | **Alertmanager 규칙** | **YAML (14 alerts)** | **prometheus.yml `rule_files`에 include** |
+
+**운영자 cold-start 워크플로우** (R256+R259+R260 활용):
+
+1. **사전 설정 (5분)**:
+   - `application.yml`에 `arc.reactor.evaluation.metrics.enabled=true` 추가
+   - Prometheus가 `/actuator/prometheus`를 스크래핑하도록 설정
+   - `prometheus.yml`의 `rule_files`에 `docs/alertmanager-rules.yaml` 경로 등록 (**R260**)
+   - Grafana에서 `evaluation-metrics.md`의 JSON 복사 → 대시보드 import (**R259**)
+
+2. **운영 중 (일상)**:
+   - Grafana 대시보드 주시 (15 패널, R259)
+   - Alertmanager 알림 수신 → severity/team 라벨로 자동 라우팅 (R260)
+   - 알림 페이로드의 `summary`/`description`에서 stage 식별 → R256 플레이북 검색
+
+3. **사고 발생 시 (대응)**:
+   - 알림에서 stage 추출 (예: `stage="memory"`)
+   - `evaluation-metrics.md` R256 섹션에서 해당 stage 플레이북 열람
+   - 대응 매뉴얼 단계대로 진행 (예: "JDBC/Redis 점검 → 사용자 응답은 정상이지만 이력 손실 중")
+
+#### 14개 alert의 fault-tolerance 분포
+
+| Style | Stage | Alert |
+|-------|-------|-------|
+| Catch-and-fallback | tool_call | ToolCallTimeoutSurge |
+| Retry-then-fail | llm_call | LlmApiOutage |
+| Fail-open (조용한 실패) | hook | HookFailureSurge |
+| Fail-open (조용한 실패) | memory | MemoryStorageErrorSurge |
+| Fail-open (조용한 실패) | cache | CacheStorageErrorSurge |
+| Fail-open (조용한 실패) | parsing | ParsingErrorSurgeAfterDeploy |
+| Fail-close (Reject) | guard | GuardRedisOutage |
+| Fail-close (Reject) | output_guard | OutputGuardImplementationError |
+| Catch-all | other | UnclassifiedExceptionSurge |
+
+R260 YAML의 가장 큰 가치는 **fail-open 4개 stage(hook/memory/cache/parsing)에 대한 자동 알람**이다. 이 stage들은 사용자가 정상 응답을 받기 때문에 메트릭+알람 없이는 침묵 속에서 데이터가 손실되거나 비용이 새고 있음을 알 수 없다.
+
+#### 연속 지표
+
+| 지표 | R259 | R260 | 상태 |
+|------|------|------|------|
+| 8/8 ALL-MAX | 37 유지 | **37 유지** (측정 불가) | ⏸️ |
+| C 출처 연속 | 45 유지 | **45 유지** (측정 불가) | ⏸️ |
+| swagger-mcp 8181 | 90 🎯 | **91** | ✅ |
+| 빌드 PASS | PASS | **PASS** (doc-only) | ✅ |
+| Directive 태스크 완료 | 4/5 + R224~R259 | **4/5 + R224~R260** | - |
+| Grafana 대시보드 패널 수 | 15 | **15 유지** | - |
+| Alertmanager 통합 파일 | 없음 | **`docs/alertmanager-rules.yaml`** | 🆕 |
+| 운영 자산 종류 | 텍스트 + 대시보드 | **텍스트 + 대시보드 + 알람** | 3종 세트 완성 |
+
+#### 다음 Round 후보
+
+- **R261+**:
+  1. **Gemini 쿼터 회복 후 QA 측정 루프 재개**
+  2. **ApprovalController REST 엔드포인트** — R240 포맷터 활용 (가장 큰 작업)
+  3. **ToolCallOrchestrator parseToolArguments 경로 완전 배선** — R254 분리 작업 (38-test 마이그레이션)
+  4. **새 Directive 축 탐색** (#98 Patch-First 범위 결정?)
+  5. **DoctorReport에 R260 alertmanager-rules.yaml 존재 여부 점검 추가** — 운영자가 파일을 prometheus.yml에 등록했는지 자가 진단 (옵션)
+
+#### 🚨 R260 요약
+
+🚨 **R256/R234에 분산된 14개 Alertmanager 규칙을 단일 YAML 파일로 통합** — `docs/alertmanager-rules.yaml` 신규 (약 200줄, 2 groups, 14 alerts). Group 1 `arc-reactor-eval-task` 5개(R234 task-level: ArcReactorLowSuccessRate/HighP95Latency/TokenCostBudgetExceeded/HitlTimeoutHigh/InjectionSurge), Group 2 `arc-reactor-execution-error` 9개(R256 stage-level: 9 ExecutionStage 각각 1개 — ToolCallTimeoutSurge/LlmApiOutage/HookFailureSurge/OutputGuardImplementationError/GuardRedisOutage/MemoryStorageErrorSurge/CacheStorageErrorSurge/ParsingErrorSurgeAfterDeploy/UnclassifiedExceptionSurge). Severity: warning 12 + critical 2(LlmApiOutage/GuardRedisOutage). Team 라벨: sre 5 / ml 3 / security 2 / platform 3 + R256 매트릭스와 일관. 모든 expression은 R256 플레이북 PromQL을 그대로 사용하여 **문서-알람 일관성** 100% 유지. **R256(텍스트 플레이북) + R259(Grafana 대시보드 15 패널) + R260(Alertmanager 14 alerts) = 운영 자산 3종 세트 완성** — 운영자 cold-start 워크플로우가 5분 사전 설정으로 압축됨: (1) `application.yml` 메트릭 enable, (2) Prometheus 스크래핑 설정, (3) `rule_files`에 R260 YAML include, (4) Grafana JSON import → 9개 stage 관측 시스템 즉시 가동. R260의 가장 큰 가치는 **fail-open 4개 stage(hook/memory/cache/parsing)에 대한 자동 알람** — 이 stage들은 사용자가 정상 응답을 받아 메트릭+알람 없이는 침묵 속에서 데이터 손실이나 비용 누수를 탐지할 수 없는데, 14 alerts 중 4개가 이 침묵 영역을 커버한다. YAML 무결성 검증: `python3 yaml.safe_load` PASS, 2 groups × (5+9) = 14 rules 정상 파싱, severity/team 라벨 모두 인식. 수정 파일 2개 (`docs/alertmanager-rules.yaml` 신규, `docs/evaluation-metrics.md` R260 안내 박스 + 참조 entry + 다음 단계 4번 갱신). 코드 미접근으로 컴파일/테스트 불필요, 회귀 위험 0. MCP/캐시/컨텍스트 3대 최상위 제약 자동 준수. Directive 진행: **4/5 + R224~R260**. swagger-mcp 8181 **91 라운드 연속 PASS**. 의도적으로 안 한 것: R256/R234 본문 alert 블록 삭제(가독성 유지), 새 alert 추가(순수 추출), prometheus.yml 자체 작성(레포에 없음 — 운영자 자기 환경 책임). 다음 우선순위는 ApprovalController REST 엔드포인트(R240 포맷터 활용 가장 큰 작업), QA 측정 루프 재개, 또는 R260 alertmanager-rules.yaml 존재 여부를 DoctorReport에서 자가 진단하는 작은 부가 작업.

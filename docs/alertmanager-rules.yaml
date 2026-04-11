@@ -1,0 +1,220 @@
+# Arc Reactor — Prometheus Alertmanager 규칙 통합 (R260)
+#
+# 이 파일은 evaluation-metrics.md에 분산된 14개 Alertmanager 규칙을 단일 YAML로 통합한다.
+# 운영자는 prometheus.yml 의 `rule_files` 섹션에 이 파일을 그대로 include 하면 즉시 사용 가능하다.
+#
+# 사용 방법:
+#   prometheus.yml:
+#     rule_files:
+#       - "/path/to/arc-reactor/docs/alertmanager-rules.yaml"
+#
+# 그룹 구성:
+#   1. arc-reactor-eval-task        — R234 task-level 5개 (성공률/지연/비용/HITL/Injection)
+#   2. arc-reactor-execution-error  — R256 stage-level 9개 (R245~R255 9개 ExecutionStage)
+#
+# 출처:
+#   - docs/evaluation-metrics.md  (R234 / R256 섹션의 alert 블록 통합)
+#   - docs/production-readiness-report.md  Round 234 / Round 256 / Round 260
+#
+# 라벨 컨벤션:
+#   severity: warning | critical
+#   team:     sre | ml | security | platform | mcp
+#
+# 임계치 튜닝:
+#   각 임계치(rate threshold, for duration)는 R256 플레이북 기준 초기값이며,
+#   운영 1주간 관측 후 환경별로 조정한다 (evaluation-metrics.md "다음 단계" 참조).
+---
+groups:
+  # ============================================================================
+  # Group 1: Task-level 메트릭 알림 (R234)
+  # ----------------------------------------------------------------------------
+  # 사용자 관점 지표(success rate, p95 latency, cost, HITL, injection)에 대한
+  # 거시 알림. arc-reactor 전체 운영 건강도를 한눈에 파악한다.
+  # ============================================================================
+  - name: arc-reactor-eval-task
+    interval: 30s
+    rules:
+      # 작업 성공률 95% 미만으로 떨어지면 경고
+      - alert: ArcReactorLowSuccessRate
+        expr: |
+          (
+            sum(rate(arc_reactor_eval_task_completed_total{result="success"}[5m]))
+            /
+            sum(rate(arc_reactor_eval_task_completed_total[5m]))
+          ) < 0.95
+        for: 10m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Arc Reactor task success rate below 95%"
+          description: "Current: {{ $value | humanizePercentage }}"
+
+      # p95 지연이 15초 초과 시 경고
+      - alert: ArcReactorHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(arc_reactor_eval_task_duration_seconds_bucket[5m]))
+          ) > 15
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Arc Reactor p95 latency > 15s"
+
+      # 시간당 토큰 비용이 $10 초과 시 critical
+      - alert: ArcReactorTokenCostBudgetExceeded
+        expr: |
+          sum(rate(arc_reactor_eval_token_cost_usd_total[1h]) * 3600) > 10
+        for: 10m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "Arc Reactor hourly token cost > $10"
+          description: "Current hourly rate: ${{ $value }}"
+
+      # HITL 타임아웃이 10% 초과 시 운영 개입 필요
+      - alert: ArcReactorHitlTimeoutHigh
+        expr: |
+          (
+            sum(rate(arc_reactor_eval_human_override_total{outcome="timeout"}[15m]))
+            /
+            sum(rate(arc_reactor_eval_human_override_total[15m]))
+          ) > 0.10
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HITL timeout rate > 10% — reviewers may be overloaded"
+
+      # Guard injection 거부율 급증 — 공격 가능성
+      - alert: ArcReactorInjectionSurge
+        expr: |
+          rate(arc_reactor_eval_safety_rejection_total{stage="guard",reason="injection"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Injection rejection rate > 0.5/sec — possible attack"
+
+  # ============================================================================
+  # Group 2: execution.error 9 Stage 알림 (R245~R256)
+  # ----------------------------------------------------------------------------
+  # ExecutionStage 9개(tool_call/llm_call/hook/output_guard/guard/memory/cache/
+  # parsing/other) 각각에 대한 stage-level 예외 알림. R256 운영 플레이북의
+  # PromQL 쿼리를 그대로 사용하여 plane 일관성을 유지한다.
+  # ============================================================================
+  - name: arc-reactor-execution-error
+    interval: 30s
+    rules:
+      # Stage 1/9: tool_call — 도구 호출 타임아웃 급증
+      - alert: ToolCallTimeoutSurge
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="tool_call",exception=~"Timeout.*|SocketTimeout.*"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "도구 호출 타임아웃 급증"
+          description: "MCP 서버 네트워크 지연 또는 장애 의심 — mcp 팀 확인"
+
+      # Stage 2/9: llm_call — LLM API 장애 또는 quota 소진
+      - alert: LlmApiOutage
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="llm_call"}[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: critical
+          team: ml
+        annotations:
+          summary: "LLM API 장애 또는 quota 소진"
+          description: "Gemini/Anthropic 콘솔 확인 + 백업 모델 전환 검토"
+
+      # Stage 3/9: hook — Hook 실패 (fail-open 공백 탐지)
+      - alert: HookFailureSurge
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="hook"}[5m]) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Hook 실패율 급증 — fail-open 공백 탐지"
+          description: "커스텀 Hook 또는 EvaluationMetricsHook/WebhookNotificationHook 점검 필요"
+
+      # Stage 4/9: output_guard — Output Guard 구현 버그 (regex/PII 마스킹 등)
+      - alert: OutputGuardImplementationError
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="output_guard"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Output Guard 구현 버그 탐지"
+          description: "PII 마스킹 regex 또는 동적 규칙 stage 점검 필요"
+
+      # Stage 5/9: guard — Rate limit Redis 장애 (Guard 경로 차단)
+      - alert: GuardRedisOutage
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="guard",exception=~".*Jedis.*|.*Connection.*"}[5m]) > 0.3
+        for: 3m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Rate limit Redis 장애 — Guard 경로 차단 중"
+          description: "Redis 복구까지 요청이 계속 SYSTEM_ERROR로 거부됨"
+
+      # Stage 6/9: memory — 대화 이력 저장/조회 실패 (사용자는 응답 받지만 이력 손실)
+      - alert: MemoryStorageErrorSurge
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="memory"}[5m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "대화 이력 저장/조회 실패 급증"
+          description: "사용자는 응답 받지만 이력이 날아가는 중 — JDBC/Redis 점검"
+
+      # Stage 7/9: cache — 응답 캐시 스토리지 실패 (LLM 호출 비용 증가)
+      - alert: CacheStorageErrorSurge
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="cache"}[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "응답 캐시 스토리지 실패 급증"
+          description: "캐시 hit rate가 떨어지며 LLM 호출 비용이 증가하는 중"
+
+      # Stage 8/9: parsing — LLM JSON 파싱 실패 (모델/프롬프트 regression)
+      - alert: ParsingErrorSurgeAfterDeploy
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="parsing"}[5m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "LLM JSON 파싱 실패 급증"
+          description: "프롬프트/모델 변경 후 regression 의심 — tool call 및 plan 파싱 경로 점검"
+
+      # Stage 9/9: other — 분류 불가 잔여 예외 (새 stage 추가 검토)
+      - alert: UnclassifiedExceptionSurge
+        expr: |
+          rate(arc_reactor_eval_execution_error_total{stage="other"}[15m]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "분류 불가 예외 급증 — 새 stage 추가 검토 필요"
+          description: "topk 쿼리로 반복되는 예외 클래스 확인 후 ExecutionStage enum 확장 고려"
