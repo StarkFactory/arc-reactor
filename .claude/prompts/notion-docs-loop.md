@@ -119,7 +119,11 @@
 
 | # | 제목 | Status | Page ID |
 |---|---|---|---|
-| 13 | RAG Pipeline (Hybrid 검색) | IN_PROGRESS | _pending_ |
+| 13 | RAG Pipeline (Hybrid 검색) — overview | DONE | `340072b5-48c3-8161-a1fd-cd0f97bdcb00` |
+| 13a | ├ Vector 검색 (SpringAiVectorStoreRetriever) | IN_PROGRESS | _pending_ |
+| 13b | ├ BM25 (Bm25Scorer + WarmUpRunner) | TODO | _pending_ |
+| 13c | ├ RRF 융합 (RrfFusion) | TODO | _pending_ |
+| 13d | └ Reranker & Query Transformer & Compressor | TODO | _pending_ |
 | 14 | Document Ingestion 파이프라인 | TODO | _pending_ |
 | 15 | Conversation Memory (계층적) | TODO | _pending_ |
 | 16 | Semantic Response Cache | TODO | _pending_ |
@@ -729,24 +733,24 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 15 완료 — Cost & Budget 페이지)
-현재 진행률: 12 / 53 (+ 하위 페이지 3/3 #7)
-직전 완성: 12. Cost & Budget 관리
-           (Page ID: 340072b5-48c3-8119-b39f-fbe41ee00a4e)
-다음 예정: 13. RAG Pipeline (Hybrid 검색)
+시작 시각: 2026-04-13 (iteration 16 완료 — RAG Pipeline overview)
+현재 진행률: 13 / 53 (+ 하위 페이지 3/3 #7)
+직전 완성: 13. RAG Pipeline (Hybrid 검색) — overview
+           (Page ID: 340072b5-48c3-8161-a1fd-cd0f97bdcb00)
+다음 예정: 13a. Vector 검색 (SpringAiVectorStoreRetriever + ParentDocumentRetriever)
 
 verification 집계:
-  total_claims_checked: 345
-  total_claims_verified: 345
+  total_claims_checked: 365
+  total_claims_verified: 365
   total_claims_failed: 0
   fix_attempts_total: 1
-  pages_done: 15 (main 12 + 하위 3)
+  pages_done: 16 (main 13 + 하위 3)
   pages_verification_failed: 0
   create_retries: 1
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
 Phase 2 완료 — Agent 실행 엔진 7/7 main (+ #7 하위 3개)
-Phase 3 시작 — 지식 & 메모리 0/4
+Phase 3 진행 — 지식 & 메모리 1/4 (#13 parent DONE, 13a~13d 하위 예정)
 ```
 
 ## 부록 B — 실수 방지 체크
