@@ -122,8 +122,8 @@
 | 13 | RAG Pipeline (Hybrid 검색) — overview | DONE | `340072b5-48c3-8161-a1fd-cd0f97bdcb00` |
 | 13a | ├ Vector 검색 (SpringAiVectorStoreRetriever) | DONE | `340072b5-48c3-81a4-94aa-dedb721d4f4c` |
 | 13b | ├ BM25 (Bm25Scorer + WarmUpRunner) | DONE | `340072b5-48c3-81ef-b15b-e011a6c41a22` |
-| 13c | ├ RRF 융합 (RrfFusion) | IN_PROGRESS | _pending_ |
-| 13d | └ Reranker & Query Transformer & Compressor | TODO | _pending_ |
+| 13c | ├ RRF 융합 (RrfFusion) | DONE | `340072b5-48c3-81e5-9073-d2503b2c3652` |
+| 13d | └ Reranker & Query Transformer & Compressor | IN_PROGRESS | _pending_ |
 | 14 | Document Ingestion 파이프라인 | TODO | _pending_ |
 | 15 | Conversation Memory (계층적) | TODO | _pending_ |
 | 16 | Semantic Response Cache | TODO | _pending_ |
@@ -733,24 +733,24 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 18 완료 — 13b BM25 sub-page)
-현재 진행률: 13 / 53 main + 하위 5 (#7 3개 + #13 2개)
-직전 완성: 13b. BM25 (Bm25Scorer + WarmUpRunner)
-           (Page ID: 340072b5-48c3-81ef-b15b-e011a6c41a22)
-다음 예정: 13c. RRF 융합 (RrfFusion)
+시작 시각: 2026-04-13 (iteration 19 완료 — 13c RRF 융합 sub-page)
+현재 진행률: 13 / 53 main + 하위 6 (#7 3개 + #13 3개)
+직전 완성: 13c. RRF 융합 (RrfFusion)
+           (Page ID: 340072b5-48c3-81e5-9073-d2503b2c3652)
+다음 예정: 13d. Reranker & Query Transformer & Compressor
 
 verification 집계:
-  total_claims_checked: 409
-  total_claims_verified: 409
+  total_claims_checked: 427
+  total_claims_verified: 427
   total_claims_failed: 0
   fix_attempts_total: 1
-  pages_done: 18 (main 13 + 하위 5)
+  pages_done: 19 (main 13 + 하위 6)
   pages_verification_failed: 0
   create_retries: 1
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
 Phase 2 완료 — Agent 실행 엔진 7/7 main (+ #7 하위 3개)
-Phase 3 진행 — 지식 & 메모리 1/4 main (#13 parent + 13a/13b DONE, 13c/13d 대기)
+Phase 3 진행 — 지식 & 메모리 1/4 main (#13 parent + 13a/13b/13c DONE, 13d 대기)
 ```
 
 ## 부록 B — 실수 방지 체크
