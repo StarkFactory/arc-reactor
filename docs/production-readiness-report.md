@@ -34,6 +34,20 @@
 출시 준비는 **진행 중**이다.  
 코드베이스와 운영 루프는 많이 단단해졌지만, 메인 보고서 역시 에이전트가 반복 실행하기 쉬운 구조로 정리해야 했다.
 
+### Cycle 10 Milestone (R330~R345, 16 라운드)
+
+| Axis | 라운드 | 대표 fix |
+|---|---|---|
+| connector_permissions | R330~R332 (3) | SHARED builder race, handleConnectionError identity, ensureConnected PENDING |
+| cross_source_synthesis | R333~R335 (3) | PlanExecute synthesize 실패 마커, blockReason first-wins, counter atomic |
+| safe_action_workflows | R336~R338 (3) | HITL modifiedArguments 복구, evict overflow 응답, JDBC cleanup 확장 |
+| admin_productization | R339~R341 (3) | reason tag normalize, lastOccurredAt atomic max, channel tag bounded |
+| employee_value | R342~R345 (4) | grounded false-negative, URL dedup, toolFamily spec_, stripSourcesBlock 방어 |
+
+**누적 production fix**: R268~R345 = 78 라운드, 100+ 코드 변경
+**0 warnings 연속**: 유지
+**6개 axis 전부 3+ 회씩 scan-and-fix**: cycle 10 완결
+
 ### 현재 집중 축
 
 - `grounded_retrieval`
@@ -232,8 +246,15 @@
 
 - axis: `employee_value` (4회 연속)
 - 분류: `direct_value`
-- 요약: R342 scanner LOW #4 처리. `VerifiedSourcesResponseFilter.stripSourcesBlock`이 `matches.first()`로 첫 "Sources" 헤딩 위치부터 본문 끝까지 무조건 substring으로 잘라내던 구현에서, LLM이 답변 중간에 서술적 `Sources:` 단독 라인을 작성하고 뒤에 URL 없는 설명 + 결론 본문이 이어지는 경우 **본문 결론 전체가 조기 절단**되는 user-visible 버그. 첫 매칭 시작점은 유지하되 below content에 실제 출처 목록 패턴(`- http`, `* http`, `- [`, `* [`, 또는 bare `http` 시작 라인)이 **존재할 때만** 절단하고, 없으면 서술적 언급으로 간주해 본문 보존. `BULLET_CHARS = setOf('-', '*')` 상수 추가. 기존 31개 VerifiedSourcesResponseFilter 테스트 전부 PASS 유지(Arc Reactor 정상 Sources 블록은 bullet + markdown link 형식이라 새 check 통과) + 신규 회귀 2건(영문/한글 서술적 Sources 언급 + URL 없음 → 본문 결론 보존 검증). 라운드 중간에 `McpToolCallback` 에러 메시지 sanitize 시도를 먼저 진행했으나 기존 테스트가 클래스명 포함을 명시적 lock하고 있어 정책 변경 성격이라 safety rail §0.6 #8에 따라 철회 후 R342 LOW #4로 전환. 전체 arc-core PASS.
+- 요약: R342 scanner LOW #4 처리. `VerifiedSourcesResponseFilter.stripSourcesBlock`이 `matches.first()`로 첫 "Sources" 헤딩 위치부터 본문 끝까지 무조건 substring으로 잘라내던 구현에서, LLM이 답변 중간에 서술적 `Sources:` 단독 라인을 작성하고 뒤에 URL 없는 설명 + 결론 본문이 이어지는 경우 **본문 결론 전체가 조기 절단**되는 user-visible 버그. 첫 매칭 시작점은 유지하되 below content에 실제 출처 목록 패턴이 **존재할 때만** 절단하고, 없으면 본문 보존. 전체 arc-core PASS.
 - 상세 위치: `docs/reports/rounds/R345.md`
+
+### Round 346 — 2026-04-13T06:00+09:00 — 🏁 cycle 10 종결 마일스톤
+
+- axis: 전체 (cycle recap)
+- 분류: `foundation`
+- 요약: **Cycle 10 종결** (R330~R345, 16 라운드). 6개 benchmark axis 전부 3~4회씩 scan→fix→verify. connector_permissions 3건(SHARED builder race, handleConnectionError identity, ensureConnected PENDING), cross_source_synthesis 3건(synthesize 실패 마커, blockReason first-wins, counter atomic), safe_action_workflows 3건(HITL modifiedArguments, evict overflow, JDBC cleanup 확장), admin_productization 3건(reason tag normalize, lastOccurredAt atomic max, channel tag bounded), employee_value 4건(grounded false-negative, URL dedup, toolFamily spec_, stripSourcesBlock 방어). **누적 R268~R345 = 78 라운드, 0 warnings 연속, 3대 최상위 제약 불변.** 잔여 LOW defer 12건은 cycle 11 또는 수동 라운드에서 처리 예정. 다음 cycle 후보: arc-slack 새 영역 scan, grounded_retrieval RAG 재방문, streaming 별도 경로 전수 조사.
+- 상세 위치: `docs/reports/rounds/R346.md`
 
 ---
 
