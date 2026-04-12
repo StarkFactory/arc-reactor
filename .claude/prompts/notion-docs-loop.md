@@ -98,13 +98,13 @@
 | 2 | 아키텍처 & 모듈 구조 | DONE | `340072b5-48c3-8185-af4c-fd6267614588` |
 | 3 | 기술 스택 & 의존성 | DONE | `340072b5-48c3-815c-9d4d-d7bf8a1c7438` |
 | 4 | 빠른 시작 & 빌드 방법 | DONE | `340072b5-48c3-815f-a3ed-fc33822b574e` |
-| 5 | 사용 사례 & 직원 가치 시나리오 | IN_PROGRESS | _pending_ |
+| 5 | 사용 사례 & 직원 가치 시나리오 | DONE | `340072b5-48c3-8111-877d-f7f1bb97a431` |
 
 ### ⚙️ Phase 2 — Agent 실행 엔진 (7 페이지)
 
 | # | 제목 | Status | Page ID |
 |---|---|---|---|
-| 6 | Agent 실행 아키텍처 개요 | TODO | _pending_ |
+| 6 | Agent 실행 아키텍처 개요 | IN_PROGRESS | _pending_ |
 | 7 | ReAct 실행 루프 | TODO | _pending_ |
 | 8 | Streaming 실행 경로 | TODO | _pending_ |
 | 9 | Plan-Execute 모드 | TODO | _pending_ |
@@ -726,18 +726,20 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 4 완료)
-현재 진행률: 4 / 53 (+ 하위 페이지 0)
-직전 완성: 4. 빠른 시작 & 빌드 방법
-           (Page ID: 340072b5-48c3-815f-a3ed-fc33822b574e)
-다음 예정: 5. 사용 사례 & 직원 가치 시나리오
+시작 시각: 2026-04-13 (iteration 5 완료 — Phase 1 완료)
+현재 진행률: 5 / 53 (+ 하위 페이지 0)
+직전 완성: 5. 사용 사례 & 직원 가치 시나리오
+           (Page ID: 340072b5-48c3-8111-877d-f7f1bb97a431)
+다음 예정: 6. Agent 실행 아키텍처 개요 (Phase 2 시작)
 
 verification 집계:
-  total_claims_checked: 100
-  total_claims_verified: 100
+  total_claims_checked: 120
+  total_claims_verified: 120
   total_claims_failed: 0
-  pages_done: 4
+  pages_done: 5
   pages_verification_failed: 0
+
+Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
 ```
 
 ## 부록 B — 실수 방지 체크
