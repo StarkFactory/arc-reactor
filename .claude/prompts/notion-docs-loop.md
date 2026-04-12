@@ -111,8 +111,8 @@
 | 7c | └ ReAct — Tool 에러 & 재시도 | DONE | `340072b5-48c3-817c-ade7-f834ca2b9e2a` |
 | 8 | Streaming 실행 경로 | DONE | `340072b5-48c3-8198-9bd8-e5b1b20bc7ad` |
 | 9 | Plan-Execute 모드 | DONE | `340072b5-48c3-8192-8706-dd377dcd9257` |
-| 10 | Tool 시스템 & 병렬 실행 | IN_PROGRESS | _pending_ |
-| 11 | Tool 선택 & 의도 분류 (Intent) | TODO | _pending_ |
+| 10 | Tool 시스템 & 병렬 실행 | DONE | `340072b5-48c3-810e-b8b0-c634aba58662` |
+| 11 | Tool 선택 & 의도 분류 (Intent) | IN_PROGRESS | _pending_ |
 | 12 | Cost & Budget 관리 | TODO | _pending_ |
 
 ### 🧠 Phase 3 — 지식 & 메모리 (4 페이지)
@@ -729,23 +729,23 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 12 완료 — Plan-Execute 페이지)
-현재 진행률: 9 / 53 (+ 하위 페이지 3/3 #7)
-직전 완성: 9. Plan-Execute 모드
-           (Page ID: 340072b5-48c3-8192-8706-dd377dcd9257)
-다음 예정: 10. Tool 시스템 & 병렬 실행
+시작 시각: 2026-04-13 (iteration 13 완료 — Tool 시스템 페이지)
+현재 진행률: 10 / 53 (+ 하위 페이지 3/3 #7)
+직전 완성: 10. Tool 시스템 & 병렬 실행
+           (Page ID: 340072b5-48c3-810e-b8b0-c634aba58662)
+다음 예정: 11. Tool 선택 & 의도 분류 (Intent)
 
 verification 집계:
-  total_claims_checked: 264
-  total_claims_verified: 264
+  total_claims_checked: 285
+  total_claims_verified: 285
   total_claims_failed: 0
   fix_attempts_total: 1
-  pages_done: 12 (main 9 + 하위 3)
+  pages_done: 13 (main 10 + 하위 3)
   pages_verification_failed: 0
   create_retries: 1
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
-Phase 2 진행 — Agent 실행 엔진 4/7 main (+ #7 하위 3개)
+Phase 2 진행 — Agent 실행 엔진 5/7 main (+ #7 하위 3개)
 ```
 
 ## 부록 B — 실수 방지 체크
