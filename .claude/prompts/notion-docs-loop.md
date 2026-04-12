@@ -96,8 +96,8 @@
 |---|---|---|---|
 | 1 | 프로젝트 소개 & 제품 포지셔닝 | DONE | `340072b5-48c3-8177-a936-e1fe111d37a4` |
 | 2 | 아키텍처 & 모듈 구조 | DONE | `340072b5-48c3-8185-af4c-fd6267614588` |
-| 3 | 기술 스택 & 의존성 | IN_PROGRESS | _pending_ |
-| 4 | 빠른 시작 & 빌드 방법 | TODO | _pending_ |
+| 3 | 기술 스택 & 의존성 | DONE | `340072b5-48c3-815c-9d4d-d7bf8a1c7438` |
+| 4 | 빠른 시작 & 빌드 방법 | IN_PROGRESS | _pending_ |
 | 5 | 사용 사례 & 직원 가치 시나리오 | TODO | _pending_ |
 
 ### ⚙️ Phase 2 — Agent 실행 엔진 (7 페이지)
@@ -726,17 +726,17 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 2 완료)
-현재 진행률: 2 / 53 (+ 하위 페이지 0)
-직전 완성: 2. 아키텍처 & 모듈 구조
-           (Page ID: 340072b5-48c3-8185-af4c-fd6267614588)
-다음 예정: 3. 기술 스택 & 의존성
+시작 시각: 2026-04-13 (iteration 3 완료)
+현재 진행률: 3 / 53 (+ 하위 페이지 0)
+직전 완성: 3. 기술 스택 & 의존성
+           (Page ID: 340072b5-48c3-815c-9d4d-d7bf8a1c7438)
+다음 예정: 4. 빠른 시작 & 빌드 방법
 
 verification 집계:
-  total_claims_checked: 35
-  total_claims_verified: 35
+  total_claims_checked: 70
+  total_claims_verified: 70
   total_claims_failed: 0
-  pages_done: 2
+  pages_done: 3
   pages_verification_failed: 0
 ```
 
