@@ -108,8 +108,8 @@
 | 7 | ReAct 실행 루프 (overview) | DONE | `340072b5-48c3-81b9-83c5-d981c6043095` |
 | 7a | ├ ReAct — 기본 흐름 & 루프 단계 | DONE | `340072b5-48c3-8121-9525-ce60f41c0f21` |
 | 7b | ├ ReAct — Budget 추적 & 소진 처리 | DONE | `340072b5-48c3-81f8-b3fc-c23ec1350d97` |
-| 7c | └ ReAct — Tool 에러 & 재시도 | IN_PROGRESS | _pending_ |
-| 8 | Streaming 실행 경로 | TODO | _pending_ |
+| 7c | └ ReAct — Tool 에러 & 재시도 | DONE | `340072b5-48c3-817c-ade7-f834ca2b9e2a` |
+| 8 | Streaming 실행 경로 | IN_PROGRESS | _pending_ |
 | 9 | Plan-Execute 모드 | TODO | _pending_ |
 | 10 | Tool 시스템 & 병렬 실행 | TODO | _pending_ |
 | 11 | Tool 선택 & 의도 분류 (Intent) | TODO | _pending_ |
@@ -729,23 +729,23 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 9 완료 — 7b 하위 페이지)
-현재 진행률: 7 / 53 (+ 하위 페이지 2/3)
-직전 완성: 7b. ReAct — Budget 추적 & 소진 처리
-           (Page ID: 340072b5-48c3-81f8-b3fc-c23ec1350d97)
-다음 예정: 7c. ReAct — Tool 에러 & 재시도 (마지막 하위 페이지)
+시작 시각: 2026-04-13 (iteration 10 완료 — #7 parent + 3 sub 전부 완성)
+현재 진행률: 7 / 53 (+ 하위 페이지 3/3 완료)
+직전 완성: 7c. ReAct — Tool 에러 & 재시도
+           (Page ID: 340072b5-48c3-817c-ade7-f834ca2b9e2a)
+다음 예정: 8. Streaming 실행 경로
 
 verification 집계:
-  total_claims_checked: 204
-  total_claims_verified: 204
+  total_claims_checked: 222
+  total_claims_verified: 222
   total_claims_failed: 0
   fix_attempts_total: 1
-  pages_done: 9 (main 7 + 하위 2)
+  pages_done: 10 (main 7 + 하위 3)
   pages_verification_failed: 0
-  create_retries: 1  (#7b Kotlin $var 템플릿 → JSON 파싱 오류 → 제거 후 성공)
+  create_retries: 1
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
-Phase 2 진행 — Agent 실행 엔진 2/7 main + 2/3 sub (#7)
+Phase 2 진행 — Agent 실행 엔진 2/7 main + #7 전체 완성 (parent + 3 sub)
 ```
 
 ## 부록 B — 실수 방지 체크
