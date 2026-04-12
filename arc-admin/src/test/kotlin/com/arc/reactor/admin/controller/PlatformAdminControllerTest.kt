@@ -24,6 +24,8 @@ import com.arc.reactor.auth.UserStore
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -55,6 +57,12 @@ class PlatformAdminControllerTest {
         every { it.ifAvailable } returns null
     }
 
+    private fun meterRegistryProvider(registry: MeterRegistry?): ObjectProvider<MeterRegistry> {
+        val provider = mockk<ObjectProvider<MeterRegistry>>()
+        every { provider.ifAvailable } returns registry
+        return provider
+    }
+
     private val controller = PlatformAdminController(
         tenantStore,
         tenantService,
@@ -67,7 +75,8 @@ class PlatformAdminControllerTest {
         adminAuditStore,
         agentProperties,
         responseCache,
-        emptyVectorStoreProvider
+        emptyVectorStoreProvider,
+        meterRegistryProvider(null)
     )
 
     private val testTenant = Tenant(
@@ -221,11 +230,30 @@ class PlatformAdminControllerTest {
         fun `admin에 대해 health dashboard를 반환한다`() {
             healthMonitor.updateBufferUsage(25.0)
             healthMonitor.recordWrite(100, 50)
-            healthMonitor.recordExactCacheHit()
-            healthMonitor.recordSemanticCacheHit()
-            healthMonitor.recordCacheMiss()
 
-            val response = runBlocking { controller.health(exchangeWithRole(UserRole.ADMIN)) }
+            // R347: cache 수치는 Micrometer 카운터에서 읽는다 (PipelineHealthMonitor dead path 제거)
+            val registry = SimpleMeterRegistry()
+            registry.counter("arc.cache.hits", "type", "exact").increment()
+            registry.counter("arc.cache.hits", "type", "semantic").increment()
+            registry.counter("arc.cache.misses").increment()
+
+            val controllerWithRegistry = PlatformAdminController(
+                tenantStore,
+                tenantService,
+                queryService,
+                pricingStore,
+                healthMonitor,
+                alertStore,
+                alertEvaluator,
+                userStore,
+                adminAuditStore,
+                agentProperties,
+                responseCache,
+                emptyVectorStoreProvider,
+                meterRegistryProvider(registry)
+            )
+
+            val response = runBlocking { controllerWithRegistry.health(exchangeWithRole(UserRole.ADMIN)) }
 
             response.statusCode shouldBe HttpStatus.OK
             val dashboard = response.body.shouldBeInstanceOf<PlatformHealthDashboard>()
@@ -557,7 +585,8 @@ class PlatformAdminControllerTest {
                 adminAuditStore = adminAuditStore,
                 agentProperties = agentProperties,
                 responseCache = null,
-                vectorStoreProvider = emptyVectorStoreProvider
+                vectorStoreProvider = emptyVectorStoreProvider,
+                meterRegistryProvider = meterRegistryProvider(null)
             )
 
             val response = runBlocking { controllerWithoutCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN)) }
@@ -584,7 +613,8 @@ class PlatformAdminControllerTest {
                 adminAuditStore = adminAuditStore,
                 agentProperties = agentProperties,
                 responseCache = brokenCache,
-                vectorStoreProvider = emptyVectorStoreProvider
+                vectorStoreProvider = emptyVectorStoreProvider,
+                meterRegistryProvider = meterRegistryProvider(null)
             )
 
             val response = runBlocking { controllerWithBrokenCache.invalidateResponseCache(exchangeWithRole(UserRole.ADMIN)) }
@@ -626,6 +656,43 @@ class PlatformAdminControllerTest {
             val response = runBlocking { controller.tenantAnalytics(exchangeWithRole(UserRole.ADMIN_MANAGER)) }
 
             response.statusCode shouldBe HttpStatus.OK
+        }
+    }
+
+    @Nested
+    inner class CacheStatsFromMeterRegistry {
+
+        @Test
+        fun `cacheStats는 Micrometer 카운터에서 exact semantic miss 수치를 읽는다`() {
+            val registry = SimpleMeterRegistry()
+            registry.counter("arc.cache.hits", "type", "exact").increment(5.0)
+            registry.counter("arc.cache.hits", "type", "semantic").increment(3.0)
+            registry.counter("arc.cache.misses").increment(2.0)
+
+            val controllerWithRegistry = PlatformAdminController(
+                tenantStore,
+                tenantService,
+                queryService,
+                pricingStore,
+                healthMonitor,
+                alertStore,
+                alertEvaluator,
+                userStore,
+                adminAuditStore,
+                agentProperties,
+                responseCache,
+                emptyVectorStoreProvider,
+                meterRegistryProvider(registry)
+            )
+
+            val response = controllerWithRegistry.cacheStats(exchangeWithRole(UserRole.ADMIN))
+
+            response.statusCode shouldBe HttpStatus.OK
+            val stats = response.body.shouldBeInstanceOf<CacheStatsResponse>()
+            stats.totalExactHits shouldBe 5L
+            stats.totalSemanticHits shouldBe 3L
+            stats.totalMisses shouldBe 2L
+            stats.hitRate shouldBe 0.8
         }
     }
 }

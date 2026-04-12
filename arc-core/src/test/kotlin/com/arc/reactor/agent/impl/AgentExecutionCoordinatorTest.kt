@@ -10,6 +10,7 @@ import com.arc.reactor.agent.metrics.MicrometerEvaluationMetricsCollector
 import com.arc.reactor.agent.routing.ModelRouter
 import com.arc.reactor.agent.routing.ModelSelection
 import com.arc.reactor.cache.CacheKeyBuilder
+import com.arc.reactor.cache.CacheMetricsRecorder
 import com.arc.reactor.cache.CachedResponse
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.cache.SemanticResponseCache
@@ -42,6 +43,7 @@ class AgentExecutionCoordinatorTest {
     fun `cache hit일 때 return cached response and skip tool execution해야 한다`() = runTest {
         val responseCache = mockk<ResponseCache>()
         val metrics = mockk<AgentMetrics>(relaxed = true)
+        val cacheMetrics = mockk<CacheMetricsRecorder>(relaxed = true)
         val command = AgentCommand(systemPrompt = "sys", userPrompt = "hi", temperature = 0.0)
         val expectedKey = CacheKeyBuilder.buildKey(command, listOf("mcp", "tool"))
         coEvery { responseCache.get(expectedKey) } returns CachedResponse(
@@ -56,6 +58,7 @@ class AgentExecutionCoordinatorTest {
             defaultTemperature = 0.3,
             fallbackStrategy = null,
             agentMetrics = metrics,
+            cacheMetricsRecorder = cacheMetrics,
             toolCallbacks = listOf(testTool("tool")),
             mcpToolCallbacks = { listOf(testTool("mcp")) },
             conversationManager = mockk(relaxed = true),
@@ -84,6 +87,9 @@ class AgentExecutionCoordinatorTest {
         assertFalse(executeCalled, "Agent executor should not be called when cache hit")
         verify(exactly = 1) { metrics.recordExactCacheHit(expectedKey) }
         verify(exactly = 0) { metrics.recordCacheMiss(expectedKey) }
+        // R347 regression guard: cache hit도 Micrometer CacheMetricsRecorder로 전파되어야 한다
+        verify(exactly = 1) { cacheMetrics.recordExactHit() }
+        verify(exactly = 0) { cacheMetrics.recordMiss() }
     }
 
     @Test

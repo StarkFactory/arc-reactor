@@ -20,6 +20,7 @@ import com.arc.reactor.auth.UserRole
 import com.arc.reactor.auth.UserStore
 import com.arc.reactor.cache.ResponseCache
 import com.arc.reactor.support.throwIfCancellation
+import io.micrometer.core.instrument.MeterRegistry
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -76,10 +77,12 @@ class PlatformAdminController(
     private val adminAuditStore: AdminAuditStore,
     private val agentProperties: AgentProperties,
     private val responseCache: ResponseCache? = null,
-    vectorStoreProvider: ObjectProvider<VectorStore>
+    vectorStoreProvider: ObjectProvider<VectorStore>,
+    meterRegistryProvider: ObjectProvider<MeterRegistry>
 ) {
 
     private val vectorStore: VectorStore? = vectorStoreProvider.ifAvailable
+    private val meterRegistry: MeterRegistry? = meterRegistryProvider.ifAvailable
 
     // ── 단계: 플랫폼 헬스 ──
 
@@ -97,6 +100,8 @@ class PlatformAdminController(
     suspend fun health(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
         // R304: healthMonitor는 in-memory, alertStore는 JDBC → 묶어서 IO 격리
+        // R347: cache 수치는 Micrometer 카운터에서 읽는다 ([cacheCounterValue]). 이전에는
+        //       healthMonitor.snapshot()의 dead AtomicLong 필드를 읽어 항상 0이었음.
         val dashboard = withContext(Dispatchers.IO) {
             val snapshot = healthMonitor.snapshot()
             PlatformHealthDashboard(
@@ -104,9 +109,9 @@ class PlatformAdminController(
                 pipelineDropRate = snapshot.droppedTotal.toDouble(),
                 pipelineWriteLatencyMs = snapshot.writeLatencyMs,
                 activeAlerts = alertStore.findActiveAlerts().size,
-                cacheExactHits = snapshot.cacheExactHitsTotal,
-                cacheSemanticHits = snapshot.cacheSemanticHitsTotal,
-                cacheMisses = snapshot.cacheMissesTotal
+                cacheExactHits = cacheCounterValue("arc.cache.hits", "type", "exact"),
+                cacheSemanticHits = cacheCounterValue("arc.cache.hits", "type", "semantic"),
+                cacheMisses = cacheCounterValue("arc.cache.misses")
             )
         }
         return ResponseEntity.ok(dashboard)
@@ -620,11 +625,10 @@ class PlatformAdminController(
     @GetMapping("/cache/stats")
     fun cacheStats(exchange: ServerWebExchange): ResponseEntity<Any> {
         if (!isAnyAdmin(exchange)) return forbiddenResponse()
-        val snapshot = healthMonitor.snapshot()
         val cacheConfig = agentProperties.cache
-        val exact = snapshot.cacheExactHitsTotal
-        val semantic = snapshot.cacheSemanticHitsTotal
-        val misses = snapshot.cacheMissesTotal
+        val exact = cacheCounterValue("arc.cache.hits", "type", "exact")
+        val semantic = cacheCounterValue("arc.cache.hits", "type", "semantic")
+        val misses = cacheCounterValue("arc.cache.misses")
         val total = exact + semantic + misses
         return ResponseEntity.ok(
             CacheStatsResponse(
@@ -643,6 +647,28 @@ class PlatformAdminController(
                 )
             )
         )
+    }
+
+    /**
+     * Micrometer 카운터 값을 Long으로 읽는다. 레지스트리가 없거나 카운터가 미등록이면 0.
+     *
+     * R347: 기존 구현은 [PipelineHealthMonitor]의 AtomicLong을 읽었는데, 이는
+     * `MetricCollectorAgentMetrics.recordExactCacheHit`를 통해 증가되는 **별개 소스**였다.
+     * 동시에 `AgentExecutionCoordinator`는 `cacheMetricsRecorder?.recordExactHit()`를 호출해
+     * Micrometer `arc.cache.hits{type=exact|semantic}` 카운터도 증가시킨다.
+     *
+     * 두 소스가 분리되어 있으면 (a) 한쪽이 silent 실패해도 다른 쪽이 0을 보이지 않아 감지 불가,
+     * (b) admin API와 `/actuator/prometheus`가 서로 다른 값을 반환할 수 있다 (split brain).
+     *
+     * R347에서 admin API를 Micrometer 소스 하나로 통일한다. 이는 Prometheus/Grafana와 같은
+     * 소스이므로 대시보드와 admin UI가 항상 동일한 값을 보이고, `MicrometerCacheMetricsRecorder`
+     * 경로가 끊기면 두 경로 모두 0을 보여 즉시 감지 가능하다.
+     */
+    private fun cacheCounterValue(name: String, tagKey: String? = null, tagValue: String? = null): Long {
+        val registry = meterRegistry ?: return 0L
+        val search = registry.find(name)
+        val withTag = if (tagKey != null && tagValue != null) search.tag(tagKey, tagValue) else search
+        return withTag.counter()?.count()?.toLong() ?: 0L
     }
 
     // ── 단계: 벡터 스토어 통계 ──
