@@ -124,8 +124,8 @@
 | 13b | ├ BM25 (Bm25Scorer + WarmUpRunner) | DONE | `340072b5-48c3-81ef-b15b-e011a6c41a22` |
 | 13c | ├ RRF 융합 (RrfFusion) | DONE | `340072b5-48c3-81e5-9073-d2503b2c3652` |
 | 13d | └ Reranker & Query Transformer & Compressor | DONE | `340072b5-48c3-81c8-a2d1-d54fcc70cfb9` |
-| 14 | Document Ingestion 파이프라인 | IN_PROGRESS | _pending_ |
-| 15 | Conversation Memory (계층적) | TODO | _pending_ |
+| 14 | Document Ingestion 파이프라인 | DONE | `340072b5-48c3-81ca-aeb5-fc46a5018c3a` |
+| 15 | Conversation Memory (계층적) | IN_PROGRESS | _pending_ |
 | 16 | Semantic Response Cache | TODO | _pending_ |
 
 ### 🛡️ Phase 4 — 안전 & 거버넌스 (4 페이지)
@@ -733,24 +733,24 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 20 완료 — 13d Reranker/Transformer/Compressor sub-page)
-현재 진행률: 13 / 53 main + 하위 7 (#7 3개 + #13 4개) — #13 서브트리 완성
-직전 완성: 13d. Reranker & Query Transformer & Compressor
-           (Page ID: 340072b5-48c3-81c8-a2d1-d54fcc70cfb9)
-다음 예정: 14. Document Ingestion 파이프라인
+시작 시각: 2026-04-13 (iteration 21 완료 — Document Ingestion 페이지)
+현재 진행률: 14 / 53 main + 하위 7 (#7 3개 + #13 4개)
+직전 완성: 14. Document Ingestion 파이프라인
+           (Page ID: 340072b5-48c3-81ca-aeb5-fc46a5018c3a)
+다음 예정: 15. Conversation Memory (계층적)
 
 verification 집계:
-  total_claims_checked: 460
-  total_claims_verified: 460
+  total_claims_checked: 488
+  total_claims_verified: 488
   total_claims_failed: 0
   fix_attempts_total: 1
-  pages_done: 20 (main 13 + 하위 7)
+  pages_done: 21 (main 14 + 하위 7)
   pages_verification_failed: 0
   create_retries: 1
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
 Phase 2 완료 — Agent 실행 엔진 7/7 main (+ #7 하위 3개)
-Phase 3 진행 — 지식 & 메모리 1/4 main (#13 parent + 13a/13b/13c/13d 모두 DONE) → 다음 #14
+Phase 3 진행 — 지식 & 메모리 2/4 main (#13+13a~d + #14 DONE, #15/#16 대기)
 ```
 
 ## 부록 B — 실수 방지 체크
