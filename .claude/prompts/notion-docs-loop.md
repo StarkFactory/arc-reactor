@@ -105,7 +105,10 @@
 | # | 제목 | Status | Page ID |
 |---|---|---|---|
 | 6 | Agent 실행 아키텍처 개요 | DONE | `340072b5-48c3-812d-a8ce-e2bee6aeaac9` |
-| 7 | ReAct 실행 루프 | IN_PROGRESS | _pending_ |
+| 7 | ReAct 실행 루프 (overview) | DONE | `340072b5-48c3-81b9-83c5-d981c6043095` |
+| 7a | ├ ReAct — 기본 흐름 & 루프 단계 | IN_PROGRESS | _pending_ |
+| 7b | ├ ReAct — Budget 추적 & 소진 처리 | TODO | _pending_ |
+| 7c | └ ReAct — Tool 에러 & 재시도 | TODO | _pending_ |
 | 8 | Streaming 실행 경로 | TODO | _pending_ |
 | 9 | Plan-Execute 모드 | TODO | _pending_ |
 | 10 | Tool 시스템 & 병렬 실행 | TODO | _pending_ |
@@ -726,22 +729,22 @@ verification:
 ## 부록 A — 현재 저장된 진행 로그 (매 iteration 갱신)
 
 ```
-시작 시각: 2026-04-13 (iteration 6 완료 — Phase 2 시작)
-현재 진행률: 6 / 53 (+ 하위 페이지 0)
-직전 완성: 6. Agent 실행 아키텍처 개요
-           (Page ID: 340072b5-48c3-812d-a8ce-e2bee6aeaac9)
-다음 예정: 7. ReAct 실행 루프
+시작 시각: 2026-04-13 (iteration 7 완료 — #7 §16 분리 결정)
+현재 진행률: 7 / 53 (+ 하위 페이지 0/3)
+직전 완성: 7. ReAct 실행 루프 (overview parent)
+           (Page ID: 340072b5-48c3-81b9-83c5-d981c6043095)
+다음 예정: 7a. ReAct — 기본 흐름 & 루프 단계 (첫 하위 페이지)
 
 verification 집계:
-  total_claims_checked: 139
-  total_claims_verified: 139
+  total_claims_checked: 159
+  total_claims_verified: 159
   total_claims_failed: 0
-  fix_attempts_total: 1  (#6 파일 수 46→45 정정)
-  pages_done: 6
+  fix_attempts_total: 1
+  pages_done: 7
   pages_verification_failed: 0
 
 Phase 1 완료 — 기초 & 제품 포지셔닝 5/5
-Phase 2 진행 — Agent 실행 엔진 1/7
+Phase 2 진행 — Agent 실행 엔진 2/7 (#7은 parent + 3 sub 예정)
 ```
 
 ## 부록 B — 실수 방지 체크
